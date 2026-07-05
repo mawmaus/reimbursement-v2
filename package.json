@@ -1,0 +1,22 @@
+{
+  "name": "reimbursement-portal",
+  "version": "2.0.0",
+  "description": "Reimbursement claim portal — Vercel (Neon Postgres + Blob) build",
+  "type": "commonjs",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "setup-db": "node scripts/setup-db.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "@vercel/blob": "^2.0.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-session": "^2.1.0",
+    "express": "^4.21.2",
+    "multer": "^2.0.1"
+  }
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reimbursement Portal</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginView" class="login-wrap">
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-mark">R</div>
+      <div>
+        <h1>Reimbursement Portal</h1>
+        <p class="muted">Sign in to submit, approve, or process claims.</p>
+      </div>
+    </div>
+    <form id="loginForm" class="form" autocomplete="on">
+      <label>Username
+        <input name="username" type="text" required autocomplete="username" />
+      </label>
+      <label>Password
+        <input name="password" type="password" required autocomplete="current-password" />
+      </label>
+      <p id="loginError" class="form-error" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+    <p class="login-hint muted" id="loginHint"></p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appView" hidden>
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-mark">R</span>
+      <span class="topbar-title">Reimbursement Portal</span>
+    </div>
+    <div class="topbar-right">
+      <span id="userBadge" class="user-badge"></span>
+      <button id="passwordBtn" class="btn btn-ghost btn-sm">Password</button>
+      <button id="usersBtn" class="btn btn-ghost btn-sm" hidden>Users</button>
+      <button id="logoutBtn" class="btn btn-ghost btn-sm">Sign out</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="summaryCards" class="cards"></section>
+
+    <section class="toolbar">
+      <div class="toolbar-left">
+        <input id="searchInput" class="input" type="search" placeholder="Search claim no, name, type…" />
+        <select id="statusFilter" class="input">
+          <option value="">All statuses</option>
+          <option value="submitted">Pending review</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="paid">Paid</option>
+        </select>
+        <select id="deptFilter" class="input"><option value="">All departments</option></select>
+      </div>
+      <div class="toolbar-right">
+        <button id="exportBtn" class="btn btn-ghost" hidden>Export CSV</button>
+        <button id="newClaimBtn" class="btn btn-primary">New claim</button>
+      </div>
+    </section>
+
+    <section class="ledger">
+      <div class="ledger-head">
+        <span class="col-spine"></span>
+        <span class="col-no">Claim</span>
+        <span class="col-name">Claimant</span>
+        <span class="col-type">Expense</span>
+        <span class="col-date">Date</span>
+        <span class="col-amt">Amount</span>
+        <span class="col-status">Status</span>
+      </div>
+      <div id="claimRows"></div>
+      <p id="emptyState" class="empty muted" hidden>No claims yet.</p>
+    </section>
+  </main>
+</div>
+
+<!-- DRAWER (claim detail) -->
+<div id="drawerScrim" class="scrim" hidden></div>
+<aside id="drawer" class="drawer" hidden aria-label="Claim detail"></aside>
+
+<!-- MODAL (forms) -->
+<div id="modalScrim" class="scrim" hidden></div>
+<div id="modal" class="modal" hidden role="dialog" aria-modal="true"></div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
