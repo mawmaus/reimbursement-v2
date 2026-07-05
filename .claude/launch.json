@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "reimbursement",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-r", "./.claude/loadenv.js", "server.js"],
+      "port": 3000
+    },
+    {
+      "name": "reimbursement-preview",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "--env-file=C:/Users/A/AppData/Local/Temp/claude/C--Users-A-Downloads-Reimbursement-v2/b3788db4-142c-4a91-b140-038c10223a70/scratchpad/preview.env",
+        "server.js"
+      ],
+      "port": 3100
+    }
+  ]
+}

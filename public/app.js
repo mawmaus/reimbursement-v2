@@ -73,14 +73,26 @@ function showApp() {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
   const u = state.user;
-  $('#userBadge').innerHTML = `${esc(u.full_name)}<span class="role">${esc(u.role)}</span>`;
-  const canCreate = ['employee', 'manager', 'finance', 'admin'].includes(u.role);
-  $('#newClaimBtn').hidden = !canCreate;
-  $('#exportBtn').hidden = !['finance', 'admin'].includes(u.role);
-  $('#settingsBtn').hidden = u.role !== 'admin';
+  // Role is intentionally not shown in the UI after login.
+  $('#userBadge').innerHTML = `${esc(u.full_name)}`;
+  $('#newClaimBtn').hidden = false;
+  $('#exportBtn').hidden = u.role !== 'superadmin';
+  $('#settingsBtn').hidden = u.role !== 'superadmin';
   loadLookups();
   loadAll();
 }
+
+// Show/hide password toggle for any .pw-toggle button next to a password input.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.pw-toggle');
+  if (!btn) return;
+  const input = btn.parentElement.querySelector('input');
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.classList.toggle('on', show);
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+});
 
 // Active departments + expense types drive the claim form dropdowns.
 async function loadLookups() {
@@ -192,24 +204,15 @@ function closeDrawer() { $('#drawer').hidden = true; $('#drawerScrim').hidden = 
 $('#drawerScrim').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); closeModal(); } });
 
-// Mirror of the server's userCanApproveStep — decides whether to show actions.
-function canApproveStep(u, c) {
-  if (u.role === 'admin') return true;
-  if (c.chain_id && c.approval_steps.length) {
-    const step = c.approval_steps[c.current_step - 1];
-    if (!step) return false;
-    if (step.position_name) return !!u.position && u.position === step.position_name;
-    return u.role === 'manager';
-  }
-  return u.role === 'manager';
+// Mirror of the server's userCanApprove — decides whether to show actions.
+function canApprove(u, c) {
+  if (u.role === 'superadmin') return true;
+  const ids = (c.approvers || []).map(a => a.id);
+  if (!ids.length) return false;
+  return ids[(c.current_step || 1) - 1] === u.id;
 }
-function pendingStepLabel(c) {
-  if (!(c.chain_id && c.approval_steps.length)) return '';
-  const step = c.approval_steps[c.current_step - 1];
-  return step ? step.label : '';
-}
-// State of chain step n (1-based) given the claim's status/current step.
-function stepState(c, n) {
+// State of approver step n (1-based) given the claim's status/current step.
+function stepStateFor(c, n) {
   if (c.status === 'approved' || c.status === 'paid') return 'done';
   if (c.status === 'rejected') return n < c.current_step ? 'done' : (n === c.current_step ? 'rejected' : 'pending');
   return n < c.current_step ? 'done' : (n === c.current_step ? 'current' : 'pending');
@@ -233,15 +236,14 @@ async function openDrawer(id) {
     <div class="note-box"><div class="nb-label">Returned by manager</div>
       <div>${esc(c.manager_comment)}</div></div>` : '';
 
-  const progress = c.approval_steps.length ? `
-    <div class="section-label">Approval chain${c.chain_name ? ' · ' + esc(c.chain_name) : ''}</div>
+  const progress = (c.approvers && c.approvers.length) ? `
+    <div class="section-label">Approval chain</div>
     <ol class="chain-progress">
-      ${c.approval_steps.map((s, idx) => {
-        const st = stepState(c, idx + 1);
+      ${c.approvers.map((a, idx) => {
+        const st = stepStateFor(c, idx + 1);
         return `<li class="cp ${st}">
           <span class="cp-dot">${st === 'done' ? '✓' : (st === 'rejected' ? '×' : idx + 1)}</span>
-          <div class="cp-body"><div class="cp-label">${esc(s.label)}</div>
-            ${s.position_name ? `<div class="cp-pos">${esc(s.position_name)}</div>` : ''}</div>
+          <div class="cp-body"><div class="cp-label">${esc(a.name)}</div></div>
           <span class="cp-state">${STEP_STATE_LABEL[st]}</span></li>`;
       }).join('')}
     </ol>` : '';
@@ -257,11 +259,10 @@ async function openDrawer(id) {
 
   // role/status based actions
   let actions = '';
-  if (c.status === 'submitted' && canApproveStep(u, c)) {
-    const stepLabel = pendingStepLabel(c);
-    actions = `<button class="btn btn-approve" data-act="approve">Approve${stepLabel ? ' — ' + esc(stepLabel) : ''}</button>
+  if (c.status === 'submitted' && canApprove(u, c)) {
+    actions = `<button class="btn btn-approve" data-act="approve">Approve</button>
                <button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`;
-  } else if ((u.role === 'finance' || u.role === 'admin') && c.status === 'approved') {
+  } else if (u.role === 'superadmin' && c.status === 'approved') {
     actions = `<button class="btn btn-primary" data-act="paid">Mark as paid</button>`;
   } else if (isOwner && c.status === 'rejected') {
     actions = `<button class="btn btn-primary" data-act="edit">Edit &amp; resubmit</button>`;
@@ -354,7 +355,11 @@ function openClaimModal(existing = null) {
   const isEdit = !!existing;
   pendingFiles = [];
   const v = existing || {
-    claimant_name: u.full_name, department: u.department, currency: 'IDR',
+    claimant_name: u.full_name,
+    // Only prefill the department if it is a registered one; otherwise leave it
+    // for the user to pick from the list.
+    department: state.lookups.departments.includes(u.department) ? u.department : '',
+    currency: 'IDR',
     expense_date: new Date().toISOString().slice(0, 10)
   };
   openModal(`
@@ -369,9 +374,6 @@ function openClaimModal(existing = null) {
           <label>Date<input name="expense_date" type="date" required value="${esc(v.expense_date || '')}" /></label>
           ${lookupField('department', 'Department', v.department, state.lookups.departments)}
           ${lookupField('expense_type', 'Type of expense', v.expense_type, state.lookups.expense_types, 'placeholder="Travel, Meals, Supplies…"')}
-          <label>Bank name<input name="bank_name" required value="${esc(v.bank_name || '')}" /></label>
-          <label>Recipient name<input name="recipient_name" required value="${esc(v.recipient_name || '')}" /></label>
-          <label>Bank account no.<input name="bank_account_no" required inputmode="numeric" value="${esc(v.bank_account_no || '')}" /></label>
           <label>Amount
             <div style="display:flex;gap:6px">
               <input name="currency" style="max-width:80px" value="${esc(v.currency || 'IDR')}" />
@@ -523,16 +525,15 @@ $('#passwordBtn').addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Admin: Settings (accounts, departments, positions, expense types, chains)
+// Admin: Settings (accounts, departments, positions, expense types)
 // ---------------------------------------------------------------------------
 const SETTINGS_TABS = [
   { key: 'accounts', label: 'Accounts' },
   { key: 'departments', label: 'Departments' },
   { key: 'positions', label: 'Job positions' },
-  { key: 'expense-types', label: 'Expense types' },
-  { key: 'chains', label: 'Approval chains' }
+  { key: 'expense-types', label: 'Expense types' }
 ];
-const settingsState = { tab: 'accounts', positions: [], departments: [] };
+const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 
@@ -558,7 +559,6 @@ function renderSettingsTab() {
   settingsState.departments = state.lookups.departments;
   panel.innerHTML = '<p class="muted" style="padding:20px 0">Loading…</p>';
   if (settingsState.tab === 'accounts') return renderAccountsTab();
-  if (settingsState.tab === 'chains') return renderChainsTab();
   const cfg = {
     departments: { path: '/departments', noun: 'department' },
     positions: { path: '/positions', noun: 'job position' },
@@ -625,7 +625,7 @@ async function renderAccountsTab() {
     [{ users }, { items: positions }] = await Promise.all([api('/users'), api('/positions')]);
   } catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   settingsState.positions = positions.map(p => p.name);
-  positionIndex = {}; positions.forEach(p => { positionIndex[p.name] = p.id; });
+  settingsState.users = users;
 
   panel.innerHTML = `
     <table class="utable">
@@ -657,151 +657,98 @@ function optionSelect(name, value, options) {
   </select>`;
 }
 
+// One <select> of the created users (value = user id) for an approver row.
+// The account being edited is excluded so it can't approve its own claims.
+function approverRowSelect(i, value, excludeId) {
+  const cur = value == null ? '' : String(value);
+  return `<select name="appr_${i}">
+    <option value="">— select user —</option>
+    ${settingsState.users
+      .filter(x => x.id !== excludeId)
+      .map(x => `<option value="${x.id}" ${String(x.id) === cur ? 'selected' : ''}>${
+        esc(x.full_name)} (${esc(x.username)})</option>`).join('')}
+  </select>`;
+}
+
+// Ordered list of approver ids (as strings) being edited on the account form.
+let acctApprovers = [];
+function renderApproverRows(excludeId) {
+  const wrap = $('#approverRows');
+  wrap.innerHTML = acctApprovers.length ? acctApprovers.map((val, i) => `
+    <div class="line-row" data-i="${i}">
+      <span class="line-step">${i + 1}</span>
+      ${approverRowSelect(i, val, excludeId)}
+      <button type="button" class="x-btn" data-rm="${i}" aria-label="Remove approver">×</button>
+    </div>`).join('') : '<p class="muted" style="font-size:.85rem;margin:4px 0">No approvers — only a Super Admin can approve.</p>';
+  $$('#approverRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    syncApproverRows(); acctApprovers.splice(+b.dataset.rm, 1); renderApproverRows(excludeId);
+  }));
+}
+// Read the current selects back into acctApprovers before re-render/submit.
+function syncApproverRows() {
+  $$('#approverRows .line-row').forEach(row => {
+    const i = +row.dataset.i;
+    acctApprovers[i] = row.querySelector(`[name="appr_${i}"]`).value;
+  });
+}
+
 function renderUserForm(u) {
   const isEdit = !!u;
+  const excludeId = isEdit ? u.id : null;
+  acctApprovers = isEdit ? (u.approver_ids || []).map(String) : [];
   $('#userForm').innerHTML = `
     <form id="uForm" class="form" style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
       <h3 style="font-size:.95rem">${isEdit ? 'Edit ' + esc(u.username) : 'New user'}</h3>
       <div class="grid2">
-        ${isEdit ? '' : `<label>Username<input name="username" required /></label>`}
+        <label>Username<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
         <label>Full name<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
         <label>Role
           <select name="role">
-            ${['employee', 'manager', 'finance', 'admin'].map(r =>
-              `<option value="${r}" ${isEdit && u.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+            <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>Super Admin</option>
+            <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>User</option>
           </select></label>
         <label>Department${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>Job position${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
-        <label>${isEdit ? 'Reset password (optional)' : 'Password'}<input name="password" type="password" ${isEdit ? '' : 'required'} /></label>
+        <label>${isEdit ? 'Reset password (optional)' : 'Password'}
+          <div class="pw-wrap">
+            <input name="password" type="password" ${isEdit ? '' : 'required'} />
+            <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+          </div></label>
         ${isEdit ? `<label>Active<select name="active"><option value="1" ${u.active ? 'selected' : ''}>Yes</option><option value="0" ${!u.active ? 'selected' : ''}>No</option></select></label>` : ''}
+      </div>
+      <div class="section-label" style="margin-top:8px">Approval chain (approvers, in order)</div>
+      <div id="approverRows"></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="addApproverBtn" style="margin-top:8px">+ Add approver</button>
+      <div class="section-label" style="margin-top:8px">Bank / payout details</div>
+      <div class="grid2">
+        <label>Bank name<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>
+        <label>Recipient name<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
+        <label>Bank account no.<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
       </div>
       <p class="form-error" id="uErr" hidden></p>
       <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Save' : 'Create'}</button></div>
     </form>`;
+  renderApproverRows(excludeId);
+  $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
   $('#uForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    syncApproverRows();
     const fd = new FormData(e.target);
-    const payload = Object.fromEntries(fd.entries());
-    if (isEdit && !payload.password) delete payload.password;
+    const payload = {
+      username: fd.get('username'), full_name: fd.get('full_name'), role: fd.get('role'),
+      department: fd.get('department') || '', position: fd.get('position') || '',
+      bank_name: fd.get('bank_name') || '', recipient_name: fd.get('recipient_name') || '',
+      bank_account_no: fd.get('bank_account_no') || '',
+      approver_ids: acctApprovers.filter(Boolean).map(Number)
+    };
+    if (isEdit) payload.active = fd.get('active');
+    const pw = fd.get('password');
+    if (pw && (!isEdit || pw.length)) payload.password = pw;
     try {
       if (isEdit) await api('/users/' + u.id, { method: 'PUT', body: JSON.stringify(payload) });
       else await api('/users', { method: 'POST', body: JSON.stringify(payload) });
       toast('User saved'); renderAccountsTab();
     } catch (ex) { const el = $('#uErr'); el.textContent = ex.message; el.hidden = false; }
-  });
-}
-
-// --- Approval chains ---------------------------------------------------------
-async function renderChainsTab() {
-  const panel = $('#settingsPanel');
-  let chains, positions;
-  try {
-    [{ chains }, { items: positions }] = await Promise.all([api('/approval-chains'), api('/positions')]);
-  } catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  settingsState.positions = positions.map(p => p.name);
-  positionIndex = {}; positions.forEach(p => { positionIndex[p.name] = p.id; });
-
-  panel.innerHTML = `
-    ${chains.length ? chains.map(ch => `
-      <div class="chain-card" data-id="${ch.id}">
-        <div class="chain-head">
-          <div>
-            <strong>${esc(ch.name)}</strong>
-            ${ch.department ? `<span class="chain-dept">${esc(ch.department)}</span>` : '<span class="chain-dept muted">All departments</span>'}
-            ${ch.active ? '' : '<span class="pill rejected" style="margin-left:6px">Inactive</span>'}
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" data-edit-chain="${ch.id}">Edit</button>
-            <button class="btn btn-ghost btn-sm" data-del-chain="${ch.id}">Delete</button>
-          </div>
-        </div>
-        <ol class="chain-lines">${ch.lines.length
-          ? ch.lines.map(l => `<li>${esc(l.approver_label || l.position_name || 'Approver')}${
-              l.position_name && l.approver_label ? ` <span class="muted">· ${esc(l.position_name)}</span>` : ''}</li>`).join('')
-          : '<li class="muted">No approval steps defined.</li>'}</ol>
-      </div>`).join('') : '<p class="muted" style="padding:10px 0">No approval chains yet.</p>'}
-    <div style="margin-top:16px"><button class="btn btn-primary btn-sm" id="addChainBtn">+ New approval chain</button></div>
-    <div id="chainForm"></div>`;
-
-  $('#addChainBtn').addEventListener('click', () => renderChainForm(null));
-  $$('#settingsPanel [data-edit-chain]').forEach(b =>
-    b.addEventListener('click', () => renderChainForm(chains.find(c => c.id == b.dataset.editChain))));
-  $$('#settingsPanel [data-del-chain]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('Delete this approval chain and its steps?')) return;
-    try { await api('/approval-chains/' + b.dataset.delChain, { method: 'DELETE' }); toast('Deleted'); renderChainsTab(); }
-    catch (ex) { toast(ex.message, true); }
-  }));
-}
-
-let chainLines = [];
-function renderChainForm(ch) {
-  const isEdit = !!ch;
-  chainLines = isEdit && ch.lines.length
-    ? ch.lines.map(l => ({ position: l.position_name || '', approver_label: l.approver_label || '' }))
-    : [{ position: '', approver_label: '' }];
-  $('#chainForm').innerHTML = `
-    <form id="cForm" class="form" style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-      <h3 style="font-size:.95rem">${isEdit ? 'Edit ' + esc(ch.name) : 'New approval chain'}</h3>
-      <div class="grid2">
-        <label>Chain name<input name="name" required value="${isEdit ? esc(ch.name) : ''}" /></label>
-        <label>Department (optional)${optionSelect('department', isEdit ? ch.department : '', settingsState.departments)}</label>
-        ${isEdit ? `<label>Active<select name="active"><option value="1" ${ch.active ? 'selected' : ''}>Yes</option><option value="0" ${!ch.active ? 'selected' : ''}>No</option></select></label>` : ''}
-      </div>
-      <div class="section-label" style="margin-top:8px">Approval steps (in order)</div>
-      <div id="lineRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm" id="addLineBtn" style="margin-top:8px">+ Add step</button>
-      <p class="form-error" id="cErr" hidden></p>
-      <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Save chain' : 'Create chain'}</button></div>
-    </form>`;
-  renderLineRows();
-  $('#addLineBtn').addEventListener('click', () => { chainLines.push({ position: '', approver_label: '' }); renderLineRows(); });
-  $('#cForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    syncLineRows();
-    const fd = new FormData(e.target);
-    const lines = chainLines
-      .filter(l => l.position || l.approver_label)
-      .map((l, i) => ({ step_order: i + 1, approver_label: l.approver_label, position_name: l.position }));
-    // Map position names to ids via the loaded positions list.
-    const payload = {
-      name: fd.get('name'), department: fd.get('department') || '',
-      lines: lines.map(l => ({ step_order: l.step_order, approver_label: l.approver_label,
-        position_id: positionIdByName(l.position_name) }))
-    };
-    if (isEdit) payload.active = fd.get('active');
-    try {
-      if (isEdit) await api('/approval-chains/' + ch.id, { method: 'PUT', body: JSON.stringify(payload) });
-      else await api('/approval-chains', { method: 'POST', body: JSON.stringify(payload) });
-      toast('Approval chain saved'); renderChainsTab();
-    } catch (ex) { const el = $('#cErr'); el.textContent = ex.message; el.hidden = false; }
-  });
-}
-
-let positionIndex = {};
-function positionIdByName(name) { return name && positionIndex[name] != null ? positionIndex[name] : null; }
-
-function renderLineRows() {
-  $('#lineRows').innerHTML = chainLines.map((l, i) => `
-    <div class="line-row" data-i="${i}">
-      <span class="line-step">${i + 1}</span>
-      ${optionSelect(`pos_${i}`, l.position, settingsState.positions)}
-      <input name="lbl_${i}" placeholder="Approver label (e.g. Direct manager)" value="${esc(l.approver_label)}" />
-      <button type="button" class="x-btn" data-rm="${i}" aria-label="Remove step">×</button>
-    </div>`).join('');
-  $$('#lineRows [data-rm]').forEach(b => b.addEventListener('click', () => {
-    syncLineRows(); chainLines.splice(+b.dataset.rm, 1);
-    if (!chainLines.length) chainLines.push({ position: '', approver_label: '' });
-    renderLineRows();
-  }));
-}
-// Read the current DOM values back into chainLines before re-render/submit.
-function syncLineRows() {
-  $$('#lineRows .line-row').forEach(row => {
-    const i = +row.dataset.i;
-    chainLines[i] = {
-      position: row.querySelector(`[name="pos_${i}"]`).value,
-      approver_label: row.querySelector(`[name="lbl_${i}"]`).value.trim()
-    };
   });
 }
 

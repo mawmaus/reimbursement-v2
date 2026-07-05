@@ -1,24 +1,25 @@
 :root {
-  /* Palette — deep pine ledger on warm paper */
-  --ink:        #1d2620;
-  --ink-soft:   #4a5750;
-  --muted:      #7d8a82;
-  --line:       #e0ddd2;
-  --line-soft:  #ece9df;
-  --paper:      #f6f4ec;
-  --surface:    #fffdf7;
-  --pine:       #1f5a4c;
-  --pine-deep:  #173f35;
-  --pine-tint:  #e7efe9;
-  --amber:      #b27718;
+  /* Palette — Cibes Lift Group: orange brand on clean neutral paper.
+     (--pine* names are kept as the brand accent to avoid churn.) */
+  --ink:        #2a2a2c;
+  --ink-soft:   #55555c;
+  --muted:      #8b8b93;
+  --line:       #e7e6e3;
+  --line-soft:  #f1f0ed;
+  --paper:      #f5f4f2;
+  --surface:    #ffffff;
+  --pine:       #f0871d;
+  --pine-deep:  #d9760c;
+  --pine-tint:  #fdecd6;
+  --amber:      #b5771a;
   --amber-tint: #f8ecd4;
   --green:      #2f7d55;
   --green-tint: #e2f0e6;
-  --red:        #a8392f;
-  --red-tint:   #f7e3df;
+  --red:        #c0392b;
+  --red-tint:   #f9e4e1;
   --indigo:     #3f5896;
   --indigo-tint:#e6e9f5;
-  --shadow:     0 8px 30px -12px rgba(23,63,53,.28);
+  --shadow:     0 8px 30px -12px rgba(40,40,45,.26);
 
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -80,12 +81,30 @@ input[type="search"] { min-width: 220px; }
   border: 1px solid var(--line); border-radius: 16px; padding: 30px;
   box-shadow: var(--shadow);
 }
-.brand { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 22px; }
+.brand { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
 .brand-mark, .topbar-mark {
   display: grid; place-items: center; width: 42px; height: 42px; flex: none;
   background: var(--pine); color: #fff; border-radius: 11px; font-size: 1.3rem; font-weight: 700;
 }
+/* Cibes wordmark (stands in for the logo) */
+.wordmark {
+  flex: none; color: var(--pine); font-weight: 800; font-size: 1.9rem;
+  letter-spacing: -.02em; line-height: 1; user-select: none;
+}
+.wordmark-sm { font-size: 1.4rem; }
+.wordmark-accent { color: inherit; }
 .brand h1 { font-size: 1.18rem; }
+
+/* Password show/hide toggle */
+.pw-wrap { position: relative; display: flex; }
+.pw-wrap input { padding-right: 40px; }
+.pw-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; cursor: pointer; font-size: 1.05rem; line-height: 1;
+  padding: 4px 6px; opacity: .55; border-radius: 6px;
+}
+.pw-toggle:hover { opacity: .9; }
+.pw-toggle.on { opacity: 1; }
 .form { display: flex; flex-direction: column; gap: 14px; }
 .form label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 560; color: var(--ink-soft); }
 .form-error { color: var(--red); background: var(--red-tint); border-radius: 8px; padding: 9px 12px; margin: 0; font-size: .85rem; }

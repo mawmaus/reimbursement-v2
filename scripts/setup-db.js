@@ -18,7 +18,7 @@ async function main() {
     await sql.query(
       `INSERT INTO users (username, password_hash, full_name, role, department)
        VALUES ($1,$2,$3,$4,$5)`,
-      ['admin', bcrypt.hashSync(pass, 10), 'System Admin', 'admin', 'IT']);
+      ['admin', bcrypt.hashSync(pass, 10), 'System Admin', 'superadmin', '']);
     console.log(`Created administrator  →  username: admin   password: ${pass}`);
     console.log('Change this password after first sign-in.');
   } else {
