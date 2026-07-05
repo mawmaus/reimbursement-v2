@@ -231,6 +231,7 @@ input[type="search"] { min-width: 220px; }
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
   animation: pop .16s ease;
 }
+.modal.modal-wide { width: min(780px, calc(100% - 32px)); }
 @keyframes pop { from { transform: translate(-50%, -48%) scale(.98); opacity: 0; } }
 .modal-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; }

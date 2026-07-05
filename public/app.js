@@ -325,7 +325,7 @@ function openModal(html) {
   $('#modalScrim').hidden = false;
   $('#modal').hidden = false;
 }
-function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; }
+function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide'); }
 $('#modalScrim').addEventListener('click', closeModal);
 
 // ---------------------------------------------------------------------------
@@ -546,6 +546,7 @@ function openSettingsModal() {
       </div>
       <div id="settingsPanel"></div>
     </div>`);
+  $('#modal').classList.add('modal-wide');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $$('#settingsTabs .tab').forEach(b =>
     b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openSettingsModal(); }));
