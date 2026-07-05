@@ -24,6 +24,23 @@ async function main() {
   } else {
     console.log('Users already exist — left untouched.');
   }
+
+  // Seed the settings lookups from any values already present in the data so
+  // administrators start with a usable list. Safe to run repeatedly.
+  console.log('Backfilling settings lookups…');
+  await sql.query(
+    `INSERT INTO departments (name)
+     SELECT DISTINCT TRIM(department) FROM users
+     WHERE TRIM(department) <> ''
+     UNION
+     SELECT DISTINCT TRIM(department) FROM claims WHERE TRIM(department) <> ''
+     ON CONFLICT (name) DO NOTHING`);
+  await sql.query(
+    `INSERT INTO expense_types (name)
+     SELECT DISTINCT TRIM(expense_type) FROM claims
+     WHERE TRIM(expense_type) <> ''
+     ON CONFLICT (name) DO NOTHING`);
+
   console.log('Done.');
 }
 main().catch((e) => { console.error(e); process.exit(1); });

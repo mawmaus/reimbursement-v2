@@ -10,9 +10,12 @@ const SCHEMA = [
     full_name     TEXT NOT NULL,
     role          TEXT NOT NULL CHECK (role IN ('employee','manager','finance','admin')),
     department    TEXT NOT NULL DEFAULT '',
+    position      TEXT NOT NULL DEFAULT '',
     active        BOOLEAN NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Backfill the position column for databases created before it existed.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS position TEXT NOT NULL DEFAULT ''`,
   `CREATE TABLE IF NOT EXISTS claims (
     id              SERIAL PRIMARY KEY,
     claim_no        TEXT NOT NULL UNIQUE,
@@ -58,10 +61,51 @@ const SCHEMA = [
     comment     TEXT NOT NULL DEFAULT '',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // --- Settings / configuration lookups (managed by admins) ------------------
+  `CREATE TABLE IF NOT EXISTS departments (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS job_positions (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS expense_types (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  // An approval chain is a named, ordered sequence of approval steps ("lines").
+  // It can optionally be scoped to a single department.
+  `CREATE TABLE IF NOT EXISTS approval_chains (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    department TEXT NOT NULL DEFAULT '',
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  // Each line is one step: an approver identified by job position, plus a label.
+  `CREATE TABLE IF NOT EXISTS approval_lines (
+    id             SERIAL PRIMARY KEY,
+    chain_id       INTEGER NOT NULL REFERENCES approval_chains(id) ON DELETE CASCADE,
+    step_order     INTEGER NOT NULL,
+    position_id    INTEGER REFERENCES job_positions(id),
+    approver_label TEXT NOT NULL DEFAULT ''
+  )`,
+  // Route claims through an approval chain: which chain, and the pending step.
+  // (Added after approval_chains exists so the foreign key resolves.)
+  `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,
+  `ALTER TABLE claims ADD COLUMN IF NOT EXISTS current_step INTEGER NOT NULL DEFAULT 0`,
   `CREATE INDEX IF NOT EXISTS idx_claims_employee ON claims(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_status   ON claims(status)`,
   `CREATE INDEX IF NOT EXISTS idx_attach_claim    ON attachments(claim_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_history_claim   ON claim_history(claim_id)`
+  `CREATE INDEX IF NOT EXISTS idx_history_claim   ON claim_history(claim_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_appr_lines_chain ON approval_lines(chain_id)`
 ];
 
 module.exports = { SCHEMA };

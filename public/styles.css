@@ -201,6 +201,25 @@ input[type="search"] { min-width: 220px; }
 .timeline .t-comment { font-size: .88rem; margin-top: 3px; padding: 8px 10px; background: var(--paper);
   border-radius: 7px; border: 1px solid var(--line-soft); }
 
+/* approval chain progress (drawer) */
+.chain-progress { list-style: none; margin: 0; padding: 0; }
+.cp { display: flex; align-items: center; gap: 11px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.cp:last-child { border-bottom: none; }
+.cp-dot {
+  display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%;
+  font-size: .78rem; font-weight: 700; background: var(--line-soft); color: var(--muted);
+}
+.cp.done .cp-dot { background: var(--green); color: #fff; }
+.cp.current .cp-dot { background: var(--amber); color: #fff; }
+.cp.rejected .cp-dot { background: var(--red); color: #fff; }
+.cp-body { flex: 1; }
+.cp-label { font-weight: 560; font-size: .92rem; }
+.cp-pos { font-size: .78rem; color: var(--muted); }
+.cp-state { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--muted); }
+.cp.current .cp-state { color: var(--amber); }
+.cp.done .cp-state { color: var(--green); }
+.cp.rejected .cp-state { color: var(--red); }
+
 .note-box { background: var(--red-tint); border: 1px solid #e8c5bf; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
 .note-box .nb-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--red); }
 .drawer-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
@@ -239,6 +258,28 @@ input[type="search"] { min-width: 220px; }
 .utable { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .utable th, .utable td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
 .utable th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+
+/* ---------- Settings ---------- */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.tab {
+  font: inherit; font-weight: 560; cursor: pointer; background: none; border: none;
+  padding: 9px 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--pine); border-bottom-color: var(--pine); }
+
+.chain-card { border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; margin-bottom: 12px; background: var(--paper); }
+.chain-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.chain-dept { font-size: .78rem; color: var(--pine); background: var(--pine-tint); padding: 2px 8px; border-radius: 99px; margin-left: 8px; }
+.chain-lines { margin: 10px 0 0; padding-left: 22px; font-size: .9rem; display: flex; flex-direction: column; gap: 4px; }
+.chain-lines li { padding-left: 4px; }
+
+.line-row { display: grid; grid-template-columns: 26px 1fr 1.4fr 28px; align-items: center; gap: 8px; margin-bottom: 8px; }
+.line-step {
+  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--pine-tint); color: var(--pine-deep); font-size: .8rem; font-weight: 700;
+}
+.line-row select, .line-row input { padding: 7px 9px; }
 
 /* toast */
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 80;
