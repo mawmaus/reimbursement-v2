@@ -136,13 +136,16 @@ async function loadAll() {
 
 async function loadSummary() {
   try {
-    const { summary } = await api('/claims/summary');
+    // Combine reimbursement + meal allowance so the cards reflect everything
+    // in the shared ledger.
+    const [a, b] = await Promise.all([api('/claims/summary'), api('/meal-claims/summary')]);
+    const s = a.summary, m = b.summary;
     const cards = [
-      { k: 'submitted', l: 'Pending', n: summary.submitted },
-      { k: 'approved', l: 'Approved', n: summary.approved },
-      { k: 'rejected', l: 'Rejected', n: summary.rejected },
-      { k: 'paid', l: 'Paid', n: summary.paid },
-      { k: 'total', l: 'Total value', n: money(summary.total_amount, 'IDR') }
+      { k: 'submitted', l: 'Pending', n: s.submitted + m.submitted },
+      { k: 'approved', l: 'Approved', n: s.approved + m.approved },
+      { k: 'rejected', l: 'Rejected', n: s.rejected + m.rejected },
+      { k: 'paid', l: 'Paid', n: s.paid + m.paid },
+      { k: 'total', l: 'Total value', n: money(s.total_amount + m.total_amount, 'IDR') }
     ];
     $('#summaryCards').innerHTML = cards.map(c =>
       `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${c.l}</div></div>`
@@ -155,10 +158,24 @@ async function loadClaims() {
   if (state.filters.status) p.set('status', state.filters.status);
   if (state.filters.department) p.set('department', state.filters.department);
   if (state.filters.q) p.set('q', state.filters.q);
-  const { claims } = await api('/claims?' + p.toString());
-  state.claims = claims;
+  const qs = p.toString();
+  // Reimbursement + meal allowance claims share one ledger. Tag each with a
+  // type so rows, the drawer, and actions can branch to the right endpoints.
+  const [r, m] = await Promise.all([api('/claims?' + qs), api('/meal-claims?' + qs)]);
+  const reimb = (r.claims || []).map(c => ({ ...c, type: 'reimbursement' }));
+  const meal = (m.claims || []).map(c => ({ ...c, type: 'meal' }));
+  state.claims = [...reimb, ...meal].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
   renderDeptOptions();
   renderClaims();
+}
+
+// Uniform row display fields for the two claim types.
+function rowView(c) {
+  if (c.type === 'meal') {
+    const first = (c.lines && c.lines[0] && c.lines[0].line_date) || (c.created_at || '').slice(0, 10);
+    return { typeLabel: 'Meal allowance', date: first, amount: c.total_amount };
+  }
+  return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount };
 }
 
 function renderDeptOptions() {
@@ -174,18 +191,20 @@ function renderClaims() {
   const wrap = $('#claimRows');
   if (!state.claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; return; }
   $('#emptyState').hidden = true;
-  wrap.innerHTML = state.claims.map(c => `
-    <div class="ledger-row" data-id="${c.id}" tabindex="0" role="button">
+  wrap.innerHTML = state.claims.map(c => {
+    const v = rowView(c);
+    return `
+    <div class="ledger-row" data-id="${c.id}" data-type="${c.type}" tabindex="0" role="button">
       <span class="row-spine ${c.status}"></span>
       <span class="col-no">${esc(c.claim_no)}</span>
       <span class="col-name">${esc(c.claimant_name)}</span>
-      <span class="col-type">${esc(c.expense_type)}</span>
-      <span class="col-date mono">${esc(c.expense_date)}</span>
-      <span class="col-amt">${esc(money(c.amount, c.currency))}</span>
+      <span class="col-type">${esc(v.typeLabel)}</span>
+      <span class="col-date mono">${esc(v.date)}</span>
+      <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
       <span class="col-status"><span class="pill ${c.status}">${STATUS_LABEL[c.status]}</span></span>
-    </div>`).join('');
+    </div>`; }).join('');
   $$('.ledger-row', wrap).forEach(el => {
-    const open = () => openDrawer(el.dataset.id);
+    const open = () => openDrawer(el.dataset.id, el.dataset.type);
     el.addEventListener('click', open);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
@@ -222,24 +241,10 @@ function stepStateFor(c, n) {
 }
 const STEP_STATE_LABEL = { done: 'Approved', current: 'Pending', rejected: 'Rejected', pending: 'Upcoming' };
 
-async function openDrawer(id) {
-  const { claim: c } = await api('/claims/' + id);
-  const u = state.user;
-  const isOwner = c.employee_id === u.id;
-
-  const attachments = c.attachments.length ? `
-    <div class="section-label">Attachments</div>
-    <ul class="attach-list">
-      ${c.attachments.map(a => `
-        <li><a href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">
-          📎 <span>${esc(a.original_name)}</span><span class="fsize">${fmtBytes(a.size_bytes)}</span></a></li>`).join('')}
-    </ul>` : '<div class="section-label">Attachments</div><p class="muted">None uploaded.</p>';
-
-  const rejectedNote = (c.status === 'rejected' && c.manager_comment) ? `
-    <div class="note-box"><div class="nb-label">Returned by manager</div>
-      <div>${esc(c.manager_comment)}</div></div>` : '';
-
-  const progress = (c.approvers && c.approvers.length) ? `
+// --- Shared drawer builders (both claim types share these shapes) ------------
+function renderChainProgress(c) {
+  if (!c.approvers || !c.approvers.length) return '';
+  return `
     <div class="section-label">Approval chain</div>
     <ol class="chain-progress">
       ${c.approvers.map((a, idx) => {
@@ -249,9 +254,10 @@ async function openDrawer(id) {
           <div class="cp-body"><div class="cp-label">${esc(a.name)}</div></div>
           <span class="cp-state">${STEP_STATE_LABEL[st]}</span></li>`;
       }).join('')}
-    </ol>` : '';
-
-  const history = `
+    </ol>`;
+}
+function renderHistory(c) {
+  return `
     <div class="section-label">History</div>
     <ul class="timeline">
       ${c.history.map(h => `
@@ -259,17 +265,89 @@ async function openDrawer(id) {
           <div class="t-meta">${esc(h.actor_name)} · ${fmtDateTime(h.created_at)}</div>
           ${h.comment ? `<div class="t-comment">${esc(h.comment)}</div>` : ''}</li>`).join('')}
     </ul>`;
-
-  // role/status based actions
-  let actions = '';
+}
+function buildActions(c, u, isOwner) {
   if (c.status === 'submitted' && canApprove(u, c)) {
-    actions = `<button class="btn btn-approve" data-act="approve">Approve</button>
-               <button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`;
-  } else if (u.role === 'superadmin' && c.status === 'approved') {
-    actions = `<button class="btn btn-primary" data-act="paid">Mark as paid</button>`;
-  } else if (isOwner && c.status === 'rejected') {
-    actions = `<button class="btn btn-primary" data-act="edit">Edit &amp; resubmit</button>`;
+    return `<button class="btn btn-approve" data-act="approve">Approve</button>
+            <button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`;
   }
+  if (u.role === 'superadmin' && c.status === 'approved') {
+    return `<button class="btn btn-primary" data-act="paid">Mark as paid</button>`;
+  }
+  if (isOwner && c.status === 'rejected') {
+    return `<button class="btn btn-primary" data-act="edit">Edit &amp; resubmit</button>`;
+  }
+  return '';
+}
+
+// Body for a reimbursement claim: key/value details + attachments.
+function reimbursementBody(c) {
+  const attachments = c.attachments.length ? `
+    <div class="section-label">Attachments</div>
+    <ul class="attach-list">
+      ${c.attachments.map(a => `
+        <li><a href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">
+          📎 <span>${esc(a.original_name)}</span><span class="fsize">${fmtBytes(a.size_bytes)}</span></a></li>`).join('')}
+    </ul>` : '<div class="section-label">Attachments</div><p class="muted">None uploaded.</p>';
+  return `
+    <dl class="kv">
+      <dt>Claimant</dt><dd>${esc(c.claimant_name)}</dd>
+      <dt>Department</dt><dd>${esc(c.department)}</dd>
+      <dt>Expense type</dt><dd>${esc(c.expense_type)}</dd>
+      <dt>Expense date</dt><dd>${esc(c.expense_date)}</dd>
+      <dt>Amount</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
+      <dt>Recipient</dt><dd>${esc(c.recipient_name)}</dd>
+      <dt>Bank</dt><dd>${esc(c.bank_name)}</dd>
+      <dt>Account no.</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      ${c.description ? `<dt>Description</dt><dd>${esc(c.description)}</dd>` : ''}
+    </dl>
+    ${attachments}`;
+}
+
+// Body for a meal allowance claim: account/bank details + the line-item table.
+function mealBody(c) {
+  const rows = (c.lines || []).map(l => `
+    <tr>
+      <td class="mono">${esc(l.line_date)}</td>
+      <td>${esc(l.site)}</td>
+      <td>${esc(l.job_category)}</td>
+      <td class="meal-amt">${esc(money(l.amount, c.currency))}</td>
+      <td>${esc(l.description)}</td>
+    </tr>`).join('');
+  return `
+    <dl class="kv">
+      <dt>Claimant</dt><dd>${esc(c.claimant_name)}</dd>
+      ${c.department ? `<dt>Department</dt><dd>${esc(c.department)}</dd>` : ''}
+      <dt>Recipient</dt><dd>${esc(c.recipient_name)}</dd>
+      <dt>Bank</dt><dd>${esc(c.bank_name)}</dd>
+      <dt>Account no.</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+    </dl>
+    <div class="section-label">Meal allowance lines</div>
+    <div class="meal-table-wrap">
+      <table class="meal-table">
+        <thead><tr><th>Date</th><th>DB Number Site</th><th>Job Category</th><th>Amount</th><th>Additional Description</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5" class="muted" style="padding:12px">No lines.</td></tr>'}</tbody>
+        <tfoot><tr>
+          <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
+          <td class="meal-total">${esc(money(c.total_amount, c.currency))}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+async function openDrawer(id, type = 'reimbursement') {
+  const path = type === 'meal' ? '/meal-claims/' : '/claims/';
+  const { claim: c } = await api(path + id);
+  c.type = type;
+  const u = state.user;
+  const isOwner = c.employee_id === u.id;
+
+  const rejectedNote = (c.status === 'rejected' && c.manager_comment) ? `
+    <div class="note-box"><div class="nb-label">Returned by manager</div>
+      <div>${esc(c.manager_comment)}</div></div>` : '';
+  const body = type === 'meal' ? mealBody(c) : reimbursementBody(c);
+  const actions = buildActions(c, u, isOwner);
 
   $('#drawer').innerHTML = `
     <div class="drawer-head">
@@ -279,43 +357,32 @@ async function openDrawer(id) {
     </div>
     <div class="drawer-body">
       ${rejectedNote}
-      <dl class="kv">
-        <dt>Claimant</dt><dd>${esc(c.claimant_name)}</dd>
-        <dt>Department</dt><dd>${esc(c.department)}</dd>
-        <dt>Expense type</dt><dd>${esc(c.expense_type)}</dd>
-        <dt>Expense date</dt><dd>${esc(c.expense_date)}</dd>
-        <dt>Amount</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
-        <dt>Recipient</dt><dd>${esc(c.recipient_name)}</dd>
-        <dt>Bank</dt><dd>${esc(c.bank_name)}</dd>
-        <dt>Account no.</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-        ${c.description ? `<dt>Description</dt><dd>${esc(c.description)}</dd>` : ''}
-      </dl>
-      ${attachments}
-      ${progress}
-      ${history}
+      ${body}
+      ${renderChainProgress(c)}
+      ${renderHistory(c)}
       <div class="drawer-actions">${actions || '<span class="muted" style="font-size:.85rem">No actions available for your role at this stage.</span>'}</div>
     </div>`;
 
   $('#drawer .x-btn').addEventListener('click', closeDrawer);
-  const actBtns = $$('#drawer [data-act]');
-  actBtns.forEach(b => b.addEventListener('click', () => handleAction(b.dataset.act, c)));
+  $$('#drawer [data-act]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.act, c)));
 
   $('#drawerScrim').hidden = false;
   $('#drawer').hidden = false;
 }
 
 async function handleAction(act, c) {
+  const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
   try {
     if (act === 'approve') {
-      await api(`/claims/${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+      await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
       toast('Claim approved');
     } else if (act === 'paid') {
-      await api(`/claims/${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({}) });
+      await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({}) });
       toast('Marked as paid');
     } else if (act === 'reject') {
       return openRejectModal(c);
     } else if (act === 'edit') {
-      return openClaimModal(c);
+      return c.type === 'meal' ? openMealAllowanceModal(c) : openClaimModal(c);
     }
     closeDrawer(); loadAll();
   } catch (ex) { toast(ex.message, true); }
@@ -505,46 +572,91 @@ function renderMealRows() {
   }));
 }
 
-function openMealAllowanceModal() {
-  // Start with a handful of blank rows, like the paper form.
-  mealRows = Array.from({ length: 5 }, () => ({ date: '', site: '', category: '', amount: '', desc: '' }));
+function openMealAllowanceModal(existing = null) {
+  const isEdit = !!existing;
+  if (isEdit) {
+    // Prefill from the claim being resubmitted.
+    mealRows = (existing.lines || []).map(l => ({
+      date: l.line_date, site: l.site, category: l.job_category,
+      amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description
+    }));
+    if (!mealRows.length) mealRows = [{ date: '', site: '', category: '', amount: '', desc: '' }];
+  } else {
+    // Start with a handful of blank rows, like the paper form.
+    mealRows = Array.from({ length: 5 }, () => ({ date: '', site: '', category: '', amount: '', desc: '' }));
+  }
   openModal(`
     <div class="modal-head">
-      <h2>Meal Allowance Claim Form</h2>
+      <h2>${isEdit ? 'Edit &amp; resubmit meal allowance' : 'Meal Allowance Claim Form'}</h2>
       <button class="x-btn" aria-label="Close">×</button>
     </div>
     <div class="modal-body">
-      <div class="meal-table-wrap">
-        <table class="meal-table">
-          <thead>
-            <tr>
-              <th>Date</th><th>DB Number Site</th><th>Job Category</th>
-              <th>Amount</th><th>Additional Description</th><th aria-label="Remove"></th>
-            </tr>
-          </thead>
-          <tbody id="mealRows"></tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
-              <td class="meal-total" id="mealTotal">Rp 0</td>
-              <td colspan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      <button type="button" class="btn btn-ghost btn-sm" id="mealAddRow" style="margin-top:10px">+ Add row</button>
-      <div class="meal-note">
-        <strong>MEAL ALLOWANCE CLAIM</strong>
-        BODETABEK AREA — IDR 75.000,-
-        EXCLUDE BODETABEK AREA — IDR 120.000,-
-      </div>
+      <form id="mealForm" class="form">
+        <div class="meal-table-wrap">
+          <table class="meal-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>DB Number Site</th><th>Job Category</th>
+                <th>Amount</th><th>Additional Description</th><th aria-label="Remove"></th>
+              </tr>
+            </thead>
+            <tbody id="mealRows"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
+                <td class="meal-total" id="mealTotal">Rp 0</td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="mealAddRow" style="margin-top:10px">+ Add row</button>
+        ${isEdit ? `<label class="full" style="margin-top:10px">Note to manager (optional)
+          <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
+        <div class="meal-note">
+          <strong>MEAL ALLOWANCE CLAIM</strong>
+          BODETABEK AREA — IDR 75.000,-
+          EXCLUDE BODETABEK AREA — IDR 120.000,-
+        </div>
+        <p class="form-error" id="mealError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="mealCancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
+        </div>
+      </form>
     </div>`);
   $('#modal').classList.add('modal-wide');
   $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#mealCancel').addEventListener('click', closeModal);
   $('#mealAddRow').addEventListener('click', () => {
     readMealRows(); mealRows.push({ date: '', site: '', category: '', amount: '', desc: '' }); renderMealRows();
   });
+  $('#mealForm').addEventListener('submit', e => submitMealClaim(e, existing));
   renderMealRows();
+}
+
+async function submitMealClaim(e, existing) {
+  e.preventDefault();
+  readMealRows();
+  const err = $('#mealError'); err.hidden = true;
+  const lines = mealRows
+    .filter(r => r.date || r.site || r.category || r.desc || mealAmount(r.amount))
+    .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
+  if (!lines.length) { err.textContent = 'Add at least one line with a date and amount'; err.hidden = false; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  const payload = { lines };
+  if (existing) payload.resubmit_note = (new FormData(e.target).get('resubmit_note') || '').trim();
+  try {
+    if (existing) {
+      await api('/meal-claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
+      toast('Meal claim resubmitted');
+    } else {
+      await api('/meal-claims', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Meal claim submitted');
+    }
+    closeModal(); closeDrawer(); loadAll();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
 }
 $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 
@@ -570,8 +682,9 @@ function openRejectModal(c) {
   $('#rejectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const comment = new FormData(e.target).get('comment').trim();
+    const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
     try {
-      await api(`/claims/${c.id}/reject`, { method: 'POST', body: JSON.stringify({ comment }) });
+      await api(`${base}${c.id}/reject`, { method: 'POST', body: JSON.stringify({ comment }) });
       toast('Claim returned to claimant');
       closeModal(); closeDrawer(); loadAll();
     } catch (ex) { const el = $('#rejErr'); el.textContent = ex.message; el.hidden = false; }

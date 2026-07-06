@@ -124,6 +124,59 @@ const SCHEMA = [
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS current_step INTEGER NOT NULL DEFAULT 0`,
+  // --- Meal allowance claims -------------------------------------------------
+  // A meal allowance claim is a header plus many line items (one row per day on
+  // the paper "Meal Allowance Claim Form"). It follows the same submit → approve
+  // chain → reject/resubmit → paid workflow as reimbursement claims, using the
+  // submitter account's ordered approver list.
+  `CREATE TABLE IF NOT EXISTS meal_claims (
+    id              SERIAL PRIMARY KEY,
+    claim_no        TEXT NOT NULL UNIQUE,
+    employee_id     INTEGER NOT NULL REFERENCES users(id),
+    claimant_name   TEXT NOT NULL,
+    department      TEXT NOT NULL DEFAULT '',
+    bank_name       TEXT NOT NULL DEFAULT '',
+    recipient_name  TEXT NOT NULL DEFAULT '',
+    bank_account_no TEXT NOT NULL DEFAULT '',
+    total_cents     BIGINT NOT NULL DEFAULT 0 CHECK (total_cents >= 0),
+    currency        TEXT NOT NULL DEFAULT 'IDR',
+    status          TEXT NOT NULL DEFAULT 'submitted'
+                    CHECK (status IN ('submitted','approved','rejected','paid')),
+    manager_id      INTEGER REFERENCES users(id),
+    manager_comment TEXT NOT NULL DEFAULT '',
+    decided_at      TIMESTAMPTZ,
+    paid_by         INTEGER REFERENCES users(id),
+    paid_at         TIMESTAMPTZ,
+    approver_ids    INTEGER[] NOT NULL DEFAULT '{}',
+    current_step    INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS meal_claim_lines (
+    id            SERIAL PRIMARY KEY,
+    meal_claim_id INTEGER NOT NULL REFERENCES meal_claims(id) ON DELETE CASCADE,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    line_date     TEXT NOT NULL DEFAULT '',
+    site          TEXT NOT NULL DEFAULT '',
+    job_category  TEXT NOT NULL DEFAULT '',
+    amount_cents  BIGINT NOT NULL DEFAULT 0 CHECK (amount_cents >= 0),
+    description   TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS meal_claim_history (
+    id            SERIAL PRIMARY KEY,
+    meal_claim_id INTEGER NOT NULL REFERENCES meal_claims(id) ON DELETE CASCADE,
+    actor_id      INTEGER NOT NULL REFERENCES users(id),
+    actor_name    TEXT NOT NULL,
+    action        TEXT NOT NULL,
+    from_status   TEXT,
+    to_status     TEXT,
+    comment       TEXT NOT NULL DEFAULT '',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_meal_lines_claim   ON meal_claim_lines(meal_claim_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_meal_history_claim ON meal_claim_history(meal_claim_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_meal_claims_employee ON meal_claims(employee_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_meal_claims_status   ON meal_claims(status)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_employee ON claims(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_status   ON claims(status)`,
   `CREATE INDEX IF NOT EXISTS idx_attach_claim    ON attachments(claim_id)`,

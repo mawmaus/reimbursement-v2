@@ -518,6 +518,259 @@ app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) =
 }));
 
 // ---------------------------------------------------------------------------
+// Meal allowance claims
+// A header + line items, following the same submit → approve chain → reject /
+// resubmit → paid workflow as reimbursement claims (see userCanApprove).
+// ---------------------------------------------------------------------------
+async function nextMealClaimNo() {
+  const year = new Date().getFullYear();
+  const rows = await q('SELECT COUNT(*)::int AS n FROM meal_claims WHERE claim_no LIKE $1', [`MA-${year}-%`]);
+  return `MA-${year}-${String(Number(rows[0].n) + 1).padStart(4, '0')}`;
+}
+async function logMealHistory(claimId, actor, action, fromStatus, toStatus, comment = '') {
+  await q(
+    `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [claimId, actor.id, actor.full_name, action, fromStatus, toStatus, comment]);
+}
+// Validate + normalise the submitted line items. Fully-blank rows are dropped;
+// a kept row needs a date and a positive amount. Returns { lines, totalCents }.
+function normaliseMealLines(input) {
+  if (!Array.isArray(input)) return { error: 'Lines must be a list' };
+  const lines = [];
+  let totalCents = 0;
+  for (const raw of input) {
+    const r = raw || {};
+    const date = String(r.date || r.line_date || '').trim();
+    const site = String(r.site || '').trim();
+    const category = String(r.category || r.job_category || '').trim();
+    const description = String(r.desc || r.description || '').trim();
+    const cents = parseAmountToCents(r.amount);
+    const blank = !date && !site && !category && !description && (cents === null || cents === 0);
+    if (blank) continue;
+    if (!date) return { error: 'Every filled row needs a date' };
+    if (cents === null || cents <= 0) return { error: 'Every filled row needs a positive amount' };
+    totalCents += cents;
+    lines.push({ line_date: date, site, job_category: category, amount_cents: cents, description });
+  }
+  if (!lines.length) return { error: 'Add at least one line with a date and amount' };
+  return { lines, totalCents };
+}
+function baseMealClaim(row, lines, history, nameMap) {
+  return {
+    id: row.id, type: 'meal', claim_no: row.claim_no,
+    employee_id: row.employee_id, claimant_name: row.claimant_name,
+    department: row.department, bank_name: row.bank_name,
+    recipient_name: row.recipient_name, bank_account_no: row.bank_account_no,
+    total_amount: Number(row.total_cents) / 100, currency: row.currency,
+    status: row.status, manager_comment: row.manager_comment,
+    approvers: asIntArray(row.approver_ids).map(id => ({ id, name: (nameMap && nameMap[id]) || `User #${id}` })),
+    current_step: row.current_step || 0,
+    decided_at: iso(row.decided_at), paid_at: iso(row.paid_at),
+    created_at: iso(row.created_at), updated_at: iso(row.updated_at),
+    lines: (lines || []).map(l => ({
+      line_date: l.line_date, site: l.site, job_category: l.job_category,
+      amount: Number(l.amount_cents) / 100, description: l.description
+    })),
+    history: (history || []).map(h => ({
+      actor_name: h.actor_name, action: h.action, from_status: h.from_status,
+      to_status: h.to_status, comment: h.comment, created_at: iso(h.created_at)
+    }))
+  };
+}
+async function serializeManyMeal(rows) {
+  if (!rows.length) return [];
+  const ids = rows.map(r => r.id);
+  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
+  const lines = await q(
+    `SELECT * FROM meal_claim_lines WHERE meal_claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
+  const hist = await q(
+    `SELECT meal_claim_id, actor_name, action, from_status, to_status, comment, created_at
+     FROM meal_claim_history WHERE meal_claim_id IN (${ph}) ORDER BY id`, ids);
+  const l = groupBy(lines, 'meal_claim_id');
+  const h = groupBy(hist, 'meal_claim_id');
+  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
+  const nameMap = {};
+  if (approverIds.length) {
+    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
+    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
+    for (const u of us) nameMap[u.id] = u.full_name;
+  }
+  return rows.map(r => baseMealClaim(r, l[r.id], h[r.id], nameMap));
+}
+async function serializeOneMeal(row) { return (await serializeManyMeal([row]))[0]; }
+async function loadMealClaimOr404(req, res) {
+  const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [req.params.id]);
+  if (!rows[0]) { res.status(404).json({ error: 'Meal claim not found' }); return null; }
+  return rows[0];
+}
+
+app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
+  const { status, department, q: search } = req.query;
+  const where = [];
+  const params = [];
+  const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
+  if (req.user.role !== 'superadmin') {
+    params.push(req.user.id);
+    const p = `$${params.length}`;
+    where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
+  }
+  if (status) add('status = $$', status);
+  if (department) add('department = $$', department);
+  if (search) {
+    params.push(`%${search}%`);
+    const p = `$${params.length}`;
+    where.push(`(claim_no ILIKE ${p} OR claimant_name ILIKE ${p})`);
+  }
+  const rows = await q(
+    `SELECT * FROM meal_claims ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     ORDER BY created_at DESC, id DESC`, params);
+  res.json({ claims: await serializeManyMeal(rows) });
+}));
+
+app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
+  const scope = req.user.role === 'superadmin' ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
+  const params = req.user.role === 'superadmin' ? [] : [req.user.id];
+  const rows = await q(
+    `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(total_cents),0)::bigint AS total
+     FROM meal_claims ${scope} GROUP BY status`, params);
+  const summary = { submitted: 0, approved: 0, rejected: 0, paid: 0, total_amount: 0 };
+  for (const r of rows) {
+    summary[r.status] = Number(r.n);
+    summary.total_amount += Number(r.total) / 100;
+  }
+  res.json({ summary });
+}));
+
+app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+      && !asIntArray(row.approver_ids).includes(req.user.id)) {
+    return res.status(403).json({ error: 'You can only view your own meal claims' });
+  }
+  res.json({ claim: await serializeOneMeal(row) });
+}));
+
+async function insertMealClaim(req, lines, totalCents, approverIds) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const claimNo = await nextMealClaimNo();
+    try {
+      const rows = await q(
+        `INSERT INTO meal_claims
+          (claim_no, employee_id, claimant_name, department, bank_name, recipient_name,
+           bank_account_no, total_cents, currency, status, approver_ids, current_step)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11) RETURNING id`,
+        [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
+         String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
+         String(req.user.bank_account_no || '').trim(), totalCents, 'IDR',
+         intArrayLiteral(approverIds), approverIds.length ? 1 : 0]);
+      return rows[0].id;
+    } catch (e) {
+      const msg = String(e.message || '');
+      if (e.code === '23505' || msg.includes('claim_no') || msg.includes('duplicate')) continue;
+      throw e;
+    }
+  }
+  throw new Error('Could not allocate a claim number — please try again');
+}
+async function insertMealLines(claimId, lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    await q(
+      `INSERT INTO meal_claim_lines (meal_claim_id, sort_order, line_date, site, job_category, amount_cents, description)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [claimId, i, l.line_date, l.site, l.job_category, l.amount_cents, l.description]);
+  }
+}
+
+app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
+  const parsed = normaliseMealLines((req.body || {}).lines);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const approverIds = asIntArray(req.user.approver_ids);
+  const claimId = await insertMealClaim(req, parsed.lines, parsed.totalCents, approverIds);
+  await insertMealLines(claimId, parsed.lines);
+  await logMealHistory(claimId, req.user, 'submitted', null, 'submitted', '');
+  const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
+  res.status(201).json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'You can only edit your own meal claims' });
+  }
+  if (row.status !== 'rejected') {
+    return res.status(409).json({ error: 'Only rejected meal claims can be edited and resubmitted' });
+  }
+  const parsed = normaliseMealLines((req.body || {}).lines);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  // Bank details + approvers come from the claimant's account.
+  const emp = (await q(
+    'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
+    [row.employee_id]))[0] || {};
+  const approverIds = asIntArray(emp.approver_ids);
+  await q(
+    `UPDATE meal_claims SET total_cents=$1, department=$2, bank_name=$3, recipient_name=$4,
+       bank_account_no=$5, status='submitted', manager_comment='', manager_id=NULL, decided_at=NULL,
+       approver_ids=$6::int[], current_step=$7, updated_at=now() WHERE id=$8`,
+    [parsed.totalCents, String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
+     String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
+     intArrayLiteral(approverIds), approverIds.length ? 1 : 0, row.id]);
+  await q('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [row.id]);
+  await insertMealLines(row.id, parsed.lines);
+  await logMealHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body && req.body.resubmit_note) || '').trim());
+  const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [row.id]);
+  res.json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+app.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a meal claim that is "${row.status}"` });
+  if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
+  const comment = String((req.body && req.body.comment) || '').trim();
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  if (finalise) {
+    await q(`UPDATE meal_claims SET status='approved', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
+      [req.user.id, comment, row.id]);
+    await logMealHistory(row.id, req.user, ids.length ? `approved — step ${step} of ${ids.length}` : 'approved', 'submitted', 'approved', comment);
+  } else {
+    await q(`UPDATE meal_claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
+    await logMealHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
+  }
+  const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  res.json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+app.post('/api/meal-claims/:id/reject', requireAuth, ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  const comment = String((req.body && req.body.comment) || '').trim();
+  if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a claim' });
+  if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot reject a meal claim that is "${row.status}"` });
+  if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this claim' });
+  await q(`UPDATE meal_claims SET status='rejected', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
+    [req.user.id, comment, row.id]);
+  await logMealHistory(row.id, req.user, 'rejected', 'submitted', 'rejected', comment);
+  const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  res.json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+app.post('/api/meal-claims/:id/mark-paid', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved meal claims can be marked as paid' });
+  await q(`UPDATE meal_claims SET status='paid', paid_by=$1, paid_at=now(), updated_at=now() WHERE id=$2`, [req.user.id, row.id]);
+  await logMealHistory(row.id, req.user, 'marked paid', 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
+  const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  res.json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+// ---------------------------------------------------------------------------
 // Export CSV (finance)
 // ---------------------------------------------------------------------------
 function csvCell(v) {
