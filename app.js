@@ -29,6 +29,18 @@ if (!SESSION_SECRET) {
 // ---------------------------------------------------------------------------
 app.disable('x-powered-by');
 if (BEHIND_PROXY) app.set('trust proxy', 1);
+
+// Canonical host: 308-redirect the old auto-generated domain to the new one so
+// clid-internalportal.vercel.app is the single primary address.
+const CANONICAL_HOST = process.env.CANONICAL_HOST || 'clid-internalportal.vercel.app';
+const OLD_HOSTS = new Set(['reimbursement-mawan.vercel.app']);
+app.use((req, res, next) => {
+  if (OLD_HOSTS.has(req.hostname)) {
+    return res.redirect(308, `https://${CANONICAL_HOST}${req.originalUrl}`);
+  }
+  next();
+});
+
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
