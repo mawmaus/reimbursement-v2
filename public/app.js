@@ -453,8 +453,20 @@ function openModal(html) {
   $('#modalScrim').hidden = false;
   $('#modal').hidden = false;
 }
-function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide', 'modal-xwide'); }
+function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); }
 $('#modalScrim').addEventListener('click', closeModal);
+
+// Client-side filter for a settings table: hides rows that don't match the
+// query. `listSel` scopes to the tab's scrolling list so tabs don't interfere.
+function wireTableSearch(input, listSel) {
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    $$(`${listSel} tbody tr`).forEach(tr => {
+      if (tr.querySelector('td[colspan]')) return; // empty-state row
+      tr.hidden = !!q && !tr.textContent.toLowerCase().includes(q);
+    });
+  });
+}
 
 // Second modal layer — stacks over #modal for sub-forms (e.g. add/edit user).
 function openModal2(html) {
@@ -462,7 +474,7 @@ function openModal2(html) {
   $('#modal2Scrim').hidden = false;
   $('#modal2').hidden = false;
 }
-function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide'); }
+function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
@@ -659,40 +671,44 @@ function openMealAllowanceModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="mealForm" class="form">
-        <div class="meal-table-wrap">
-          <table class="meal-table">
-            <thead>
-              <tr>
-                <th>Date</th><th>DB Number Site</th><th>Job Category</th>
-                <th>Amount</th><th>Additional Description</th><th aria-label="Remove"></th>
-              </tr>
-            </thead>
-            <tbody id="mealRows"></tbody>
-            <tfoot>
-              <tr>
-                <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
-                <td class="meal-total" id="mealTotal">Rp 0</td>
-                <td colspan="2"></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <button type="button" class="btn btn-ghost btn-sm" id="mealAddRow" style="margin-top:10px">+ Add row</button>
-        ${isEdit ? `<label class="full" style="margin-top:10px">Note to manager (optional)
-          <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
-        <div class="meal-note">
-          <strong>MEAL ALLOWANCE CLAIM</strong>
-          BODETABEK AREA — IDR 75.000,-
-          EXCLUDE BODETABEK AREA — IDR 120.000,-
+        <div class="meal-topbar">
+          <button type="button" class="btn btn-ghost btn-sm" id="mealAddRow">+ Add row</button>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="mealCancel">Cancel</button>
+            <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
+          </div>
         </div>
         <p class="form-error" id="mealError" hidden></p>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="mealCancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
+        <div class="meal-scroll">
+          <div class="meal-table-wrap">
+            <table class="meal-table">
+              <thead>
+                <tr>
+                  <th>Date</th><th>DB Number Site</th><th>Job Category</th>
+                  <th>Amount</th><th>Additional Description</th><th aria-label="Remove"></th>
+                </tr>
+              </thead>
+              <tbody id="mealRows"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
+                  <td class="meal-total" id="mealTotal">Rp 0</td>
+                  <td colspan="2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          ${isEdit ? `<label class="full" style="margin-top:10px">Note to manager (optional)
+            <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
+          <div class="meal-note">
+            <strong>MEAL ALLOWANCE CLAIM</strong>
+            BODETABEK AREA — IDR 75.000,-
+            EXCLUDE BODETABEK AREA — IDR 120.000,-
+          </div>
         </div>
       </form>
     </div>`);
-  $('#modal').classList.add('modal-wide');
+  $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#mealCancel').addEventListener('click', closeModal);
   $('#mealAddRow').addEventListener('click', () => {
@@ -954,7 +970,7 @@ function openSettingsModal() {
       </div>
       <div id="settingsPanel"></div>
     </div>`);
-  $('#modal').classList.add('modal-xwide');
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#testEmailBtn').addEventListener('click', sendTestEmail);
   $$('#settingsTabs .tab').forEach(b =>
@@ -1002,26 +1018,34 @@ async function renderLookupTab(cfg) {
   const purposeCell = (it, flag) =>
     `<td class="tick-cell"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
   panel.innerHTML = `
-    <form id="lookupForm" class="form" style="margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:16px">
-      <div style="display:flex;gap:8px;align-items:flex-end">
-        <label style="flex:1;margin:0">Add ${cfg.noun}<input name="name" required placeholder="Name" /></label>
-        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+    <div class="settings-controls">
+      <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <label style="flex:1;margin:0">Add ${cfg.noun}<input name="name" required placeholder="Name" /></label>
+          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+        </div>
+        <p class="form-error" id="lookupErr" hidden></p>
+      </form>
+      <div class="settings-search">
+        <input id="lookupSearch" class="input" type="search" placeholder="Search ${cfg.noun}s…" />
       </div>
-      <p class="form-error" id="lookupErr" hidden></p>
-    </form>
-    <table class="utable">
-      <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:150px"></th></tr></thead>
-      <tbody>${items.length ? items.map(it => `
-        <tr data-id="${it.id}">
-          <td>${esc(it.name)}</td>
-          <td>${it.active ? 'Yes' : 'No'}</td>
-          ${p ? purposeCell(it, 'allow_claim') + purposeCell(it, 'allow_meal') : ''}
-          <td>
-            <button class="btn btn-ghost btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
-            <button class="btn btn-ghost btn-sm" data-del="${it.id}">Delete</button>
-          </td>
-        </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
-    </table>`;
+    </div>
+    <div class="settings-list">
+      <table class="utable">
+        <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:150px"></th></tr></thead>
+        <tbody>${items.length ? items.map(it => `
+          <tr data-id="${it.id}">
+            <td>${esc(it.name)}</td>
+            <td>${it.active ? 'Yes' : 'No'}</td>
+            ${p ? purposeCell(it, 'allow_claim') + purposeCell(it, 'allow_meal') : ''}
+            <td>
+              <button class="btn btn-ghost btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
+              <button class="btn btn-ghost btn-sm" data-del="${it.id}">Delete</button>
+            </td>
+          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  wireTableSearch($('#lookupSearch'), '#settingsPanel .settings-list');
 
   const byId = (id) => items.find(x => x.id == id);
   $('#lookupForm').addEventListener('submit', async (e) => {
@@ -1067,20 +1091,26 @@ async function renderAccountsTab() {
   settingsState.users = users;
 
   panel.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
-      <button class="btn btn-primary btn-sm" id="addUserBtn">+ Add user</button>
+    <div class="settings-controls">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
+        <input id="acctSearch" class="input" type="search" placeholder="Search users…" style="flex:1" />
+        <button class="btn btn-primary btn-sm" id="addUserBtn">+ Add user</button>
+      </div>
     </div>
-    <table class="utable">
-      <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th>Position</th><th>Active</th><th></th></tr></thead>
-      <tbody>${users.map(u => `
-        <tr>
-          <td class="mono">${esc(u.username)}</td><td>${esc(u.full_name)}</td>
-          <td>${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-          <td>${esc(u.role)}</td><td>${esc(u.department)}</td><td>${esc(u.position || '')}</td>
-          <td>${u.active ? 'Yes' : 'No'}</td>
-          <td><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
-        </tr>`).join('')}</tbody>
-    </table>`;
+    <div class="settings-list">
+      <table class="utable">
+        <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th>Position</th><th>Active</th><th></th></tr></thead>
+        <tbody>${users.map(u => `
+          <tr>
+            <td class="mono">${esc(u.username)}</td><td>${esc(u.full_name)}</td>
+            <td>${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td>${esc(u.role)}</td><td>${esc(u.department)}</td><td>${esc(u.position || '')}</td>
+            <td>${u.active ? 'Yes' : 'No'}</td>
+            <td><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));

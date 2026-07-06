@@ -264,6 +264,10 @@ input[type="search"] { min-width: 220px; }
 /* Stacked second modal (e.g. add/edit user over Settings) */
 .scrim.scrim-2 { z-index: 60; }
 .modal.modal-2 { z-index: 70; }
+/* Flex modal: head stays put, body owns an internal scroll region so a
+   frozen top bar (controls / actions) sits above a scrolling list. */
+.modal.modal-flex { display: flex; flex-direction: column; overflow: hidden; }
+.modal.modal-flex .modal-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 @keyframes pop { from { transform: translate(-50%, -48%) scale(.98); opacity: 0; } }
 .modal-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; }
@@ -342,8 +346,30 @@ input[type="search"] { min-width: 220px; }
 }
 .meal-note strong { display: block; color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
 
+/* Meal form: frozen action bar on top, scrolling table below. */
+.modal-flex #mealForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.meal-topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.meal-topbar .modal-actions { margin-top: 0; }
+.modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* Let .meal-scroll own both scroll axes so the sticky header/total below
+   resolve against it rather than a nested scroll container. */
+.meal-scroll .meal-table-wrap { overflow: visible; }
+/* Keep the column headers and the running total visible while rows scroll. */
+.meal-scroll .meal-table thead th { position: sticky; top: 0; z-index: 2; }
+.meal-scroll .meal-table tfoot td { position: sticky; bottom: 0; z-index: 2; }
+
 /* ---------- Settings ---------- */
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+/* Frozen controls (add-form + search) on top, scrolling list below. */
+.modal-flex #settingsTabs { flex: none; }
+.modal-flex #settingsPanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.settings-controls { flex: none; }
+.settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.settings-list .utable thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
+.settings-search { margin-bottom: 14px; }
+.settings-search input { width: 100%; }
+.settings-empty { padding: 16px; color: var(--muted); }
 .tab {
   font: inherit; font-weight: 560; cursor: pointer; background: none; border: none;
   padding: 9px 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
