@@ -288,6 +288,13 @@ input[type="search"] { min-width: 220px; }
 .check-item { display: flex; align-items: center; gap: 7px; font-size: .9rem; cursor: pointer; }
 .check-item input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
+/* Excel-style user filter (export dialog) */
+.user-filter { border: 1px solid var(--line); border-radius: 8px; margin-top: 4px; }
+.uf-toolbar { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid var(--line-soft); }
+.uf-toolbar .input { flex: 1; }
+.uf-list { max-height: 190px; overflow-y: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.uf-item { padding: 3px 2px; }
+
 /* ---------- Meal allowance claim form ---------- */
 .meal-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
 .meal-table { width: 100%; border-collapse: collapse; font-size: .85rem; min-width: 640px; }

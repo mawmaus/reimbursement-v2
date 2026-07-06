@@ -136,6 +136,7 @@ function baseClaim(row, attachments, history, nameMap) {
     bank_name: row.bank_name,
     recipient_name: row.recipient_name,
     bank_account_no: row.bank_account_no,
+    db_no: row.db_no || '',
     expense_type: row.expense_type,
     amount: Number(row.amount_cents) / 100,
     currency: row.currency,
@@ -191,9 +192,9 @@ async function loadClaimOr404(req, res) {
   return rows[0];
 }
 
-// Bank details now come from the claimant's account, so they are not required
-// on the claim form itself.
-const REQUIRED_FIELDS = ['claimant_name', 'expense_date', 'department', 'expense_type'];
+// Bank details, claimant name and department now come from the claimant's
+// account, so they are not required on the claim form itself.
+const REQUIRED_FIELDS = ['expense_date', 'expense_type'];
 
 // --- Approval routing -------------------------------------------------------
 // Each account has an ordered list of approvers. A claim advances through them
@@ -348,12 +349,13 @@ async function insertClaim(req, b, cents, approverIds) {
     try {
       const rows = await q(
         `INSERT INTO claims
-          (claim_no, employee_id, claimant_name, expense_date, department, bank_name,
+          (claim_no, employee_id, claimant_name, expense_date, department, db_no, bank_name,
            recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
            status, approver_ids, current_step)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'submitted',$13::int[],$14) RETURNING id`,
-        [claimNo, req.user.id, String(b.claimant_name).trim(), String(b.expense_date).trim(),
-         String(b.department).trim(), String(req.user.bank_name || '').trim(),
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15) RETURNING id`,
+        [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(b.expense_date).trim(),
+         String(req.user.department || '').trim(), String(b.db_no || '').trim(),
+         String(req.user.bank_name || '').trim(),
          String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
          String(b.expense_type).trim(), cents,
          String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
@@ -420,18 +422,18 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
       const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
       uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
     }
-    // Bank details + approvers come from the claimant's account.
+    // Claimant name, department, bank details + approvers come from the account.
     const emp = (await q(
-      'SELECT bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
+      'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
       [row.employee_id]))[0] || {};
     const approverIds = asIntArray(emp.approver_ids);
     await q(
-      `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, bank_name=$4,
-         recipient_name=$5, bank_account_no=$6, expense_type=$7, amount_cents=$8, currency=$9,
-         description=$10, status='submitted', manager_comment='', manager_id=NULL,
-         decided_at=NULL, approver_ids=$11::int[], current_step=$12, updated_at=now() WHERE id=$13`,
-      [String(b.claimant_name).trim(), String(b.expense_date).trim(), String(b.department).trim(),
-       String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
+      `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
+         recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
+         description=$11, status='submitted', manager_comment='', manager_id=NULL,
+         decided_at=NULL, approver_ids=$12::int[], current_step=$13, updated_at=now() WHERE id=$14`,
+      [String(emp.full_name || '').trim(), String(b.expense_date).trim(), String(emp.department || '').trim(),
+       String(b.db_no || '').trim(), String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
        String(emp.bank_account_no || '').trim(),
        String(b.expense_type).trim(), cents, String(b.currency || row.currency).trim().slice(0, 8),
        String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, row.id]);
@@ -791,6 +793,9 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req
   const types = String(req.query.types || 'reimbursement,meal').split(',').map(s => s.trim());
   const wantReimb = types.includes('reimbursement');
   const wantMeal = types.includes('meal');
+  // Optional whitelist of submitter (employee) ids to include.
+  const employees = String(req.query.employees || '').split(',')
+    .map(s => Number(s.trim())).filter(Number.isInteger);
 
   const out = []; // { key: sortKey, cells: [...] }
 
@@ -802,6 +807,11 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req
       statuses.forEach(s => params.push(s));
       where.push(`c.status IN (${ph})`);
     }
+    if (employees.length) {
+      const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
+      employees.forEach(e => params.push(e));
+      where.push(`c.employee_id IN (${ph})`);
+    }
     if (from) { params.push(from); where.push(`c.expense_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`c.expense_date <= $${params.length}`); }
     const rows = await q(
@@ -810,7 +820,7 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req
     for (const r of rows) {
       out.push({ key: iso(r.created_at) || '', cells: [
         'Reimbursement', r.claim_no, r.employee_username, r.claimant_name, r.department,
-        r.bank_name, r.recipient_name, r.bank_account_no, r.expense_date, r.expense_type, '',
+        r.bank_name, r.recipient_name, r.bank_account_no, r.expense_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
         r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
@@ -823,6 +833,11 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req
       const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
       statuses.forEach(s => params.push(s));
       where.push(`m.status IN (${ph})`);
+    }
+    if (employees.length) {
+      const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
+      employees.forEach(e => params.push(e));
+      where.push(`m.employee_id IN (${ph})`);
     }
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }

@@ -121,6 +121,7 @@ const SCHEMA = [
   // Each account has an ordered list of approvers (the users who approve that
   // account's claims, in sequence). Chosen from the created users in Settings.
   `ALTER TABLE users  ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
+  `ALTER TABLE claims ADD COLUMN IF NOT EXISTS db_no TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS current_step INTEGER NOT NULL DEFAULT 0`,

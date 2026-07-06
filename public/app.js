@@ -314,6 +314,7 @@ function reimbursementBody(c) {
     <dl class="kv">
       <dt>Claimant</dt><dd>${esc(c.claimant_name)}</dd>
       <dt>Department</dt><dd>${esc(c.department)}</dd>
+      ${c.db_no ? `<dt>DB No.</dt><dd>${esc(c.db_no)}</dd>` : ''}
       <dt>Expense type</dt><dd>${esc(c.expense_type)}</dd>
       <dt>Expense date</dt><dd>${esc(c.expense_date)}</dd>
       <dt>Amount</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
@@ -461,9 +462,8 @@ function openClaimModal(existing = null) {
     <div class="modal-body">
       <form id="claimForm" class="form">
         <div class="grid2">
-          <label>Name<input name="claimant_name" required value="${esc(v.claimant_name || '')}" /></label>
           <label>Date<input name="expense_date" type="date" required value="${esc(v.expense_date || '')}" /></label>
-          ${lookupField('department', 'Department', v.department, state.lookups.departments)}
+          <label>DB No.<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
           ${lookupField('expense_type', 'Type of expense', v.expense_type, state.lookups.expense_types, 'placeholder="Travel, Meals, Supplies…"')}
           <label>Amount
             <div style="display:flex;gap:6px">
@@ -724,7 +724,13 @@ const EXPORT_STATUS_OPTS = [
   { v: 'rejected', l: 'Rejected' },
   { v: 'paid', l: 'Paid' }
 ];
-$('#exportBtn').addEventListener('click', () => {
+$('#exportBtn').addEventListener('click', () => openExportModal());
+
+async function openExportModal() {
+  let users = [];
+  try { ({ users } = await api('/users')); } catch (ex) { toast(ex.message, true); return; }
+  users.sort((a, b) => String(a.full_name).localeCompare(String(b.full_name)));
+
   openModal(`
     <div class="modal-head"><h2>Export claims to CSV</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
@@ -743,6 +749,21 @@ $('#exportBtn').addEventListener('click', () => {
           <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> Reimbursement claims</label>
           <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> Meal allowances</label>
         </div>
+        <div class="section-label" style="margin-top:6px">Users (submitters)</div>
+        <div class="user-filter">
+          <div class="uf-toolbar">
+            <input id="ufSearch" class="input" type="search" placeholder="Search names…" />
+            <button type="button" class="btn btn-ghost btn-sm" id="ufAll">Select all</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="ufNone">Clear</button>
+          </div>
+          <div class="uf-list" id="ufList">
+            ${users.length ? users.map(u => `
+              <label class="check-item uf-item" data-name="${esc((u.full_name + ' ' + u.username).toLowerCase())}">
+                <input type="checkbox" name="employee" value="${u.id}" checked />
+                ${esc(u.full_name)} <span class="muted">(${esc(u.username)})</span>
+              </label>`).join('') : '<p class="muted" style="padding:8px">No users.</p>'}
+          </div>
+        </div>
         <p class="muted" style="font-size:.8rem;margin:10px 0 0">Leave dates blank to export all dates. Dates apply to the expense / meal date.</p>
         <p class="form-error" id="exportErr" hidden></p>
         <div class="modal-actions">
@@ -751,20 +772,37 @@ $('#exportBtn').addEventListener('click', () => {
         </div>
       </form>
     </div>`);
+  $('#modal').classList.add('modal-wide');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#exportCancel').addEventListener('click', closeModal);
+
+  // Excel-style user filter: search narrows the list; Select all / Clear act on
+  // whatever rows are currently visible.
+  const list = $('#ufList');
+  const visibleBoxes = () => $$('.uf-item', list).filter(el => el.style.display !== 'none')
+    .map(el => el.querySelector('input'));
+  $('#ufSearch').addEventListener('input', e => {
+    const term = e.target.value.trim().toLowerCase();
+    $$('.uf-item', list).forEach(el => { el.style.display = el.dataset.name.includes(term) ? '' : 'none'; });
+  });
+  $('#ufAll').addEventListener('click', () => visibleBoxes().forEach(cb => { cb.checked = true; }));
+  $('#ufNone').addEventListener('click', () => visibleBoxes().forEach(cb => { cb.checked = false; }));
+
   $('#exportForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const err = $('#exportErr'); err.hidden = true;
     const fd = new FormData(e.target);
     const statuses = fd.getAll('status');
     const types = fd.getAll('types');
+    const emps = fd.getAll('employee');
     if (!types.length) { err.textContent = 'Pick at least one claim type.'; err.hidden = false; return; }
+    if (!emps.length) { err.textContent = 'Pick at least one user.'; err.hidden = false; return; }
     const from = fd.get('from'), to = fd.get('to');
     if (from && to && from > to) { err.textContent = 'The “from” date is after the “to” date.'; err.hidden = false; return; }
     const p = new URLSearchParams();
     if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
     if (types.length < 2) p.set('types', types.join(','));
+    if (emps.length < users.length) p.set('employees', emps.join(','));
     if (from) p.set('from', from);
     if (to) p.set('to', to);
     // Remember the chosen range for next time.
@@ -772,7 +810,7 @@ $('#exportBtn').addEventListener('click', () => {
     window.location.href = '/api/export.csv?' + p.toString();
     closeModal();
   });
-});
+}
 
 // ---------------------------------------------------------------------------
 // Change password
