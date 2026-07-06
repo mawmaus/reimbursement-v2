@@ -317,6 +317,30 @@ async function computePurposes(user) {
   };
 }
 
+// --- Delegated account creation ---------------------------------------------
+// Senior job positions may create accounts for the positions strictly below
+// them in this hierarchy, but only inside their own department. Superadmins are
+// unrestricted (they keep the full Settings > Accounts management). Positions
+// are matched case-insensitively by name against the job_positions a user holds.
+const POSITION_HIERARCHY = [
+  'Manager', 'Junior Manager', 'Assistant Manager', 'Supervisor',
+  'Assistant Supervisor', 'Senior Staff', 'Staff', 'Intern'
+];
+// Only these positions are granted delegated account-creation rights.
+const CREATOR_POSITIONS = new Set(['manager', 'junior manager', 'assistant manager', 'supervisor']);
+const positionRank = (name) =>
+  POSITION_HIERARCHY.findIndex(p => p.toLowerCase() === String(name || '').trim().toLowerCase());
+
+// The canonical position names a user may create accounts for. Empty unless the
+// user holds one of the CREATOR_POSITIONS; then it is every position ranked
+// strictly below theirs.
+function creatablePositions(user) {
+  const pos = String(user.position || '').trim().toLowerCase();
+  if (!CREATOR_POSITIONS.has(pos)) return [];
+  const rank = positionRank(pos);
+  return POSITION_HIERARCHY.filter((_, i) => i > rank);
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -374,7 +398,8 @@ app.post('/api/login', ah(async (req, res) => {
   req.session.userId = user.id;
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
-    department: user.department, position: user.position, purposes: await computePurposes(user)
+    department: user.department, position: user.position, purposes: await computePurposes(user),
+    creatable_positions: creatablePositions(user)
   } });
 }));
 
@@ -383,7 +408,7 @@ app.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: true 
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  res.json({ user: { ...u, purposes: await computePurposes(u) } });
+  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u) } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -400,7 +425,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
     String(bank_account_no || '').trim(), nextEmail, req.user.id]);
   const u = await loadUser(req);
-  res.json({ user: { ...u, purposes: await computePurposes(u) } });
+  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u) } });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -1236,13 +1261,41 @@ function sanitizeApproverIds(input, excludeId) {
   return out;
 }
 
-app.get('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const users = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at FROM users ORDER BY id');
+app.get('/api/users', requireAuth, ah(async (req, res) => {
+  const isSuper = req.user.role === 'superadmin';
+  // Delegated creators may read only their own department's accounts (needed to
+  // populate their Manage-accounts list); everyone else needs superadmin.
+  if (!isSuper && !creatablePositions(req.user).length) {
+    return res.status(403).json({ error: 'You do not have permission for this action' });
+  }
+  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at';
+  const users = isSuper
+    ? await q(`SELECT ${cols} FROM users ORDER BY id`)
+    : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
+        [String(req.user.department || '').trim()]);
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), created_at: iso(u.created_at) })) });
 }));
-app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const { username, password, full_name, role, department, position, email,
-    bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
+app.post('/api/users', requireAuth, ah(async (req, res) => {
+  const isSuper = req.user.role === 'superadmin';
+  const allowed = isSuper ? null : creatablePositions(req.user);
+  if (!isSuper && !allowed.length) {
+    return res.status(403).json({ error: 'You do not have permission to create accounts' });
+  }
+  const { username, password, full_name, email,
+    bank_name, recipient_name, bank_account_no } = req.body || {};
+  let { role, department, position, approver_ids } = req.body || {};
+  // Delegated (non-superadmin) creators may only create a standard user account,
+  // for a junior job position, inside their own department, with no approver
+  // chain — regardless of what the request body asks for.
+  if (!isSuper) {
+    const creatorDept = String(req.user.department || '').trim();
+    if (!creatorDept) return res.status(403).json({ error: 'Your account has no department set; ask an administrator to set one.' });
+    role = 'user';
+    department = creatorDept;
+    approver_ids = [];
+    const posOk = allowed.some(p => p.toLowerCase() === String(position || '').trim().toLowerCase());
+    if (!posOk) return res.status(403).json({ error: 'You cannot create an account for that job position' });
+  }
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });

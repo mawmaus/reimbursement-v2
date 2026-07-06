@@ -110,6 +110,10 @@ function showApp() {
   $('#newMealBtn').hidden = !purposes.meal;
   $('#exportBtn').hidden = u.role !== 'superadmin';
   $('#settingsBtn').hidden = u.role !== 'superadmin';
+  // Delegated account creation: senior positions get a lightweight "Manage
+  // accounts" screen (superadmins use full Settings instead).
+  $('#accountsBtn').hidden = u.role === 'superadmin'
+    || !(Array.isArray(u.creatable_positions) && u.creatable_positions.length);
   // Only super admins can delete claims (used to clear out test data).
   $('#deleteSelBtn').hidden = u.role !== 'superadmin';
   loadLookups();
@@ -1346,6 +1350,7 @@ const SETTINGS_TABS = [
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
+$('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
 function openSettingsModal() {
   openModal(`
@@ -1627,6 +1632,113 @@ function renderUserForm(u) {
       else await api('/users', { method: 'POST', body: JSON.stringify(payload) });
       closeModal2(); toast('User saved'); renderAccountsTab();
     } catch (ex) { const el = $('#uErr'); el.textContent = ex.message; el.hidden = false; }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Delegated account creation (senior positions — not superadmins)
+// ---------------------------------------------------------------------------
+// A user in a senior job position may create accounts for junior positions in
+// their own department. The server enforces the same rules; this is the UI.
+function openManageAccountsModal() {
+  openModal(`
+    <div class="modal-head">
+      <h2>Manage accounts</h2>
+      <button class="x-btn">×</button>
+    </div>
+    <div class="modal-body" id="maBody">
+      <p class="muted" style="padding:20px 0">Loading…</p>
+    </div>`);
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  renderManageAccounts();
+}
+
+async function renderManageAccounts() {
+  const body = $('#maBody');
+  let users;
+  try { ({ users } = await api('/users')); }
+  catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const dept = state.user.department || '';
+  body.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <input id="maSearch" class="input" type="search" placeholder="Search users…" style="flex:1" />
+      <button class="btn btn-primary btn-sm" id="maAddBtn">+ Add user</button>
+    </div>
+    <p class="muted" style="margin:0 0 12px;font-size:.85rem">Accounts in <strong>${esc(dept) || '—'}</strong>. You can create accounts for junior positions in your department.</p>
+    <div class="settings-list">
+      <table class="utable utable-users">
+        <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th></tr></thead>
+        <tbody>${users.length ? users.map(u => `
+          <tr>
+            <td><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
+            <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td>${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
+            <td>${u.active ? 'Yes' : 'No'}</td>
+          </tr>`).join('') : '<tr><td colspan="4" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  wireTableSearch($('#maSearch'), '#maBody .settings-list');
+  $('#maAddBtn').addEventListener('click', renderManagedUserForm);
+}
+
+function renderManagedUserForm() {
+  const dept = state.user.department || '';
+  const positions = state.user.creatable_positions || [];
+  openModal2(`
+    <div class="modal-head">
+      <h2>New user</h2>
+      <button type="button" class="x-btn" id="muClose">×</button>
+    </div>
+    <div class="modal-body">
+    <form id="muForm" class="form">
+      <div class="grid2">
+        <label>Username<input name="username" required /></label>
+        <label>Full name<input name="full_name" required /></label>
+        <label>Email (for resets &amp; notifications)<input name="email" type="email" placeholder="you@company.com" /></label>
+        <label>Job position
+          <select name="position" required>
+            <option value="">— select —</option>
+            ${positions.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+          </select></label>
+        <label>Department<input value="${esc(dept)}" disabled /></label>
+        <label>Password
+          <div class="pw-wrap">
+            <input name="password" type="password" required />
+            <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+          </div></label>
+      </div>
+      <div class="section-label" style="margin-top:8px">Bank / payout details</div>
+      <div class="grid2">
+        <label>Bank name<input name="bank_name" /></label>
+        <label>Recipient name<input name="recipient_name" /></label>
+        <label>Bank account no.<input name="bank_account_no" inputmode="numeric" /></label>
+      </div>
+      <p class="form-error" id="muErr" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="muCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Create</button>
+      </div>
+    </form>
+    </div>`);
+  $('#modal2').classList.add('modal-wide');
+  $('#muClose').addEventListener('click', closeModal2);
+  $('#muCancel').addEventListener('click', closeModal2);
+  $('#muForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = {
+      username: fd.get('username'), full_name: fd.get('full_name'),
+      email: fd.get('email') || '', role: 'user',
+      position: fd.get('position') || '', department: dept,
+      bank_name: fd.get('bank_name') || '', recipient_name: fd.get('recipient_name') || '',
+      bank_account_no: fd.get('bank_account_no') || '',
+      password: fd.get('password')
+    };
+    try {
+      await api('/users', { method: 'POST', body: JSON.stringify(payload) });
+      closeModal2(); toast('User created'); renderManageAccounts();
+    } catch (ex) { const el = $('#muErr'); el.textContent = ex.message; el.hidden = false; }
   });
 }
 
