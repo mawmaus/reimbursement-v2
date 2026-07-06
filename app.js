@@ -6,7 +6,7 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
-const { q } = require('./db');
+const { q, qq, transaction } = require('./db');
 const { uploadReceipt, deleteReceipt } = require('./lib/blob');
 const { sendEmail, emailConfigured, appUrl, layout, button } = require('./lib/email');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest } = require('./lib/notify');
@@ -268,6 +268,34 @@ function userCanApprove(user, claim) {
   return ids[(claim.current_step || 1) - 1] === user.id;
 }
 
+// --- Stale-approver guards --------------------------------------------------
+// Keep only the still-active approvers from a candidate list, preserving order.
+// Used when a claim is submitted/resubmitted so a new claim never routes to a
+// deactivated account (which could never log in to act on it). If every
+// candidate is inactive the claim ends up with no approvers — a superadmin can
+// still finalise it, which is the right fallback.
+async function activeApproverIds(candidateIds) {
+  const ids = asIntArray(candidateIds);
+  if (!ids.length) return [];
+  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
+  const rows = await q(`SELECT id FROM users WHERE id IN (${ph}) AND active = TRUE`, ids);
+  const ok = new Set(rows.map(r => Number(r.id)));
+  return ids.filter(id => ok.has(id));
+}
+
+// How many still-open (submitted) claims — reimbursement + meal — have this user
+// as the approver whose turn it currently is. Postgres arrays are 1-based, and
+// current_step is 1-based, so approver_ids[current_step] is the pending approver.
+async function openClaimsAwaitingApprover(userId) {
+  const [reimb, meal] = await Promise.all([
+    q(`SELECT COUNT(*)::int AS n FROM claims
+       WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId]),
+    q(`SELECT COUNT(*)::int AS n FROM meal_claims
+       WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId])
+  ]);
+  return Number(reimb[0].n) + Number(meal[0].n);
+}
+
 // --- Front-page purposes ----------------------------------------------------
 // Which "purpose" buttons (New Claim / New Meal Allowance) a user may see. A
 // purpose is visible only when it is enabled on BOTH the user's department and
@@ -502,24 +530,42 @@ app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   res.json({ claim: await serializeOne(row) });
 }));
 
-async function insertClaim(req, b, cents, approverIds) {
+// Sequence backing claims.id, so later inserts in the same transaction can
+// reference the just-created claim via currval() without a JS round-trip.
+const CLAIM_SEQ = "pg_get_serial_sequence('claims','id')";
+
+// Create a claim together with its attachments and initial history row as one
+// atomic transaction — all commit or none. Retries on a claim_no collision.
+async function createClaim(req, b, cents, approverIds, uploaded) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextClaimNo();
+    const queries = [qq(
+      `INSERT INTO claims
+        (claim_no, employee_id, claimant_name, expense_date, department, db_no, bank_name,
+         recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
+         status, approver_ids, current_step)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15)`,
+      [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(b.expense_date).trim(),
+       String(req.user.department || '').trim(), String(b.db_no || '').trim(),
+       String(req.user.bank_name || '').trim(),
+       String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
+       String(b.expense_type).trim(), cents,
+       String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+    for (const u of uploaded) {
+      queries.push(qq(
+        `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES (currval(${CLAIM_SEQ}),$1,$2,$3,$4,$5)`,
+        [u.url, u.pathname, u.original_name, u.mime, u.size]));
+    }
+    queries.push(qq(
+      `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES (currval(${CLAIM_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
+      [req.user.id, String(req.user.full_name || '').trim()]));
+    queries.push(qq(`SELECT currval(${CLAIM_SEQ})::int AS id`));
     try {
-      const rows = await q(
-        `INSERT INTO claims
-          (claim_no, employee_id, claimant_name, expense_date, department, db_no, bank_name,
-           recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
-           status, approver_ids, current_step)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15) RETURNING id`,
-        [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(b.expense_date).trim(),
-         String(req.user.department || '').trim(), String(b.db_no || '').trim(),
-         String(req.user.bank_name || '').trim(),
-         String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
-         String(b.expense_type).trim(), cents,
-         String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
-         intArrayLiteral(approverIds), approverIds.length ? 1 : 0]);
-      return rows[0].id;
+      const results = await transaction(queries);
+      return results[results.length - 1][0].id;
     } catch (e) {
       const msg = String(e.message || '');
       if (e.code === '23505' || msg.includes('claim_no') || msg.includes('duplicate')) continue;
@@ -545,12 +591,8 @@ app.post('/api/claims', requireAuth,
         const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
         uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
       }
-      const claimId = await insertClaim(req, b, cents, asIntArray(req.user.approver_ids));
-      for (const u of uploaded) {
-        await q(`INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
-                 VALUES ($1,$2,$3,$4,$5,$6)`, [claimId, u.url, u.pathname, u.original_name, u.mime, u.size]);
-      }
-      await logHistory(claimId, req.user, 'submitted', null, 'submitted', '');
+      const approverIds = await activeApproverIds(req.user.approver_ids);
+      const claimId = await createClaim(req, b, cents, approverIds, uploaded);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       const first = currentApproverId(rows[0]);
       if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
@@ -587,8 +629,9 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
     const emp = (await q(
       'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
       [row.employee_id]))[0] || {};
-    const approverIds = asIntArray(emp.approver_ids);
-    await q(
+    const approverIds = await activeApproverIds(emp.approver_ids);
+    const claimId = Number(row.id);
+    const queries = [qq(
       `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
          recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
          description=$11, status='submitted', manager_comment='', manager_id=NULL,
@@ -597,12 +640,17 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
        String(b.db_no || '').trim(), String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
        String(emp.bank_account_no || '').trim(),
        String(b.expense_type).trim(), cents, String(b.currency || row.currency).trim().slice(0, 8),
-       String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, row.id]);
+       String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, claimId])];
     for (const u of uploaded) {
-      await q(`INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
-               VALUES ($1,$2,$3,$4,$5,$6)`, [row.id, u.url, u.pathname, u.original_name, u.mime, u.size]);
+      queries.push(qq(
+        `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES ($1,$2,$3,$4,$5,$6)`, [claimId, u.url, u.pathname, u.original_name, u.mime, u.size]));
     }
-    await logHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String(b.resubmit_note || '').trim());
+    queries.push(qq(
+      `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
+      [claimId, req.user.id, String(req.user.full_name || '').trim(), String(b.resubmit_note || '').trim()]));
+    await transaction(queries);
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
     const first = currentApproverId(rows[0]);
     if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
@@ -704,10 +752,16 @@ app.delete('/api/claims/:id', requireAuth, requireRole('superadmin'), ah(async (
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   const atts = await q('SELECT blob_url FROM attachments WHERE claim_id = $1', [row.id]);
+  // Remove the database rows atomically first; only once that commits do we
+  // delete the blobs (which can't be rolled back). If the transaction fails the
+  // blobs are untouched, so we never orphan a claim that points at missing files.
+  const claimId = Number(row.id);
+  await transaction([
+    qq('DELETE FROM attachments WHERE claim_id = $1', [claimId]),
+    qq('DELETE FROM claim_history WHERE claim_id = $1', [claimId]),
+    qq('DELETE FROM claims WHERE id = $1', [claimId])
+  ]);
   for (const a of atts) await deleteReceipt(a.blob_url);
-  await q('DELETE FROM attachments WHERE claim_id = $1', [row.id]);
-  await q('DELETE FROM claim_history WHERE claim_id = $1', [row.id]);
-  await q('DELETE FROM claims WHERE id = $1', [row.id]);
   res.json({ ok: true });
 }));
 
@@ -851,26 +905,50 @@ app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
 app.delete('/api/meal-claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
-  await q('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [row.id]);
-  await q('DELETE FROM meal_claim_history WHERE meal_claim_id = $1', [row.id]);
-  await q('DELETE FROM meal_claims WHERE id = $1', [row.id]);
+  const claimId = Number(row.id);
+  await transaction([
+    qq('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [claimId]),
+    qq('DELETE FROM meal_claim_history WHERE meal_claim_id = $1', [claimId]),
+    qq('DELETE FROM meal_claims WHERE id = $1', [claimId])
+  ]);
   res.json({ ok: true });
 }));
 
-async function insertMealClaim(req, lines, totalCents, approverIds) {
+// Sequence backing meal_claims.id (see CLAIM_SEQ).
+const MEAL_SEQ = "pg_get_serial_sequence('meal_claims','id')";
+
+// One lazy meal-line INSERT. `claimIdExpr` is a trusted SQL fragment: a numeric
+// claim id (resubmit) or currval(...) (new claim) — never user input.
+function mealLineQuery(claimIdExpr, l, i) {
+  return qq(
+    `INSERT INTO meal_claim_lines (meal_claim_id, sort_order, line_date, site, job_category, amount_cents, description)
+     VALUES (${claimIdExpr},$1,$2,$3,$4,$5,$6)`,
+    [i, l.line_date, l.site, l.job_category, l.amount_cents, l.description]);
+}
+
+// Create a meal claim, its line items and initial history row as one atomic
+// transaction. Retries on a claim_no collision.
+async function createMealClaim(req, lines, totalCents, approverIds) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextMealClaimNo();
+    const queries = [qq(
+      `INSERT INTO meal_claims
+        (claim_no, employee_id, claimant_name, department, bank_name, recipient_name,
+         bank_account_no, total_cents, currency, status, approver_ids, current_step)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11)`,
+      [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
+       String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
+       String(req.user.bank_account_no || '').trim(), totalCents, 'IDR',
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+    lines.forEach((l, i) => queries.push(mealLineQuery(`currval(${MEAL_SEQ})`, l, i)));
+    queries.push(qq(
+      `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES (currval(${MEAL_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
+      [req.user.id, String(req.user.full_name || '').trim()]));
+    queries.push(qq(`SELECT currval(${MEAL_SEQ})::int AS id`));
     try {
-      const rows = await q(
-        `INSERT INTO meal_claims
-          (claim_no, employee_id, claimant_name, department, bank_name, recipient_name,
-           bank_account_no, total_cents, currency, status, approver_ids, current_step)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11) RETURNING id`,
-        [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
-         String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
-         String(req.user.bank_account_no || '').trim(), totalCents, 'IDR',
-         intArrayLiteral(approverIds), approverIds.length ? 1 : 0]);
-      return rows[0].id;
+      const results = await transaction(queries);
+      return results[results.length - 1][0].id;
     } catch (e) {
       const msg = String(e.message || '');
       if (e.code === '23505' || msg.includes('claim_no') || msg.includes('duplicate')) continue;
@@ -879,23 +957,12 @@ async function insertMealClaim(req, lines, totalCents, approverIds) {
   }
   throw new Error('Could not allocate a claim number — please try again');
 }
-async function insertMealLines(claimId, lines) {
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    await q(
-      `INSERT INTO meal_claim_lines (meal_claim_id, sort_order, line_date, site, job_category, amount_cents, description)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [claimId, i, l.line_date, l.site, l.job_category, l.amount_cents, l.description]);
-  }
-}
 
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const approverIds = asIntArray(req.user.approver_ids);
-  const claimId = await insertMealClaim(req, parsed.lines, parsed.totalCents, approverIds);
-  await insertMealLines(claimId, parsed.lines);
-  await logMealHistory(claimId, req.user, 'submitted', null, 'submitted', '');
+  const approverIds = await activeApproverIds(req.user.approver_ids);
+  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
@@ -917,17 +984,22 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const emp = (await q(
     'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
     [row.employee_id]))[0] || {};
-  const approverIds = asIntArray(emp.approver_ids);
-  await q(
+  const approverIds = await activeApproverIds(emp.approver_ids);
+  const claimId = Number(row.id);
+  const queries = [qq(
     `UPDATE meal_claims SET total_cents=$1, department=$2, bank_name=$3, recipient_name=$4,
        bank_account_no=$5, status='submitted', manager_comment='', manager_id=NULL, decided_at=NULL,
        approver_ids=$6::int[], current_step=$7, updated_at=now() WHERE id=$8`,
     [parsed.totalCents, String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
      String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
-     intArrayLiteral(approverIds), approverIds.length ? 1 : 0, row.id]);
-  await q('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [row.id]);
-  await insertMealLines(row.id, parsed.lines);
-  await logMealHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body && req.body.resubmit_note) || '').trim());
+     intArrayLiteral(approverIds), approverIds.length ? 1 : 0, claimId]),
+    qq('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [claimId])];
+  parsed.lines.forEach((l, i) => queries.push(mealLineQuery(claimId, l, i)));
+  queries.push(qq(
+    `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
+     VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
+    [claimId, req.user.id, String(req.user.full_name || '').trim(), String((req.body && req.body.resubmit_note) || '').trim()]));
+  await transaction(queries);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [row.id]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
@@ -1217,6 +1289,17 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   }
   const nextApprovers = approver_ids !== undefined
     ? sanitizeApproverIds(approver_ids, u.id) : asIntArray(u.approver_ids);
+  // Stale-approver guard: deactivating an account that is the pending approver on
+  // open claims would strand them (they could no longer sign in to act). Block it
+  // so an admin resolves or reassigns those claims first.
+  if (u.active && active != null && !isActive(active)) {
+    const pending = await openClaimsAwaitingApprover(u.id);
+    if (pending > 0) {
+      return res.status(409).json({
+        error: `This user is the current approver on ${pending} open claim${pending === 1 ? '' : 's'}. Resolve or reassign those before deactivating.`
+      });
+    }
+  }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11 WHERE id=$12`, [
     nextUsername,
