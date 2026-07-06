@@ -319,6 +319,22 @@ input[type="search"] { min-width: 220px; }
 .utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 21%; }
 .utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 8%; }
 .utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 10%; }
+/* Delegated "Manage accounts" table: wider actions column, and its cells must
+   never break words (the buttons live here). */
+.utable-manage { table-layout: fixed; }
+.utable-manage th:nth-child(1), .utable-manage td:nth-child(1) { width: 30%; }
+.utable-manage th:nth-child(2), .utable-manage td:nth-child(2) { width: 25%; }
+.utable-manage th:nth-child(3), .utable-manage td:nth-child(3) { width: 12%; }
+.utable-manage th:nth-child(4), .utable-manage td:nth-child(4) { width: 10%; }
+.utable-manage th:nth-child(5), .utable-manage td:nth-child(5) { width: 23%; }
+.utable-manage td:nth-child(5) { overflow-wrap: normal; }
+.u-actions-h { text-align: right; }
+.u-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.u-actions .btn { white-space: nowrap; }
+.btn-danger-ghost { background: var(--red-tint); color: var(--red); border-color: var(--red-tint); }
+.btn-danger-ghost:hover { background: var(--red); color: #fff; border-color: var(--red); }
+.pill.pill-on  { color: var(--green); background: var(--green-tint); }
+.pill.pill-off { color: var(--red); background: var(--red-tint); }
 .u-name { font-weight: 560; color: var(--ink); }
 .u-sub { font-size: .76rem; color: var(--muted); margin-top: 1px; }
 

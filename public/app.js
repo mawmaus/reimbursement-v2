@@ -1667,16 +1667,20 @@ async function renderManageAccounts() {
     </div>
     <p class="muted" style="margin:0 0 12px;font-size:.85rem">Accounts in <strong>${esc(dept) || '—'}</strong>. You can create accounts for junior positions in your department.</p>
     <div class="settings-list">
-      <table class="utable utable-users">
-        <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th><th></th></tr></thead>
+      <table class="utable utable-manage">
+        <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th><th class="u-actions-h">Actions</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
             <td><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
             <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
             <td>${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
-            <td>${u.active ? 'Yes' : 'No'}</td>
-            <td>${maCanManage(u) ? `<button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>
-              <button class="btn btn-ghost btn-sm" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>` : ''}</td>
+            <td>${u.active
+                ? '<span class="pill pill-on">Active</span>'
+                : '<span class="pill pill-off">Disabled</span>'}</td>
+            <td>${maCanManage(u) ? `<div class="u-actions">
+              <button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>
+              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>
+            </div>` : '<span class="muted">—</span>'}</td>
           </tr>`).join('') : '<tr><td colspan="5" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
       </table>
     </div>`;
