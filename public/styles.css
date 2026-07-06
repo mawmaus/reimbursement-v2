@@ -260,6 +260,10 @@ input[type="search"] { min-width: 220px; }
   animation: pop .16s ease;
 }
 .modal.modal-wide { width: min(780px, calc(100% - 32px)); }
+.modal.modal-xwide { width: min(1040px, calc(100% - 32px)); }
+/* Stacked second modal (e.g. add/edit user over Settings) */
+.scrim.scrim-2 { z-index: 60; }
+.modal.modal-2 { z-index: 70; }
 @keyframes pop { from { transform: translate(-50%, -48%) scale(.98); opacity: 0; } }
 .modal-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; }

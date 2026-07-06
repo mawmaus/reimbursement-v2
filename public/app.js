@@ -453,8 +453,17 @@ function openModal(html) {
   $('#modalScrim').hidden = false;
   $('#modal').hidden = false;
 }
-function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide'); }
+function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide', 'modal-xwide'); }
 $('#modalScrim').addEventListener('click', closeModal);
+
+// Second modal layer — stacks over #modal for sub-forms (e.g. add/edit user).
+function openModal2(html) {
+  $('#modal2').innerHTML = html;
+  $('#modal2Scrim').hidden = false;
+  $('#modal2').hidden = false;
+}
+function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide'); }
+$('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
 // New / Edit claim
@@ -945,7 +954,7 @@ function openSettingsModal() {
       </div>
       <div id="settingsPanel"></div>
     </div>`);
-  $('#modal').classList.add('modal-wide');
+  $('#modal').classList.add('modal-xwide');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#testEmailBtn').addEventListener('click', sendTestEmail);
   $$('#settingsTabs .tab').forEach(b =>
@@ -993,6 +1002,13 @@ async function renderLookupTab(cfg) {
   const purposeCell = (it, flag) =>
     `<td class="tick-cell"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
   panel.innerHTML = `
+    <form id="lookupForm" class="form" style="margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:16px">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <label style="flex:1;margin:0">Add ${cfg.noun}<input name="name" required placeholder="Name" /></label>
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+      </div>
+      <p class="form-error" id="lookupErr" hidden></p>
+    </form>
     <table class="utable">
       <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:150px"></th></tr></thead>
       <tbody>${items.length ? items.map(it => `
@@ -1005,14 +1021,7 @@ async function renderLookupTab(cfg) {
             <button class="btn btn-ghost btn-sm" data-del="${it.id}">Delete</button>
           </td>
         </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
-    </table>
-    <form id="lookupForm" class="form" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
-      <div style="display:flex;gap:8px;align-items:flex-end">
-        <label style="flex:1">Add ${cfg.noun}<input name="name" required placeholder="Name" /></label>
-        <button type="submit" class="btn btn-primary btn-sm">Add</button>
-      </div>
-      <p class="form-error" id="lookupErr" hidden></p>
-    </form>`;
+    </table>`;
 
   const byId = (id) => items.find(x => x.id == id);
   $('#lookupForm').addEventListener('submit', async (e) => {
@@ -1058,6 +1067,9 @@ async function renderAccountsTab() {
   settingsState.users = users;
 
   panel.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+      <button class="btn btn-primary btn-sm" id="addUserBtn">+ Add user</button>
+    </div>
     <table class="utable">
       <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th>Position</th><th>Active</th><th></th></tr></thead>
       <tbody>${users.map(u => `
@@ -1068,9 +1080,7 @@ async function renderAccountsTab() {
           <td>${u.active ? 'Yes' : 'No'}</td>
           <td><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
         </tr>`).join('')}</tbody>
-    </table>
-    <div style="margin-top:18px"><button class="btn btn-primary btn-sm" id="addUserBtn">+ Add user</button></div>
-    <div id="userForm"></div>`;
+    </table>`;
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
@@ -1127,9 +1137,13 @@ function renderUserForm(u) {
   const isEdit = !!u;
   const excludeId = isEdit ? u.id : null;
   acctApprovers = isEdit ? (u.approver_ids || []).map(String) : [];
-  $('#userForm').innerHTML = `
-    <form id="uForm" class="form" style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-      <h3 style="font-size:.95rem">${isEdit ? 'Edit ' + esc(u.username) : 'New user'}</h3>
+  openModal2(`
+    <div class="modal-head">
+      <h2>${isEdit ? 'Edit ' + esc(u.username) : 'New user'}</h2>
+      <button type="button" class="x-btn" id="uClose">×</button>
+    </div>
+    <div class="modal-body">
+    <form id="uForm" class="form">
       <div class="grid2">
         <label>Username<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
         <label>Full name<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
@@ -1158,8 +1172,15 @@ function renderUserForm(u) {
         <label>Bank account no.<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
       </div>
       <p class="form-error" id="uErr" hidden></p>
-      <div class="modal-actions"><button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Save' : 'Create'}</button></div>
-    </form>`;
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="uCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Save' : 'Create'}</button>
+      </div>
+    </form>
+    </div>`);
+  $('#modal2').classList.add('modal-wide');
+  $('#uClose').addEventListener('click', closeModal2);
+  $('#uCancel').addEventListener('click', closeModal2);
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
   $('#uForm').addEventListener('submit', async (e) => {
@@ -1180,7 +1201,7 @@ function renderUserForm(u) {
     try {
       if (isEdit) await api('/users/' + u.id, { method: 'PUT', body: JSON.stringify(payload) });
       else await api('/users', { method: 'POST', body: JSON.stringify(payload) });
-      toast('User saved'); renderAccountsTab();
+      closeModal2(); toast('User saved'); renderAccountsTab();
     } catch (ex) { const el = $('#uErr'); el.textContent = ex.message; el.hidden = false; }
   });
 }
