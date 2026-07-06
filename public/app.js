@@ -87,6 +87,10 @@ async function boot() {
 function showLogin() {
   $('#appView').hidden = true;
   $('#loginView').hidden = false;
+  // Reset to the sign-in form (in case the forgot-password form was open).
+  $('#forgotForm').hidden = true;
+  $('#loginForm').hidden = false;
+  $('#forgotLink').parentElement.hidden = false;
   $('#loginHint').textContent = 'Need an account? Contact your administrator.';
 }
 
@@ -140,6 +144,37 @@ $('#loginForm').addEventListener('submit', async (e) => {
     e.target.reset();
     showApp();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+});
+
+// Forgot password — toggle the inline request form and submit it.
+$('#forgotLink').addEventListener('click', () => {
+  $('#loginForm').hidden = true;
+  $('#forgotLink').parentElement.hidden = true;
+  $('#loginError').hidden = true;
+  $('#forgotForm').hidden = false;
+  $('#forgotForm').querySelector('[name="identifier"]').focus();
+});
+$('#forgotCancel').addEventListener('click', () => {
+  $('#forgotForm').hidden = true;
+  $('#forgotForm').reset();
+  $('#forgotMsg').hidden = true; $('#forgotError').hidden = true;
+  $('#loginForm').hidden = false;
+  $('#forgotLink').parentElement.hidden = false;
+});
+$('#forgotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('#forgotMsg'), err = $('#forgotError');
+  msg.hidden = true; err.hidden = true;
+  const identifier = new FormData(e.target).get('identifier').trim();
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    const r = await api('/forgot-password', { method: 'POST', body: JSON.stringify({ identifier }) });
+    msg.textContent = (r && r.message) || 'If that account exists, we’ve emailed a reset link.';
+    msg.hidden = false;
+    e.target.querySelector('[name="identifier"]').value = '';
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  finally { btn.disabled = false; }
 });
 
 $('#logoutBtn').addEventListener('click', async () => {
@@ -825,7 +860,10 @@ async function openProfileModal() {
     <div class="modal-head"><h2>My profile</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
       <form id="profileForm" class="form">
-        <div class="section-label">Bank / payout details</div>
+        <div class="section-label">Contact</div>
+        <label>Email (used for password resets &amp; notifications)
+          <input name="email" type="email" value="${esc(me.email || '')}" placeholder="you@company.com" /></label>
+        <div class="section-label" style="margin-top:14px">Bank / payout details</div>
         <label>Bank name<input name="bank_name" value="${esc(me.bank_name || '')}" placeholder="e.g. BCA" /></label>
         <label>Recipient bank account name<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="Name on the account" /></label>
         <label>Bank account number<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="Account number" /></label>
@@ -858,6 +896,7 @@ async function openProfileModal() {
     const fd = new FormData(e.target);
     try {
       const { user } = await api('/me', { method: 'PUT', body: JSON.stringify({
+        email: fd.get('email'),
         bank_name: fd.get('bank_name'), recipient_name: fd.get('recipient_name'),
         bank_account_no: fd.get('bank_account_no') }) });
       if (user) state.user = { ...state.user, ...user };
@@ -1000,10 +1039,11 @@ async function renderAccountsTab() {
 
   panel.innerHTML = `
     <table class="utable">
-      <thead><tr><th>User</th><th>Name</th><th>Role</th><th>Dept</th><th>Position</th><th>Active</th><th></th></tr></thead>
+      <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th>Position</th><th>Active</th><th></th></tr></thead>
       <tbody>${users.map(u => `
         <tr>
           <td class="mono">${esc(u.username)}</td><td>${esc(u.full_name)}</td>
+          <td>${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
           <td>${esc(u.role)}</td><td>${esc(u.department)}</td><td>${esc(u.position || '')}</td>
           <td>${u.active ? 'Yes' : 'No'}</td>
           <td><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
@@ -1073,6 +1113,7 @@ function renderUserForm(u) {
       <div class="grid2">
         <label>Username<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
         <label>Full name<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
+        <label>Email (for resets &amp; notifications)<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="you@company.com" /></label>
         <label>Role
           <select name="role">
             <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>Super Admin</option>
@@ -1107,6 +1148,7 @@ function renderUserForm(u) {
     const fd = new FormData(e.target);
     const payload = {
       username: fd.get('username'), full_name: fd.get('full_name'), role: fd.get('role'),
+      email: fd.get('email') || '',
       department: fd.get('department') || '', position: fd.get('position') || '',
       bank_name: fd.get('bank_name') || '', recipient_name: fd.get('recipient_name') || '',
       bank_account_no: fd.get('bank_account_no') || '',

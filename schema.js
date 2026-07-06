@@ -21,6 +21,9 @@ const SCHEMA = [
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_name TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS recipient_name TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_account_no TEXT NOT NULL DEFAULT ''`,
+  // Email address for the account. Used for password-reset links and workflow
+  // notifications (submissions to approve, rejections). Stored lower-cased.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`,
   // Collapse the old four-role model (employee/manager/finance/admin) down to
   // two: superadmin and user. Drop the old CHECK, remap the data, re-add it.
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`,
@@ -182,7 +185,21 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_claims_status   ON claims(status)`,
   `CREATE INDEX IF NOT EXISTS idx_attach_claim    ON attachments(claim_id)`,
   `CREATE INDEX IF NOT EXISTS idx_history_claim   ON claim_history(claim_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_appr_lines_chain ON approval_lines(chain_id)`
+  `CREATE INDEX IF NOT EXISTS idx_appr_lines_chain ON approval_lines(chain_id)`,
+  // --- Password reset tokens --------------------------------------------------
+  // A one-time, time-limited token for the "forgot password" flow. Only the
+  // SHA-256 hash of the token is stored; the raw token lives only in the emailed
+  // link. A row is consumed (used_at set) on a successful reset.
+  `CREATE TABLE IF NOT EXISTS password_resets (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at    TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_pwreset_token ON password_resets(token_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_pwreset_user  ON password_resets(user_id)`
 ];
 
 module.exports = { SCHEMA };

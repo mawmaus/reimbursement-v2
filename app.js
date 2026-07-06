@@ -8,6 +8,8 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { q } = require('./db');
 const { uploadReceipt, deleteReceipt } = require('./lib/blob');
+const { sendEmail, appUrl, layout, button } = require('./lib/email');
+const { notifyPendingApprover, notifyClaimantRejected, sendReminderDigest } = require('./lib/notify');
 
 const app = express();
 
@@ -70,6 +72,19 @@ const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch
 // ---------------------------------------------------------------------------
 const iso = (v) => (v instanceof Date ? v.toISOString() : v);
 
+// Email address handling: stored lower-cased; a blank string means "no email".
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const normEmail = (v) => String(v == null ? '' : v).trim().toLowerCase();
+// Public base URL for links in emails: APP_URL if set, else derived from the
+// incoming request (protocol + host behind Vercel's proxy).
+function baseUrl(req) {
+  const configured = appUrl();
+  if (configured) return configured;
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  return host ? `${proto}://${host}` : '';
+}
+
 // Postgres int[] can come back as a JS array or a "{1,2}" literal depending on
 // the driver — normalise either into a plain array of numbers.
 function asIntArray(v) {
@@ -83,7 +98,7 @@ const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -192,6 +207,22 @@ async function loadClaimOr404(req, res) {
   return rows[0];
 }
 
+// Build the notification payload for a claim row (the shape lib/notify expects).
+function reimbNotify(row) {
+  return { claimNo: row.claim_no, claimantName: row.claimant_name,
+    typeLabel: 'reimbursement claim', amount: Number(row.amount_cents) / 100, currency: row.currency };
+}
+function mealNotify(row) {
+  return { claimNo: row.claim_no, claimantName: row.claimant_name,
+    typeLabel: 'meal allowance claim', amount: Number(row.total_cents) / 100, currency: row.currency };
+}
+// The approver whose turn it currently is (1-based current_step), or null.
+function currentApproverId(row) {
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  return step >= 1 && step <= ids.length ? ids[step - 1] : null;
+}
+
 // Bank details, claimant name and department now come from the claimant's
 // account, so they are not required on the claim form itself.
 const REQUIRED_FIELDS = ['expense_date', 'expense_type'];
@@ -281,10 +312,16 @@ app.get('/api/me', ah(async (req, res) => {
 // Self-service profile: a user may edit their own bank / payout details (but
 // not role, department, approvers, etc.).
 app.put('/api/me', requireAuth, ah(async (req, res) => {
-  const { bank_name, recipient_name, bank_account_no } = req.body || {};
-  await q('UPDATE users SET bank_name = $1, recipient_name = $2, bank_account_no = $3 WHERE id = $4', [
+  const { bank_name, recipient_name, bank_account_no, email } = req.body || {};
+  const nextEmail = normEmail(email);
+  if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });
+  if (nextEmail) {
+    const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1 AND id <> $2', [nextEmail, req.user.id]);
+    if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
+  }
+  await q('UPDATE users SET bank_name = $1, recipient_name = $2, bank_account_no = $3, email = $4 WHERE id = $5', [
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
-    String(bank_account_no || '').trim(), req.user.id]);
+    String(bank_account_no || '').trim(), nextEmail, req.user.id]);
   const u = await loadUser(req);
   res.json({ user: { ...u, purposes: await computePurposes(u) } });
 }));
@@ -299,6 +336,68 @@ app.post('/api/me/password', requireAuth, ah(async (req, res) => {
     return res.status(400).json({ error: 'Current password is incorrect' });
   }
   await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(new_password), 10), req.user.id]);
+  res.json({ ok: true });
+}));
+
+// --- Forgot / reset password ------------------------------------------------
+// A user requests a reset by email or username; we email a one-time link that
+// carries a random token (only its SHA-256 hash is stored). The link lands on
+// /reset.html which posts the token + a new password back to /api/reset-password.
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+app.post('/api/forgot-password', ah(async (req, res) => {
+  const blocked = loginBlockedFor(req);
+  if (blocked > 0) return res.status(429).json({ error: `Too many attempts. Try again in ${blocked} min.` });
+  const identifier = String((req.body && req.body.identifier) || '').trim();
+  // Respond identically whether or not the account exists, so this can't be
+  // used to enumerate registered emails / usernames.
+  const generic = { ok: true, message: 'If that account exists, we’ve emailed a password reset link.' };
+  if (!identifier) return res.json(generic);
+  const rows = await q(
+    `SELECT id, full_name, email, active FROM users
+     WHERE lower(email) = lower($1) OR lower(username) = lower($1) LIMIT 1`, [identifier]);
+  const user = rows[0];
+  if (!user || !user.active || !user.email) { recordLoginFail(req); return res.json(generic); }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + RESET_TTL_MS);
+  await q('DELETE FROM password_resets WHERE user_id = $1 AND used_at IS NULL', [user.id]);
+  await q('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1,$2,$3)',
+    [user.id, sha256(token), expires.toISOString()]);
+
+  const link = `${baseUrl(req)}/reset.html?token=${token}`;
+  const inner = `
+    <p style="margin:0 0 8px">Hi ${escHtml(user.full_name)},</p>
+    <p style="margin:0 0 8px">We received a request to reset your Reimbursement Portal password.</p>
+    <p style="margin:0 0 8px">This link is valid for 1 hour and can be used once. If you didn’t request it, you can safely ignore this email.</p>
+    ${button(link, 'Reset your password')}
+    <p style="margin:12px 0 0;color:#6b7280;font-size:12px;word-break:break-all">Or paste this link into your browser:<br>${escHtml(link)}</p>`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Reset your Reimbursement Portal password',
+    html: layout('Password reset', inner),
+    text: `Hi ${user.full_name}, reset your Reimbursement Portal password using this link (valid 1 hour, single use): ${link}`
+  });
+  res.json(generic);
+}));
+
+app.post('/api/reset-password', ah(async (req, res) => {
+  const { token, new_password } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'Missing or invalid reset link.' });
+  if (!new_password || String(new_password).length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+  const rows = await q(
+    `SELECT id, user_id FROM password_resets
+     WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+     ORDER BY id DESC LIMIT 1`, [sha256(String(token))]);
+  const rec = rows[0];
+  if (!rec) return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
+  await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(new_password), 10), rec.user_id]);
+  await q('UPDATE password_resets SET used_at = now() WHERE id = $1', [rec.id]);
   res.json({ ok: true });
 }));
 
@@ -404,6 +503,8 @@ app.post('/api/claims', requireAuth,
       }
       await logHistory(claimId, req.user, 'submitted', null, 'submitted', '');
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
+      const first = currentApproverId(rows[0]);
+      if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
       res.status(201).json({ claim: await serializeOne(rows[0]) });
     } catch (e) {
       for (const u of uploaded) await deleteReceipt(u.url);
@@ -454,6 +555,8 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
     }
     await logHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String(b.resubmit_note || '').trim());
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
+    const first = currentApproverId(rows[0]);
+    if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
     res.json({ claim: await serializeOne(rows[0]) });
   } catch (e) {
     for (const u of uploaded) await deleteReceipt(u.url);
@@ -483,6 +586,11 @@ app.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
     await logHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
+  // Chain advanced (not finalised): tell the next approver it's their turn.
+  if (!finalise) {
+    const next = currentApproverId(rows[0]);
+    if (next) await notifyPendingApprover(next, reimbNotify(rows[0]));
+  }
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
@@ -499,6 +607,7 @@ app.post('/api/claims/:id/reject', requireAuth, ah(async (req, res) => {
     [req.user.id, comment, row.id]);
   await logHistory(row.id, req.user, 'rejected', 'submitted', 'rejected', comment);
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
+  await notifyClaimantRejected(rows[0].employee_id, { ...reimbNotify(rows[0]), reason: comment });
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
@@ -705,6 +814,8 @@ app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   await insertMealLines(claimId, parsed.lines);
   await logMealHistory(claimId, req.user, 'submitted', null, 'submitted', '');
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
   res.status(201).json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
@@ -735,6 +846,8 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   await insertMealLines(row.id, parsed.lines);
   await logMealHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body && req.body.resubmit_note) || '').trim());
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [row.id]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
@@ -756,6 +869,10 @@ app.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => {
     await logMealHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  if (!finalise) {
+    const next = currentApproverId(rows[0]);
+    if (next) await notifyPendingApprover(next, mealNotify(rows[0]));
+  }
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
@@ -770,6 +887,7 @@ app.post('/api/meal-claims/:id/reject', requireAuth, ah(async (req, res) => {
     [req.user.id, comment, row.id]);
   await logMealHistory(row.id, req.user, 'rejected', 'submitted', 'rejected', comment);
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  await notifyClaimantRejected(rows[0].employee_id, { ...mealNotify(rows[0]), reason: comment });
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
@@ -781,6 +899,40 @@ app.post('/api/meal-claims/:id/mark-paid', requireAuth, requireRole('superadmin'
   await logMealHistory(row.id, req.user, 'marked paid', 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
   res.json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+// ---------------------------------------------------------------------------
+// Daily reminder (Vercel Cron)
+// ---------------------------------------------------------------------------
+// Vercel Cron calls this once a day (see vercel.json). It emails every approver
+// a digest of the claims currently sitting at their step. Protected by
+// CRON_SECRET: Vercel sends it as an "Authorization: Bearer <secret>" header.
+app.get('/api/cron/reminders', ah(async (req, res) => {
+  const secret = process.env.CRON_SECRET;
+  if (secret && (req.headers.authorization || '') !== `Bearer ${secret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const byApprover = new Map(); // approverId -> [claim payloads]
+  const push = (id, payload) => {
+    if (!id) return;
+    if (!byApprover.has(id)) byApprover.set(id, []);
+    byApprover.get(id).push(payload);
+  };
+  const reimb = await q(
+    `SELECT claim_no, claimant_name, amount_cents, currency, approver_ids, current_step
+     FROM claims WHERE status = 'submitted'`);
+  for (const r of reimb) push(currentApproverId(r), reimbNotify(r));
+  const meal = await q(
+    `SELECT claim_no, claimant_name, total_cents, currency, approver_ids, current_step
+     FROM meal_claims WHERE status = 'submitted'`);
+  for (const r of meal) push(currentApproverId(r), mealNotify(r));
+
+  let sent = 0;
+  for (const [approverId, claims] of byApprover) {
+    const r = await sendReminderDigest(approverId, claims);
+    if (r && r.ok) sent += 1;
+  }
+  res.json({ ok: true, approvers: byApprover.size, sent });
 }));
 
 // ---------------------------------------------------------------------------
@@ -903,22 +1055,28 @@ function sanitizeApproverIds(input, excludeId) {
 }
 
 app.get('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const users = await q('SELECT id, username, full_name, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at FROM users ORDER BY id');
+  const users = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at FROM users ORDER BY id');
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), created_at: iso(u.created_at) })) });
 }));
 app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const { username, password, full_name, role, department, position,
+  const { username, password, full_name, role, department, position, email,
     bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const nextEmail = normEmail(email);
+  if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });
   const exists = await q('SELECT 1 FROM users WHERE username = $1', [String(username).trim()]);
   if (exists[0]) return res.status(409).json({ error: 'Username already exists' });
+  if (nextEmail) {
+    const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1', [nextEmail]);
+    if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
+  }
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::int[]) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[]) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
-     String(department || '').trim(), String(position || '').trim(),
+     String(department || '').trim(), String(position || '').trim(), nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
      String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids))]);
   res.status(201).json({ id: rows[0].id });
@@ -927,7 +1085,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const { username, full_name, role, department, position, active, password,
+  const { username, full_name, role, department, position, active, password, email,
     bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   // Username can be changed, but must stay unique.
@@ -937,10 +1095,20 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     const dupe = await q('SELECT 1 FROM users WHERE username = $1 AND id <> $2', [nextUsername, u.id]);
     if (dupe[0]) return res.status(409).json({ error: 'Username already exists' });
   }
+  // Email is optional; when supplied it must be valid and unique.
+  let nextEmail = u.email;
+  if (email !== undefined) {
+    nextEmail = normEmail(email);
+    if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });
+    if (nextEmail) {
+      const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1 AND id <> $2', [nextEmail, u.id]);
+      if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
+    }
+  }
   const nextApprovers = approver_ids !== undefined
     ? sanitizeApproverIds(approver_ids, u.id) : asIntArray(u.approver_ids);
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
-             bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[] WHERE id=$11`, [
+             bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11 WHERE id=$12`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -951,6 +1119,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     recipient_name != null ? String(recipient_name).trim() : u.recipient_name,
     bank_account_no != null ? String(bank_account_no).trim() : u.bank_account_no,
     intArrayLiteral(nextApprovers),
+    nextEmail,
     u.id
   ]);
   if (password) {

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reset password · Reimbursement Portal</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="brand">
+      <img class="logo logo-lg" src="logo.svg" alt="Cibes" />
+      <div>
+        <h1>Reset password</h1>
+        <p class="muted">Choose a new password for your account.</p>
+      </div>
+    </div>
+
+    <form id="resetForm" class="form">
+      <label>New password (min 6 characters)
+        <div class="pw-wrap">
+          <input name="new_password" type="password" required minlength="6" autocomplete="new-password" />
+          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+        </div>
+      </label>
+      <label>Confirm new password
+        <div class="pw-wrap">
+          <input name="confirm_password" type="password" required minlength="6" autocomplete="new-password" />
+          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+        </div>
+      </label>
+      <p id="resetError" class="form-error" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">Set new password</button>
+    </form>
+
+    <div id="resetDone" hidden>
+      <p class="form-note">Your password has been reset. You can now sign in with your new password.</p>
+      <p style="margin-top:16px"><a class="btn btn-primary btn-block" href="/">Go to sign in</a></p>
+    </div>
+
+    <p class="login-hint muted"><a href="/">Back to sign in</a></p>
+  </div>
+</div>
+
+<script>
+  const $ = (s) => document.querySelector(s);
+  const token = new URLSearchParams(location.search).get('token') || '';
+
+  // Show/hide password toggles.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pw-toggle');
+    if (!btn) return;
+    const input = btn.parentElement.querySelector('input');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.classList.toggle('on', show);
+  });
+
+  const err = $('#resetError');
+  if (!token) {
+    err.textContent = 'This reset link is missing its token. Please request a new one.';
+    err.hidden = false;
+    $('#resetForm').hidden = true;
+  }
+
+  $('#resetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    const fd = new FormData(e.target);
+    const pw = fd.get('new_password'), confirm = fd.get('confirm_password');
+    if (pw !== confirm) { err.textContent = 'The two passwords do not match.'; err.hidden = false; return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: pw })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && data.error) || 'Could not reset your password.');
+      $('#resetForm').hidden = true;
+      $('#resetDone').hidden = false;
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+  });
+</script>
+</body>
+</html>
