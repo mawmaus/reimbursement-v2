@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const { q } = require('./db');
 const { uploadReceipt, deleteReceipt } = require('./lib/blob');
 const { sendEmail, appUrl, layout, button } = require('./lib/email');
-const { notifyPendingApprover, notifyClaimantRejected, sendReminderDigest } = require('./lib/notify');
+const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest } = require('./lib/notify');
 
 const app = express();
 
@@ -586,8 +586,11 @@ app.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
     await logHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
-  // Chain advanced (not finalised): tell the next approver it's their turn.
-  if (!finalise) {
+  if (finalise) {
+    // Fully approved: let the claimant know.
+    await notifyClaimantDecision(rows[0].employee_id, reimbNotify(rows[0]), 'approved');
+  } else {
+    // Chain advanced: tell the next approver it's their turn.
     const next = currentApproverId(rows[0]);
     if (next) await notifyPendingApprover(next, reimbNotify(rows[0]));
   }
@@ -618,6 +621,7 @@ app.post('/api/claims/:id/mark-paid', requireAuth, requireRole('superadmin'), ah
   await q(`UPDATE claims SET status='paid', paid_by=$1, paid_at=now(), updated_at=now() WHERE id=$2`, [req.user.id, row.id]);
   await logHistory(row.id, req.user, 'marked paid', 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
+  await notifyClaimantDecision(rows[0].employee_id, reimbNotify(rows[0]), 'paid');
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
@@ -869,7 +873,9 @@ app.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => {
     await logMealHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
-  if (!finalise) {
+  if (finalise) {
+    await notifyClaimantDecision(rows[0].employee_id, mealNotify(rows[0]), 'approved');
+  } else {
     const next = currentApproverId(rows[0]);
     if (next) await notifyPendingApprover(next, mealNotify(rows[0]));
   }
@@ -898,6 +904,7 @@ app.post('/api/meal-claims/:id/mark-paid', requireAuth, requireRole('superadmin'
   await q(`UPDATE meal_claims SET status='paid', paid_by=$1, paid_at=now(), updated_at=now() WHERE id=$2`, [req.user.id, row.id]);
   await logMealHistory(row.id, req.user, 'marked paid', 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  await notifyClaimantDecision(rows[0].employee_id, mealNotify(rows[0]), 'paid');
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
