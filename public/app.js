@@ -326,15 +326,12 @@ $('#clearSelBtn').addEventListener('click', () => {
 $('#genPdfBtn').addEventListener('click', generatePdf);
 
 async function generatePdf() {
-  // Keep the ledger order, and open the print window synchronously (inside the
-  // click) so pop-up blockers allow it while details are fetched.
   const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
   if (!chosen.length) return;
-  const w = window.open('', '_blank');
-  if (!w) { toast('Allow pop-ups to download the PDF', true); return; }
-  w.document.write('<!doctype html><meta charset="utf-8"><title>Preparing…</title><p style="font:15px system-ui;padding:24px">Preparing document…</p>');
-  const btn = $('#genPdfBtn'); btn.disabled = true;
+  const btn = $('#genPdfBtn'); const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparing…';
   try {
+    // Pull full details (approvers, history, attachment list) for each claim.
     const detailed = [];
     for (const c of chosen) {
       const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
@@ -342,142 +339,289 @@ async function generatePdf() {
       claim.type = c.type;
       detailed.push(claim);
     }
-    w.document.open();
-    w.document.write(buildPrintDoc(detailed));
-    w.document.close();
+    const bytes = await buildClaimsPdf(detailed);
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = detailed.length === 1
+      ? `${detailed[0].claim_no}.pdf`
+      : `claims-${new Date().toISOString().slice(0, 10)}.pdf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(`PDF ready — ${detailed.length} claim${detailed.length === 1 ? '' : 's'}`);
   } catch (ex) {
-    w.close();
-    toast(ex.message, true);
-  } finally { btn.disabled = false; }
+    toast(ex.message || 'Could not generate PDF', true);
+  } finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+// --- PDF engine (pdf-lib, lazily loaded from the vendored bundle) -------------
+let _pdfLibPromise;
+function loadPdfLib() {
+  if (!_pdfLibPromise) _pdfLibPromise = new Promise((resolve, reject) => {
+    if (window.PDFLib) return resolve(window.PDFLib);
+    const s = document.createElement('script');
+    s.src = 'vendor/pdf-lib.min.js';
+    s.onload = () => resolve(window.PDFLib);
+    s.onerror = () => reject(new Error('Could not load the PDF engine'));
+    document.head.appendChild(s);
+  });
+  return _pdfLibPromise;
+}
+
+function dataUrlToBytes(dataUrl) {
+  const bin = atob(dataUrl.split(',')[1]);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+// Rasterise the brand SVG to PNG bytes once, so the header logo is crisp.
+let _logoPngPromise;
+function getLogoPngBytes() {
+  if (!_logoPngPromise) _logoPngPromise = (async () => {
+    const svg = await (await fetch('logo.svg')).text();
+    const img = new Image();
+    await new Promise((res, rej) => {
+      img.onload = res; img.onerror = () => rej(new Error('logo'));
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+    const W = 631, H = 213, scale = 4;
+    const cnv = document.createElement('canvas');
+    cnv.width = W * scale; cnv.height = H * scale;
+    cnv.getContext('2d').drawImage(img, 0, 0, W * scale, H * scale);
+    return dataUrlToBytes(cnv.toDataURL('image/png'));
+  })();
+  return _logoPngPromise;
+}
+
+// Decode any browser-supported image (jpg/png/gif/webp/heic) to PNG bytes so a
+// single embed path covers every attachment image type.
+async function rasterToPng(bytes, mime) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/octet-stream' }));
+  try {
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('decode')); img.src = url; });
+    const cnv = document.createElement('canvas');
+    cnv.width = img.naturalWidth || img.width; cnv.height = img.naturalHeight || img.height;
+    cnv.getContext('2d').drawImage(img, 0, 0);
+    return { w: cnv.width, h: cnv.height, bytes: dataUrlToBytes(cnv.toDataURL('image/png')) };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+// Helvetica is WinAnsi-only; drop anything it can't encode and normalise the
+// few smart-punctuation characters that show up in names/comments.
+function pdfSafe(s) {
+  return String(s == null ? '' : s)
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replace(/—/g, '-').replace(/…/g, '...').replace(/·/g, '-')
+    .replace(/[^\x20-\xFF]/g, '');
+}
+
+async function buildClaimsPdf(claims) {
+  const { PDFDocument, StandardFonts, rgb } = await loadPdfLib();
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  let logo = null;
+  try { logo = await pdf.embedPng(await getLogoPngBytes()); } catch { /* header falls back to text */ }
+
+  const W = 595.28, H = 841.89, M = 48, CW = W - 2 * M;
+  const ink = rgb(0.13, 0.13, 0.14), muted = rgb(0.5, 0.5, 0.55), rule = rgb(0.86, 0.86, 0.84);
+  const orange = rgb(0.969, 0.596, 0.165);
+  const stColor = {
+    submitted: rgb(0.71, 0.47, 0.10), approved: rgb(0.18, 0.49, 0.33), rejected: rgb(0.75, 0.22, 0.17),
+    paid: rgb(0.25, 0.35, 0.59), done: rgb(0.18, 0.49, 0.33), current: rgb(0.71, 0.47, 0.10), pending: muted
+  };
+  let page, y;
+  const newPage = () => { page = pdf.addPage([W, H]); y = H - M; };
+  const need = (h) => { if (y - h < M) newPage(); };
+  const wrap = (s, size, f, maxW) => {
+    const words = pdfSafe(s).split(/\s+/); const out = []; let cur = '';
+    for (const w of words) {
+      const t = cur ? cur + ' ' + w : w;
+      if (f.widthOfTextAtSize(t, size) > maxW && cur) { out.push(cur); cur = w; } else cur = t;
+    }
+    if (cur) out.push(cur); return out.length ? out : [''];
+  };
+  const line = (s, { x = M, size = 10, f = font, color = ink, gap = 5 } = {}) => {
+    need(size + gap); y -= size; page.drawText(pdfSafe(s), { x, y, size, font: f, color }); y -= gap;
+  };
+  const section = (s) => { need(24); y -= 16; page.drawText(pdfSafe(s.toUpperCase()), { x: M, y, size: 8, font: bold, color: muted }); y -= 10; };
+  // Two-column key/value row (v2/l2 optional).
+  const kvRow = (l1, v1, l2, v2) => {
+    need(20); y -= 11;
+    page.drawText(pdfSafe(l1), { x: M, y, size: 8, font, color: muted });
+    page.drawText(pdfSafe(v1 || '-'), { x: M + 84, y, size: 10, font, color: ink });
+    if (l2 != null) {
+      page.drawText(pdfSafe(l2), { x: M + 268, y, size: 8, font, color: muted });
+      page.drawText(pdfSafe(v2 || '-'), { x: M + 350, y, size: 10, font, color: ink });
+    }
+    y -= 7;
+  };
+  const kvWide = (label, value) => {
+    need(16); y -= 11;
+    page.drawText(pdfSafe(label), { x: M, y, size: 8, font, color: muted });
+    const lines = wrap(value || '-', 10, font, CW - 84);
+    page.drawText(pdfSafe(lines[0]), { x: M + 84, y, size: 10, font, color: ink });
+    y -= 7;
+    for (let i = 1; i < lines.length; i++) { need(15); y -= 11; page.drawText(pdfSafe(lines[i]), { x: M + 84, y, size: 10, font, color: ink }); y -= 4; }
+  };
+  // Simple bordered table. cols: [{title,w,align}]. rows: array of cell arrays
+  // where a cell is a string or {text,color,bold}. footer optional (same shape).
+  const table = (cols, rows, footer) => {
+    const hh = 19, rh = 18;
+    need(hh + rh);
+    y -= hh;
+    page.drawRectangle({ x: M, y, width: CW, height: hh, color: rgb(0.96, 0.96, 0.94) });
+    let x = M;
+    cols.forEach(c => { page.drawText(pdfSafe(c.title), { x: x + 5, y: y + 6, size: 7.5, font: bold, color: muted }); x += c.w; });
+    const drawRow = (cells, bg) => {
+      need(rh); y -= rh;
+      if (bg) page.drawRectangle({ x: M, y, width: CW, height: rh, color: bg });
+      let cx = M;
+      cols.forEach((col, i) => {
+        const cell = cells[i] == null ? '' : cells[i];
+        const val = pdfSafe(typeof cell === 'object' ? (cell.text != null ? cell.text : '') : cell);
+        const f = (typeof cell === 'object' && cell.bold) ? bold : font;
+        const color = (typeof cell === 'object' && cell.color) || ink;
+        const tx = col.align === 'right' ? cx + col.w - 5 - f.widthOfTextAtSize(val, 9) : cx + 5;
+        page.drawText(val, { x: tx, y: y + 5, size: 9, font: f, color });
+        cx += col.w;
+      });
+      page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
+    };
+    rows.forEach(r => drawRow(r));
+    if (footer) drawRow(footer, rgb(0.98, 0.965, 0.945));
+  };
+
+  const claimHeader = (c) => {
+    newPage();
+    const title = c.type === 'meal' ? 'Meal Allowance Claim' : 'Reimbursement Claim';
+    if (logo) { const lw = 104, lh = lw * 213 / 631; page.drawImage(logo, { x: M, y: H - M - lh, width: lw, height: lh }); }
+    else page.drawText('Cibes', { x: M, y: H - M - 20, size: 22, font: bold, color: orange });
+    const rx = M + 128;
+    page.drawText(title, { x: rx, y: H - M - 8, size: 16, font: bold, color: ink });
+    page.drawText(`${pdfSafe(c.claim_no)}   ${(STATUS_LABEL[c.status] || c.status).toUpperCase()}`,
+      { x: rx, y: H - M - 26, size: 9.5, font: bold, color: stColor[c.status] || muted });
+    page.drawText(`Submitted ${fmtDateTime(c.created_at)}`, { x: rx, y: H - M - 40, size: 8.5, font, color: muted });
+    y = H - M - 58;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.5, color: orange });
+    y -= 6;
+  };
+
+  const drawDetails = (c) => {
+    if (c.type === 'meal') {
+      kvRow('Claimant', c.claimant_name, 'Department', c.department);
+      kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
+      kvRow('Account no.', c.bank_account_no);
+      section('Meal allowance lines');
+      const cols = [
+        { title: 'Date', w: 70 }, { title: 'DB Number Site', w: 120 }, { title: 'Job Category', w: 90 },
+        { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 360 }
+      ];
+      const rows = (c.lines || []).map(l => [l.line_date, l.site, l.job_category, money(l.amount, c.currency), l.description]);
+      table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
+        [{ text: 'TOTAL', bold: true }, '', '', { text: money(c.total_amount, c.currency), bold: true, align: 'right' }, '']);
+    } else {
+      kvRow('Claimant', c.claimant_name, 'Department', c.department);
+      kvRow('Expense type', c.expense_type, 'Expense date', c.expense_date);
+      if (c.db_no) kvRow('DB No.', c.db_no);
+      need(20); y -= 13;
+      page.drawText('Amount', { x: M, y, size: 8, font, color: muted });
+      page.drawText(pdfSafe(money(c.amount, c.currency)), { x: M + 84, y, size: 13, font: bold, color: ink });
+      y -= 8;
+      kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
+      kvRow('Account no.', c.bank_account_no);
+      if (c.description) kvWide('Description', c.description);
+    }
+  };
+
+  const drawApprovals = (c) => {
+    section('Approvals');
+    if (!c.approvers || !c.approvers.length) { line('No approval chain - processed by a Super Admin.', { size: 9.5, color: muted }); return; }
+    const cols = [{ title: 'Step', w: 42 }, { title: 'Approver', w: CW - 42 - 96 - 120 }, { title: 'Decision', w: 96 }, { title: 'Date', w: 120 }];
+    const rows = c.approvers.map((a, i) => {
+      const st = stepStateFor(c, i + 1);
+      const date = st === 'done' ? approvalActionDate(c, a.name, 'approved')
+        : st === 'rejected' ? approvalActionDate(c, a.name, 'rejected') : '';
+      return [String(i + 1), a.name, { text: STEP_STATE_LABEL[st], color: stColor[st] || muted, bold: true }, date || '-'];
+    });
+    table(cols, rows);
+  };
+
+  const drawHistory = (c) => {
+    if (!c.history || !c.history.length) return;
+    section('History');
+    c.history.forEach(h => {
+      const head = `${h.action.charAt(0).toUpperCase() + h.action.slice(1)}  -  ${h.actor_name} · ${fmtDateTime(h.created_at)}`;
+      line(head.replace(/·/g, '·'), { size: 9.5, f: bold });
+      if (h.comment) wrap('"' + h.comment + '"', 9, font, CW - 14).forEach(ln => line(ln, { x: M + 14, size: 9, color: muted, gap: 3 }));
+      y -= 3;
+    });
+  };
+
+  const drawImagePage = (c, att, img) => {
+    const p = pdf.addPage([W, H]);
+    p.drawText(pdfSafe(`Attachment · ${c.claim_no}`), { x: M, y: H - M - 6, size: 8, font, color: muted });
+    p.drawText(pdfSafe(att.original_name), { x: M, y: H - M - 20, size: 11, font: bold, color: ink });
+    const top = H - M - 34, availH = top - M;
+    const s = Math.min(CW / img.width, availH / img.height);
+    const iw = img.width * s, ih = img.height * s;
+    p.drawImage(img, { x: M + (CW - iw) / 2, y: M + (availH - ih) / 2, width: iw, height: ih });
+  };
+  const drawNotePage = (c, att, msg) => {
+    const p = pdf.addPage([W, H]);
+    p.drawText(pdfSafe(`Attachment · ${c.claim_no}`), { x: M, y: H - M - 6, size: 8, font, color: muted });
+    p.drawText(pdfSafe(att.original_name), { x: M, y: H - M - 20, size: 11, font: bold, color: ink });
+    p.drawText(pdfSafe(msg), { x: M, y: H - M - 44, size: 10, font, color: ink });
+    p.drawText(pdfSafe(`${att.mime_type || 'unknown type'} · ${fmtBytes(att.size_bytes)}`), { x: M, y: H - M - 60, size: 9, font, color: muted });
+  };
+  const appendAttachment = async (c, att) => {
+    let bytes, mime = att.mime_type || '';
+    try {
+      const res = await fetch(`/api/claims/${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('http');
+      bytes = new Uint8Array(await res.arrayBuffer());
+      if (!mime) mime = res.headers.get('Content-Type') || '';
+    } catch { return drawNotePage(c, att, 'Could not load this attachment from storage.'); }
+    if (/pdf/i.test(mime) || /\.pdf$/i.test(att.original_name)) {
+      try {
+        const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+        const copied = await pdf.copyPages(src, src.getPageIndices());
+        copied.forEach(p => pdf.addPage(p));
+        return;
+      } catch { return drawNotePage(c, att, 'This PDF could not be embedded.'); }
+    }
+    try {
+      const png = await rasterToPng(bytes, mime);
+      drawImagePage(c, att, await pdf.embedPng(png.bytes));
+    } catch { drawNotePage(c, att, "This file type can't be shown inline - download it from the portal."); }
+  };
+
+  for (const c of claims) {
+    claimHeader(c);
+    drawDetails(c);
+    drawApprovals(c);
+    drawHistory(c);
+    const atts = c.attachments || [];
+    if (atts.length) {
+      section(`Attachments (${atts.length})`);
+      atts.forEach(a => line(`- ${a.original_name}  (${fmtBytes(a.size_bytes)})`, { size: 9, gap: 3 }));
+    }
+    need(26); y -= 14;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
+    y -= 11;
+    page.drawText(pdfSafe(`Generated ${fmtDateTime(new Date().toISOString())}  ·  Cibes Reimbursement Portal`), { x: M, y, size: 7.5, font, color: muted });
+    for (const a of atts) await appendAttachment(c, a);
+  }
+  return pdf.save();
 }
 
 // Date shown on an approver step, pulled from the matching history entry.
 function approvalActionDate(c, name, action) {
   const h = (c.history || []).find(x => x.actor_name === name && x.action === action);
   return h ? fmtDateTime(h.created_at) : '';
-}
-
-function pdfApprovalsBlock(c) {
-  if (!c.approvers || !c.approvers.length) {
-    return `<div class="p-sec">Approvals</div><p class="p-muted">No approval chain — processed by a Super Admin.</p>`;
-  }
-  const rows = c.approvers.map((a, i) => {
-    const st = stepStateFor(c, i + 1);
-    const label = STEP_STATE_LABEL[st];
-    const date = st === 'done' ? approvalActionDate(c, a.name, 'approved')
-      : st === 'rejected' ? approvalActionDate(c, a.name, 'rejected') : '';
-    return `<tr>
-      <td>${i + 1}</td>
-      <td>${esc(a.name)}</td>
-      <td class="p-${st}">${label}</td>
-      <td>${esc(date || '—')}</td>
-    </tr>`;
-  }).join('');
-  return `<div class="p-sec">Approvals</div>
-    <table class="p-appr"><thead><tr><th>Step</th><th>Approver</th><th>Decision</th><th>Date</th></tr></thead>
-    <tbody>${rows}</tbody></table>`;
-}
-
-function pdfHistoryBlock(c) {
-  if (!c.history || !c.history.length) return '';
-  const items = c.history.map(h => `<li>
-      <strong>${esc(h.action)}</strong> — ${esc(h.actor_name)} · ${fmtDateTime(h.created_at)}
-      ${h.comment ? `<div class="p-cmt">“${esc(h.comment)}”</div>` : ''}
-    </li>`).join('');
-  return `<div class="p-sec">History</div><ul class="p-hist">${items}</ul>`;
-}
-
-function pdfDetailsBlock(c) {
-  if (c.type === 'meal') {
-    const rows = (c.lines || []).map(l => `<tr>
-        <td>${esc(l.line_date)}</td><td>${esc(l.site)}</td><td>${esc(l.job_category)}</td>
-        <td class="p-num">${esc(money(l.amount, c.currency))}</td><td>${esc(l.description)}</td>
-      </tr>`).join('');
-    return `
-      <table class="p-kv">
-        <tr><th>Claimant</th><td>${esc(c.claimant_name)}</td><th>Department</th><td>${esc(c.department || '—')}</td></tr>
-        <tr><th>Recipient</th><td>${esc(c.recipient_name || '—')}</td><th>Bank</th><td>${esc(c.bank_name || '—')}</td></tr>
-        <tr><th>Account no.</th><td colspan="3">${esc(c.bank_account_no || '—')}</td></tr>
-      </table>
-      <div class="p-sec">Meal allowance lines</div>
-      <table class="p-lines">
-        <thead><tr><th>Date</th><th>DB Number Site</th><th>Job Category</th><th>Amount</th><th>Description</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5">No lines.</td></tr>'}</tbody>
-        <tfoot><tr><td colspan="3">TOTAL CLAIM MEAL ALLOWANCE</td><td class="p-num">${esc(money(c.total_amount, c.currency))}</td><td></td></tr></tfoot>
-      </table>`;
-  }
-  return `
-    <table class="p-kv">
-      <tr><th>Claimant</th><td>${esc(c.claimant_name)}</td><th>Department</th><td>${esc(c.department || '—')}</td></tr>
-      <tr><th>Expense type</th><td>${esc(c.expense_type || '—')}</td><th>Expense date</th><td>${esc(c.expense_date || '—')}</td></tr>
-      ${c.db_no ? `<tr><th>DB No.</th><td colspan="3">${esc(c.db_no)}</td></tr>` : ''}
-      <tr><th>Amount</th><td class="p-amt" colspan="3">${esc(money(c.amount, c.currency))}</td></tr>
-      <tr><th>Recipient</th><td>${esc(c.recipient_name || '—')}</td><th>Bank</th><td>${esc(c.bank_name || '—')}</td></tr>
-      <tr><th>Account no.</th><td colspan="3">${esc(c.bank_account_no || '—')}</td></tr>
-      ${c.description ? `<tr><th>Description</th><td colspan="3">${esc(c.description)}</td></tr>` : ''}
-    </table>`;
-}
-
-function pdfClaimPage(c, isLast) {
-  const title = c.type === 'meal' ? 'Meal Allowance Claim' : 'Reimbursement Claim';
-  return `
-  <section class="p-page${isLast ? '' : ' p-break'}">
-    <header class="p-head">
-      <img class="p-logo" src="/logo.svg" alt="Cibes" />
-      <div class="p-title"><h1>${title}</h1>
-        <div class="p-no">${esc(c.claim_no)} · <span class="p-status p-${c.status}">${STATUS_LABEL[c.status]}</span></div>
-        <div class="p-sub">Submitted ${fmtDateTime(c.created_at)}</div>
-      </div>
-    </header>
-    ${pdfDetailsBlock(c)}
-    ${pdfApprovalsBlock(c)}
-    ${pdfHistoryBlock(c)}
-    <footer class="p-foot">Generated ${fmtDateTime(new Date().toISOString())} · Cibes Reimbursement Portal</footer>
-  </section>`;
-}
-
-function buildPrintDoc(claims) {
-  const pages = claims.map((c, i) => pdfClaimPage(c, i === claims.length - 1)).join('');
-  return `<!doctype html><html><head><meta charset="utf-8">
-  <title>Cibes Claims${claims.length === 1 ? ' — ' + esc(claims[0].claim_no) : ''}</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #222; margin: 0; }
-    .p-page { padding: 28px 32px; max-width: 800px; margin: 0 auto; }
-    .p-break { page-break-after: always; }
-    .p-head { display: flex; align-items: flex-start; gap: 18px; border-bottom: 2px solid #F7982A; padding-bottom: 14px; margin-bottom: 18px; }
-    .p-logo { height: 34px; }
-    .p-title h1 { font-size: 1.3rem; margin: 0 0 3px; }
-    .p-no { font-size: .95rem; font-weight: 600; }
-    .p-sub { font-size: .8rem; color: #777; margin-top: 2px; }
-    .p-status { text-transform: uppercase; font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
-    .p-submitted { background: #f8ecd4; color: #b5771a; }
-    .p-approved, .p-done { color: #2f7d55; }
-    .p-rejected { color: #c0392b; }
-    .p-paid { color: #3f5896; }
-    .p-current { color: #b5771a; }
-    .p-sec { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: #999; margin: 20px 0 8px; }
-    table { width: 100%; border-collapse: collapse; }
-    .p-kv th { text-align: left; width: 110px; color: #777; font-weight: 600; padding: 4px 10px 4px 0; vertical-align: top; font-size: .82rem; }
-    .p-kv td { padding: 4px 16px 4px 0; vertical-align: top; }
-    .p-amt { font-weight: 700; font-size: 1.05rem; }
-    .p-lines th, .p-lines td, .p-appr th, .p-appr td { border: 1px solid #e2e2e2; padding: 6px 8px; text-align: left; font-size: .82rem; }
-    .p-lines th, .p-appr th { background: #f6f6f4; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
-    .p-num { text-align: right; font-variant-numeric: tabular-nums; }
-    .p-lines tfoot td { font-weight: 700; background: #faf6f0; }
-    .p-appr td.p-done, .p-appr td.p-approved { font-weight: 700; }
-    .p-hist { list-style: none; padding: 0; margin: 0; }
-    .p-hist li { padding: 6px 0 6px 14px; border-left: 2px solid #eee; margin-bottom: 4px; }
-    .p-hist strong { text-transform: capitalize; }
-    .p-cmt { font-size: .82rem; color: #555; margin-top: 2px; }
-    .p-muted { color: #888; }
-    .p-foot { margin-top: 26px; padding-top: 10px; border-top: 1px solid #eee; font-size: .72rem; color: #aaa; }
-    @page { margin: 14mm; }
-    @media print { .p-page { padding: 0; } }
-  </style></head>
-  <body>${pages}
-  <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 200); });<\/script>
-  </body></html>`;
 }
 
 // ---------------------------------------------------------------------------

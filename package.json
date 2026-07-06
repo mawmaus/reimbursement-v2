@@ -19,5 +19,8 @@
     "cookie-session": "^2.1.0",
     "express": "^4.21.2",
     "multer": "^2.0.1"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1"
   }
 }
