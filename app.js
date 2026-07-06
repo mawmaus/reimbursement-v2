@@ -41,10 +41,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// Content-Security-Policy. The frontend is same-origin only: its own scripts
+// (app.js, reset.js, vendor/pdf-lib) and styles, fetches to /api, and images
+// served from this origin (plus data:/blob: for client-generated PDFs). Inline
+// styles are still used in the markup, so style-src allows 'unsafe-inline';
+// scripts do not, so script-src stays strict ('self' with no inline).
+const CSP = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self'",
+  "connect-src 'self'"
+].join('; ');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Content-Security-Policy', CSP);
   next();
 });
 app.use(express.json({ limit: '1mb' }));
@@ -274,38 +292,57 @@ async function computePurposes(user) {
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
-const loginAttempts = new Map();
 const MAX_LOGIN_FAILS = 8;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const loginKey = (req) => req.ip || 'unknown';
-function loginBlockedFor(req) {
-  const rec = loginAttempts.get(loginKey(req));
+
+// Failed-login throttling is kept in the database (table `login_attempts`) so a
+// single client's failures are counted across all serverless instances — an
+// in-memory Map would give each instance its own counter and reset on recycle.
+// `first_at` marks the start of the 15-minute window.
+
+// Minutes remaining before this client may try again, or 0 if not blocked.
+async function loginBlockedFor(req) {
+  const rows = await q('SELECT fails, first_at FROM login_attempts WHERE attempt_key = $1', [loginKey(req)]);
+  const rec = rows[0];
   if (!rec) return 0;
-  if (rec.fails >= MAX_LOGIN_FAILS && (Date.now() - rec.first) < LOGIN_WINDOW_MS) {
-    return Math.ceil((LOGIN_WINDOW_MS - (Date.now() - rec.first)) / 60000);
+  const age = Date.now() - new Date(rec.first_at).getTime();
+  if (age >= LOGIN_WINDOW_MS) {
+    await q('DELETE FROM login_attempts WHERE attempt_key = $1', [loginKey(req)]);
+    return 0;
   }
-  if ((Date.now() - rec.first) >= LOGIN_WINDOW_MS) loginAttempts.delete(loginKey(req));
+  if (rec.fails >= MAX_LOGIN_FAILS) return Math.ceil((LOGIN_WINDOW_MS - age) / 60000);
   return 0;
 }
-function recordLoginFail(req) {
-  const k = loginKey(req);
-  const rec = loginAttempts.get(k);
-  if (!rec || (Date.now() - rec.first) >= LOGIN_WINDOW_MS) loginAttempts.set(k, { fails: 1, first: Date.now() });
-  else rec.fails += 1;
+// Record one failure: start a fresh window if none is open (or the last has
+// expired), otherwise increment the running count. Done in a single atomic
+// upsert so concurrent attempts can't clobber the counter.
+async function recordLoginFail(req) {
+  await q(
+    `INSERT INTO login_attempts (attempt_key, fails, first_at)
+     VALUES ($1, 1, now())
+     ON CONFLICT (attempt_key) DO UPDATE SET
+       fails    = CASE WHEN now() - login_attempts.first_at >= $2::interval THEN 1     ELSE login_attempts.fails + 1 END,
+       first_at = CASE WHEN now() - login_attempts.first_at >= $2::interval THEN now() ELSE login_attempts.first_at    END`,
+    [loginKey(req), `${LOGIN_WINDOW_MS} milliseconds`]);
+}
+// Clear a client's failures after a successful login.
+async function clearLoginFails(req) {
+  await q('DELETE FROM login_attempts WHERE attempt_key = $1', [loginKey(req)]);
 }
 
 app.post('/api/login', ah(async (req, res) => {
-  const blocked = loginBlockedFor(req);
+  const blocked = await loginBlockedFor(req);
   if (blocked > 0) return res.status(429).json({ error: `Too many failed attempts. Try again in ${blocked} min.` });
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
   const rows = await q('SELECT * FROM users WHERE username = $1', [String(username).trim()]);
   const user = rows[0];
   if (!user || !user.active || !bcrypt.compareSync(String(password), user.password_hash)) {
-    recordLoginFail(req);
+    await recordLoginFail(req);
     return res.status(401).json({ error: 'Incorrect username or password' });
   }
-  loginAttempts.delete(loginKey(req));
+  await clearLoginFails(req);
   req.session.userId = user.id;
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
@@ -361,7 +398,7 @@ const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 app.post('/api/forgot-password', ah(async (req, res) => {
-  const blocked = loginBlockedFor(req);
+  const blocked = await loginBlockedFor(req);
   if (blocked > 0) return res.status(429).json({ error: `Too many attempts. Try again in ${blocked} min.` });
   const identifier = String((req.body && req.body.identifier) || '').trim();
   // Respond identically whether or not the account exists, so this can't be
@@ -372,7 +409,7 @@ app.post('/api/forgot-password', ah(async (req, res) => {
     `SELECT id, full_name, email, active FROM users
      WHERE lower(email) = lower($1) OR lower(username) = lower($1) LIMIT 1`, [identifier]);
   const user = rows[0];
-  if (!user || !user.active || !user.email) { recordLoginFail(req); return res.json(generic); }
+  if (!user || !user.active || !user.email) { await recordLoginFail(req); return res.json(generic); }
 
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + RESET_TTL_MS);
@@ -650,8 +687,13 @@ app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) =
   if (!att) return res.status(404).json({ error: 'Attachment not found' });
   const r = await fetch(att.blob_url);
   if (!r.ok) return res.status(502).json({ error: 'Could not fetch file from storage' });
+  // Only render images and PDFs in the browser (safe to display inline, and the
+  // useful case for viewing a receipt). Everything else (Office docs, CSV, text)
+  // is forced to download so the browser never tries to render it in-page.
+  const inlineOk = att.mime_type === 'application/pdf' || att.mime_type.startsWith('image/');
+  const disposition = inlineOk ? 'inline' : 'attachment';
   res.setHeader('Content-Type', att.mime_type);
-  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(att.original_name)}"`);
+  res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(att.original_name)}"`);
   res.send(Buffer.from(await r.arrayBuffer()));
 }));
 

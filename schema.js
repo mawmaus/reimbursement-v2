@@ -199,7 +199,18 @@ const SCHEMA = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS idx_pwreset_token ON password_resets(token_hash)`,
-  `CREATE INDEX IF NOT EXISTS idx_pwreset_user  ON password_resets(user_id)`
+  `CREATE INDEX IF NOT EXISTS idx_pwreset_user  ON password_resets(user_id)`,
+  // --- Login throttling -------------------------------------------------------
+  // Failed-login counter, keyed by client IP. Kept in the database (not just an
+  // in-memory Map) so the limit holds across serverless instances, which each
+  // used to keep their own private counter. `first_at` marks the start of the
+  // current window; a row is cleared on a successful login or once its window
+  // has elapsed.
+  `CREATE TABLE IF NOT EXISTS login_attempts (
+    attempt_key TEXT PRIMARY KEY,
+    fails       INTEGER NOT NULL DEFAULT 0,
+    first_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`
 ];
 
 module.exports = { SCHEMA };
