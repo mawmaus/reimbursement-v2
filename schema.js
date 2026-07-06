@@ -85,6 +85,14 @@ const SCHEMA = [
     active     BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Front-page "purpose" buttons (New Claim / New Meal Allowance) are gated per
+  // department AND per job position: a user sees a purpose only when it is
+  // ticked on both their department and their position. New rows default to
+  // FALSE (hidden) until an admin explicitly enables them.
+  `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS allow_claim BOOLEAN NOT NULL DEFAULT FALSE`,
+  `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS allow_meal  BOOLEAN NOT NULL DEFAULT FALSE`,
+  `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS allow_claim BOOLEAN NOT NULL DEFAULT FALSE`,
+  `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS allow_meal  BOOLEAN NOT NULL DEFAULT FALSE`,
   `CREATE TABLE IF NOT EXISTS expense_types (
     id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL UNIQUE,

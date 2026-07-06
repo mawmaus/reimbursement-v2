@@ -280,6 +280,8 @@ input[type="search"] { min-width: 220px; }
 .utable { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .utable th, .utable td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
 .utable th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tick-cell { text-align: center; }
+.tick-cell input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
 /* ---------- Settings ---------- */
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }

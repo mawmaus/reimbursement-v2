@@ -206,6 +206,27 @@ function userCanApprove(user, claim) {
   return ids[(claim.current_step || 1) - 1] === user.id;
 }
 
+// --- Front-page purposes ----------------------------------------------------
+// Which "purpose" buttons (New Claim / New Meal Allowance) a user may see. A
+// purpose is visible only when it is enabled on BOTH the user's department and
+// their job position (AND). Unknown/blank department or position => nothing.
+async function computePurposes(user) {
+  const empty = { claim: false, meal: false };
+  const dept = String(user.department || '').trim();
+  const pos = String(user.position || '').trim();
+  if (!dept || !pos) return empty;
+  const [drows, prows] = await Promise.all([
+    q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
+    q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
+  ]);
+  const d = drows[0], p = prows[0];
+  if (!d || !p) return empty;
+  return {
+    claim: !!(d.allow_claim && p.allow_claim),
+    meal: !!(d.allow_meal && p.allow_meal)
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -242,7 +263,10 @@ app.post('/api/login', ah(async (req, res) => {
   }
   loginAttempts.delete(loginKey(req));
   req.session.userId = user.id;
-  res.json({ user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role, department: user.department, position: user.position } });
+  res.json({ user: {
+    id: user.id, username: user.username, full_name: user.full_name, role: user.role,
+    department: user.department, position: user.position, purposes: await computePurposes(user)
+  } });
 }));
 
 app.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: true }); });
@@ -250,7 +274,7 @@ app.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: true 
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  res.json({ user: u });
+  res.json({ user: { ...u, purposes: await computePurposes(u) } });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -607,14 +631,17 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
 // ---------------------------------------------------------------------------
 // Settings: simple lookups (departments, job positions, expense types)
 // ---------------------------------------------------------------------------
-// Table names are hard-coded (never user input), so interpolation is safe.
-function lookupRoutes(pathName, table) {
+// Table names and flag column names are hard-coded (never user input), so
+// interpolation is safe. `flags` lists extra BOOLEAN columns (e.g. the purpose
+// gates allow_claim / allow_meal) that admins can toggle per row.
+function lookupRoutes(pathName, table, flags = []) {
   // List — any signed-in user may read (the claim form needs departments and
   // expense types). Non-admins receive only the active entries.
   app.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
     const onlyActive = req.user.role !== 'superadmin';
+    const cols = ['id', 'name', 'active', ...flags, 'created_at'].join(', ');
     const items = await q(
-      `SELECT id, name, active, created_at FROM ${table}
+      `SELECT ${cols} FROM ${table}
        ${onlyActive ? 'WHERE active = TRUE' : ''} ORDER BY name`);
     res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at) })) });
   }));
@@ -639,8 +666,17 @@ function lookupRoutes(pathName, table) {
       const dupe = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1) AND id <> $2`, [newName, item.id]);
       if (dupe[0]) return res.status(409).json({ error: 'That name already exists' });
     }
-    await q(`UPDATE ${table} SET name = $1, active = $2 WHERE id = $3`,
-      [newName, active != null ? isActive(active) : item.active, item.id]);
+    // Build the SET clause dynamically so a caller can update just a flag.
+    const sets = [];
+    const params = [];
+    const push = (col, val) => { params.push(val); sets.push(`${col} = $${params.length}`); };
+    push('name', newName);
+    push('active', active != null ? isActive(active) : item.active);
+    for (const f of flags) {
+      if (req.body && req.body[f] !== undefined) push(f, isActive(req.body[f]));
+    }
+    params.push(item.id);
+    await q(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
     res.json({ ok: true });
   }));
 
@@ -650,8 +686,8 @@ function lookupRoutes(pathName, table) {
     res.json({ ok: true });
   }));
 }
-lookupRoutes('departments', 'departments');
-lookupRoutes('positions', 'job_positions');
+lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal']);
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal']);
 lookupRoutes('expense-types', 'expense_types');
 
 // ---------------------------------------------------------------------------

@@ -75,7 +75,10 @@ function showApp() {
   const u = state.user;
   // Role is intentionally not shown in the UI after login.
   $('#userBadge').innerHTML = `${esc(u.full_name)}`;
-  $('#newClaimBtn').hidden = false;
+  // "Purpose" buttons are gated per department + job position (see Settings).
+  const purposes = u.purposes || { claim: false, meal: false };
+  $('#newClaimBtn').hidden = !purposes.claim;
+  $('#newMealBtn').hidden = !purposes.meal;
   $('#exportBtn').hidden = u.role !== 'superadmin';
   $('#settingsBtn').hidden = u.role !== 'superadmin';
   loadLookups();
@@ -457,6 +460,28 @@ async function submitClaim(e, existing) {
 $('#newClaimBtn').addEventListener('click', () => openClaimModal());
 
 // ---------------------------------------------------------------------------
+// New meal allowance — a separate purpose. The bespoke form is defined later;
+// for now this is a placeholder so the visibility/gating flow works end-to-end.
+// Replacing the modal body below with the real form is all that's needed.
+// ---------------------------------------------------------------------------
+function openMealAllowanceModal() {
+  openModal(`
+    <div class="modal-head">
+      <h2>New meal allowance</h2>
+      <button class="x-btn" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="muted">The meal allowance form is being set up and will be available here shortly.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="mealClose">Close</button>
+      </div>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#mealClose').addEventListener('click', closeModal);
+}
+$('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
+
+// ---------------------------------------------------------------------------
 // Reject modal
 // ---------------------------------------------------------------------------
 function openRejectModal(c) {
@@ -560,8 +585,8 @@ function renderSettingsTab() {
   panel.innerHTML = '<p class="muted" style="padding:20px 0">Loading…</p>';
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   const cfg = {
-    departments: { path: '/departments', noun: 'department' },
-    positions: { path: '/positions', noun: 'job position' },
+    departments: { path: '/departments', noun: 'department', purposes: true },
+    positions: { path: '/positions', noun: 'job position', purposes: true },
     'expense-types': { path: '/expense-types', noun: 'expense type' }
   }[settingsState.tab];
   return renderLookupTab(cfg);
@@ -574,18 +599,25 @@ async function renderLookupTab(cfg) {
   try { ({ items } = await api(cfg.path)); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
 
+  const p = !!cfg.purposes;
+  const colspan = p ? 5 : 3;
+  // Two extra columns gate the front-page purpose buttons for this row. A user
+  // sees a purpose only when it is ticked on BOTH their department and position.
+  const purposeCell = (it, flag) =>
+    `<td class="tick-cell"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
   panel.innerHTML = `
     <table class="utable">
-      <thead><tr><th>Name</th><th>Active</th><th style="width:150px"></th></tr></thead>
+      <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:150px"></th></tr></thead>
       <tbody>${items.length ? items.map(it => `
         <tr data-id="${it.id}">
           <td>${esc(it.name)}</td>
           <td>${it.active ? 'Yes' : 'No'}</td>
+          ${p ? purposeCell(it, 'allow_claim') + purposeCell(it, 'allow_meal') : ''}
           <td>
             <button class="btn btn-ghost btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
             <button class="btn btn-ghost btn-sm" data-del="${it.id}">Delete</button>
           </td>
-        </tr>`).join('') : `<tr><td colspan="3" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
+        </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
     </table>
     <form id="lookupForm" class="form" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
       <div style="display:flex;gap:8px;align-items:flex-end">
@@ -611,6 +643,17 @@ async function renderLookupTab(cfg) {
     if (!confirm(`Delete this ${cfg.noun}? Existing claims keep their recorded value.`)) return;
     try { await api(`${cfg.path}/${b.dataset.del}`, { method: 'DELETE' }); toast('Deleted'); refreshAfterSettings(); }
     catch (ex) { toast(ex.message, true); }
+  }));
+  // Purpose tickboxes — persist immediately; keep local state in sync so a later
+  // active-toggle/delete re-render reflects the choice without a full reload.
+  $$('#settingsPanel input[data-flag]').forEach(cb => cb.addEventListener('change', async () => {
+    const it = byId(cb.dataset.id);
+    const flag = cb.dataset.flag, val = cb.checked;
+    try {
+      await api(`${cfg.path}/${cb.dataset.id}`, { method: 'PUT', body: JSON.stringify({ [flag]: val }) });
+      if (it) it[flag] = val;
+      toast('Saved');
+    } catch (ex) { cb.checked = !val; toast(ex.message, true); }
   }));
 }
 
