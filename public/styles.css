@@ -283,6 +283,11 @@ input[type="search"] { min-width: 220px; }
 .tick-cell { text-align: center; }
 .tick-cell input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
+/* checkbox groups (export dialog) */
+.check-group { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 4px; }
+.check-item { display: flex; align-items: center; gap: 7px; font-size: .9rem; cursor: pointer; }
+.check-item input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--pine, #f7982a); }
+
 /* ---------- Meal allowance claim form ---------- */
 .meal-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
 .meal-table { width: 100%; border-collapse: collapse; font-size: .85rem; min-width: 640px; }

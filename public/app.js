@@ -50,6 +50,27 @@ function fmtBytes(b) {
 function fmtDateTime(s) { return s ? s.replace('T', ' ').slice(0, 16) : '—'; }
 const STATUS_LABEL = { submitted: 'Pending review', approved: 'Approved', rejected: 'Rejected', paid: 'Paid' };
 
+// Group an amount's integer part with thousands separators for readability as
+// the user types, e.g. "1000000" → "1,000,000". Commas are stripped again by
+// the server's amount parser, so submitting grouped values is safe. A trailing
+// decimal part (rare for IDR) is preserved.
+function groupAmount(v) {
+  const s = String(v == null ? '' : v).replace(/[^0-9.]/g, '');
+  if (!s) return '';
+  const dot = s.indexOf('.');
+  let intp = (dot === -1 ? s : s.slice(0, dot)).replace(/^0+(?=\d)/, '');
+  if (intp === '') intp = '0';
+  const grouped = intp.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return dot === -1 ? grouped : grouped + '.' + s.slice(dot + 1).replace(/\./g, '').slice(0, 2);
+}
+// Reformat an amount <input> with separators on every keystroke.
+function attachAmountGrouping(input) {
+  if (!input) return;
+  const reformat = () => { input.value = groupAmount(input.value); };
+  reformat();
+  input.addEventListener('input', reformat);
+}
+
 // ---------------------------------------------------------------------------
 // Auth / boot
 // ---------------------------------------------------------------------------
@@ -484,6 +505,7 @@ function openClaimModal(existing = null) {
   drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); addFiles(e.dataTransfer.files); });
   fileInput.addEventListener('change', () => addFiles(fileInput.files));
 
+  attachAmountGrouping($('#claimForm [name="amount"]'));
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
 }
 
@@ -544,7 +566,7 @@ function mealRowHtml(r, i) {
     <td><input name="date" type="date" value="${esc(r.date || '')}" /></td>
     <td><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
     <td><input name="category" value="${esc(r.category || '')}" placeholder="Install / Repair / Service…" /></td>
-    <td><input name="amount" inputmode="numeric" class="meal-amt" value="${esc(r.amount || '')}" placeholder="120000" /></td>
+    <td><input name="amount" inputmode="numeric" class="meal-amt" value="${esc(groupAmount(r.amount))}" placeholder="120,000" /></td>
     <td><input name="desc" value="${esc(r.desc || '')}" placeholder="Surabaya" /></td>
     <td><button type="button" class="x-btn" data-rm="${i}" aria-label="Remove row">×</button></td>
   </tr>`;
@@ -568,6 +590,7 @@ function renderMealRows() {
     readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
   }));
   $$('#mealRows .meal-amt').forEach(inp => inp.addEventListener('input', () => {
+    inp.value = groupAmount(inp.value);
     readMealRows(); $('#mealTotal').textContent = idr(mealTotal());
   }));
 }
@@ -692,13 +715,63 @@ function openRejectModal(c) {
 }
 
 // ---------------------------------------------------------------------------
-// Export (finance)
+// Export (finance) — choose a date range and one or more statuses; covers both
+// reimbursement and meal allowance claims.
 // ---------------------------------------------------------------------------
+const EXPORT_STATUS_OPTS = [
+  { v: 'submitted', l: 'Pending review' },
+  { v: 'approved', l: 'Approved' },
+  { v: 'rejected', l: 'Rejected' },
+  { v: 'paid', l: 'Paid' }
+];
 $('#exportBtn').addEventListener('click', () => {
-  const p = new URLSearchParams();
-  if (state.filters.status) p.set('status', state.filters.status);
-  if (state.filters.department) p.set('department', state.filters.department);
-  window.location.href = '/api/export.csv?' + p.toString();
+  openModal(`
+    <div class="modal-head"><h2>Export claims to CSV</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="exportForm" class="form">
+        <div class="grid2">
+          <label>From date<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
+          <label>To date<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
+        </div>
+        <div class="section-label" style="margin-top:6px">Statuses to include</div>
+        <div class="check-group">
+          ${EXPORT_STATUS_OPTS.map(o => `
+            <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${o.l}</label>`).join('')}
+        </div>
+        <div class="section-label" style="margin-top:6px">Claim types</div>
+        <div class="check-group">
+          <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> Reimbursement claims</label>
+          <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> Meal allowances</label>
+        </div>
+        <p class="muted" style="font-size:.8rem;margin:10px 0 0">Leave dates blank to export all dates. Dates apply to the expense / meal date.</p>
+        <p class="form-error" id="exportErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="exportCancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Download CSV</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#exportCancel').addEventListener('click', closeModal);
+  $('#exportForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const err = $('#exportErr'); err.hidden = true;
+    const fd = new FormData(e.target);
+    const statuses = fd.getAll('status');
+    const types = fd.getAll('types');
+    if (!types.length) { err.textContent = 'Pick at least one claim type.'; err.hidden = false; return; }
+    const from = fd.get('from'), to = fd.get('to');
+    if (from && to && from > to) { err.textContent = 'The “from” date is after the “to” date.'; err.hidden = false; return; }
+    const p = new URLSearchParams();
+    if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
+    if (types.length < 2) p.set('types', types.join(','));
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    // Remember the chosen range for next time.
+    state.filters.exportFrom = from; state.filters.exportTo = to;
+    window.location.href = '/api/export.csv?' + p.toString();
+    closeModal();
+  });
 });
 
 // ---------------------------------------------------------------------------

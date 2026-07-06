@@ -777,32 +777,85 @@ function csvCell(v) {
   const s = v === null || v === undefined ? '' : (v instanceof Date ? v.toISOString() : String(v));
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
+// Export both reimbursement claims and meal allowance claims in one CSV.
+// Filters: `status` (comma-separated, any of the four), `from`/`to` (inclusive,
+// applied to each row's expense/meal date), and `types` (comma-separated:
+// reimbursement, meal \u2014 defaults to both). Reimbursement claims export one row
+// each; meal allowances export one row per line item (per day), so finance sees
+// the full daily breakdown. A shared column set carries both.
 app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const { status, department, from, to } = req.query;
-  const where = [];
-  const params = [];
-  const add = (col, op, val) => { params.push(val); where.push(`c.${col} ${op} $${params.length}`); };
-  if (status) add('status', '=', status);
-  if (department) add('department', '=', department);
-  if (from) add('expense_date', '>=', from);
-  if (to) add('expense_date', '<=', to);
-  const rows = await q(
-    `SELECT c.*, u.username AS employee_username FROM claims c JOIN users u ON u.id = c.employee_id
-     ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY c.created_at`, params);
+  const { from, to } = req.query;
+  const statuses = String(req.query.status || '').split(',').map(s => s.trim())
+    .filter(s => EXPORT_STATUSES.includes(s));
+  const types = String(req.query.types || 'reimbursement,meal').split(',').map(s => s.trim());
+  const wantReimb = types.includes('reimbursement');
+  const wantMeal = types.includes('meal');
 
-  const headers = ['Claim No', 'Submitted By', 'Claimant Name', 'Expense Date', 'Department',
-    'Bank Name', 'Recipient Name', 'Bank Account No', 'Expense Type', 'Amount', 'Currency',
-    'Description', 'Status', 'Manager Comment', 'Decided At', 'Paid At', 'Created At'];
-  const lines = [headers.map(csvCell).join(',')];
-  for (const r of rows) {
-    lines.push([r.claim_no, r.employee_username, r.claimant_name, r.expense_date, r.department,
-      r.bank_name, r.recipient_name, r.bank_account_no, r.expense_type,
-      (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
-      r.manager_comment, r.decided_at, r.paid_at, r.created_at].map(csvCell).join(','));
+  const out = []; // { key: sortKey, cells: [...] }
+
+  if (wantReimb) {
+    const where = [];
+    const params = [];
+    if (statuses.length) {
+      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
+      statuses.forEach(s => params.push(s));
+      where.push(`c.status IN (${ph})`);
+    }
+    if (from) { params.push(from); where.push(`c.expense_date >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`c.expense_date <= $${params.length}`); }
+    const rows = await q(
+      `SELECT c.*, u.username AS employee_username FROM claims c JOIN users u ON u.id = c.employee_id
+       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`, params);
+    for (const r of rows) {
+      out.push({ key: iso(r.created_at) || '', cells: [
+        'Reimbursement', r.claim_no, r.employee_username, r.claimant_name, r.department,
+        r.bank_name, r.recipient_name, r.bank_account_no, r.expense_date, r.expense_type, '',
+        (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
+        r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+    }
   }
+
+  if (wantMeal) {
+    const where = [];
+    const params = [];
+    if (statuses.length) {
+      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
+      statuses.forEach(s => params.push(s));
+      where.push(`m.status IN (${ph})`);
+    }
+    if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
+    const rows = await q(
+      `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
+              m.bank_account_no, m.currency, m.status, m.manager_comment, m.decided_at, m.paid_at,
+              m.created_at, u.username AS employee_username,
+              l.line_date, l.site, l.job_category, l.amount_cents, l.description, l.sort_order
+       FROM meal_claim_lines l
+       JOIN meal_claims m ON m.id = l.meal_claim_id
+       JOIN users u ON u.id = m.employee_id
+       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+       ORDER BY m.created_at, l.sort_order`, params);
+    for (const r of rows) {
+      out.push({ key: iso(r.created_at) || '', cells: [
+        'Meal allowance', r.claim_no, r.employee_username, r.claimant_name, r.department,
+        r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
+        (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
+        r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+    }
+  }
+
+  out.sort((a, b) => String(a.key).localeCompare(String(b.key)));
+
+  const headers = ['Type', 'Claim No', 'Submitted By', 'Claimant Name', 'Department',
+    'Bank Name', 'Recipient Name', 'Bank Account No', 'Date', 'Category', 'Site', 'Amount',
+    'Currency', 'Description', 'Status', 'Manager Comment', 'Decided At', 'Paid At', 'Created At'];
+  const lines = [headers.map(csvCell).join(',')];
+  for (const r of out) lines.push(r.cells.map(csvCell).join(','));
+
   const csv = '\uFEFF' + lines.join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="reimbursements-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="claims-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(csv);
 }));
 
