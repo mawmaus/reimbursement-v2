@@ -8,7 +8,7 @@ const SCHEMA = [
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name     TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('employee','manager','finance','admin')),
+    role          TEXT NOT NULL CHECK (role IN ('superadmin','user')),
     department    TEXT NOT NULL DEFAULT '',
     position      TEXT NOT NULL DEFAULT '',
     active        BOOLEAN NOT NULL DEFAULT TRUE,
@@ -16,6 +16,17 @@ const SCHEMA = [
   )`,
   // Backfill the position column for databases created before it existed.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS position TEXT NOT NULL DEFAULT ''`,
+  // Bank / payout details live on the account (entered when the account is
+  // registered), not on each claim.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS recipient_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_account_no TEXT NOT NULL DEFAULT ''`,
+  // Collapse the old four-role model (employee/manager/finance/admin) down to
+  // two: superadmin and user. Drop the old CHECK, remap the data, re-add it.
+  `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`,
+  `UPDATE users SET role = 'superadmin' WHERE role = 'admin'`,
+  `UPDATE users SET role = 'user' WHERE role <> 'superadmin'`,
+  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','user'))`,
   `CREATE TABLE IF NOT EXISTS claims (
     id              SERIAL PRIMARY KEY,
     claim_no        TEXT NOT NULL UNIQUE,
@@ -99,6 +110,10 @@ const SCHEMA = [
   )`,
   // Route claims through an approval chain: which chain, and the pending step.
   // (Added after approval_chains exists so the foreign key resolves.)
+  // Each account has an ordered list of approvers (the users who approve that
+  // account's claims, in sequence). Chosen from the created users in Settings.
+  `ALTER TABLE users  ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
+  `ALTER TABLE claims ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS current_step INTEGER NOT NULL DEFAULT 0`,
   `CREATE INDEX IF NOT EXISTS idx_claims_employee ON claims(employee_id)`,

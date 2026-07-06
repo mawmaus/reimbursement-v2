@@ -70,10 +70,20 @@ const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch
 // ---------------------------------------------------------------------------
 const iso = (v) => (v instanceof Date ? v.toISOString() : v);
 
+// Postgres int[] can come back as a JS array or a "{1,2}" literal depending on
+// the driver — normalise either into a plain array of numbers.
+function asIntArray(v) {
+  if (Array.isArray(v)) return v.map(Number).filter(Number.isFinite);
+  if (typeof v === 'string') return v.replace(/[{}]/g, '').split(',').map(s => Number(s.trim())).filter(Number.isFinite);
+  return [];
+}
+// A Postgres int[] literal ("{1,2,3}") for binding as $n::int[].
+const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
+
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, role, department, position, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -115,7 +125,7 @@ function groupBy(rows, key) {
   for (const r of rows) (m[r[key]] = m[r[key]] || []).push(r);
   return m;
 }
-function baseClaim(row, attachments, history, chainInfo) {
+function baseClaim(row, attachments, history, nameMap) {
   return {
     id: row.id,
     claim_no: row.claim_no,
@@ -132,14 +142,8 @@ function baseClaim(row, attachments, history, chainInfo) {
     description: row.description,
     status: row.status,
     manager_comment: row.manager_comment,
-    chain_id: row.chain_id || null,
-    chain_name: chainInfo ? chainInfo.name : null,
+    approvers: asIntArray(row.approver_ids).map(id => ({ id, name: (nameMap && nameMap[id]) || `User #${id}` })),
     current_step: row.current_step || 0,
-    approval_steps: chainInfo ? chainInfo.lines.map(l => ({
-      step_order: l.step_order,
-      label: l.approver_label || l.position_name || 'Approver',
-      position_name: l.position_name || null
-    })) : [],
     decided_at: iso(row.decided_at),
     paid_at: iso(row.paid_at),
     created_at: iso(row.created_at),
@@ -168,20 +172,15 @@ async function serializeMany(rows) {
   const a = groupBy(atts, 'claim_id');
   const h = groupBy(hist, 'claim_id');
 
-  // Batch-load the chain name + steps for every distinct chain referenced.
-  const chainIds = [...new Set(rows.map(r => r.chain_id).filter(Boolean))];
-  const chainMap = {};
-  if (chainIds.length) {
-    const cph = chainIds.map((_, i) => `$${i + 1}`).join(',');
-    const chains = await q(`SELECT id, name FROM approval_chains WHERE id IN (${cph})`, chainIds);
-    const lines = await q(
-      `SELECT l.chain_id, l.step_order, l.position_id, l.approver_label, p.name AS position_name
-       FROM approval_lines l LEFT JOIN job_positions p ON p.id = l.position_id
-       WHERE l.chain_id IN (${cph}) ORDER BY l.step_order, l.id`, chainIds);
-    const linesByChain = groupBy(lines, 'chain_id');
-    for (const c of chains) chainMap[c.id] = { name: c.name, lines: linesByChain[c.id] || [] };
+  // Batch-load the names for every distinct approver referenced across claims.
+  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
+  const nameMap = {};
+  if (approverIds.length) {
+    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
+    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
+    for (const u of us) nameMap[u.id] = u.full_name;
   }
-  return rows.map(r => baseClaim(r, a[r.id], h[r.id], r.chain_id ? chainMap[r.chain_id] : null));
+  return rows.map(r => baseClaim(r, a[r.id], h[r.id], nameMap));
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -192,47 +191,19 @@ async function loadClaimOr404(req, res) {
   return rows[0];
 }
 
-const REQUIRED_FIELDS = ['claimant_name', 'expense_date', 'department', 'bank_name',
-  'recipient_name', 'bank_account_no', 'expense_type'];
+// Bank details now come from the claimant's account, so they are not required
+// on the claim form itself.
+const REQUIRED_FIELDS = ['claimant_name', 'expense_date', 'department', 'expense_type'];
 
-// --- Approval-chain routing -------------------------------------------------
-const lineLabel = (l) => (l && (l.approver_label || l.position_name)) || 'Approver';
-
-async function loadChainLines(chainId) {
-  if (!chainId) return [];
-  return await q(
-    `SELECT l.step_order, l.position_id, l.approver_label, p.name AS position_name
-     FROM approval_lines l LEFT JOIN job_positions p ON p.id = l.position_id
-     WHERE l.chain_id = $1 ORDER BY l.step_order, l.id`, [chainId]);
-}
-
-// Pick the active chain that governs a claim: a department-specific chain wins
-// over an "all departments" chain. Chains with no steps are ignored so a claim
-// can never get stuck with nobody able to approve it.
-async function selectChainForClaim(department) {
-  const dept = String(department || '').trim();
-  const rows = await q(
-    `SELECT * FROM approval_chains
-     WHERE active = TRUE AND (department = $1 OR department = '')
-     ORDER BY (department = $1) DESC, id ASC`, [dept]);
-  for (const ch of rows) {
-    const n = await q('SELECT COUNT(*)::int AS c FROM approval_lines WHERE chain_id = $1', [ch.id]);
-    if (Number(n[0].c) > 0) return ch;
-  }
-  return null;
-}
-
-// Can this user approve/reject the claim's current step?
-//  - admins always may (override);
-//  - a chain step with a position requires the user to hold that position;
-//  - a step without a position, or a claim with no chain, falls back to managers.
-function userCanApproveStep(user, claim, lines) {
-  if (user.role === 'admin') return true;
-  if (!claim.chain_id || !lines.length) return user.role === 'manager';
-  const line = lines[claim.current_step - 1];
-  if (!line) return false;
-  if (line.position_id) return !!user.position && user.position === line.position_name;
-  return user.role === 'manager';
+// --- Approval routing -------------------------------------------------------
+// Each account has an ordered list of approvers. A claim advances through them
+// one at a time: only the approver at the current step may act. Super admins can
+// always override. A claim with no approvers can only be approved by a superadmin.
+function userCanApprove(user, claim) {
+  if (user.role === 'superadmin') return true;
+  const ids = asIntArray(claim.approver_ids);
+  if (!ids.length) return false;
+  return ids[(claim.current_step || 1) - 1] === user.id;
 }
 
 // ---------------------------------------------------------------------------
@@ -304,7 +275,11 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
   const params = [];
   const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
 
-  if (req.user.role === 'employee') add('employee_id = $$', req.user.id);
+  if (req.user.role !== 'superadmin') {
+    params.push(req.user.id);
+    const p = `$${params.length}`;
+    where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
+  }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
   if (search) {
@@ -320,8 +295,8 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
-  const scope = req.user.role === 'employee' ? 'WHERE employee_id = $1' : '';
-  const params = req.user.role === 'employee' ? [req.user.id] : [];
+  const scope = req.user.role === 'superadmin' ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
+  const params = req.user.role === 'superadmin' ? [] : [req.user.id];
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(amount_cents),0)::bigint AS total
      FROM claims ${scope} GROUP BY status`, params);
@@ -336,13 +311,14 @@ app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role === 'employee' && row.employee_id !== req.user.id) {
+  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+      && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own claims' });
   }
   res.json({ claim: await serializeOne(row) });
 }));
 
-async function insertClaim(req, b, cents, chain) {
+async function insertClaim(req, b, cents, approverIds) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextClaimNo();
     try {
@@ -350,13 +326,14 @@ async function insertClaim(req, b, cents, chain) {
         `INSERT INTO claims
           (claim_no, employee_id, claimant_name, expense_date, department, bank_name,
            recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
-           status, chain_id, current_step)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'submitted',$13,$14) RETURNING id`,
+           status, approver_ids, current_step)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'submitted',$13::int[],$14) RETURNING id`,
         [claimNo, req.user.id, String(b.claimant_name).trim(), String(b.expense_date).trim(),
-         String(b.department).trim(), String(b.bank_name).trim(), String(b.recipient_name).trim(),
-         String(b.bank_account_no).trim(), String(b.expense_type).trim(), cents,
+         String(b.department).trim(), String(req.user.bank_name || '').trim(),
+         String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
+         String(b.expense_type).trim(), cents,
          String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
-         chain ? chain.id : null, chain ? 1 : 0]);
+         intArrayLiteral(approverIds), approverIds.length ? 1 : 0]);
       return rows[0].id;
     } catch (e) {
       const msg = String(e.message || '');
@@ -367,7 +344,7 @@ async function insertClaim(req, b, cents, chain) {
   throw new Error('Could not allocate a claim number — please try again');
 }
 
-app.post('/api/claims', requireAuth, requireRole('employee', 'admin', 'manager', 'finance'),
+app.post('/api/claims', requireAuth,
   upload.array('files', 8), ah(async (req, res) => {
     const b = req.body || {};
     for (const f of REQUIRED_FIELDS) {
@@ -383,13 +360,12 @@ app.post('/api/claims', requireAuth, requireRole('employee', 'admin', 'manager',
         const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
         uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
       }
-      const chain = await selectChainForClaim(b.department);
-      const claimId = await insertClaim(req, b, cents, chain);
+      const claimId = await insertClaim(req, b, cents, asIntArray(req.user.approver_ids));
       for (const u of uploaded) {
         await q(`INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
                  VALUES ($1,$2,$3,$4,$5,$6)`, [claimId, u.url, u.pathname, u.original_name, u.mime, u.size]);
       }
-      await logHistory(claimId, req.user, chain ? `submitted → ${chain.name}` : 'submitted', null, 'submitted', '');
+      await logHistory(claimId, req.user, 'submitted', null, 'submitted', '');
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       res.status(201).json({ claim: await serializeOne(rows[0]) });
     } catch (e) {
@@ -401,7 +377,7 @@ app.post('/api/claims', requireAuth, requireRole('employee', 'admin', 'manager',
 app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
-  if (row.employee_id !== req.user.id && req.user.role !== 'admin') {
+  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'You can only edit your own claims' });
   }
   if (row.status !== 'rejected') {
@@ -420,17 +396,21 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
       const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
       uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
     }
-    // Re-route through the chain that now applies (department may have changed).
-    const chain = await selectChainForClaim(b.department);
+    // Bank details + approvers come from the claimant's account.
+    const emp = (await q(
+      'SELECT bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
+      [row.employee_id]))[0] || {};
+    const approverIds = asIntArray(emp.approver_ids);
     await q(
       `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, bank_name=$4,
          recipient_name=$5, bank_account_no=$6, expense_type=$7, amount_cents=$8, currency=$9,
          description=$10, status='submitted', manager_comment='', manager_id=NULL,
-         decided_at=NULL, chain_id=$11, current_step=$12, updated_at=now() WHERE id=$13`,
+         decided_at=NULL, approver_ids=$11::int[], current_step=$12, updated_at=now() WHERE id=$13`,
       [String(b.claimant_name).trim(), String(b.expense_date).trim(), String(b.department).trim(),
-       String(b.bank_name).trim(), String(b.recipient_name).trim(), String(b.bank_account_no).trim(),
+       String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
+       String(emp.bank_account_no || '').trim(),
        String(b.expense_type).trim(), cents, String(b.currency || row.currency).trim().slice(0, 8),
-       String(b.description || '').trim(), chain ? chain.id : null, chain ? 1 : 0, row.id]);
+       String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, row.id]);
     for (const u of uploaded) {
       await q(`INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
                VALUES ($1,$2,$3,$4,$5,$6)`, [row.id, u.url, u.pathname, u.original_name, u.mime, u.size]);
@@ -448,29 +428,22 @@ app.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a claim that is "${row.status}"` });
-  const lines = await loadChainLines(row.chain_id);
-  if (!userCanApproveStep(req.user, row, lines)) {
+  if (!userCanApprove(req.user, row)) {
     return res.status(403).json({ error: 'You are not the approver for this step' });
   }
   const comment = String((req.body && req.body.comment) || '').trim();
-
-  if (row.chain_id && lines.length) {
-    const step = row.current_step;
-    const label = lineLabel(lines[step - 1]);
-    if (step >= lines.length) {
-      // Final step — the claim is fully approved and moves on to finance.
-      await q(`UPDATE claims SET status='approved', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
-        [req.user.id, comment, row.id]);
-      await logHistory(row.id, req.user, `approved — step ${step} (${label})`, 'submitted', 'approved', comment);
-    } else {
-      // Intermediate step — advance to the next approver, stay pending.
-      await q(`UPDATE claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
-      await logHistory(row.id, req.user, `approved — step ${step} (${label})`, 'submitted', 'submitted', comment);
-    }
-  } else {
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  // A superadmin override finalises immediately; otherwise advance one step and
+  // only mark fully approved once the last approver has signed off.
+  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  if (finalise) {
     await q(`UPDATE claims SET status='approved', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
       [req.user.id, comment, row.id]);
-    await logHistory(row.id, req.user, 'approved', 'submitted', 'approved', comment);
+    await logHistory(row.id, req.user, ids.length ? `approved — step ${step} of ${ids.length}` : 'approved', 'submitted', 'approved', comment);
+  } else {
+    await q(`UPDATE claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
+    await logHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   res.json({ claim: await serializeOne(rows[0]) });
@@ -482,19 +455,17 @@ app.post('/api/claims/:id/reject', requireAuth, ah(async (req, res) => {
   const comment = String((req.body && req.body.comment) || '').trim();
   if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a claim' });
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot reject a claim that is "${row.status}"` });
-  const lines = await loadChainLines(row.chain_id);
-  if (!userCanApproveStep(req.user, row, lines)) {
-    return res.status(403).json({ error: 'You are not the approver for this step' });
+  if (!userCanApprove(req.user, row)) {
+    return res.status(403).json({ error: 'You are not the approver for this claim' });
   }
-  const stepNote = (row.chain_id && lines.length) ? ` — step ${row.current_step} (${lineLabel(lines[row.current_step - 1])})` : '';
   await q(`UPDATE claims SET status='rejected', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
     [req.user.id, comment, row.id]);
-  await logHistory(row.id, req.user, `rejected${stepNote}`, 'submitted', 'rejected', comment);
+  await logHistory(row.id, req.user, 'rejected', 'submitted', 'rejected', comment);
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
-app.post('/api/claims/:id/mark-paid', requireAuth, requireRole('finance', 'admin'), ah(async (req, res) => {
+app.post('/api/claims/:id/mark-paid', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved claims can be marked as paid' });
@@ -508,7 +479,8 @@ app.post('/api/claims/:id/mark-paid', requireAuth, requireRole('finance', 'admin
 app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role === 'employee' && row.employee_id !== req.user.id) {
+  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+      && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own attachments' });
   }
   const rows = await q('SELECT * FROM attachments WHERE id=$1 AND claim_id=$2', [req.params.attId, row.id]);
@@ -528,7 +500,7 @@ function csvCell(v) {
   const s = v === null || v === undefined ? '' : (v instanceof Date ? v.toISOString() : String(v));
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-app.get('/api/export.csv', requireAuth, requireRole('finance', 'admin'), ah(async (req, res) => {
+app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
   const { status, department, from, to } = req.query;
   const where = [];
   const params = [];
@@ -561,36 +533,68 @@ app.get('/api/export.csv', requireAuth, requireRole('finance', 'admin'), ah(asyn
 // Admin: users
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
+const ROLES = ['superadmin', 'user'];
+// Clean an approver-id list: positive integers, de-duplicated, excluding the
+// account itself (an account cannot approve its own claims).
+function sanitizeApproverIds(input, excludeId) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (const v of input) {
+    const n = Number(v);
+    if (Number.isInteger(n) && n > 0 && n !== excludeId && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
 
-app.get('/api/users', requireAuth, requireRole('admin'), ah(async (req, res) => {
-  const users = await q('SELECT id, username, full_name, role, department, position, active, created_at FROM users ORDER BY id');
-  res.json({ users: users.map(u => ({ ...u, created_at: iso(u.created_at) })) });
+app.get('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const users = await q('SELECT id, username, full_name, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at FROM users ORDER BY id');
+  res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), created_at: iso(u.created_at) })) });
 }));
-app.post('/api/users', requireAuth, requireRole('admin'), ah(async (req, res) => {
-  const { username, password, full_name, role, department, position } = req.body || {};
+app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const { username, password, full_name, role, department, position,
+    bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
-  if (!['employee', 'manager', 'finance', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   const exists = await q('SELECT 1 FROM users WHERE username = $1', [String(username).trim()]);
   if (exists[0]) return res.status(409).json({ error: 'Username already exists' });
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::int[]) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
-     String(department || '').trim(), String(position || '').trim()]);
+     String(department || '').trim(), String(position || '').trim(),
+     String(bank_name || '').trim(), String(recipient_name || '').trim(),
+     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids))]);
   res.status(201).json({ id: rows[0].id });
 }));
-app.put('/api/users/:id', requireAuth, requireRole('admin'), ah(async (req, res) => {
+app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const { full_name, role, department, position, active, password } = req.body || {};
-  if (role && !['employee', 'manager', 'finance', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
-  await q(`UPDATE users SET full_name=$1, role=$2, department=$3, position=$4, active=$5 WHERE id=$6`, [
+  const { username, full_name, role, department, position, active, password,
+    bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
+  if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  // Username can be changed, but must stay unique.
+  let nextUsername = u.username;
+  if (username != null && String(username).trim() && String(username).trim() !== u.username) {
+    nextUsername = String(username).trim();
+    const dupe = await q('SELECT 1 FROM users WHERE username = $1 AND id <> $2', [nextUsername, u.id]);
+    if (dupe[0]) return res.status(409).json({ error: 'Username already exists' });
+  }
+  const nextApprovers = approver_ids !== undefined
+    ? sanitizeApproverIds(approver_ids, u.id) : asIntArray(u.approver_ids);
+  await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
+             bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[] WHERE id=$11`, [
+    nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
     department != null ? String(department).trim() : u.department,
     position != null ? String(position).trim() : u.position,
     active != null ? isActive(active) : u.active,
+    bank_name != null ? String(bank_name).trim() : u.bank_name,
+    recipient_name != null ? String(recipient_name).trim() : u.recipient_name,
+    bank_account_no != null ? String(bank_account_no).trim() : u.bank_account_no,
+    intArrayLiteral(nextApprovers),
     u.id
   ]);
   if (password) {
@@ -608,14 +612,14 @@ function lookupRoutes(pathName, table) {
   // List — any signed-in user may read (the claim form needs departments and
   // expense types). Non-admins receive only the active entries.
   app.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
-    const onlyActive = req.user.role !== 'admin';
+    const onlyActive = req.user.role !== 'superadmin';
     const items = await q(
       `SELECT id, name, active, created_at FROM ${table}
        ${onlyActive ? 'WHERE active = TRUE' : ''} ORDER BY name`);
     res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at) })) });
   }));
 
-  app.post(`/api/${pathName}`, requireAuth, requireRole('admin'), ah(async (req, res) => {
+  app.post(`/api/${pathName}`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
     const name = String((req.body && req.body.name) || '').trim();
     if (!name) return res.status(400).json({ error: 'Name is required' });
     const exists = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1)`, [name]);
@@ -624,7 +628,7 @@ function lookupRoutes(pathName, table) {
     res.status(201).json({ id: rows[0].id });
   }));
 
-  app.put(`/api/${pathName}/:id`, requireAuth, requireRole('admin'), ah(async (req, res) => {
+  app.put(`/api/${pathName}/:id`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
     const rows = await q(`SELECT * FROM ${table} WHERE id = $1`, [req.params.id]);
     const item = rows[0];
     if (!item) return res.status(404).json({ error: 'Not found' });
@@ -640,7 +644,7 @@ function lookupRoutes(pathName, table) {
     res.json({ ok: true });
   }));
 
-  app.delete(`/api/${pathName}/:id`, requireAuth, requireRole('admin'), ah(async (req, res) => {
+  app.delete(`/api/${pathName}/:id`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
     const rows = await q(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
@@ -649,98 +653,6 @@ function lookupRoutes(pathName, table) {
 lookupRoutes('departments', 'departments');
 lookupRoutes('positions', 'job_positions');
 lookupRoutes('expense-types', 'expense_types');
-
-// ---------------------------------------------------------------------------
-// Settings: approval chains (a named, ordered sequence of approval lines)
-// ---------------------------------------------------------------------------
-async function serializeChains(chains) {
-  if (!chains.length) return [];
-  const ids = chains.map(c => c.id);
-  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
-  const lines = await q(
-    `SELECT l.id, l.chain_id, l.step_order, l.position_id, l.approver_label, p.name AS position_name
-     FROM approval_lines l LEFT JOIN job_positions p ON p.id = l.position_id
-     WHERE l.chain_id IN (${ph}) ORDER BY l.step_order, l.id`, ids);
-  const byChain = groupBy(lines, 'chain_id');
-  return chains.map(c => ({
-    id: c.id, name: c.name, department: c.department, active: c.active,
-    created_at: iso(c.created_at),
-    lines: (byChain[c.id] || []).map(l => ({
-      id: l.id, step_order: l.step_order, position_id: l.position_id,
-      position_name: l.position_name || null, approver_label: l.approver_label
-    }))
-  }));
-}
-
-// Validate + normalise the lines array coming from a request body.
-function normalizeLines(input) {
-  if (!Array.isArray(input)) return [];
-  return input
-    .map((l, i) => ({
-      step_order: Number.isFinite(Number(l && l.step_order)) ? Number(l.step_order) : i + 1,
-      position_id: l && l.position_id ? Number(l.position_id) : null,
-      approver_label: String((l && l.approver_label) || '').trim()
-    }))
-    .filter(l => l.position_id || l.approver_label);
-}
-async function replaceLines(chainId, lines) {
-  await q('DELETE FROM approval_lines WHERE chain_id = $1', [chainId]);
-  let step = 1;
-  for (const l of lines) {
-    await q(
-      `INSERT INTO approval_lines (chain_id, step_order, position_id, approver_label)
-       VALUES ($1,$2,$3,$4)`,
-      [chainId, l.step_order || step, l.position_id, l.approver_label]);
-    step++;
-  }
-}
-
-app.get('/api/approval-chains', requireAuth, requireRole('admin'), ah(async (req, res) => {
-  const chains = await q('SELECT * FROM approval_chains ORDER BY name');
-  res.json({ chains: await serializeChains(chains) });
-}));
-
-app.post('/api/approval-chains', requireAuth, requireRole('admin'), ah(async (req, res) => {
-  const b = req.body || {};
-  const name = String(b.name || '').trim();
-  if (!name) return res.status(400).json({ error: 'Chain name is required' });
-  const exists = await q('SELECT 1 FROM approval_chains WHERE lower(name) = lower($1)', [name]);
-  if (exists[0]) return res.status(409).json({ error: 'A chain with that name already exists' });
-  const rows = await q(
-    `INSERT INTO approval_chains (name, department) VALUES ($1,$2) RETURNING id`,
-    [name, String(b.department || '').trim()]);
-  await replaceLines(rows[0].id, normalizeLines(b.lines));
-  const chain = await q('SELECT * FROM approval_chains WHERE id = $1', [rows[0].id]);
-  res.status(201).json({ chain: (await serializeChains(chain))[0] });
-}));
-
-app.put('/api/approval-chains/:id', requireAuth, requireRole('admin'), ah(async (req, res) => {
-  const rows = await q('SELECT * FROM approval_chains WHERE id = $1', [req.params.id]);
-  const chain = rows[0];
-  if (!chain) return res.status(404).json({ error: 'Approval chain not found' });
-  const b = req.body || {};
-  const name = b.name != null ? String(b.name).trim() : chain.name;
-  if (!name) return res.status(400).json({ error: 'Chain name is required' });
-  if (name.toLowerCase() !== chain.name.toLowerCase()) {
-    const dupe = await q('SELECT 1 FROM approval_chains WHERE lower(name) = lower($1) AND id <> $2', [name, chain.id]);
-    if (dupe[0]) return res.status(409).json({ error: 'A chain with that name already exists' });
-  }
-  await q('UPDATE approval_chains SET name=$1, department=$2, active=$3 WHERE id=$4', [
-    name,
-    b.department != null ? String(b.department).trim() : chain.department,
-    b.active != null ? isActive(b.active) : chain.active,
-    chain.id
-  ]);
-  if (b.lines !== undefined) await replaceLines(chain.id, normalizeLines(b.lines));
-  const updated = await q('SELECT * FROM approval_chains WHERE id = $1', [chain.id]);
-  res.json({ chain: (await serializeChains(updated))[0] });
-}));
-
-app.delete('/api/approval-chains/:id', requireAuth, requireRole('admin'), ah(async (req, res) => {
-  const rows = await q('DELETE FROM approval_chains WHERE id = $1 RETURNING id', [req.params.id]);
-  if (!rows[0]) return res.status(404).json({ error: 'Approval chain not found' });
-  res.json({ ok: true });
-}));
 
 // ---------------------------------------------------------------------------
 // Static frontend + error handling
