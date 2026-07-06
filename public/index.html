@@ -89,9 +89,18 @@
       </div>
     </section>
 
+    <div id="selectionBar" class="selection-bar" hidden>
+      <span id="selCount" class="sel-count"></span>
+      <div class="sel-actions">
+        <button id="clearSelBtn" class="btn btn-ghost btn-sm" type="button">Clear</button>
+        <button id="genPdfBtn" class="btn btn-primary btn-sm" type="button">Download PDF</button>
+      </div>
+    </div>
+
     <section class="ledger">
       <div class="ledger-head">
         <span class="col-spine"></span>
+        <span class="col-check"><input type="checkbox" id="selectAll" aria-label="Select all claims" /></span>
         <span class="col-no">Claim</span>
         <span class="col-name">Claimant</span>
         <span class="col-type">Expense</span>

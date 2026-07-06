@@ -157,9 +157,20 @@ input[type="search"] { min-width: 220px; }
 .ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .ledger-head, .ledger-row {
   display: grid;
-  grid-template-columns: 4px 130px 1.4fr 1.3fr 110px 130px 120px;
+  grid-template-columns: 4px 36px 130px 1.4fr 1.3fr 110px 130px 120px;
   align-items: center; gap: 10px; padding: 0 16px 0 0;
 }
+.col-check { display: grid; place-items: center; }
+.col-check input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--pine); }
+
+/* Selection bar — appears when one or more claims are ticked */
+.selection-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--pine-tint); border: 1px solid var(--pine); border-radius: 10px;
+  padding: 8px 12px 8px 16px; margin-bottom: 12px;
+}
+.selection-bar .sel-count { font-weight: 600; font-size: .9rem; color: var(--pine-deep); }
+.selection-bar .sel-actions { display: flex; gap: 8px; }
 .ledger-head {
   font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: var(--muted);
   border-bottom: 1px solid var(--line); height: 40px; background: var(--paper);
@@ -415,7 +426,7 @@ input[type="search"] { min-width: 220px; }
 @media (max-width: 900px) {
   .container { padding: 20px 16px 48px; }
   .topbar { padding: 10px 16px; }
-  .ledger-head, .ledger-row { grid-template-columns: 4px 108px 1.3fr 1fr 92px 1fr 96px; }
+  .ledger-head, .ledger-row { grid-template-columns: 4px 32px 100px 1.3fr 1fr 88px 1fr 92px; }
 }
 
 @media (max-width: 720px) {
@@ -431,9 +442,10 @@ input[type="search"] { min-width: 220px; }
   .toolbar-right .btn { width: 100%; }
 
   .ledger-head { display: none; }
-  .ledger-row { grid-template-columns: 4px 1fr auto; grid-template-areas:
-      "spine no status" "spine name amt" "spine type date"; padding: 12px 16px 12px 0; gap: 2px 10px; min-height: 0; }
+  .ledger-row { grid-template-columns: 4px 30px 1fr auto; grid-template-areas:
+      "spine check no status" "spine check name amt" "spine check type date"; padding: 12px 16px 12px 0; gap: 2px 10px; min-height: 0; }
   .row-spine { grid-area: spine; height: 100%; }
+  .col-check { grid-area: check; }
   .col-no { grid-area: no; }
   .col-name { grid-area: name; }
   .col-type { grid-area: type; }

@@ -7,8 +7,12 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
 
 const state = {
   user: null, claims: [], filters: { status: '', department: '', q: '' },
-  lookups: { departments: [], expense_types: [] }
+  lookups: { departments: [], expense_types: [] },
+  // Ticked claims for PDF export, keyed "type:id" (the two claim types can
+  // share numeric ids, so the type must be part of the key).
+  selected: new Set()
 };
+const claimKey = (type, id) => `${type}:${id}`;
 
 // ---------------------------------------------------------------------------
 // API
@@ -221,6 +225,9 @@ async function loadClaims() {
   const reimb = (r.claims || []).map(c => ({ ...c, type: 'reimbursement' }));
   const meal = (m.claims || []).map(c => ({ ...c, type: 'meal' }));
   state.claims = [...reimb, ...meal].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+  // Drop selections for claims no longer in the current view.
+  const avail = new Set(state.claims.map(c => claimKey(c.type, c.id)));
+  [...state.selected].forEach(k => { if (!avail.has(k)) state.selected.delete(k); });
   renderDeptOptions();
   renderClaims();
 }
@@ -249,9 +256,11 @@ function renderClaims() {
   $('#emptyState').hidden = true;
   wrap.innerHTML = state.claims.map(c => {
     const v = rowView(c);
+    const checked = state.selected.has(claimKey(c.type, c.id)) ? 'checked' : '';
     return `
     <div class="ledger-row" data-id="${c.id}" data-type="${c.type}" tabindex="0" role="button">
       <span class="row-spine ${c.status}"></span>
+      <span class="col-check"><input type="checkbox" class="row-check" data-id="${c.id}" data-type="${c.type}" ${checked} aria-label="Select ${esc(c.claim_no)}" /></span>
       <span class="col-no">${esc(c.claim_no)}</span>
       <span class="col-name">${esc(c.claimant_name)}</span>
       <span class="col-type">${esc(v.typeLabel)}</span>
@@ -264,6 +273,28 @@ function renderClaims() {
     el.addEventListener('click', open);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
+  // Checkboxes must not open the drawer; they only drive the selection.
+  $$('.col-check', wrap).forEach(cell => cell.addEventListener('click', e => e.stopPropagation()));
+  $$('.row-check', wrap).forEach(cb => cb.addEventListener('change', () => {
+    const key = claimKey(cb.dataset.type, cb.dataset.id);
+    if (cb.checked) state.selected.add(key); else state.selected.delete(key);
+    updateSelectionUI();
+  }));
+  updateSelectionUI();
+}
+
+// Reflect selection count in the bar and sync the header select-all box.
+function updateSelectionUI() {
+  const n = state.selected.size;
+  $('#selectionBar').hidden = n === 0;
+  $('#selCount').textContent = `${n} claim${n === 1 ? '' : 's'} selected`;
+  const boxes = $$('.row-check');
+  const all = $('#selectAll');
+  if (all) {
+    const checkedCount = boxes.filter(b => b.checked).length;
+    all.checked = boxes.length > 0 && checkedCount === boxes.length;
+    all.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
+  }
 }
 
 // filters
@@ -274,6 +305,180 @@ $('#searchInput').addEventListener('input', e => {
 });
 $('#statusFilter').addEventListener('change', e => { state.filters.status = e.target.value; loadClaims(); });
 $('#deptFilter').addEventListener('change', e => { state.filters.department = e.target.value; loadClaims(); });
+
+// ---------------------------------------------------------------------------
+// Selection + PDF export
+// ---------------------------------------------------------------------------
+$('#selectAll').addEventListener('change', e => {
+  const on = e.target.checked;
+  $$('.row-check').forEach(cb => {
+    cb.checked = on;
+    const key = claimKey(cb.dataset.type, cb.dataset.id);
+    if (on) state.selected.add(key); else state.selected.delete(key);
+  });
+  updateSelectionUI();
+});
+$('#clearSelBtn').addEventListener('click', () => {
+  state.selected.clear();
+  $$('.row-check').forEach(cb => { cb.checked = false; });
+  updateSelectionUI();
+});
+$('#genPdfBtn').addEventListener('click', generatePdf);
+
+async function generatePdf() {
+  // Keep the ledger order, and open the print window synchronously (inside the
+  // click) so pop-up blockers allow it while details are fetched.
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  if (!chosen.length) return;
+  const w = window.open('', '_blank');
+  if (!w) { toast('Allow pop-ups to download the PDF', true); return; }
+  w.document.write('<!doctype html><meta charset="utf-8"><title>Preparing…</title><p style="font:15px system-ui;padding:24px">Preparing document…</p>');
+  const btn = $('#genPdfBtn'); btn.disabled = true;
+  try {
+    const detailed = [];
+    for (const c of chosen) {
+      const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      const { claim } = await api(path + c.id);
+      claim.type = c.type;
+      detailed.push(claim);
+    }
+    w.document.open();
+    w.document.write(buildPrintDoc(detailed));
+    w.document.close();
+  } catch (ex) {
+    w.close();
+    toast(ex.message, true);
+  } finally { btn.disabled = false; }
+}
+
+// Date shown on an approver step, pulled from the matching history entry.
+function approvalActionDate(c, name, action) {
+  const h = (c.history || []).find(x => x.actor_name === name && x.action === action);
+  return h ? fmtDateTime(h.created_at) : '';
+}
+
+function pdfApprovalsBlock(c) {
+  if (!c.approvers || !c.approvers.length) {
+    return `<div class="p-sec">Approvals</div><p class="p-muted">No approval chain — processed by a Super Admin.</p>`;
+  }
+  const rows = c.approvers.map((a, i) => {
+    const st = stepStateFor(c, i + 1);
+    const label = STEP_STATE_LABEL[st];
+    const date = st === 'done' ? approvalActionDate(c, a.name, 'approved')
+      : st === 'rejected' ? approvalActionDate(c, a.name, 'rejected') : '';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td>${esc(a.name)}</td>
+      <td class="p-${st}">${label}</td>
+      <td>${esc(date || '—')}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="p-sec">Approvals</div>
+    <table class="p-appr"><thead><tr><th>Step</th><th>Approver</th><th>Decision</th><th>Date</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+function pdfHistoryBlock(c) {
+  if (!c.history || !c.history.length) return '';
+  const items = c.history.map(h => `<li>
+      <strong>${esc(h.action)}</strong> — ${esc(h.actor_name)} · ${fmtDateTime(h.created_at)}
+      ${h.comment ? `<div class="p-cmt">“${esc(h.comment)}”</div>` : ''}
+    </li>`).join('');
+  return `<div class="p-sec">History</div><ul class="p-hist">${items}</ul>`;
+}
+
+function pdfDetailsBlock(c) {
+  if (c.type === 'meal') {
+    const rows = (c.lines || []).map(l => `<tr>
+        <td>${esc(l.line_date)}</td><td>${esc(l.site)}</td><td>${esc(l.job_category)}</td>
+        <td class="p-num">${esc(money(l.amount, c.currency))}</td><td>${esc(l.description)}</td>
+      </tr>`).join('');
+    return `
+      <table class="p-kv">
+        <tr><th>Claimant</th><td>${esc(c.claimant_name)}</td><th>Department</th><td>${esc(c.department || '—')}</td></tr>
+        <tr><th>Recipient</th><td>${esc(c.recipient_name || '—')}</td><th>Bank</th><td>${esc(c.bank_name || '—')}</td></tr>
+        <tr><th>Account no.</th><td colspan="3">${esc(c.bank_account_no || '—')}</td></tr>
+      </table>
+      <div class="p-sec">Meal allowance lines</div>
+      <table class="p-lines">
+        <thead><tr><th>Date</th><th>DB Number Site</th><th>Job Category</th><th>Amount</th><th>Description</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="5">No lines.</td></tr>'}</tbody>
+        <tfoot><tr><td colspan="3">TOTAL CLAIM MEAL ALLOWANCE</td><td class="p-num">${esc(money(c.total_amount, c.currency))}</td><td></td></tr></tfoot>
+      </table>`;
+  }
+  return `
+    <table class="p-kv">
+      <tr><th>Claimant</th><td>${esc(c.claimant_name)}</td><th>Department</th><td>${esc(c.department || '—')}</td></tr>
+      <tr><th>Expense type</th><td>${esc(c.expense_type || '—')}</td><th>Expense date</th><td>${esc(c.expense_date || '—')}</td></tr>
+      ${c.db_no ? `<tr><th>DB No.</th><td colspan="3">${esc(c.db_no)}</td></tr>` : ''}
+      <tr><th>Amount</th><td class="p-amt" colspan="3">${esc(money(c.amount, c.currency))}</td></tr>
+      <tr><th>Recipient</th><td>${esc(c.recipient_name || '—')}</td><th>Bank</th><td>${esc(c.bank_name || '—')}</td></tr>
+      <tr><th>Account no.</th><td colspan="3">${esc(c.bank_account_no || '—')}</td></tr>
+      ${c.description ? `<tr><th>Description</th><td colspan="3">${esc(c.description)}</td></tr>` : ''}
+    </table>`;
+}
+
+function pdfClaimPage(c, isLast) {
+  const title = c.type === 'meal' ? 'Meal Allowance Claim' : 'Reimbursement Claim';
+  return `
+  <section class="p-page${isLast ? '' : ' p-break'}">
+    <header class="p-head">
+      <img class="p-logo" src="/logo.svg" alt="Cibes" />
+      <div class="p-title"><h1>${title}</h1>
+        <div class="p-no">${esc(c.claim_no)} · <span class="p-status p-${c.status}">${STATUS_LABEL[c.status]}</span></div>
+        <div class="p-sub">Submitted ${fmtDateTime(c.created_at)}</div>
+      </div>
+    </header>
+    ${pdfDetailsBlock(c)}
+    ${pdfApprovalsBlock(c)}
+    ${pdfHistoryBlock(c)}
+    <footer class="p-foot">Generated ${fmtDateTime(new Date().toISOString())} · Cibes Reimbursement Portal</footer>
+  </section>`;
+}
+
+function buildPrintDoc(claims) {
+  const pages = claims.map((c, i) => pdfClaimPage(c, i === claims.length - 1)).join('');
+  return `<!doctype html><html><head><meta charset="utf-8">
+  <title>Cibes Claims${claims.length === 1 ? ' — ' + esc(claims[0].claim_no) : ''}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #222; margin: 0; }
+    .p-page { padding: 28px 32px; max-width: 800px; margin: 0 auto; }
+    .p-break { page-break-after: always; }
+    .p-head { display: flex; align-items: flex-start; gap: 18px; border-bottom: 2px solid #F7982A; padding-bottom: 14px; margin-bottom: 18px; }
+    .p-logo { height: 34px; }
+    .p-title h1 { font-size: 1.3rem; margin: 0 0 3px; }
+    .p-no { font-size: .95rem; font-weight: 600; }
+    .p-sub { font-size: .8rem; color: #777; margin-top: 2px; }
+    .p-status { text-transform: uppercase; font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+    .p-submitted { background: #f8ecd4; color: #b5771a; }
+    .p-approved, .p-done { color: #2f7d55; }
+    .p-rejected { color: #c0392b; }
+    .p-paid { color: #3f5896; }
+    .p-current { color: #b5771a; }
+    .p-sec { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: #999; margin: 20px 0 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    .p-kv th { text-align: left; width: 110px; color: #777; font-weight: 600; padding: 4px 10px 4px 0; vertical-align: top; font-size: .82rem; }
+    .p-kv td { padding: 4px 16px 4px 0; vertical-align: top; }
+    .p-amt { font-weight: 700; font-size: 1.05rem; }
+    .p-lines th, .p-lines td, .p-appr th, .p-appr td { border: 1px solid #e2e2e2; padding: 6px 8px; text-align: left; font-size: .82rem; }
+    .p-lines th, .p-appr th { background: #f6f6f4; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+    .p-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .p-lines tfoot td { font-weight: 700; background: #faf6f0; }
+    .p-appr td.p-done, .p-appr td.p-approved { font-weight: 700; }
+    .p-hist { list-style: none; padding: 0; margin: 0; }
+    .p-hist li { padding: 6px 0 6px 14px; border-left: 2px solid #eee; margin-bottom: 4px; }
+    .p-hist strong { text-transform: capitalize; }
+    .p-cmt { font-size: .82rem; color: #555; margin-top: 2px; }
+    .p-muted { color: #888; }
+    .p-foot { margin-top: 26px; padding-top: 10px; border-top: 1px solid #eee; font-size: .72rem; color: #aaa; }
+    @page { margin: 14mm; }
+    @media print { .p-page { padding: 0; } }
+  </style></head>
+  <body>${pages}
+  <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 200); });<\/script>
+  </body></html>`;
+}
 
 // ---------------------------------------------------------------------------
 // Drawer (claim detail + actions)
