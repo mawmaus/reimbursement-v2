@@ -283,6 +283,32 @@ input[type="search"] { min-width: 220px; }
 .tick-cell { text-align: center; }
 .tick-cell input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
+/* ---------- Meal allowance claim form ---------- */
+.meal-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.meal-table { width: 100%; border-collapse: collapse; font-size: .85rem; min-width: 640px; }
+.meal-table th, .meal-table td { border: 1px solid var(--line-soft); padding: 0; }
+.meal-table thead th {
+  padding: 8px 9px; text-align: left; background: var(--paper);
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); font-weight: 650;
+}
+.meal-table tbody input {
+  width: 100%; border: none; background: transparent; font: inherit; color: var(--ink);
+  padding: 7px 9px; outline: none;
+}
+.meal-table tbody input:focus { background: var(--pine-tint); }
+.meal-table tbody td:last-child { text-align: center; width: 34px; }
+.meal-table .meal-amt { text-align: right; font-variant-numeric: tabular-nums; }
+.meal-table tfoot td { padding: 9px; background: var(--paper); font-weight: 650; }
+.meal-total-label { text-align: right; text-transform: uppercase; font-size: .72rem; letter-spacing: .04em; }
+.meal-total { text-align: right; font-variant-numeric: tabular-nums; color: var(--pine-deep); white-space: nowrap; }
+.meal-table tbody .x-btn { color: var(--muted); }
+.meal-note {
+  margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--line);
+  border-radius: 8px; background: var(--paper); font-size: .8rem; color: var(--ink-soft);
+  white-space: pre-line; line-height: 1.7;
+}
+.meal-note strong { display: block; color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
+
 /* ---------- Settings ---------- */
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
 .tab {

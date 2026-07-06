@@ -460,24 +460,91 @@ async function submitClaim(e, existing) {
 $('#newClaimBtn').addEventListener('click', () => openClaimModal());
 
 // ---------------------------------------------------------------------------
-// New meal allowance — a separate purpose. The bespoke form is defined later;
-// for now this is a placeholder so the visibility/gating flow works end-to-end.
-// Replacing the modal body below with the real form is all that's needed.
+// New meal allowance — a line-item claim form mirroring the paper
+// "Meal Allowance Claim Form": a title, an editable table (one row per day),
+// a live total, and the rate note at the bottom.
 // ---------------------------------------------------------------------------
+// Indonesian rupiah, no decimals — "Rp 120.000".
+function idr(n) {
+  try { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0); }
+  catch { return 'Rp ' + Math.round(n || 0).toLocaleString('id-ID'); }
+}
+const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
+
+let mealRows = [];
+function mealRowHtml(r, i) {
+  return `<tr data-i="${i}">
+    <td><input name="date" type="date" value="${esc(r.date || '')}" /></td>
+    <td><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
+    <td><input name="category" value="${esc(r.category || '')}" placeholder="Install / Repair / Service…" /></td>
+    <td><input name="amount" inputmode="numeric" class="meal-amt" value="${esc(r.amount || '')}" placeholder="120000" /></td>
+    <td><input name="desc" value="${esc(r.desc || '')}" placeholder="Surabaya" /></td>
+    <td><button type="button" class="x-btn" data-rm="${i}" aria-label="Remove row">×</button></td>
+  </tr>`;
+}
+function readMealRows() {
+  mealRows = $$('#mealRows tr').map(tr => ({
+    date: tr.querySelector('[name="date"]').value,
+    site: tr.querySelector('[name="site"]').value,
+    category: tr.querySelector('[name="category"]').value,
+    amount: tr.querySelector('[name="amount"]').value,
+    desc: tr.querySelector('[name="desc"]').value
+  }));
+}
+function mealTotal() { return mealRows.reduce((s, r) => s + mealAmount(r.amount), 0); }
+function renderMealRows() {
+  $('#mealRows').innerHTML = mealRows.length
+    ? mealRows.map(mealRowHtml).join('')
+    : `<tr><td colspan="6" class="muted" style="padding:14px;text-align:center">No rows yet — add one below.</td></tr>`;
+  $('#mealTotal').textContent = idr(mealTotal());
+  $$('#mealRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
+  }));
+  $$('#mealRows .meal-amt').forEach(inp => inp.addEventListener('input', () => {
+    readMealRows(); $('#mealTotal').textContent = idr(mealTotal());
+  }));
+}
+
 function openMealAllowanceModal() {
+  // Start with a handful of blank rows, like the paper form.
+  mealRows = Array.from({ length: 5 }, () => ({ date: '', site: '', category: '', amount: '', desc: '' }));
   openModal(`
     <div class="modal-head">
-      <h2>New meal allowance</h2>
+      <h2>Meal Allowance Claim Form</h2>
       <button class="x-btn" aria-label="Close">×</button>
     </div>
     <div class="modal-body">
-      <p class="muted">The meal allowance form is being set up and will be available here shortly.</p>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" id="mealClose">Close</button>
+      <div class="meal-table-wrap">
+        <table class="meal-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>DB Number Site</th><th>Job Category</th>
+              <th>Amount</th><th>Additional Description</th><th aria-label="Remove"></th>
+            </tr>
+          </thead>
+          <tbody id="mealRows"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
+              <td class="meal-total" id="mealTotal">Rp 0</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="mealAddRow" style="margin-top:10px">+ Add row</button>
+      <div class="meal-note">
+        <strong>MEAL ALLOWANCE CLAIM</strong>
+        BODETABEK AREA — IDR 75.000,-
+        EXCLUDE BODETABEK AREA — IDR 120.000,-
       </div>
     </div>`);
+  $('#modal').classList.add('modal-wide');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#mealClose').addEventListener('click', closeModal);
+  $('#mealAddRow').addEventListener('click', () => {
+    readMealRows(); mealRows.push({ date: '', site: '', category: '', amount: '', desc: '' }); renderMealRows();
+  });
+  renderMealRows();
 }
 $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 
