@@ -758,9 +758,9 @@ async function openExportModal() {
           </div>
           <div class="uf-list" id="ufList">
             ${users.length ? users.map(u => `
-              <label class="check-item uf-item" data-name="${esc((u.full_name + ' ' + u.username).toLowerCase())}">
+              <label class="uf-item" data-name="${esc((u.full_name + ' ' + u.username).toLowerCase())}">
+                <span class="uf-name">${esc(u.full_name)} <span class="muted">(${esc(u.username)})</span></span>
                 <input type="checkbox" name="employee" value="${u.id}" checked />
-                ${esc(u.full_name)} <span class="muted">(${esc(u.username)})</span>
               </label>`).join('') : '<p class="muted" style="padding:8px">No users.</p>'}
           </div>
         </div>
