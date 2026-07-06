@@ -6,7 +6,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const state = {
-  user: null, claims: [], filters: { status: '', department: '', q: '' },
+  user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
   lookups: { departments: [], expense_types: [] },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
@@ -110,6 +110,8 @@ function showApp() {
   $('#newMealBtn').hidden = !purposes.meal;
   $('#exportBtn').hidden = u.role !== 'superadmin';
   $('#settingsBtn').hidden = u.role !== 'superadmin';
+  // Only super admins can delete claims (used to clear out test data).
+  $('#deleteSelBtn').hidden = u.role !== 'superadmin';
   loadLookups();
   loadAll();
 }
@@ -229,6 +231,7 @@ async function loadClaims() {
   const avail = new Set(state.claims.map(c => claimKey(c.type, c.id)));
   [...state.selected].forEach(k => { if (!avail.has(k)) state.selected.delete(k); });
   renderDeptOptions();
+  renderClaimantOptions();
   renderClaims();
 }
 
@@ -250,11 +253,30 @@ function renderDeptOptions() {
   sel.value = current;
 }
 
+// Claimant dropdown mirrors the department one; filtering is applied client-side
+// (see renderClaims) since the full set is already loaded.
+function renderClaimantOptions() {
+  const sel = $('#claimantFilter');
+  const names = [...new Set(state.claims.map(c => c.claimant_name).filter(Boolean))].sort();
+  // Drop a stale selection if that claimant no longer has any claims.
+  if (state.filters.claimant && !names.includes(state.filters.claimant)) state.filters.claimant = '';
+  sel.innerHTML = '<option value="">All claimants</option>' +
+    names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  sel.value = state.filters.claimant;
+}
+
+// Rows currently shown, after the client-side claimant filter.
+function visibleClaims() {
+  const cl = state.filters.claimant;
+  return cl ? state.claims.filter(c => c.claimant_name === cl) : state.claims;
+}
+
 function renderClaims() {
   const wrap = $('#claimRows');
-  if (!state.claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; return; }
+  const claims = visibleClaims();
+  if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); return; }
   $('#emptyState').hidden = true;
-  wrap.innerHTML = state.claims.map(c => {
+  wrap.innerHTML = claims.map(c => {
     const v = rowView(c);
     const checked = state.selected.has(claimKey(c.type, c.id)) ? 'checked' : '';
     return `
@@ -305,6 +327,8 @@ $('#searchInput').addEventListener('input', e => {
 });
 $('#statusFilter').addEventListener('change', e => { state.filters.status = e.target.value; loadClaims(); });
 $('#deptFilter').addEventListener('change', e => { state.filters.department = e.target.value; loadClaims(); });
+// Claimant filter is client-side, so just re-render (no server round-trip).
+$('#claimantFilter').addEventListener('change', e => { state.filters.claimant = e.target.value; renderClaims(); });
 
 // ---------------------------------------------------------------------------
 // Selection + PDF export
@@ -324,6 +348,26 @@ $('#clearSelBtn').addEventListener('click', () => {
   updateSelectionUI();
 });
 $('#genPdfBtn').addEventListener('click', generatePdf);
+$('#deleteSelBtn').addEventListener('click', deleteSelected);
+
+// Super-admin bulk delete — permanently removes the ticked claims (both types).
+async function deleteSelected() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  if (!chosen.length) return;
+  if (!confirm(`Permanently delete ${chosen.length} claim${chosen.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+  const btn = $('#deleteSelBtn'); const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    for (const c of chosen) {
+      const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      await api(path + c.id, { method: 'DELETE' });
+    }
+    state.selected.clear();
+    toast(`Deleted ${chosen.length} claim${chosen.length === 1 ? '' : 's'}`);
+    loadAll();
+  } catch (ex) { toast(ex.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
 
 async function generatePdf() {
   const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));

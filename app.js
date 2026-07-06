@@ -655,6 +655,20 @@ app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) =
   res.send(Buffer.from(await r.arrayBuffer()));
 }));
 
+// Delete a reimbursement claim outright (super admin only) — clears its
+// attachments (and their blobs) and history first. Meant for tidying up test
+// data; there is no undo.
+app.delete('/api/claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const row = await loadClaimOr404(req, res);
+  if (!row) return;
+  const atts = await q('SELECT blob_url FROM attachments WHERE claim_id = $1', [row.id]);
+  for (const a of atts) await deleteReceipt(a.blob_url);
+  await q('DELETE FROM attachments WHERE claim_id = $1', [row.id]);
+  await q('DELETE FROM claim_history WHERE claim_id = $1', [row.id]);
+  await q('DELETE FROM claims WHERE id = $1', [row.id]);
+  res.json({ ok: true });
+}));
+
 // ---------------------------------------------------------------------------
 // Meal allowance claims
 // A header + line items, following the same submit → approve chain → reject /
@@ -788,6 +802,17 @@ app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
     return res.status(403).json({ error: 'You can only view your own meal claims' });
   }
   res.json({ claim: await serializeOneMeal(row) });
+}));
+
+// Delete a meal allowance claim outright (super admin only) — removes its line
+// items and history first. For clearing test data; no undo.
+app.delete('/api/meal-claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  await q('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [row.id]);
+  await q('DELETE FROM meal_claim_history WHERE meal_claim_id = $1', [row.id]);
+  await q('DELETE FROM meal_claims WHERE id = $1', [row.id]);
+  res.json({ ok: true });
 }));
 
 async function insertMealClaim(req, lines, totalCents, approverIds) {
