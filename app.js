@@ -341,6 +341,23 @@ function creatablePositions(user) {
   return POSITION_HIERARCHY.filter((_, i) => i > rank);
 }
 
+// Whether `actor` may manage (e.g. reset the password of) the account `target`.
+// Superadmins may manage anyone; a delegated creator may manage only standard
+// user accounts in their own department whose position they are allowed to
+// create (i.e. ranked strictly below them). Same rule set as creation.
+function canManageAccount(actor, target) {
+  if (actor.role === 'superadmin') return true;
+  const allowed = creatablePositions(actor);
+  if (!allowed.length) return false;
+  if (target.role !== 'user') return false;
+  const sameDept = String(target.department || '').trim().toLowerCase()
+    === String(actor.department || '').trim().toLowerCase()
+    && String(actor.department || '').trim() !== '';
+  const managedPos = allowed.some(p =>
+    p.toLowerCase() === String(target.position || '').trim().toLowerCase());
+  return sameDept && managedPos;
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -1372,6 +1389,23 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
     await q('UPDATE users SET password_hash=$1 WHERE id=$2', [bcrypt.hashSync(String(password), 10), u.id]);
   }
+  res.json({ ok: true });
+}));
+
+// Reset a single account's password. Superadmins may reset anyone (they also
+// have the full edit form); delegated creators may reset only the accounts they
+// manage (see canManageAccount). Deliberately narrower than PUT /api/users/:id
+// so a delegated user cannot change role, department, approvers or active state.
+app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
+  const rows = await q('SELECT id, role, department, position FROM users WHERE id = $1', [req.params.id]);
+  const target = rows[0];
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (!canManageAccount(req.user, target)) {
+    return res.status(403).json({ error: 'You do not have permission to reset this account\'s password' });
+  }
+  const password = (req.body && req.body.password) || '';
+  if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(password), 10), target.id]);
   res.json({ ok: true });
 }));
 

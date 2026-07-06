@@ -1668,18 +1668,63 @@ async function renderManageAccounts() {
     <p class="muted" style="margin:0 0 12px;font-size:.85rem">Accounts in <strong>${esc(dept) || '—'}</strong>. You can create accounts for junior positions in your department.</p>
     <div class="settings-list">
       <table class="utable utable-users">
-        <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th></tr></thead>
+        <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th><th></th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
             <td><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
             <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
             <td>${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
             <td>${u.active ? 'Yes' : 'No'}</td>
-          </tr>`).join('') : '<tr><td colspan="4" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
+            <td>${maCanManage(u) ? `<button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>` : ''}</td>
+          </tr>`).join('') : '<tr><td colspan="5" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
       </table>
     </div>`;
   wireTableSearch($('#maSearch'), '#maBody .settings-list');
   $('#maAddBtn').addEventListener('click', renderManagedUserForm);
+  $$('#maBody [data-reset]').forEach(b => b.addEventListener('click', () =>
+    renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
+}
+
+// A row is manageable (password-resettable) when it's a standard user account
+// holding one of the positions this user may create. Mirrors the server's
+// canManageAccount; the list is already scoped to the user's own department.
+function maCanManage(u) {
+  const list = (state.user.creatable_positions || []).map(p => p.toLowerCase());
+  return u.role === 'user' && list.includes(String(u.position || '').trim().toLowerCase());
+}
+
+function renderResetPasswordForm(u) {
+  if (!u) return;
+  openModal2(`
+    <div class="modal-head">
+      <h2>Reset password</h2>
+      <button type="button" class="x-btn" id="rpClose">×</button>
+    </div>
+    <div class="modal-body">
+    <form id="rpForm" class="form">
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">Set a new password for <strong>${esc(u.full_name)}</strong> (${esc(u.username)}).</p>
+      <label>New password
+        <div class="pw-wrap">
+          <input name="password" type="password" required minlength="6" />
+          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+        </div></label>
+      <p class="form-error" id="rpErr" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="rpCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Reset password</button>
+      </div>
+    </form>
+    </div>`);
+  $('#rpClose').addEventListener('click', closeModal2);
+  $('#rpCancel').addEventListener('click', closeModal2);
+  $('#rpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const password = new FormData(e.target).get('password');
+    try {
+      await api('/users/' + u.id + '/reset-password', { method: 'POST', body: JSON.stringify({ password }) });
+      closeModal2(); toast('Password reset');
+    } catch (ex) { const el = $('#rpErr'); el.textContent = ex.message; el.hidden = false; }
+  });
 }
 
 function renderManagedUserForm() {
