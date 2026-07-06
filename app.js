@@ -1409,6 +1409,30 @@ app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// Enable/disable a single account. Same delegated scope as reset-password.
+// Applies the same stale-approver guard as the full edit form: an account that
+// is the current approver on open claims can't be deactivated (it would strand
+// those claims), so an admin must resolve or reassign them first.
+app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
+  const rows = await q('SELECT id, role, department, position, active FROM users WHERE id = $1', [req.params.id]);
+  const target = rows[0];
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (!canManageAccount(req.user, target)) {
+    return res.status(403).json({ error: 'You do not have permission to change this account' });
+  }
+  const next = isActive(req.body && req.body.active);
+  if (target.active && !next) {
+    const pending = await openClaimsAwaitingApprover(target.id);
+    if (pending > 0) {
+      return res.status(409).json({
+        error: `This user is the current approver on ${pending} open claim${pending === 1 ? '' : 's'}. Resolve or reassign those before deactivating.`
+      });
+    }
+  }
+  await q('UPDATE users SET active = $1 WHERE id = $2', [next, target.id]);
+  res.json({ ok: true });
+}));
+
 // ---------------------------------------------------------------------------
 // Settings: simple lookups (departments, job positions, expense types)
 // ---------------------------------------------------------------------------

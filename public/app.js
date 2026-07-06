@@ -1675,7 +1675,8 @@ async function renderManageAccounts() {
             <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
             <td>${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
             <td>${u.active ? 'Yes' : 'No'}</td>
-            <td>${maCanManage(u) ? `<button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>` : ''}</td>
+            <td>${maCanManage(u) ? `<button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>
+              <button class="btn btn-ghost btn-sm" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>` : ''}</td>
           </tr>`).join('') : '<tr><td colspan="5" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
       </table>
     </div>`;
@@ -1683,6 +1684,15 @@ async function renderManageAccounts() {
   $('#maAddBtn').addEventListener('click', renderManagedUserForm);
   $$('#maBody [data-reset]').forEach(b => b.addEventListener('click', () =>
     renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
+  $$('#maBody [data-active]').forEach(b => b.addEventListener('click', async () => {
+    const u = users.find(x => x.id == b.dataset.active);
+    if (u.active && !confirm(`Disable ${u.full_name}'s account? They won't be able to sign in until re-enabled.`)) return;
+    try {
+      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
+      toast(u.active ? 'Account disabled' : 'Account enabled');
+      renderManageAccounts();
+    } catch (ex) { toast(ex.message, true); }
+  }));
 }
 
 // A row is manageable (password-resettable) when it's a standard user account
