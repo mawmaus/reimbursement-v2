@@ -298,6 +298,19 @@ input[type="search"] { min-width: 220px; }
 .tick-cell { text-align: center; }
 .tick-cell input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
+/* Accounts table: keep it inside the modal — long emails wrap instead of
+   forcing a horizontal scroll, and the username sits under the name. */
+.utable td, .utable th { overflow-wrap: anywhere; }
+.utable-users { table-layout: fixed; }
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 26%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 24%; }
+.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 11%; }
+.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 21%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 8%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 10%; }
+.u-name { font-weight: 560; color: var(--ink); }
+.u-sub { font-size: .76rem; color: var(--muted); margin-top: 1px; }
+
 /* checkbox groups (export dialog) */
 .check-group { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 4px; }
 .check-item { display: flex; align-items: center; gap: 7px; font-size: .9rem; cursor: pointer; }

@@ -1098,13 +1098,14 @@ async function renderAccountsTab() {
       </div>
     </div>
     <div class="settings-list">
-      <table class="utable">
-        <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Dept</th><th>Position</th><th>Active</th><th></th></tr></thead>
+      <table class="utable utable-users">
+        <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Dept / Position</th><th>Active</th><th></th></tr></thead>
         <tbody>${users.map(u => `
           <tr>
-            <td class="mono">${esc(u.username)}</td><td>${esc(u.full_name)}</td>
-            <td>${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td>${esc(u.role)}</td><td>${esc(u.department)}</td><td>${esc(u.position || '')}</td>
+            <td><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
+            <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td>${esc(u.role)}</td>
+            <td><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td>${u.active ? 'Yes' : 'No'}</td>
             <td><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
           </tr>`).join('')}</tbody>
