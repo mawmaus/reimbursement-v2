@@ -278,6 +278,17 @@ app.get('/api/me', ah(async (req, res) => {
   res.json({ user: { ...u, purposes: await computePurposes(u) } });
 }));
 
+// Self-service profile: a user may edit their own bank / payout details (but
+// not role, department, approvers, etc.).
+app.put('/api/me', requireAuth, ah(async (req, res) => {
+  const { bank_name, recipient_name, bank_account_no } = req.body || {};
+  await q('UPDATE users SET bank_name = $1, recipient_name = $2, bank_account_no = $3 WHERE id = $4', [
+    String(bank_name || '').trim(), String(recipient_name || '').trim(),
+    String(bank_account_no || '').trim(), req.user.id]);
+  const u = await loadUser(req);
+  res.json({ user: { ...u, purposes: await computePurposes(u) } });
+}));
+
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
   const { current_password, new_password } = req.body || {};
   if (!new_password || String(new_password).length < 6) {

@@ -813,32 +813,69 @@ async function openExportModal() {
 }
 
 // ---------------------------------------------------------------------------
-// Change password
+// Profile — bank / payout details + change password (self-service, all users)
 // ---------------------------------------------------------------------------
-$('#passwordBtn').addEventListener('click', () => {
+$('#profileBtn').addEventListener('click', () => openProfileModal());
+
+async function openProfileModal() {
+  // Fetch the current values (login response omits bank details).
+  let me = state.user || {};
+  try { ({ user: me } = await api('/me')); } catch { /* fall back to state.user */ }
   openModal(`
-    <div class="modal-head"><h2>Change password</h2><button class="x-btn">×</button></div>
-    <div class="modal-body"><form id="pwForm" class="form">
-      <label>Current password<input name="current_password" type="password" required /></label>
-      <label>New password (min 6 characters)<input name="new_password" type="password" required minlength="6" /></label>
-      <p class="form-error" id="pwErr" hidden></p>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" id="pwCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary">Update password</button>
-      </div>
-    </form></div>`);
+    <div class="modal-head"><h2>My profile</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="profileForm" class="form">
+        <div class="section-label">Bank / payout details</div>
+        <label>Bank name<input name="bank_name" value="${esc(me.bank_name || '')}" placeholder="e.g. BCA" /></label>
+        <label>Recipient bank account name<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="Name on the account" /></label>
+        <label>Bank account number<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="Account number" /></label>
+        <p class="form-error" id="profileErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="profileCancel">Close</button>
+          <button type="submit" class="btn btn-primary">Save details</button>
+        </div>
+      </form>
+      <form id="pwForm" class="form" style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">
+        <div class="section-label">Change password</div>
+        <label>Current password
+          <div class="pw-wrap"><input name="current_password" type="password" required />
+            <button type="button" class="pw-toggle" aria-label="Show password">👁</button></div></label>
+        <label>New password (min 6 characters)
+          <div class="pw-wrap"><input name="new_password" type="password" required minlength="6" />
+            <button type="button" class="pw-toggle" aria-label="Show password">👁</button></div></label>
+        <p class="form-error" id="pwErr" hidden></p>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Update password</button>
+        </div>
+      </form>
+    </div>`);
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#pwCancel').addEventListener('click', closeModal);
+  $('#profileCancel').addEventListener('click', closeModal);
+
+  $('#profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#profileErr'); err.hidden = true;
+    const fd = new FormData(e.target);
+    try {
+      const { user } = await api('/me', { method: 'PUT', body: JSON.stringify({
+        bank_name: fd.get('bank_name'), recipient_name: fd.get('recipient_name'),
+        bank_account_no: fd.get('bank_account_no') }) });
+      if (user) state.user = { ...state.user, ...user };
+      toast('Profile saved');
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  });
+
   $('#pwForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const err = $('#pwErr'); err.hidden = true;
     const fd = new FormData(e.target);
     try {
       await api('/me/password', { method: 'POST', body: JSON.stringify({
         current_password: fd.get('current_password'), new_password: fd.get('new_password') }) });
-      toast('Password updated'); closeModal();
-    } catch (ex) { const el = $('#pwErr'); el.textContent = ex.message; el.hidden = false; }
+      toast('Password updated'); e.target.reset();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
-});
+}
 
 // ---------------------------------------------------------------------------
 // Admin: Settings (accounts, departments, positions, expense types)
