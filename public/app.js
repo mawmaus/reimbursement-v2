@@ -931,7 +931,13 @@ $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 
 function openSettingsModal() {
   openModal(`
-    <div class="modal-head"><h2>Settings</h2><button class="x-btn">×</button></div>
+    <div class="modal-head">
+      <h2>Settings</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="btn btn-ghost btn-sm" id="testEmailBtn">Send test email</button>
+        <button class="x-btn">×</button>
+      </div>
+    </div>
     <div class="modal-body">
       <div class="tabs" id="settingsTabs">
         ${SETTINGS_TABS.map(t =>
@@ -941,9 +947,23 @@ function openSettingsModal() {
     </div>`);
   $('#modal').classList.add('modal-wide');
   $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#testEmailBtn').addEventListener('click', sendTestEmail);
   $$('#settingsTabs .tab').forEach(b =>
     b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openSettingsModal(); }));
   renderSettingsTab();
+}
+
+// Confirm email delivery: sends a test message (default: the admin's own email).
+async function sendTestEmail() {
+  const to = prompt('Send a test email to:', (state.user && state.user.email) || '');
+  if (to === null) return; // cancelled
+  const btn = $('#testEmailBtn');
+  btn.disabled = true;
+  try {
+    const r = await api('/test-email', { method: 'POST', body: JSON.stringify({ to: to.trim() }) });
+    toast(`Test email sent to ${r.to}`);
+  } catch (ex) { toast(ex.message, true); }
+  finally { btn.disabled = false; }
 }
 
 function renderSettingsTab() {

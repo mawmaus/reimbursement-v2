@@ -8,7 +8,7 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { q } = require('./db');
 const { uploadReceipt, deleteReceipt } = require('./lib/blob');
-const { sendEmail, appUrl, layout, button } = require('./lib/email');
+const { sendEmail, emailConfigured, appUrl, layout, button } = require('./lib/email');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest } = require('./lib/notify');
 
 const app = express();
@@ -296,7 +296,7 @@ app.post('/api/login', ah(async (req, res) => {
   loginAttempts.delete(loginKey(req));
   req.session.userId = user.id;
   res.json({ user: {
-    id: user.id, username: user.username, full_name: user.full_name, role: user.role,
+    id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, purposes: await computePurposes(user)
   } });
 }));
@@ -1049,6 +1049,30 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
 const ROLES = ['superadmin', 'user'];
+
+// Send a test email so an admin can confirm the Resend configuration works.
+// Defaults to the admin's own account email; a recipient can be supplied.
+app.post('/api/test-email', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  if (!emailConfigured()) {
+    return res.status(400).json({ error: 'Email is not configured. Set RESEND_API_KEY and EMAIL_FROM in the environment, then redeploy.' });
+  }
+  const to = normEmail((req.body && req.body.to) || req.user.email);
+  if (!to) return res.status(400).json({ error: 'No recipient — set an email on your account or enter one.' });
+  if (!EMAIL_RE.test(to)) return res.status(400).json({ error: 'Enter a valid email address' });
+  const inner = `
+    <p style="margin:0 0 8px">Hi ${escHtml(req.user.full_name)},</p>
+    <p style="margin:0 0 8px">This is a test email from the Reimbursement Portal. If you received it, email delivery is working correctly.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px">Sent ${escHtml(new Date().toISOString().replace('T', ' ').slice(0, 16))} UTC.</p>
+    ${button(`${baseUrl(req)}/`, 'Open the portal')}`;
+  const r = await sendEmail({
+    to,
+    subject: 'Reimbursement Portal — test email',
+    html: layout('Test email', inner),
+    text: 'This is a test email from the Reimbursement Portal. If you received it, email delivery is working correctly.'
+  });
+  if (r && r.ok) return res.json({ ok: true, to });
+  return res.status(502).json({ error: `Could not send: ${(r && r.error) || 'unknown error'}` });
+}));
 // Clean an approver-id list: positive integers, de-duplicated, excluding the
 // account itself (an account cannot approve its own claims).
 function sanitizeApproverIds(input, excludeId) {
