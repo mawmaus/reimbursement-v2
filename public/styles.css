@@ -8,9 +8,9 @@
   --line-soft:  #f1f0ed;
   --paper:      #f5f4f2;
   --surface:    #ffffff;
-  --pine:       #f0871d;
-  --pine-deep:  #d9760c;
-  --pine-tint:  #fdecd6;
+  --pine:       #f7982a;
+  --pine-deep:  #de8411;
+  --pine-tint:  #fef1dd;
   --amber:      #b5771a;
   --amber-tint: #f8ecd4;
   --green:      #2f7d55;
@@ -86,13 +86,10 @@ input[type="search"] { min-width: 220px; }
   display: grid; place-items: center; width: 42px; height: 42px; flex: none;
   background: var(--pine); color: #fff; border-radius: 11px; font-size: 1.3rem; font-weight: 700;
 }
-/* Cibes wordmark (stands in for the logo) */
-.wordmark {
-  flex: none; color: var(--pine); font-weight: 800; font-size: 1.9rem;
-  letter-spacing: -.02em; line-height: 1; user-select: none;
-}
-.wordmark-sm { font-size: 1.4rem; }
-.wordmark-accent { color: inherit; }
+/* Cibes brand logo (public/logo.svg) */
+.logo { flex: none; display: block; width: auto; user-select: none; }
+.logo-lg { height: 38px; }
+.logo-sm { height: 26px; }
 .brand h1 { font-size: 1.18rem; }
 
 /* Password show/hide toggle */
@@ -130,9 +127,14 @@ input[type="search"] { min-width: 220px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .card {
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px;
-  border-left: 3px solid var(--line);
+  border-left: 3px solid var(--line); min-width: 0;
 }
-.card .card-n { font-family: var(--mono); font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.card .card-n { font-family: var(--mono); font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums;
+  line-height: 1.12; letter-spacing: -.02em; }
+/* Money totals run long (IDR reaches millions/billions). Size them to fit a
+   150px card so "IDR 1,000,000" wraps at the space into two tidy lines, and
+   only let genuinely huge figures break rather than spill past the border. */
+.card.total .card-n { font-size: 1.3rem; overflow-wrap: anywhere; }
 .card .card-l { font-size: .73rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 650; }
 .card.submitted { border-left-color: var(--amber); }
 .card.approved  { border-left-color: var(--green); }
@@ -308,7 +310,26 @@ input[type="search"] { min-width: 220px; }
 .toast.err { background: var(--red); }
 
 /* ---------- Responsive ---------- */
+
+/* Tablet — keep the desktop grid but tighten spacing and let controls flow. */
+@media (max-width: 900px) {
+  .container { padding: 20px 16px 48px; }
+  .topbar { padding: 10px 16px; }
+  .ledger-head, .ledger-row { grid-template-columns: 4px 108px 1.3fr 1fr 92px 1fr 96px; }
+}
+
 @media (max-width: 720px) {
+  /* Topbar: let the actions wrap under the brand instead of overflowing. */
+  .topbar { flex-wrap: wrap; gap: 8px 10px; }
+  .topbar-right { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
+  .user-badge { margin-right: 0; }
+
+  /* Toolbar: stack search + filters full width, actions on their own row. */
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar-left, .toolbar-right { flex-direction: column; align-items: stretch; }
+  .toolbar-left .input, input[type="search"], select.input { min-width: 0; width: 100%; }
+  .toolbar-right .btn { width: 100%; }
+
   .ledger-head { display: none; }
   .ledger-row { grid-template-columns: 4px 1fr auto; grid-template-areas:
       "spine no status" "spine name amt" "spine type date"; padding: 12px 16px 12px 0; gap: 2px 10px; min-height: 0; }
@@ -322,7 +343,22 @@ input[type="search"] { min-width: 220px; }
   .grid2 { grid-template-columns: 1fr; }
   .kv { grid-template-columns: 1fr; gap: 2px; }
   .kv dd { margin-bottom: 8px; }
+
+  /* Drawer becomes a bottom-anchored full-width sheet feel on phones. */
+  .drawer-body { padding: 18px 16px; }
+  .drawer-head { padding: 16px; }
+  .modal-body { padding: 18px 16px; }
 }
+
+/* Small phones — two-up summary cards and tighter type. */
+@media (max-width: 460px) {
+  .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .card { padding: 13px 13px; }
+  .card .card-n { font-size: 1.45rem; }
+  .topbar-title { display: none; }
+  .btn-sm { padding: 6px 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
