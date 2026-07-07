@@ -317,12 +317,16 @@ input[type="search"] { min-width: 220px; }
    forcing a horizontal scroll, and the username sits under the name. */
 .utable td, .utable th { overflow-wrap: anywhere; }
 .utable-users { table-layout: fixed; }
-.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 26%; }
-.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 24%; }
-.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 11%; }
-.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 21%; }
-.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 8%; }
-.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 10%; }
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 24%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 22%; }
+.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 14%; }
+.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 20%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 9%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 11%; }
+/* Role/Active hold single short words — don't let the global anywhere-break
+   chop "superadmin" or the "Active" header mid-word on narrower tablets. */
+.utable-users td:nth-child(3), .utable-users th:nth-child(3),
+.utable-users td:nth-child(5), .utable-users th:nth-child(5) { overflow-wrap: normal; }
 /* Delegated "Manage accounts" table: wider actions column, and its cells must
    never break words (the buttons live here). */
 .utable-manage { table-layout: fixed; }
@@ -489,6 +493,75 @@ input[type="search"] { min-width: 220px; }
   .card .card-n { font-size: 1.45rem; }
   .topbar-title { display: none; }
   .btn-sm { padding: 6px 10px; }
+}
+
+/* Phones — reflow data-dense tables into labelled cards so nothing is clipped
+   or squeezed into vertical text. Each <td> carries a data-label used as its
+   field caption; the table markup is unchanged, so JS that reads cells by
+   name/selector keeps working. */
+@media (max-width: 680px) {
+  /* Accounts / settings / manage-accounts tables → stacked cards */
+  .settings-list .utable thead { display: none; }
+  .settings-list .utable,
+  .settings-list .utable tbody,
+  .settings-list .utable tr,
+  .settings-list .utable td { display: block; }
+  .settings-list .utable tr {
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 4px 14px 10px; margin-bottom: 10px; background: var(--surface);
+  }
+  .settings-list .utable td {
+    border: none; padding: 6px 0 0; text-align: left; overflow-wrap: normal;
+  }
+  .settings-list .utable td[data-label]::before {
+    content: attr(data-label); display: block; color: var(--muted);
+    font-size: .64rem; text-transform: uppercase; letter-spacing: .06em;
+    font-weight: 700; margin-bottom: 1px; white-space: nowrap;
+  }
+  .settings-list .utable td.u-wrap,
+  .settings-list .utable td .u-sub.mono { overflow-wrap: anywhere; }
+  .settings-list .utable td.tick-cell { text-align: left; }
+  .settings-list .utable td.act-cell {
+    border-top: 1px solid var(--line-soft); margin-top: 8px; padding-top: 10px;
+  }
+  .settings-list .utable td.act-cell .u-actions { justify-content: flex-start; }
+  .settings-list .utable td[colspan] { text-align: center; padding: 14px 0; }
+
+  /* Meal-allowance line tables (entry form + read-only detail) → cards */
+  .meal-table-wrap { border: none; overflow: visible; }
+  .meal-table { min-width: 0; border-collapse: separate; border-spacing: 0; }
+  .meal-table thead { display: none; }
+  .meal-table, .meal-table tbody, .meal-table tfoot { display: block; }
+  .meal-table tbody tr {
+    display: block; position: relative;
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 12px 10px; margin-bottom: 10px; background: var(--surface);
+  }
+  .meal-table tbody td { display: block; border: none; padding: 6px 0 0; }
+  .meal-table tbody td[data-label]::before {
+    content: attr(data-label); display: block; color: var(--muted);
+    font-size: .62rem; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 700; margin-bottom: 3px;
+  }
+  .meal-table tbody td:empty { display: none; }
+  .meal-table tbody input {
+    border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px;
+  }
+  .meal-table tbody input:focus { background: var(--pine-tint); }
+  /* Remove-row control (entry form only) floats top-right of its card */
+  #mealRows td.meal-x { position: absolute; top: 6px; right: 8px; padding: 0; width: auto; }
+  #mealRows td.meal-x::before { display: none; }
+  #mealRows td.meal-x .x-btn { font-size: 1.35rem; }
+  #mealRows tr td:first-child { padding-right: 34px; }
+  /* Running total row */
+  .meal-table tfoot tr {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; padding: 12px 4px 2px;
+  }
+  .meal-table tfoot td { display: block; border: none; padding: 0; }
+  .meal-table tfoot td:empty { display: none; }
+  .meal-table tfoot td.meal-total-label { text-align: left; }
+  .meal-table tfoot td.meal-total { font-size: 1.05rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

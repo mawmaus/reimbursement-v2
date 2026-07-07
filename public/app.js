@@ -762,11 +762,11 @@ function reimbursementBody(c) {
 function mealBody(c) {
   const rows = (c.lines || []).map(l => `
     <tr>
-      <td class="mono">${esc(l.line_date)}</td>
-      <td>${esc(l.site)}</td>
-      <td>${esc(l.job_category)}</td>
-      <td class="meal-amt">${esc(money(l.amount, c.currency))}</td>
-      <td>${esc(l.description)}</td>
+      <td class="mono" data-label="Date">${esc(l.line_date)}</td>
+      <td data-label="DB Number Site">${esc(l.site)}</td>
+      <td data-label="Job Category">${esc(l.job_category)}</td>
+      <td class="meal-amt" data-label="Amount">${esc(money(l.amount, c.currency))}</td>
+      <td data-label="Additional Description">${esc(l.description)}</td>
     </tr>`).join('');
   return `
     <dl class="kv">
@@ -1059,12 +1059,12 @@ const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
-    <td><input name="date" type="date" value="${esc(r.date || '')}" /></td>
-    <td><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
-    <td><input name="category" value="${esc(r.category || '')}" placeholder="Install / Repair / Service…" /></td>
-    <td><input name="amount" inputmode="numeric" class="meal-amt" value="${esc(groupAmount(r.amount))}" placeholder="120,000" /></td>
-    <td><input name="desc" value="${esc(r.desc || '')}" placeholder="Surabaya" /></td>
-    <td><button type="button" class="x-btn" data-rm="${i}" aria-label="Remove row">×</button></td>
+    <td data-label="Date"><input name="date" type="date" value="${esc(r.date || '')}" /></td>
+    <td data-label="DB Number Site"><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
+    <td data-label="Job Category"><input name="category" value="${esc(r.category || '')}" placeholder="Install / Repair / Service…" /></td>
+    <td data-label="Amount"><input name="amount" inputmode="numeric" class="meal-amt" value="${esc(groupAmount(r.amount))}" placeholder="120,000" /></td>
+    <td data-label="Additional Description"><input name="desc" value="${esc(r.desc || '')}" placeholder="Surabaya" /></td>
+    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="Remove row">×</button></td>
   </tr>`;
 }
 function readMealRows() {
@@ -1496,8 +1496,8 @@ async function renderLookupTab(cfg) {
   const colspan = p ? 5 : 3;
   // Two extra columns gate the front-page purpose buttons for this row. A user
   // sees a purpose only when it is ticked on BOTH their department and position.
-  const purposeCell = (it, flag) =>
-    `<td class="tick-cell"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
+  const purposeCell = (it, flag, label) =>
+    `<td class="tick-cell" data-label="${label}"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
@@ -1516,10 +1516,10 @@ async function renderLookupTab(cfg) {
         <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:150px"></th></tr></thead>
         <tbody>${items.length ? items.map(it => `
           <tr data-id="${it.id}">
-            <td>${esc(it.name)}</td>
-            <td>${it.active ? 'Yes' : 'No'}</td>
-            ${p ? purposeCell(it, 'allow_claim') + purposeCell(it, 'allow_meal') : ''}
-            <td>
+            <td data-label="Name">${esc(it.name)}</td>
+            <td data-label="Active">${it.active ? 'Yes' : 'No'}</td>
+            ${p ? purposeCell(it, 'allow_claim', 'New claim') + purposeCell(it, 'allow_meal', 'New meal allowance') : ''}
+            <td class="act-cell" data-label="Actions">
               <button class="btn btn-ghost btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
               <button class="btn btn-ghost btn-sm" data-del="${it.id}">Delete</button>
             </td>
@@ -1583,12 +1583,12 @@ async function renderAccountsTab() {
         <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Dept / Position</th><th>Active</th><th></th></tr></thead>
         <tbody>${users.map(u => `
           <tr>
-            <td><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
-            <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td>${esc(u.role)}</td>
-            <td><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
-            <td>${u.active ? 'Yes' : 'No'}</td>
-            <td><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
+            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
+            <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td data-label="Role">${esc(u.role)}</td>
+            <td data-label="Dept / Position"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
+            <td data-label="Active">${u.active ? 'Yes' : 'No'}</td>
+            <td class="act-cell" data-label="Actions"><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
           </tr>`).join('')}</tbody>
       </table>
     </div>`;
@@ -1754,13 +1754,13 @@ async function renderManageAccounts() {
         <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th><th class="u-actions-h">Actions</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
-            <td><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
-            <td class="u-wrap">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td>${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
-            <td>${u.active
+            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
+            <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td data-label="Position">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
+            <td data-label="Active">${u.active
                 ? '<span class="pill pill-on">Active</span>'
                 : '<span class="pill pill-off">Disabled</span>'}</td>
-            <td>${maCanManage(u) ? `<div class="u-actions">
+            <td class="act-cell" data-label="Actions">${maCanManage(u) ? `<div class="u-actions">
               <button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>
               <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>
             </div>` : '<span class="muted">—</span>'}</td>
