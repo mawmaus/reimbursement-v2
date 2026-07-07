@@ -314,47 +314,58 @@ async function computePurposes(user) {
   };
 }
 
-// --- Delegated account creation ---------------------------------------------
-// Senior job positions may create accounts for the positions strictly below
-// them in this hierarchy, but only inside their own department. Superadmins are
-// unrestricted (they keep the full Settings > Accounts management). Positions
-// are matched case-insensitively by name against the job_positions a user holds.
-const POSITION_HIERARCHY = [
-  'Manager', 'Junior Manager', 'Assistant Manager', 'Supervisor',
-  'Assistant Supervisor', 'Senior Staff', 'Staff', 'Intern'
+// --- Job-position ranking & department-scoped account management -------------
+// One ordered ladder of job positions, most senior first. Account management is
+// scoped to the actor's OWN department, and an actor may manage only positions
+// ranked strictly below their own (higher number = more junior = fewer rights).
+// Superadmins are unrestricted (all departments; they use full Settings).
+// Positions are matched case-insensitively by name against job_positions.
+const POSITION_RANKS = [
+  'Super Admin', 'President Director', 'Director', 'Senior General Manager',
+  'General Manager', 'Senior Manager', 'Manager', 'Junior Manager',
+  'Assistant Manager', 'Supervisor', 'Assistant Supervisor', 'Senior Staff',
+  'Staff', 'Intern'
 ];
-// Only these positions are granted delegated account-creation rights.
-const CREATOR_POSITIONS = new Set(['manager', 'junior manager', 'assistant manager', 'supervisor']);
-const positionRank = (name) =>
-  POSITION_HIERARCHY.findIndex(p => p.toLowerCase() === String(name || '').trim().toLowerCase());
-
-// The canonical position names a user may create accounts for. Empty unless the
-// user holds one of the CREATOR_POSITIONS; then it is every position ranked
-// strictly below theirs.
-function creatablePositions(user) {
-  const pos = String(user.position || '').trim().toLowerCase();
-  if (!CREATOR_POSITIONS.has(pos)) return [];
-  const rank = positionRank(pos);
-  return POSITION_HIERARCHY.filter((_, i) => i > rank);
+// 1-based rank; Infinity for a position not on the ladder (weakest — manages
+// nobody, and is itself not manageable by rank).
+function positionRank(name) {
+  const i = POSITION_RANKS.findIndex(p => p.toLowerCase() === String(name || '').trim().toLowerCase());
+  return i === -1 ? Infinity : i + 1;
+}
+// Regular users may delegate account management only from Supervisor upward.
+// The 'admin' role is exempt from this floor (the role itself grants the
+// Manage-accounts entry) but is still department- and rank-limited.
+const DELEGATE_FLOOR_RANK = positionRank('Supervisor'); // 10
+function hasDelegation(user) {
+  if (!user) return false;
+  if (user.role === 'superadmin' || user.role === 'admin') return true;
+  return positionRank(user.position) <= DELEGATE_FLOOR_RANK;
 }
 
-// Whether `actor` may manage (e.g. reset the password of) the account `target`.
-// Superadmins may manage anyone; a delegated creator may manage only standard
-// user accounts in their own department whose position they are allowed to
-// create (i.e. ranked strictly below them). Same rule set as creation.
+// The canonical position names a user may create accounts for: every position
+// ranked strictly below their own. Empty unless they hold delegation rights and
+// their own position is on the ladder.
+function creatablePositions(user) {
+  if (!hasDelegation(user)) return [];
+  const rank = positionRank(user.position);
+  if (rank === Infinity) return [];
+  return POSITION_RANKS.filter((_, i) => (i + 1) > rank);
+}
+
+// Whether `actor` may manage (create / reset password / enable-disable) the
+// account `target`. Superadmins may manage anyone. Everyone else (admins and
+// delegated seniors) may manage only standard user accounts in their OWN
+// department whose position ranks strictly below their own.
 function canManageAccount(actor, target) {
   if (actor.role === 'superadmin') return true;
-  // Admins manage standard user accounts only — never other admins/superadmins.
-  if (actor.role === 'admin') return target.role === 'user';
-  const allowed = creatablePositions(actor);
-  if (!allowed.length) return false;
+  if (!hasDelegation(actor)) return false;
   if (target.role !== 'user') return false;
-  const sameDept = String(target.department || '').trim().toLowerCase()
-    === String(actor.department || '').trim().toLowerCase()
-    && String(actor.department || '').trim() !== '';
-  const managedPos = allowed.some(p =>
-    p.toLowerCase() === String(target.position || '').trim().toLowerCase());
-  return sameDept && managedPos;
+  const aDept = String(actor.department || '').trim().toLowerCase();
+  const tDept = String(target.department || '').trim().toLowerCase();
+  if (!aDept || aDept !== tDept) return false;
+  const tRank = positionRank(target.position);
+  if (tRank === Infinity) return false;
+  return positionRank(actor.position) < tRank;
 }
 
 // ---------------------------------------------------------------------------
@@ -1279,15 +1290,14 @@ function sanitizeApproverIds(input, excludeId) {
 
 app.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
-  const isAdmin = req.user.role === 'admin';
-  // Superadmins and admins read the full account list; delegated creators read
-  // only their own department's accounts (to populate their Manage-accounts
-  // list). Everyone else is forbidden.
-  if (!isSuper && !isAdmin && !creatablePositions(req.user).length) {
+  // Superadmins read every account; admins and delegated seniors read only their
+  // own department's accounts (to populate Manage-accounts). Everyone else is
+  // forbidden.
+  if (!isSuper && !hasDelegation(req.user)) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
   const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at';
-  const users = (isSuper || isAdmin)
+  const users = isSuper
     ? await q(`SELECT ${cols} FROM users ORDER BY id`)
     : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
         [String(req.user.department || '').trim()]);
@@ -1295,26 +1305,22 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
 }));
 app.post('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
-  const isAdmin = req.user.role === 'admin';
-  const allowed = (isSuper || isAdmin) ? null : creatablePositions(req.user);
-  if (!isSuper && !isAdmin && !allowed.length) {
+  if (!isSuper && !hasDelegation(req.user)) {
     return res.status(403).json({ error: 'You do not have permission to create accounts' });
   }
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
   let { role, department, position, approver_ids } = req.body || {};
-  // Admins may create standard user accounts with the full form, but never
-  // another admin or a superadmin.
-  if (isAdmin) role = 'user';
-  // Delegated (position-based) creators may only create a standard user account,
-  // for a junior job position, inside their own department, with no approver
-  // chain — regardless of what the request body asks for.
-  if (!isSuper && !isAdmin) {
+  // Non-superadmins (admins and delegated seniors) may only create a standard
+  // user account, for a position ranked strictly below their own, inside their
+  // own department, with no approver chain — whatever the request body asks for.
+  if (!isSuper) {
     const creatorDept = String(req.user.department || '').trim();
     if (!creatorDept) return res.status(403).json({ error: 'Your account has no department set; ask an administrator to set one.' });
     role = 'user';
     department = creatorDept;
     approver_ids = [];
+    const allowed = creatablePositions(req.user);
     const posOk = allowed.some(p => p.toLowerCase() === String(position || '').trim().toLowerCase());
     if (!posOk) return res.status(403).json({ error: 'You cannot create an account for that job position' });
   }
@@ -1338,19 +1344,12 @@ app.post('/api/users', requireAuth, ah(async (req, res) => {
      String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids))]);
   res.status(201).json({ id: rows[0].id });
 }));
-app.put('/api/users/:id', requireAuth, requireRole('superadmin', 'admin'), ah(async (req, res) => {
+app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const isAdmin = req.user.role === 'admin';
-  // Admins may edit standard user accounts only, and can never change an
-  // account's role (so they cannot mint another admin or a superadmin).
-  if (isAdmin && u.role !== 'user') {
-    return res.status(403).json({ error: 'You do not have permission to edit this account' });
-  }
-  const { username, full_name, department, position, active, password, email,
+  const { username, full_name, role, department, position, active, password, email,
     bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
-  const role = isAdmin ? 'user' : (req.body && req.body.role);
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;

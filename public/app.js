@@ -1474,26 +1474,13 @@ const SETTINGS_TABS = [
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
-$('#accountsBtn').addEventListener('click', () =>
-  (state.user && state.user.role === 'admin') ? openAdminAccountsModal() : openManageAccountsModal());
+// Admins and delegated seniors share the same department-scoped, rank-limited
+// "Manage accounts" screen; superadmins use full Settings instead.
+$('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
 // Human-readable role labels used across the account tables.
 const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
 const roleLabel = (r) => ROLE_LABELS[r] || r;
-
-// Admin's "Manage accounts": the same full account manager superadmins get in
-// Settings, rendered standalone (no other Settings tabs, no test-email).
-function openAdminAccountsModal() {
-  openModal(`
-    <div class="modal-head">
-      <h2>Manage accounts</h2>
-      <button class="x-btn">×</button>
-    </div>
-    <div class="modal-body"><div id="settingsPanel"></div></div>`);
-  $('#modal').classList.add('modal-xwide', 'modal-flex');
-  $('#modal .x-btn').addEventListener('click', closeModal);
-  renderAccountsTab();
-}
 
 function openSettingsModal() {
   openModal(`
