@@ -1605,7 +1605,10 @@ async function renderAccountsTab() {
             <td data-label="Dept / Position"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="Active">${u.active ? 'Yes' : 'No'}</td>
             <td class="act-cell" data-label="Actions">${(state.user.role === 'superadmin' || u.role === 'user')
-              ? `<button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">Edit</button>`
+              ? `<div class="u-actions">
+                <button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">Edit</button>
+                ${u.id != state.user.id ? `<button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-green-soft'}" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>` : ''}
+              </div>`
               : '<span class="muted">—</span>'}</td>
           </tr>`).join('')}</tbody>
       </table>
@@ -1614,6 +1617,15 @@ async function renderAccountsTab() {
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
+  $$('#settingsPanel [data-active]').forEach(b => b.addEventListener('click', async () => {
+    const u = users.find(x => x.id == b.dataset.active);
+    if (u.active && !confirm(`Disable ${u.full_name}'s account? They won't be able to sign in until re-enabled.`)) return;
+    try {
+      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
+      toast(u.active ? 'Account disabled' : 'Account enabled');
+      renderAccountsTab();
+    } catch (ex) { toast(ex.message, true); }
+  }));
 }
 
 // Build a <select> of configured options plus the current value; used for the
@@ -1691,7 +1703,6 @@ function renderUserForm(u) {
             <input name="password" type="password" ${isEdit ? '' : 'required'} />
             <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
           </div></label>
-        ${isEdit ? `<label>Active<select name="active"><option value="1" ${u.active ? 'selected' : ''}>Yes</option><option value="0" ${!u.active ? 'selected' : ''}>No</option></select></label>` : ''}
       </div>
       <div class="section-label" style="margin-top:8px">Approval chain (approvers, in order)</div>
       <div id="approverRows"></div>
@@ -1727,7 +1738,6 @@ function renderUserForm(u) {
       bank_account_no: fd.get('bank_account_no') || '',
       approver_ids: acctApprovers.filter(Boolean).map(Number)
     };
-    if (isEdit) payload.active = fd.get('active');
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;
     try {
