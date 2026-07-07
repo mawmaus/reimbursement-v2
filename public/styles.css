@@ -306,6 +306,15 @@ input[type="search"] { min-width: 220px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
 
+/* Claim form: freeze the action bar to the bottom of the modal so Submit /
+   Cancel stay visible instead of scrolling out of view. The negative margins
+   bleed the bar to the modal edges (matching .modal-body padding). */
+#claimForm .modal-actions {
+  position: sticky; bottom: 0; z-index: 3;
+  margin: 14px -22px -22px; padding: 14px 22px;
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+
 /* users table */
 .utable { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .utable th, .utable td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
@@ -484,6 +493,7 @@ input[type="search"] { min-width: 220px; }
   .drawer-body { padding: 18px 16px; }
   .drawer-head { padding: 16px; }
   .modal-body { padding: 18px 16px; }
+  #claimForm .modal-actions { margin: 14px -16px -18px; padding: 14px 16px; }
 }
 
 /* Small phones — two-up summary cards and tighter type. */
