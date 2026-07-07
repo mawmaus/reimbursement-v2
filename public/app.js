@@ -91,11 +91,9 @@ async function boot() {
 function showLogin() {
   $('#appView').hidden = true;
   $('#loginView').hidden = false;
-  // Reset to the sign-in form (in case the forgot-password form was open).
-  $('#forgotForm').hidden = true;
   $('#loginForm').hidden = false;
-  $('#forgotLink').parentElement.hidden = false;
-  $('#loginHint').textContent = 'Need an account? Contact your administrator.';
+  $('#loginHint').textContent =
+    'Need an account, or forgot your username or password? Contact your manager.';
 }
 
 function showApp() {
@@ -158,37 +156,6 @@ $('#loginForm').addEventListener('submit', async (e) => {
     e.target.reset();
     showApp();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
-});
-
-// Forgot password — toggle the inline request form and submit it.
-$('#forgotLink').addEventListener('click', () => {
-  $('#loginForm').hidden = true;
-  $('#forgotLink').parentElement.hidden = true;
-  $('#loginError').hidden = true;
-  $('#forgotForm').hidden = false;
-  $('#forgotForm').querySelector('[name="identifier"]').focus();
-});
-$('#forgotCancel').addEventListener('click', () => {
-  $('#forgotForm').hidden = true;
-  $('#forgotForm').reset();
-  $('#forgotMsg').hidden = true; $('#forgotError').hidden = true;
-  $('#loginForm').hidden = false;
-  $('#forgotLink').parentElement.hidden = false;
-});
-$('#forgotForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const msg = $('#forgotMsg'), err = $('#forgotError');
-  msg.hidden = true; err.hidden = true;
-  const identifier = new FormData(e.target).get('identifier').trim();
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  try {
-    const r = await api('/forgot-password', { method: 'POST', body: JSON.stringify({ identifier }) });
-    msg.textContent = (r && r.message) || 'If that account exists, we’ve emailed a reset link.';
-    msg.hidden = false;
-    e.target.querySelector('[name="identifier"]').value = '';
-  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
-  finally { btn.disabled = false; }
 });
 
 $('#logoutBtn').addEventListener('click', async () => {
