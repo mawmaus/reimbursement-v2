@@ -78,14 +78,11 @@ app.use(cookieSession({
 
 // File uploads held in memory, then pushed to Vercel Blob.
 // Vercel server uploads are capped at ~4.5 MB per request, so limit to 4 MB.
+// Attachments are limited to PDFs and images so they can be embedded cleanly in
+// the generated claim PDF.
 const ALLOWED_MIME = new Set([
   'application/pdf',
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'text/plain', 'text/csv'
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'
 ]);
 const upload = multer({
   storage: multer.memoryStorage(),

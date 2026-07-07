@@ -609,14 +609,34 @@ async function buildClaimsPdf(claims) {
     });
   };
 
-  const drawImagePage = (c, att, img) => {
+  // Pack up to 4 image attachments onto a single full page. One image fills the
+  // page; two share it side by side; three or four fall into a 2x2 grid. Each
+  // image is scaled to fit ("contain") inside its cell under a filename caption.
+  const drawImageGrid = (c, items) => {
     const p = pdf.addPage([W, H]);
-    p.drawText(pdfSafe(`Attachment · ${c.claim_no}`), { x: M, y: H - M - 6, size: 8, font, color: muted });
-    p.drawText(pdfSafe(att.original_name), { x: M, y: H - M - 20, size: 11, font: bold, color: ink });
-    const top = H - M - 34, availH = top - M;
-    const s = Math.min(CW / img.width, availH / img.height);
-    const iw = img.width * s, ih = img.height * s;
-    p.drawImage(img, { x: M + (CW - iw) / 2, y: M + (availH - ih) / 2, width: iw, height: ih });
+    p.drawText(pdfSafe(`Attachments · ${c.claim_no}`), { x: M, y: H - M - 6, size: 8, font, color: muted });
+    const top = H - M - 22, availH = top - M;
+    const n = items.length, gap = 14;
+    const cols = n === 1 ? 1 : 2, rows = Math.ceil(n / cols);
+    const cellW = (CW - gap * (cols - 1)) / cols;
+    const cellH = (availH - gap * (rows - 1)) / rows;
+    const capH = 13;
+    items.forEach(({ att, img }, i) => {
+      const col = i % cols, row = Math.floor(i / cols);
+      const cx = M + col * (cellW + gap);
+      const cellTop = top - row * (cellH + gap);
+      let name = pdfSafe(att.original_name);
+      while (name.length > 4 && font.widthOfTextAtSize(name, 8) > cellW) name = name.slice(0, -2);
+      p.drawText(name, { x: cx, y: cellTop - 9, size: 8, font: bold, color: ink });
+      const areaH = cellH - capH;
+      const s = Math.min(cellW / img.width, areaH / img.height);
+      const iw = img.width * s, ih = img.height * s;
+      p.drawImage(img, {
+        x: cx + (cellW - iw) / 2,
+        y: cellTop - capH - (areaH - ih) / 2 - ih,
+        width: iw, height: ih
+      });
+    });
   };
   const drawNotePage = (c, att, msg) => {
     const p = pdf.addPage([W, H]);
@@ -625,26 +645,35 @@ async function buildClaimsPdf(claims) {
     p.drawText(pdfSafe(msg), { x: M, y: H - M - 44, size: 10, font, color: ink });
     p.drawText(pdfSafe(`${att.mime_type || 'unknown type'} · ${fmtBytes(att.size_bytes)}`), { x: M, y: H - M - 60, size: 9, font, color: muted });
   };
-  const appendAttachment = async (c, att) => {
-    let bytes, mime = att.mime_type || '';
-    try {
-      const res = await fetch(`/api/claims/${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
-      if (!res.ok) throw new Error('http');
-      bytes = new Uint8Array(await res.arrayBuffer());
-      if (!mime) mime = res.headers.get('Content-Type') || '';
-    } catch { return drawNotePage(c, att, 'Could not load this attachment from storage.'); }
-    if (/pdf/i.test(mime) || /\.pdf$/i.test(att.original_name)) {
+  // Render a claim's attachments: images are collected into `batch` and flushed
+  // 4-to-a-page as grids; PDFs and load failures break the batch and take their
+  // own full page(s), preserving the original attachment order.
+  const appendAttachments = async (c, atts) => {
+    let batch = [];
+    const flush = () => { for (let i = 0; i < batch.length; i += 4) drawImageGrid(c, batch.slice(i, i + 4)); batch = []; };
+    for (const att of atts) {
+      let bytes, mime = att.mime_type || '';
       try {
-        const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
-        const copied = await pdf.copyPages(src, src.getPageIndices());
-        copied.forEach(p => pdf.addPage(p));
-        return;
-      } catch { return drawNotePage(c, att, 'This PDF could not be embedded.'); }
+        const res = await fetch(`/api/claims/${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('http');
+        bytes = new Uint8Array(await res.arrayBuffer());
+        if (!mime) mime = res.headers.get('Content-Type') || '';
+      } catch { flush(); drawNotePage(c, att, 'Could not load this attachment from storage.'); continue; }
+      if (/pdf/i.test(mime) || /\.pdf$/i.test(att.original_name)) {
+        flush();
+        try {
+          const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+          const copied = await pdf.copyPages(src, src.getPageIndices());
+          copied.forEach(p => pdf.addPage(p));
+        } catch { drawNotePage(c, att, 'This PDF could not be embedded.'); }
+        continue;
+      }
+      try {
+        const png = await rasterToPng(bytes, mime);
+        batch.push({ att, img: await pdf.embedPng(png.bytes) });
+      } catch { flush(); drawNotePage(c, att, "This file type can't be shown inline - download it from the portal."); }
     }
-    try {
-      const png = await rasterToPng(bytes, mime);
-      drawImagePage(c, att, await pdf.embedPng(png.bytes));
-    } catch { drawNotePage(c, att, "This file type can't be shown inline - download it from the portal."); }
+    flush();
   };
 
   for (const c of claims) {
@@ -661,7 +690,7 @@ async function buildClaimsPdf(claims) {
     page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
     y -= 11;
     page.drawText(pdfSafe(`Generated ${fmtDateTime(new Date().toISOString())}  ·  Cibes Reimbursement Portal`), { x: M, y, size: 7.5, font, color: muted });
-    for (const a of atts) await appendAttachment(c, a);
+    await appendAttachments(c, atts);
   }
   return pdf.save();
 }
@@ -968,9 +997,9 @@ function openClaimModal(existing = null) {
             <div class="section-label" style="margin-top:4px">Receipts / files</div>
             <div class="drop" id="dropZone">
               <strong>Click to choose files</strong> or drag &amp; drop<br>
-              <span style="font-size:.8rem">PDF, images, Word/Excel · up to 8 files · 10 MB each</span>
+              <span style="font-size:.8rem">PDF or images only · up to 8 files · 10 MB each</span>
               <input id="fileInput" type="file" multiple hidden
-                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.doc,.docx,.xls,.xlsx,.txt,.csv" />
+                accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic" />
             </div>
             <div class="file-chips" id="fileChips"></div>
           </div>
@@ -998,9 +1027,17 @@ function openClaimModal(existing = null) {
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
 }
 
+// Only PDFs and images are accepted. The <input accept> covers the file picker,
+// but drag & drop bypasses it, so validate by MIME type (falling back to the
+// extension when the browser doesn't report one).
+function isAllowedUpload(f) {
+  if (f.type) return f.type === 'application/pdf' || f.type.startsWith('image/');
+  return /\.(pdf|jpe?g|png|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(f.name);
+}
 function addFiles(list) {
   for (const f of list) {
     if (pendingFiles.length >= 8) { toast('Maximum 8 files', true); break; }
+    if (!isAllowedUpload(f)) { toast(`${f.name}: only PDF or image files are allowed`, true); continue; }
     if (f.size > 10 * 1024 * 1024) { toast(`${f.name} exceeds 10 MB`, true); continue; }
     pendingFiles.push(f);
   }
