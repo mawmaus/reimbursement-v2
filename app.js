@@ -344,6 +344,8 @@ function creatablePositions(user) {
 // create (i.e. ranked strictly below them). Same rule set as creation.
 function canManageAccount(actor, target) {
   if (actor.role === 'superadmin') return true;
+  // Admins manage standard user accounts only — never other admins/superadmins.
+  if (actor.role === 'admin') return target.role === 'user';
   const allowed = creatablePositions(actor);
   if (!allowed.length) return false;
   if (target.role !== 'user') return false;
@@ -1146,7 +1148,7 @@ const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 // reimbursement, meal \u2014 defaults to both). Reimbursement claims export one row
 // each; meal allowances export one row per line item (per day), so finance sees
 // the full daily breakdown. A shared column set carries both.
-app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(async (req, res) => {
   const { from, to } = req.query;
   const statuses = String(req.query.status || '').split(',').map(s => s.trim())
     .filter(s => EXPORT_STATUSES.includes(s));
@@ -1238,7 +1240,7 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin'), ah(async (req
 // Admin: users
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
-const ROLES = ['superadmin', 'user'];
+const ROLES = ['superadmin', 'admin', 'user'];
 
 // Send a test email so an admin can confirm the Resend configuration works.
 // Defaults to the admin's own account email; a recipient can be supplied.
@@ -1277,13 +1279,15 @@ function sanitizeApproverIds(input, excludeId) {
 
 app.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
-  // Delegated creators may read only their own department's accounts (needed to
-  // populate their Manage-accounts list); everyone else needs superadmin.
-  if (!isSuper && !creatablePositions(req.user).length) {
+  const isAdmin = req.user.role === 'admin';
+  // Superadmins and admins read the full account list; delegated creators read
+  // only their own department's accounts (to populate their Manage-accounts
+  // list). Everyone else is forbidden.
+  if (!isSuper && !isAdmin && !creatablePositions(req.user).length) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
   const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at';
-  const users = isSuper
+  const users = (isSuper || isAdmin)
     ? await q(`SELECT ${cols} FROM users ORDER BY id`)
     : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
         [String(req.user.department || '').trim()]);
@@ -1291,17 +1295,21 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
 }));
 app.post('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
-  const allowed = isSuper ? null : creatablePositions(req.user);
-  if (!isSuper && !allowed.length) {
+  const isAdmin = req.user.role === 'admin';
+  const allowed = (isSuper || isAdmin) ? null : creatablePositions(req.user);
+  if (!isSuper && !isAdmin && !allowed.length) {
     return res.status(403).json({ error: 'You do not have permission to create accounts' });
   }
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
   let { role, department, position, approver_ids } = req.body || {};
-  // Delegated (non-superadmin) creators may only create a standard user account,
+  // Admins may create standard user accounts with the full form, but never
+  // another admin or a superadmin.
+  if (isAdmin) role = 'user';
+  // Delegated (position-based) creators may only create a standard user account,
   // for a junior job position, inside their own department, with no approver
   // chain — regardless of what the request body asks for.
-  if (!isSuper) {
+  if (!isSuper && !isAdmin) {
     const creatorDept = String(req.user.department || '').trim();
     if (!creatorDept) return res.status(403).json({ error: 'Your account has no department set; ask an administrator to set one.' });
     role = 'user';
@@ -1330,12 +1338,19 @@ app.post('/api/users', requireAuth, ah(async (req, res) => {
      String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids))]);
   res.status(201).json({ id: rows[0].id });
 }));
-app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.put('/api/users/:id', requireAuth, requireRole('superadmin', 'admin'), ah(async (req, res) => {
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const { username, full_name, role, department, position, active, password, email,
+  const isAdmin = req.user.role === 'admin';
+  // Admins may edit standard user accounts only, and can never change an
+  // account's role (so they cannot mint another admin or a superadmin).
+  if (isAdmin && u.role !== 'user') {
+    return res.status(403).json({ error: 'You do not have permission to edit this account' });
+  }
+  const { username, full_name, department, position, active, password, email,
     bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
+  const role = isAdmin ? 'user' : (req.body && req.body.role);
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;

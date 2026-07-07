@@ -108,14 +108,18 @@ function showApp() {
   const purposes = u.purposes || { claim: false, meal: false };
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
-  $('#exportBtn').hidden = u.role !== 'superadmin';
-  $('#settingsBtn').hidden = u.role !== 'superadmin';
-  // Delegated account creation: senior positions get a lightweight "Manage
-  // accounts" screen (superadmins use full Settings instead).
-  $('#accountsBtn').hidden = u.role === 'superadmin'
-    || !(Array.isArray(u.creatable_positions) && u.creatable_positions.length);
+  const isSuper = u.role === 'superadmin';
+  const isAdmin = u.role === 'admin';
+  // Export CSV: superadmins and admins. Settings (lookups): superadmins only.
+  $('#exportBtn').hidden = !(isSuper || isAdmin);
+  $('#settingsBtn').hidden = !isSuper;
+  // "Manage accounts": admins get the full account manager; delegated senior
+  // positions get the lightweight, department-scoped one. Superadmins use
+  // full Settings instead.
+  $('#accountsBtn').hidden = !(isAdmin
+    || (!isSuper && Array.isArray(u.creatable_positions) && u.creatable_positions.length));
   // Only super admins can delete claims (used to clear out test data).
-  $('#deleteSelBtn').hidden = u.role !== 'superadmin';
+  $('#deleteSelBtn').hidden = !isSuper;
   loadLookups();
   loadAll();
 }
@@ -1470,7 +1474,26 @@ const SETTINGS_TABS = [
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
-$('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
+$('#accountsBtn').addEventListener('click', () =>
+  (state.user && state.user.role === 'admin') ? openAdminAccountsModal() : openManageAccountsModal());
+
+// Human-readable role labels used across the account tables.
+const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
+const roleLabel = (r) => ROLE_LABELS[r] || r;
+
+// Admin's "Manage accounts": the same full account manager superadmins get in
+// Settings, rendered standalone (no other Settings tabs, no test-email).
+function openAdminAccountsModal() {
+  openModal(`
+    <div class="modal-head">
+      <h2>Manage accounts</h2>
+      <button class="x-btn">×</button>
+    </div>
+    <div class="modal-body"><div id="settingsPanel"></div></div>`);
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  renderAccountsTab();
+}
 
 function openSettingsModal() {
   openModal(`
@@ -1622,10 +1645,12 @@ async function renderAccountsTab() {
           <tr>
             <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
             <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="Role">${esc(u.role)}</td>
+            <td data-label="Role">${esc(roleLabel(u.role))}</td>
             <td data-label="Dept / Position"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="Active">${u.active ? 'Yes' : 'No'}</td>
-            <td class="act-cell" data-label="Actions"><button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button></td>
+            <td class="act-cell" data-label="Actions">${(state.user.role === 'superadmin' || u.role === 'user')
+              ? `<button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button>`
+              : '<span class="muted">—</span>'}</td>
           </tr>`).join('')}</tbody>
       </table>
     </div>`;
@@ -1697,11 +1722,12 @@ function renderUserForm(u) {
         <label>Username<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
         <label>Full name<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
         <label>Email (for resets &amp; notifications)<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="you@company.com" /></label>
-        <label>Role
+        ${state.user.role === 'superadmin' ? `<label>Role
           <select name="role">
             <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>Super Admin</option>
+            <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>Admin</option>
             <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>User</option>
-          </select></label>
+          </select></label>` : ''}
         <label>Department${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>Job position${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
         <label>${isEdit ? 'Reset password (optional)' : 'Password'}
@@ -1737,7 +1763,8 @@ function renderUserForm(u) {
     syncApproverRows();
     const fd = new FormData(e.target);
     const payload = {
-      username: fd.get('username'), full_name: fd.get('full_name'), role: fd.get('role'),
+      username: fd.get('username'), full_name: fd.get('full_name'),
+      role: fd.get('role') || undefined,
       email: fd.get('email') || '',
       department: fd.get('department') || '', position: fd.get('position') || '',
       bank_name: fd.get('bank_name') || '', recipient_name: fd.get('recipient_name') || '',

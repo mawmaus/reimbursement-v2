@@ -8,7 +8,7 @@ const SCHEMA = [
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name     TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('superadmin','user')),
+    role          TEXT NOT NULL CHECK (role IN ('superadmin','admin','user')),
     department    TEXT NOT NULL DEFAULT '',
     position      TEXT NOT NULL DEFAULT '',
     active        BOOLEAN NOT NULL DEFAULT TRUE,
@@ -24,12 +24,14 @@ const SCHEMA = [
   // Email address for the account. Used for password-reset links and workflow
   // notifications (submissions to approve, rejections). Stored lower-cased.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`,
-  // Collapse the old four-role model (employee/manager/finance/admin) down to
-  // two: superadmin and user. Drop the old CHECK, remap the data, re-add it.
+  // Role model: superadmin (full access), admin (Manage accounts + Export CSV),
+  // user (no admin powers). Widen the CHECK to the three-role set and normalise
+  // any legacy value outside it to 'user'. NOTE: we deliberately do NOT remap
+  // 'admin' → 'superadmin' here — under the current model 'admin' is a real
+  // limited role, and an idempotent remap would clobber admins on every boot.
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`,
-  `UPDATE users SET role = 'superadmin' WHERE role = 'admin'`,
-  `UPDATE users SET role = 'user' WHERE role <> 'superadmin'`,
-  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','user'))`,
+  `UPDATE users SET role = 'user' WHERE role NOT IN ('superadmin','admin')`,
+  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','admin','user'))`,
   `CREATE TABLE IF NOT EXISTS claims (
     id              SERIAL PRIMARY KEY,
     claim_no        TEXT NOT NULL UNIQUE,
