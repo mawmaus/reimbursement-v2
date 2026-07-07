@@ -41,23 +41,38 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 
 /* ---------- Buttons & inputs ---------- */
 .btn {
-  font: inherit; font-weight: 560; cursor: pointer;
-  border: 1px solid transparent; border-radius: 8px;
+  font: inherit; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 1px solid transparent; border-radius: 10px;
   padding: 9px 16px; background: var(--surface); color: var(--ink);
-  transition: background .14s, border-color .14s, transform .04s;
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .05s;
 }
 .btn:active { transform: translateY(1px); }
-.btn-primary { background: var(--pine); color: #fff; border-color: var(--pine-deep); }
-.btn-primary:hover { background: var(--pine-deep); }
-.btn-ghost { background: transparent; border-color: var(--line); }
-.btn-ghost:hover { background: var(--surface); border-color: var(--muted); }
-.btn-sm { padding: 6px 11px; font-size: .85rem; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
+.btn-primary { background: var(--pine); color: #fff; border-color: var(--pine-deep);
+  box-shadow: 0 6px 16px -9px rgba(222,132,17,.75); }
+.btn-primary:hover { background: var(--pine-deep); box-shadow: 0 9px 22px -9px rgba(222,132,17,.9); }
+.btn-ghost { background: var(--surface); border-color: var(--line); color: var(--ink-soft); }
+.btn-ghost:hover { background: var(--paper); border-color: var(--muted); color: var(--ink); }
+.btn-sm { padding: 6px 12px; font-size: .85rem; border-radius: 8px; }
 .btn-block { width: 100%; }
-.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red);
+  box-shadow: 0 6px 16px -9px rgba(192,57,43,.7); }
 .btn-danger:hover { filter: brightness(.94); }
-.btn-approve { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-approve { background: var(--green); color: #fff; border-color: var(--green);
+  box-shadow: 0 6px 16px -9px rgba(47,125,85,.7); }
 .btn-approve:hover { filter: brightness(.94); }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+/* Soft tinted variants — calm coloured fills that intensify to a solid colour
+   on hover. Used for topbar / toolbar utilities so they read as real, colourful
+   buttons (echoing the Manage-accounts pills) without shouting. */
+.btn-brand-soft  { background: var(--pine-tint);   color: var(--pine-deep); border-color: transparent; }
+.btn-brand-soft:hover  { background: var(--pine);   color: #fff; border-color: var(--pine-deep); }
+.btn-indigo-soft { background: var(--indigo-tint); color: var(--indigo);   border-color: transparent; }
+.btn-indigo-soft:hover { background: var(--indigo); color: #fff; }
+.btn-green-soft  { background: var(--green-tint);  color: var(--green);    border-color: transparent; }
+.btn-green-soft:hover  { background: var(--green);  color: #fff; }
 
 .input, .form input, .form select, .form textarea {
   font: inherit; color: var(--ink); background: var(--surface);
