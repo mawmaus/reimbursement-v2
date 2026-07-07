@@ -895,6 +895,41 @@ function lookupField(name, label, value, options, attrs = '') {
     </select></label>`;
 }
 
+// The claim's expense type: the configured list plus an "Others" option that
+// reveals a free-text field. When settings have no expense types yet, fall back
+// to a plain text input (same behaviour as lookupField). A stored value that
+// isn't a configured option is treated as a previous "Others" entry so editing
+// keeps it. Wiring (show/hide) is done by wireExpenseTypeField after render.
+function expenseTypeField(value) {
+  const options = state.lookups.expense_types;
+  const cur = value || '';
+  if (!options.length) {
+    return `<label>Type of expense<input name="expense_type" required placeholder="Travel, Meals, Supplies…" value="${esc(cur)}" /></label>`;
+  }
+  const isOther = !!cur && !options.some(o => o.toLowerCase() === cur.toLowerCase());
+  const selectVal = isOther ? 'Others' : cur;
+  return `<label>Type of expense
+      <select name="expense_type" id="expType" required>
+        <option value="" ${cur ? '' : 'selected'} disabled>Select…</option>
+        ${options.map(o => `<option value="${esc(o)}" ${o === selectVal ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+        <option value="Others" ${selectVal === 'Others' ? 'selected' : ''}>Others</option>
+      </select></label>
+    <label class="full" id="expOtherWrap" ${isOther ? '' : 'hidden'}>Please specify the expense type
+      <input name="expense_type_other" id="expOther" value="${isOther ? esc(cur) : ''}" placeholder="Enter the expense type" /></label>`;
+}
+function wireExpenseTypeField() {
+  const sel = $('#expType');
+  if (!sel) return;
+  const wrap = $('#expOtherWrap'), other = $('#expOther');
+  const sync = () => {
+    const on = sel.value === 'Others';
+    wrap.hidden = !on;
+    if (other) other.required = on;
+  };
+  sel.addEventListener('change', () => { sync(); if (sel.value === 'Others' && other) other.focus(); });
+  sync();
+}
+
 function openClaimModal(existing = null) {
   const u = state.user;
   const isEdit = !!existing;
@@ -917,7 +952,7 @@ function openClaimModal(existing = null) {
         <div class="grid2">
           <label>Date<input name="expense_date" type="date" required value="${esc(v.expense_date || '')}" /></label>
           <label>DB No.<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
-          ${lookupField('expense_type', 'Type of expense', v.expense_type, state.lookups.expense_types, 'placeholder="Travel, Meals, Supplies…"')}
+          ${expenseTypeField(v.expense_type)}
           <label>Amount
             <div style="display:flex;gap:6px">
               <input name="currency" style="max-width:80px" value="${esc(v.currency || 'IDR')}" />
@@ -959,6 +994,7 @@ function openClaimModal(existing = null) {
   fileInput.addEventListener('change', () => addFiles(fileInput.files));
 
   attachAmountGrouping($('#claimForm [name="amount"]'));
+  wireExpenseTypeField();
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
 }
 
@@ -982,6 +1018,13 @@ async function submitClaim(e, existing) {
   e.preventDefault();
   const err = $('#claimError'); err.hidden = true;
   const fd = new FormData(e.target);
+  // Resolve an "Others" expense type to the free-text value the user entered.
+  if (fd.get('expense_type') === 'Others') {
+    const other = String(fd.get('expense_type_other') || '').trim();
+    if (!other) { err.textContent = 'Please specify the expense type.'; err.hidden = false; return; }
+    fd.set('expense_type', other);
+  }
+  fd.delete('expense_type_other');
   pendingFiles.forEach(f => fd.append('files', f));
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
@@ -1274,6 +1317,41 @@ async function openExportModal() {
 // ---------------------------------------------------------------------------
 $('#profileBtn').addEventListener('click', () => openProfileModal());
 
+// Bank name is picked from a short list (BCA / Others). "Others" reveals a free
+// text field for the actual bank name and shows a red fee note, since any
+// non-BCA payout is charged IDR 2,500. Returns the markup; wiring is done by
+// wireBankNameField after the modal is in the DOM.
+function bankNameField(current) {
+  const cur = String(current || '').trim();
+  const isBca = cur.toLowerCase() === 'bca';
+  const isOther = !!cur && !isBca;
+  const choice = isBca ? 'BCA' : (isOther ? 'Others' : 'BCA'); // default to BCA when unset
+  return `
+    <label>Bank name
+      <select name="bank_choice" id="bankChoice">
+        <option value="BCA" ${choice === 'BCA' ? 'selected' : ''}>BCA</option>
+        <option value="Others" ${choice === 'Others' ? 'selected' : ''}>Others</option>
+      </select></label>
+    <label id="bankOtherWrap" ${choice === 'Others' ? '' : 'hidden'}>Bank name (please specify)
+      <input name="bank_name_custom" id="bankNameCustom" value="${isOther ? esc(cur) : ''}" placeholder="Enter your bank name" /></label>
+    <p class="fee-note" id="bankFeeNote" ${choice === 'BCA' ? 'hidden' : ''}>⚠ A fee of IDR 2,500 is charged for every payment to a non-BCA bank account.</p>`;
+}
+// Toggle the custom field + fee note as the bank choice changes. Returns a
+// getter for the effective bank name to use on submit.
+function wireBankNameField() {
+  const choice = $('#bankChoice');
+  if (!choice) return () => '';
+  const wrap = $('#bankOtherWrap'), custom = $('#bankNameCustom'), note = $('#bankFeeNote');
+  const sync = () => {
+    const other = choice.value === 'Others';
+    wrap.hidden = !other;
+    note.hidden = choice.value === 'BCA';
+  };
+  choice.addEventListener('change', () => { sync(); if (choice.value === 'Others' && custom) custom.focus(); });
+  sync();
+  return () => choice.value === 'BCA' ? 'BCA' : String((custom && custom.value) || '').trim();
+}
+
 async function openProfileModal() {
   // Fetch the current values (login response omits bank details).
   let me = state.user || {};
@@ -1286,7 +1364,7 @@ async function openProfileModal() {
         <label>Email (used for password resets &amp; notifications)
           <input name="email" type="email" value="${esc(me.email || '')}" placeholder="you@company.com" /></label>
         <div class="section-label" style="margin-top:14px">Bank / payout details</div>
-        <label>Bank name<input name="bank_name" value="${esc(me.bank_name || '')}" placeholder="e.g. BCA" /></label>
+        ${bankNameField(me.bank_name)}
         <label>Recipient bank account name<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="Name on the account" /></label>
         <label>Bank account number<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="Account number" /></label>
         <p class="form-error" id="profileErr" hidden></p>
@@ -1311,15 +1389,20 @@ async function openProfileModal() {
     </div>`);
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#profileCancel').addEventListener('click', closeModal);
+  const bankName = wireBankNameField();
 
   $('#profileForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#profileErr'); err.hidden = true;
     const fd = new FormData(e.target);
+    const effectiveBank = bankName();
+    if ($('#bankChoice').value === 'Others' && !effectiveBank) {
+      err.textContent = 'Please enter your bank name.'; err.hidden = false; return;
+    }
     try {
       const { user } = await api('/me', { method: 'PUT', body: JSON.stringify({
         email: fd.get('email'),
-        bank_name: fd.get('bank_name'), recipient_name: fd.get('recipient_name'),
+        bank_name: effectiveBank, recipient_name: fd.get('recipient_name'),
         bank_account_no: fd.get('bank_account_no') }) });
       if (user) state.user = { ...state.user, ...user };
       toast('Profile saved');

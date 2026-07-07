@@ -106,6 +106,7 @@ input[type="search"] { min-width: 220px; }
 .form label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 560; color: var(--ink-soft); }
 .form-error { color: var(--red); background: var(--red-tint); border-radius: 8px; padding: 9px 12px; margin: 0; font-size: .85rem; }
 .form-note { color: var(--pine); background: var(--pine-tint); border-radius: 8px; padding: 9px 12px; margin: 0; font-size: .85rem; }
+.fee-note { color: var(--red); background: var(--red-tint); border-radius: 8px; padding: 8px 11px; margin: 6px 0 0; font-size: .82rem; line-height: 1.4; }
 .login-hint { font-size: .78rem; margin-top: 18px; text-align: center; white-space: pre-line; }
 .login-links { text-align: right; margin: 10px 0 0; }
 .linkbtn {
@@ -187,11 +188,14 @@ input[type="search"] { min-width: 220px; }
 .row-spine.approved  { background: var(--green); }
 .row-spine.rejected  { background: var(--red); }
 .row-spine.paid      { background: var(--indigo); }
-.col-no  { font-family: var(--mono); font-size: .85rem; color: var(--ink-soft); }
-.col-name { font-weight: 560; }
-.col-type, .col-date { color: var(--ink-soft); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-amt { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 560; }
-.col-status { text-align: right; }
+/* Column text styling applies to data rows only; the header keeps one uniform
+   style (.ledger-head) so every column title looks the same. Alignment is
+   shared so headers line up with their cells. */
+.col-amt, .col-status { text-align: right; }
+.ledger-row .col-no  { font-family: var(--mono); font-size: .85rem; color: var(--ink-soft); }
+.ledger-row .col-name { font-weight: 560; }
+.ledger-row .col-type, .ledger-row .col-date { color: var(--ink-soft); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-row .col-amt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 560; }
 .empty { text-align: center; padding: 40px; }
 
 .pill {
