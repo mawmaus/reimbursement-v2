@@ -73,6 +73,8 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 .btn-indigo-soft:hover { background: var(--indigo); color: #fff; }
 .btn-green-soft  { background: var(--green-tint);  color: var(--green);    border-color: transparent; }
 .btn-green-soft:hover  { background: var(--green);  color: #fff; }
+.btn-amber-soft  { background: var(--amber-tint);  color: var(--amber);    border-color: transparent; }
+.btn-amber-soft:hover  { background: var(--amber);  color: #fff; }
 
 .input, .form input, .form select, .form textarea {
   font: inherit; color: var(--ink); background: var(--surface);
@@ -321,10 +323,11 @@ input[type="search"] { min-width: 220px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
 
-/* Claim form: freeze the action bar to the bottom of the modal so Submit /
-   Cancel stay visible instead of scrolling out of view. The negative margins
-   bleed the bar to the modal edges (matching .modal-body padding). */
-#claimForm .modal-actions {
+/* Frozen action bar: opt-in class that pins Submit / Cancel to the bottom of a
+   scrolling modal so they stay visible instead of scrolling out of view. The
+   negative margins bleed the bar to the modal edges (matching .modal-body
+   padding). Used on tall forms (claim, export, user editor…). */
+.modal-actions.sticky-foot {
   position: sticky; bottom: 0; z-index: 3;
   margin: 14px -22px -22px; padding: 14px 22px;
   background: var(--surface); border-top: 1px solid var(--line);
@@ -508,7 +511,7 @@ input[type="search"] { min-width: 220px; }
   .drawer-body { padding: 18px 16px; }
   .drawer-head { padding: 16px; }
   .modal-body { padding: 18px 16px; }
-  #claimForm .modal-actions { margin: 14px -16px -18px; padding: 14px 16px; }
+  .modal-actions.sticky-foot { margin: 14px -16px -18px; padding: 14px 16px; }
 }
 
 /* Small phones — two-up summary cards and tighter type. */

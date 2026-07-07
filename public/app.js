@@ -1009,7 +1009,7 @@ function openClaimModal(existing = null) {
           </div>
         </div>
         <p class="form-error" id="claimError" hidden></p>
-        <div class="modal-actions">
+        <div class="modal-actions sticky-foot">
           <button type="button" class="btn btn-ghost" id="cancelClaim">Cancel</button>
           <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
         </div>
@@ -1307,7 +1307,7 @@ async function openExportModal() {
         </div>
         <p class="muted" style="font-size:.8rem;margin:10px 0 0">Leave dates blank to export all dates. Dates apply to the expense / meal date.</p>
         <p class="form-error" id="exportErr" hidden></p>
-        <div class="modal-actions">
+        <div class="modal-actions sticky-foot">
           <button type="button" class="btn btn-ghost" id="exportCancel">Cancel</button>
           <button type="submit" class="btn btn-primary">Download CSV</button>
         </div>
@@ -1487,7 +1487,7 @@ function openSettingsModal() {
     <div class="modal-head">
       <h2>Settings</h2>
       <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn btn-ghost btn-sm" id="testEmailBtn">Send test email</button>
+        <button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">Send test email</button>
         <button class="x-btn">×</button>
       </div>
     </div>
@@ -1567,8 +1567,8 @@ async function renderLookupTab(cfg) {
             <td data-label="Active">${it.active ? 'Yes' : 'No'}</td>
             ${p ? purposeCell(it, 'allow_claim', 'New claim') + purposeCell(it, 'allow_meal', 'New meal allowance') : ''}
             <td class="act-cell" data-label="Actions">
-              <button class="btn btn-ghost btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
-              <button class="btn btn-ghost btn-sm" data-del="${it.id}">Delete</button>
+              <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
+              <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">Delete</button>
             </td>
           </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
       </table>
@@ -1636,7 +1636,7 @@ async function renderAccountsTab() {
             <td data-label="Dept / Position"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="Active">${u.active ? 'Yes' : 'No'}</td>
             <td class="act-cell" data-label="Actions">${(state.user.role === 'superadmin' || u.role === 'user')
-              ? `<button class="btn btn-ghost btn-sm" data-edit="${u.id}">Edit</button>`
+              ? `<button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">Edit</button>`
               : '<span class="muted">—</span>'}</td>
           </tr>`).join('')}</tbody>
       </table>
@@ -1734,7 +1734,7 @@ function renderUserForm(u) {
         <label>Bank account no.<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
       </div>
       <p class="form-error" id="uErr" hidden></p>
-      <div class="modal-actions">
+      <div class="modal-actions sticky-foot">
         <button type="button" class="btn btn-ghost btn-sm" id="uCancel">Cancel</button>
         <button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Save' : 'Create'}</button>
       </div>
@@ -1812,7 +1812,7 @@ async function renderManageAccounts() {
                 ? '<span class="pill pill-on">Active</span>'
                 : '<span class="pill pill-off">Disabled</span>'}</td>
             <td class="act-cell" data-label="Actions">${maCanManage(u) ? `<div class="u-actions">
-              <button class="btn btn-ghost btn-sm" data-reset="${u.id}">Reset password</button>
+              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">Reset password</button>
               <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>
             </div>` : '<span class="muted">—</span>'}</td>
           </tr>`).join('') : '<tr><td colspan="5" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
@@ -1910,7 +1910,7 @@ function renderManagedUserForm() {
         <label>Bank account no.<input name="bank_account_no" inputmode="numeric" /></label>
       </div>
       <p class="form-error" id="muErr" hidden></p>
-      <div class="modal-actions">
+      <div class="modal-actions sticky-foot">
         <button type="button" class="btn btn-ghost btn-sm" id="muCancel">Cancel</button>
         <button type="submit" class="btn btn-primary btn-sm">Create</button>
       </div>
