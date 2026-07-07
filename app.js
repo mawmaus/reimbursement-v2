@@ -352,14 +352,18 @@ function creatablePositions(user) {
   return POSITION_RANKS.filter((_, i) => (i + 1) > rank);
 }
 
-// Whether `actor` may manage (create / reset password / enable-disable) the
-// account `target`. Superadmins may manage anyone. Everyone else (admins and
-// delegated seniors) may manage only standard user accounts in their OWN
-// department whose position ranks strictly below their own.
+// Whether `actor` may manage (reset password / enable-disable) the account
+// `target`. Superadmins may manage anyone. Everyone else (admins and delegated
+// seniors) may manage any NON-superadmin in their OWN department whose position
+// ranks strictly below their own — regardless of the target's role. This keeps
+// management purely rank + department based (a Manager can reset/disable a more
+// junior Supervisor whether that Supervisor is a plain user or an admin), while
+// still protecting superadmins and anyone at or above the actor's own rank.
+// (Account *creation* is separately restricted to role 'user' — see POST.)
 function canManageAccount(actor, target) {
   if (actor.role === 'superadmin') return true;
   if (!hasDelegation(actor)) return false;
-  if (target.role !== 'user') return false;
+  if (target.role === 'superadmin') return false;
   const aDept = String(actor.department || '').trim().toLowerCase();
   const tDept = String(target.department || '').trim().toLowerCase();
   if (!aDept || aDept !== tDept) return false;

@@ -1833,12 +1833,14 @@ async function renderManageAccounts() {
   }));
 }
 
-// A row is manageable (password-resettable) when it's a standard user account
-// holding one of the positions this user may create. Mirrors the server's
-// canManageAccount; the list is already scoped to the user's own department.
+// A row is manageable (reset password / enable-disable) when it's any
+// non-superadmin holding a position ranked below this user's own. Mirrors the
+// server's canManageAccount; the list (creatable_positions = positions strictly
+// below the actor) is already scoped to the actor's own department.
 function maCanManage(u) {
+  if (u.role === 'superadmin') return false;
   const list = (state.user.creatable_positions || []).map(p => p.toLowerCase());
-  return u.role === 'user' && list.includes(String(u.position || '').trim().toLowerCase());
+  return list.includes(String(u.position || '').trim().toLowerCase());
 }
 
 function renderResetPasswordForm(u) {
