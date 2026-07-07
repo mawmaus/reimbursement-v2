@@ -1527,15 +1527,17 @@ async function renderLookupTab(cfg) {
     </div>
     <div class="settings-list">
       <table class="utable">
-        <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:150px"></th></tr></thead>
+        <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:200px"></th></tr></thead>
         <tbody>${items.length ? items.map(it => `
           <tr data-id="${it.id}">
             <td data-label="Name">${esc(it.name)}</td>
             <td data-label="Active">${it.active ? 'Yes' : 'No'}</td>
             ${p ? purposeCell(it, 'allow_claim', 'New claim') + purposeCell(it, 'allow_meal', 'New meal allowance') : ''}
             <td class="act-cell" data-label="Actions">
-              <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
-              <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">Delete</button>
+              <div class="u-actions">
+                <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
+                <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">Delete</button>
+              </div>
             </td>
           </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
       </table>
