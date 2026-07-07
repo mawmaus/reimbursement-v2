@@ -425,8 +425,10 @@ input[type="search"] { min-width: 220px; }
 .modal-flex #mealForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .meal-topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.meal-topbar .modal-actions { margin-top: 0; }
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* Frozen footer: a flex-none bar after the scroll region, pinned to the modal
+   bottom while the rows scroll between it and the top bar. */
+.meal-foot { flex: none; margin-top: 0; padding-top: 14px; border-top: 1px solid var(--line); }
 /* Let .meal-scroll own both scroll axes so the sticky header/total below
    resolve against it rather than a nested scroll container. */
 .meal-scroll .meal-table-wrap { overflow: visible; }

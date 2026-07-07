@@ -1153,11 +1153,7 @@ function openMealAllowanceModal(existing = null) {
     <div class="modal-body">
       <form id="mealForm" class="form">
         <div class="meal-topbar">
-          <button type="button" class="btn btn-ghost btn-sm" id="mealAddRow">+ Add row</button>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-ghost" id="mealCancel">Cancel</button>
-            <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
-          </div>
+          <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">+ Add row</button>
         </div>
         <p class="form-error" id="mealError" hidden></p>
         <div class="meal-scroll">
@@ -1186,6 +1182,10 @@ function openMealAllowanceModal(existing = null) {
             BODETABEK AREA — IDR 75.000,-
             EXCLUDE BODETABEK AREA — IDR 120.000,-
           </div>
+        </div>
+        <div class="modal-actions meal-foot">
+          <button type="button" class="btn btn-ghost" id="mealCancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
         </div>
       </form>
     </div>`);
