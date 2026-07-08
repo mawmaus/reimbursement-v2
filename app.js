@@ -461,8 +461,8 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
   const { current_password, new_password } = req.body || {};
-  if (!new_password || String(new_password).length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  if (!new_password || String(new_password).length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
   }
   const rows = await q('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
   if (!bcrypt.compareSync(String(current_password || ''), rows[0].password_hash)) {
@@ -520,8 +520,8 @@ app.post('/api/forgot-password', ah(async (req, res) => {
 app.post('/api/reset-password', ah(async (req, res) => {
   const { token, new_password } = req.body || {};
   if (!token) return res.status(400).json({ error: 'Missing or invalid reset link.' });
-  if (!new_password || String(new_password).length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  if (!new_password || String(new_password).length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
   }
   const rows = await q(
     `SELECT id, user_id FROM password_resets
@@ -1330,7 +1330,7 @@ app.post('/api/users', requireAuth, ah(async (req, res) => {
   }
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
-  if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const nextEmail = normEmail(email);
   if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });
   const exists = await q('SELECT 1 FROM users WHERE username = $1', [String(username).trim()]);
@@ -1401,7 +1401,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     u.id
   ]);
   if (password) {
-    if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     await q('UPDATE users SET password_hash=$1 WHERE id=$2', [bcrypt.hashSync(String(password), 10), u.id]);
   }
   res.json({ ok: true });
@@ -1419,7 +1419,7 @@ app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
     return res.status(403).json({ error: 'You do not have permission to reset this account\'s password' });
   }
   const password = (req.body && req.body.password) || '';
-  if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(password), 10), target.id]);
   res.json({ ok: true });
 }));

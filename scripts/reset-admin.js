@@ -26,8 +26,8 @@ try {
 async function main() {
   const newPassword = process.argv[2];
   const username = process.argv[3] || 'admin';
-  if (!newPassword || newPassword.length < 6) {
-    console.error('Usage: node scripts/reset-admin.js <newPassword(min 6 chars)> [username]');
+  if (!newPassword || newPassword.length < 8) {
+    console.error('Usage: node scripts/reset-admin.js <newPassword(min 8 chars)> [username]');
     process.exit(1);
   }
   if (!process.env.DATABASE_URL) { console.error('Set DATABASE_URL first.'); process.exit(1); }

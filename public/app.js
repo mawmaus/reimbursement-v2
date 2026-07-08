@@ -1540,8 +1540,8 @@ async function openProfileModal() {
         <label>Current password
           <div class="pw-wrap"><input name="current_password" type="password" required />
             <button type="button" class="pw-toggle" aria-label="Show password">👁</button></div></label>
-        <label>New password (min 6 characters)
-          <div class="pw-wrap"><input name="new_password" type="password" required minlength="6" />
+        <label>New password (min 8 characters)
+          <div class="pw-wrap"><input name="new_password" type="password" required minlength="8" />
             <button type="button" class="pw-toggle" aria-label="Show password">👁</button></div></label>
         <p class="form-error" id="pwErr" hidden></p>
         <div class="modal-actions">
@@ -1988,7 +1988,7 @@ function renderResetPasswordForm(u) {
       <p class="muted" style="margin:0 0 12px;font-size:.9rem">Set a new password for <strong>${esc(u.full_name)}</strong> (${esc(u.username)}).</p>
       <label>New password
         <div class="pw-wrap">
-          <input name="password" type="password" required minlength="6" />
+          <input name="password" type="password" required minlength="8" />
           <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
         </div></label>
       <p class="form-error" id="rpErr" hidden></p>
