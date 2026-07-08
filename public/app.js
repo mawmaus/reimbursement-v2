@@ -930,6 +930,66 @@ function wireExpenseTypeField() {
   sync();
 }
 
+// Optional inline calculator on the claim form: a running tally that lets a
+// claimant add up several receipt amounts and drop the sum into the Amount field.
+function calcPanelHtml() {
+  return `<div class="calc-panel" id="calcPanel" hidden>
+    <div class="calc-input-row">
+      <input id="calcInput" inputmode="decimal" placeholder="Add an amount…" />
+      <button type="button" class="btn btn-ghost btn-sm" id="calcAdd">Add</button>
+    </div>
+    <ul class="calc-list" id="calcList"></ul>
+    <div class="calc-foot">
+      <div class="calc-total-wrap"><span>Total</span><strong id="calcTotal">0</strong></div>
+      <div class="calc-foot-btns">
+        <button type="button" class="btn btn-ghost btn-sm" id="calcClear">Clear</button>
+        <button type="button" class="btn btn-primary btn-sm" id="calcApply">Use total</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function wireClaimCalculator() {
+  const toggle = $('#calcToggle'), panel = $('#calcPanel');
+  if (!toggle || !panel) return;
+  let entries = [];
+  const sum = () => entries.reduce((a, b) => a + b, 0);
+  const render = () => {
+    $('#calcList').innerHTML = entries.length
+      ? entries.map((n, i) =>
+          `<li><span class="mono">${groupAmount(String(n))}</span>
+             <button type="button" data-i="${i}" aria-label="Remove">×</button></li>`).join('')
+      : `<li class="calc-empty">No amounts added yet.</li>`;
+    $('#calcTotal').textContent = groupAmount(String(sum())) || '0';
+    $$('#calcList button[data-i]').forEach(b =>
+      b.addEventListener('click', () => { entries.splice(+b.dataset.i, 1); render(); }));
+  };
+  const add = () => {
+    const inp = $('#calcInput');
+    const n = Number(String(inp.value).replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(n) && n > 0) entries.push(n);
+    inp.value = ''; inp.focus(); render();
+  };
+  toggle.addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute('aria-expanded', String(!panel.hidden));
+    if (!panel.hidden) $('#calcInput').focus();
+  });
+  $('#calcAdd').addEventListener('click', add);
+  $('#calcInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); add(); }
+  });
+  $('#calcInput').addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
+  $('#calcApply').addEventListener('click', () => {
+    const amt = $('#claimForm [name="amount"]');
+    if (amt) amt.value = groupAmount(String(sum()));
+    panel.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+  });
+  $('#calcClear').addEventListener('click', () => { entries = []; render(); });
+  render();
+}
+
 function openClaimModal(existing = null) {
   const u = state.user;
   const isEdit = !!existing;
@@ -954,10 +1014,14 @@ function openClaimModal(existing = null) {
           <label>DB No.<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
           ${expenseTypeField(v.expense_type)}
           <label>Amount
-            <div style="display:flex;gap:6px">
-              <input name="currency" style="max-width:80px" value="${esc(v.currency || 'IDR')}" />
+            <div class="amount-field">
+              <span class="amount-cur">${esc(v.currency || 'IDR')}</span>
+              <input type="hidden" name="currency" value="${esc(v.currency || 'IDR')}" />
               <input name="amount" required inputmode="decimal" placeholder="0" value="${existing ? existing.amount : ''}" />
+              <button type="button" class="amount-calc-btn" id="calcToggle" aria-expanded="false"
+                aria-controls="calcPanel" title="Add up amounts">🧮</button>
             </div>
+            ${calcPanelHtml()}
           </label>
           <label class="full">Description / purpose
             <textarea name="description" placeholder="What was this purchase for?">${esc(v.description || '')}</textarea>
@@ -968,7 +1032,7 @@ function openClaimModal(existing = null) {
             <div class="section-label" style="margin-top:4px">Receipts / files</div>
             <div class="drop" id="dropZone">
               <strong>Click to choose files</strong> or drag &amp; drop<br>
-              <span style="font-size:.8rem">PDF or images only · up to 8 files · 10 MB each</span>
+              <span style="font-size:.8rem">PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)</span>
               <input id="fileInput" type="file" multiple hidden
                 accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic" />
             </div>
@@ -995,6 +1059,7 @@ function openClaimModal(existing = null) {
 
   attachAmountGrouping($('#claimForm [name="amount"]'));
   wireExpenseTypeField();
+  wireClaimCalculator();
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
 }
 
@@ -1005,12 +1070,59 @@ function isAllowedUpload(f) {
   if (f.type) return f.type === 'application/pdf' || f.type.startsWith('image/');
   return /\.(pdf|jpe?g|png|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(f.name);
 }
-function addFiles(list) {
-  for (const f of list) {
+const MAX_UPLOAD = 10 * 1024 * 1024; // 10 MB
+
+// Re-encode an oversized image to JPEG, shrinking quality then dimensions until
+// it fits under `maxBytes`. Used to keep large photos under the 10 MB cap
+// instead of rejecting them outright. Returns a new File.
+async function compressImage(file, maxBytes) {
+  const dataUrl = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result); r.onerror = () => rej(new Error('read failed'));
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im); im.onerror = () => rej(new Error('decode failed'));
+    im.src = dataUrl;
+  });
+  let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const MAX_DIM = 3000; // cap the longest edge before we even start
+  if (Math.max(w, h) > MAX_DIM) { const s = MAX_DIM / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  let quality = 0.85, blob = null;
+  for (let i = 0; i < 10; i++) {
+    canvas.width = w; canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
+    if (blob && blob.size <= maxBytes) break;
+    if (quality > 0.45) quality -= 0.15;                    // first, drop quality
+    else { w = Math.round(w * 0.8); h = Math.round(h * 0.8); } // then, shrink size
+  }
+  if (!blob) throw new Error('compress failed');
+  const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+}
+
+async function addFiles(list) {
+  for (const f of Array.from(list)) {
     if (pendingFiles.length >= 8) { toast('Maximum 8 files', true); break; }
     if (!isAllowedUpload(f)) { toast(`${f.name}: only PDF or image files are allowed`, true); continue; }
-    if (f.size > 10 * 1024 * 1024) { toast(`${f.name} exceeds 10 MB`, true); continue; }
-    pendingFiles.push(f);
+    let file = f;
+    if (file.size > MAX_UPLOAD) {
+      // Images can be re-compressed to fit; PDFs and animated GIFs can't, so
+      // those are still rejected when over the limit.
+      const compressible = file.type && file.type.startsWith('image/') && file.type !== 'image/gif';
+      if (!compressible) { toast(`${f.name} exceeds 10 MB`, true); continue; }
+      toast(`Compressing ${f.name}…`);
+      try { file = await compressImage(file, MAX_UPLOAD); }
+      catch { toast(`${f.name}: couldn't compress — please shrink it and retry`, true); continue; }
+      if (file.size > MAX_UPLOAD) { toast(`${f.name}: still over 10 MB after compressing`, true); continue; }
+      toast(`${f.name} compressed to fit`);
+    }
+    pendingFiles.push(file);
   }
   renderChips();
 }
