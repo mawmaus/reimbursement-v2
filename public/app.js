@@ -388,6 +388,22 @@ function loadPdfLib() {
   return _pdfLibPromise;
 }
 
+// --- HEIC decoder (heic2any, lazily loaded from the vendored bundle) ----------
+// iPhones save photos as HEIC, which browsers can't draw to a canvas. We only
+// pull in the ~1.3 MB decoder when someone actually uploads one.
+let _heicPromise;
+function loadHeic2any() {
+  if (!_heicPromise) _heicPromise = new Promise((resolve, reject) => {
+    if (window.heic2any) return resolve(window.heic2any);
+    const s = document.createElement('script');
+    s.src = 'vendor/heic2any.min.js';
+    s.onload = () => resolve(window.heic2any);
+    s.onerror = () => reject(new Error('Could not load the HEIC decoder'));
+    document.head.appendChild(s);
+  });
+  return _heicPromise;
+}
+
 function dataUrlToBytes(dataUrl) {
   const bin = atob(dataUrl.split(',')[1]);
   const arr = new Uint8Array(bin.length);
@@ -1034,7 +1050,7 @@ function openClaimModal(existing = null) {
               <strong>Click to choose files</strong> or drag &amp; drop<br>
               <span style="font-size:.8rem">PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)</span>
               <input id="fileInput" type="file" multiple hidden
-                accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic" />
+                accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
             </div>
             <div class="file-chips" id="fileChips"></div>
           </div>
@@ -1071,6 +1087,22 @@ function isAllowedUpload(f) {
   return /\.(pdf|jpe?g|png|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(f.name);
 }
 const MAX_UPLOAD = 10 * 1024 * 1024; // 10 MB
+
+// iPhone photos: HEIC/HEIF. Browsers report the type as image/heic, image/heif
+// or (often) an empty string, so fall back to the extension too.
+function isHeic(f) {
+  const t = (f.type || '').toLowerCase();
+  return t === 'image/heic' || t === 'image/heif' || /\.(heic|heif)$/i.test(f.name || '');
+}
+
+// Decode a HEIC/HEIF photo and re-encode it as JPEG so it displays everywhere.
+async function heicToJpeg(file) {
+  const heic2any = await loadHeic2any();
+  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+  const blob = Array.isArray(out) ? out[0] : out;
+  const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+}
 
 // Re-encode an oversized image to JPEG, shrinking quality then dimensions until
 // it fits under `maxBytes`. Used to keep large photos under the 10 MB cap
@@ -1111,6 +1143,13 @@ async function addFiles(list) {
     if (pendingFiles.length >= 8) { toast('Maximum 8 files', true); break; }
     if (!isAllowedUpload(f)) { toast(`${f.name}: only PDF or image files are allowed`, true); continue; }
     let file = f;
+    // iPhone HEIC/HEIF photos aren't viewable in browsers, so convert them to
+    // JPEG up front (regardless of size) before the 10 MB check below.
+    if (isHeic(file)) {
+      toast(`Converting ${f.name}…`);
+      try { file = await heicToJpeg(file); }
+      catch { toast(`${f.name}: couldn't read this iPhone photo`, true); continue; }
+    }
     if (file.size > MAX_UPLOAD) {
       // Images can be re-compressed to fit; PDFs and animated GIFs can't, so
       // those are still rejected when over the limit.
