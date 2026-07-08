@@ -1119,19 +1119,22 @@ async function compressImage(file, maxBytes) {
     im.src = dataUrl;
   });
   let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-  const MAX_DIM = 3000; // cap the longest edge before we even start
+  // Only downscale genuinely enormous images. Real photos compress well, so we
+  // keep the resolution high and only trim quality (or size, as a last resort)
+  // by as much as it takes to slip under the cap — no more.
+  const MAX_DIM = 6000;
   if (Math.max(w, h) > MAX_DIM) { const s = MAX_DIM / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  let quality = 0.85, blob = null;
-  for (let i = 0; i < 10; i++) {
+  let quality = 0.92, blob = null;
+  for (let i = 0; i < 12; i++) {
     canvas.width = w; canvas.height = h;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0, w, h);
     blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality));
     if (blob && blob.size <= maxBytes) break;
-    if (quality > 0.45) quality -= 0.15;                    // first, drop quality
-    else { w = Math.round(w * 0.8); h = Math.round(h * 0.8); } // then, shrink size
+    if (quality > 0.6) quality -= 0.07;                     // first, ease quality down gently
+    else { w = Math.round(w * 0.85); h = Math.round(h * 0.85); } // then, shrink size as a last resort
   }
   if (!blob) throw new Error('compress failed');
   const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
