@@ -126,6 +126,10 @@ const SCHEMA = [
   // Each account has an ordered list of approvers (the users who approve that
   // account's claims, in sequence). Chosen from the created users in Settings.
   `ALTER TABLE users  ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
+  // Per-account permission: may this account mark claims as paid (record the
+  // payment)? Off by default; granted by a super admin in the account editor.
+  // Super admins can always mark paid regardless of this flag.
+  `ALTER TABLE users  ADD COLUMN IF NOT EXISTS can_mark_paid BOOLEAN NOT NULL DEFAULT FALSE`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS db_no TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,

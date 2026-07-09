@@ -125,7 +125,7 @@ const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -267,9 +267,15 @@ function userCanApprove(user, claim) {
   return ids[(claim.current_step || 1) - 1] === user.id;
 }
 
-// A calendar date (YYYY-MM-DD) — the payment date a super admin picks when
-// marking a claim as paid.
+// A calendar date (YYYY-MM-DD) — the payment date picked when marking a claim
+// as paid.
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Who may record a payment (mark paid / revert a payment): super admins always,
+// plus any account a super admin has granted the can_mark_paid permission.
+function canMarkPaid(user) {
+  return user.role === 'superadmin' || user.can_mark_paid === true;
+}
 
 // --- Revert (undo one step) -------------------------------------------------
 // Revert walks a claim back exactly one node of its lifecycle, and only the
@@ -285,7 +291,7 @@ function planRevert(row, user) {
   const step = row.current_step || 0;
   const isSuper = user.role === 'superadmin';
   if (row.status === 'paid') {
-    if (!isSuper) return { error: 'Only a super admin can revert a payment', code: 403 };
+    if (!canMarkPaid(user)) return { error: 'You do not have permission to revert a payment', code: 403 };
     return { kind: 'unpay', action: 'reverted payment', from: 'paid', to: 'approved' };
   }
   if (row.status === 'approved') {
@@ -474,8 +480,8 @@ app.post('/api/login', ah(async (req, res) => {
   req.session.userId = user.id;
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
-    department: user.department, position: user.position, purposes: await computePurposes(user),
-    creatable_positions: creatablePositions(user)
+    department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
+    purposes: await computePurposes(user), creatable_positions: creatablePositions(user)
   } });
 }));
 
@@ -812,7 +818,8 @@ app.post('/api/claims/:id/reject', requireAuth, ah(async (req, res) => {
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
-app.post('/api/claims/:id/mark-paid', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.post('/api/claims/:id/mark-paid', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark claims as paid' });
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved claims can be marked as paid' });
@@ -1175,7 +1182,8 @@ app.post('/api/meal-claims/:id/reject', requireAuth, ah(async (req, res) => {
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
-app.post('/api/meal-claims/:id/mark-paid', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.post('/api/meal-claims/:id/mark-paid', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark claims as paid' });
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved meal claims can be marked as paid' });
@@ -1395,7 +1403,7 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   if (!isSuper && !hasDelegation(req.user)) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, active, created_at';
+  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, active, created_at';
   const users = isSuper
     ? await q(`SELECT ${cols} FROM users ORDER BY id`)
     : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
@@ -1434,13 +1442,15 @@ app.post('/api/users', requireAuth, ah(async (req, res) => {
     const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1', [nextEmail]);
     if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
   }
+  // Only a super admin may grant the mark-paid permission.
+  const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[]) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
      String(department || '').trim(), String(position || '').trim(), nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
-     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids))]);
+     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)), canMarkPaidFlag]);
   res.status(201).json({ id: rows[0].id });
 }));
 app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
@@ -1448,7 +1458,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
   const { username, full_name, role, department, position, active, password, email,
-    bank_name, recipient_name, bank_account_no, approver_ids } = req.body || {};
+    bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;
@@ -1481,7 +1491,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     }
   }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
-             bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11 WHERE id=$12`, [
+             bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
+             can_mark_paid=$12 WHERE id=$13`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -1493,6 +1504,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     bank_account_no != null ? String(bank_account_no).trim() : u.bank_account_no,
     intArrayLiteral(nextApprovers),
     nextEmail,
+    can_mark_paid !== undefined ? isActive(can_mark_paid) : u.can_mark_paid,
     u.id
   ]);
   if (password) {

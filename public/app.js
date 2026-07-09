@@ -776,7 +776,7 @@ function canRevert(c, u, isOwner) {
   const ids = (c.approvers || []).map(a => a.id);
   const step = c.current_step || 0;
   const isSuper = u.role === 'superadmin';
-  if (c.status === 'paid') return isSuper;
+  if (c.status === 'paid') return isSuper || !!u.can_mark_paid;
   if (c.status === 'approved') return isSuper || c.manager_id === u.id;
   if (c.status === 'submitted') {
     if (step > 1) return isSuper || ids[step - 2] === u.id;
@@ -798,7 +798,7 @@ function buildActions(c, u, isOwner) {
     btns.push(`<button class="btn btn-approve" data-act="approve">Approve</button>`);
     btns.push(`<button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`);
   }
-  if (u.role === 'superadmin' && c.status === 'approved') {
+  if ((u.role === 'superadmin' || u.can_mark_paid) && c.status === 'approved') {
     btns.push(`<button class="btn btn-primary" data-act="paid">Mark as paid</button>`);
   }
   if (isOwner && c.status === 'rejected') {
@@ -1962,6 +1962,9 @@ function renderUserForm(u) {
             <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
           </div></label>
       </div>
+      ${state.user.role === 'superadmin' ? `
+      <div class="section-label" style="margin-top:8px">Permissions</div>
+      <label class="check-item"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> Can mark claims as paid (record payment)</label>` : ''}
       <div class="section-label" style="margin-top:8px">Approval chain (approvers, in order)</div>
       <div id="approverRows"></div>
       <button type="button" class="btn btn-ghost btn-sm" id="addApproverBtn" style="margin-top:8px">+ Add approver</button>
@@ -1996,6 +1999,7 @@ function renderUserForm(u) {
       bank_account_no: fd.get('bank_account_no') || '',
       approver_ids: acctApprovers.filter(Boolean).map(Number)
     };
+    if (state.user.role === 'superadmin') payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;
     try {
