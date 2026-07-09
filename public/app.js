@@ -1301,13 +1301,28 @@ function idr(n) {
 }
 const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
 
+// The two fixed meal-allowance rates (see the note at the bottom of the form):
+// Bodetabek area 75.000, outside Bodetabek 120.000. Amount is chosen from these.
+const MEAL_RATES = [75000, 120000];
+function mealAmountSelect(val) {
+  const cur = mealAmount(val);
+  // Preserve any legacy/custom amount from an older claim so editing never
+  // silently drops it — show it as an extra selected option.
+  const opts = [...MEAL_RATES];
+  if (cur && !opts.includes(cur)) opts.unshift(cur);
+  return `<select name="amount" class="meal-amt">
+    <option value="" ${cur ? '' : 'selected'}>— select —</option>
+    ${opts.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${groupAmount(String(n))}</option>`).join('')}
+  </select>`;
+}
+
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
     <td data-label="Date"><input name="date" type="date" value="${esc(r.date || '')}" /></td>
     <td data-label="DB Number Site"><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
     <td data-label="Job Category"><input name="category" value="${esc(r.category || '')}" placeholder="Install / Repair / Service…" /></td>
-    <td data-label="Amount"><input name="amount" inputmode="numeric" class="meal-amt" value="${esc(groupAmount(r.amount))}" placeholder="120,000" /></td>
+    <td data-label="Amount">${mealAmountSelect(r.amount)}</td>
     <td data-label="Additional Description"><input name="desc" value="${esc(r.desc || '')}" placeholder="Surabaya" /></td>
     <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="Remove row">×</button></td>
   </tr>`;
@@ -1330,8 +1345,7 @@ function renderMealRows() {
   $$('#mealRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
   }));
-  $$('#mealRows .meal-amt').forEach(inp => inp.addEventListener('input', () => {
-    inp.value = groupAmount(inp.value);
+  $$('#mealRows .meal-amt').forEach(sel => sel.addEventListener('change', () => {
     readMealRows(); $('#mealTotal').textContent = idr(mealTotal());
   }));
 }
