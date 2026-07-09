@@ -2016,7 +2016,10 @@ function wireApproverCombo(container, excludeId) {
   const hidden = container.querySelector('input[type="hidden"]');
   const input = container.querySelector('.combo-input');
   const list = container.querySelector('.combo-list');
-  const users = settingsState.users.filter(x => x.id !== excludeId);
+  const users = settingsState.users
+    .filter(x => x.id !== excludeId)
+    .slice()
+    .sort((a, b) => String(a.full_name).localeCompare(String(b.full_name), undefined, { sensitivity: 'base' }));
   const labelFor = (u) => `${u.full_name} (${u.username})`;
   const currentLabel = () => { const u = users.find(x => String(x.id) === hidden.value); return u ? labelFor(u) : ''; };
   let items = [], active = -1;
