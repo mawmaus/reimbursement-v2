@@ -188,16 +188,38 @@ function renderSummaryCards() {
   const claims = visibleClaims();
   const count = st => claims.filter(c => c.status === st).length;
   const total = claims.reduce((sum, c) => sum + Number(rowView(c).amount || 0), 0);
+  // status key doubles as the filter value; the total card is display-only.
   const cards = [
-    { k: 'submitted', l: 'Pending', n: count('submitted') },
-    { k: 'approved', l: 'Approved', n: count('approved') },
-    { k: 'rejected', l: 'Rejected', n: count('rejected') },
-    { k: 'paid', l: 'Paid', n: count('paid') },
+    { k: 'submitted', l: 'Pending', n: count('submitted'), status: 'submitted' },
+    { k: 'approved', l: 'Approved', n: count('approved'), status: 'approved' },
+    { k: 'rejected', l: 'Rejected', n: count('rejected'), status: 'rejected' },
+    { k: 'paid', l: 'Paid', n: count('paid'), status: 'paid' },
     { k: 'total', l: totalCardLabel(), n: money(total, 'IDR') }
   ];
-  $('#summaryCards').innerHTML = cards.map(c =>
-    `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${c.l}</div></div>`
-  ).join('');
+  $('#summaryCards').innerHTML = cards.map(c => {
+    if (!c.status) {
+      return `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${esc(c.l)}</div></div>`;
+    }
+    const active = state.filters.status === c.status;
+    const hint = active ? `Clear ${c.l.toLowerCase()} filter` : `Show only ${c.l.toLowerCase()} claims`;
+    return `<div class="card ${c.k} card-filter${active ? ' active' : ''}" data-status="${c.status}"
+      role="button" tabindex="0" aria-pressed="${active}" title="${esc(hint)}">
+      <div class="card-n">${esc(c.n)}</div><div class="card-l">${esc(c.l)}</div></div>`;
+  }).join('');
+  $$('.card-filter', $('#summaryCards')).forEach(el => {
+    const toggle = () => setStatusFilter(el.dataset.status);
+    el.addEventListener('click', toggle);
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
+}
+
+// Clicking a status card filters the ledger to that status; clicking the
+// already-active card clears it. Keeps the status dropdown in sync.
+function setStatusFilter(status) {
+  state.filters.status = state.filters.status === status ? '' : status;
+  const sel = $('#statusFilter');
+  if (sel) sel.value = state.filters.status;
+  loadClaims();
 }
 
 async function loadClaims() {

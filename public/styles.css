@@ -161,6 +161,19 @@ input[type="search"] { min-width: 220px; }
 .card.paid      { border-left-color: var(--indigo); }
 .card.total     { border-left-color: var(--pine); }
 
+/* Status cards double as filters: click to narrow the ledger to that status.
+   Hover/active keep each card's coloured left accent (so we lean on background
+   tint + shadow rather than changing border-color). */
+.card-filter { cursor: pointer; user-select: none;
+  transition: background .15s, box-shadow .15s, transform .05s; }
+.card-filter:hover { box-shadow: 0 6px 18px -12px rgba(0,0,0,.4); }
+.card-filter:active { transform: translateY(1px); }
+.card-filter:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
+.card.submitted.active { background: var(--amber-tint); }
+.card.approved.active  { background: var(--green-tint); }
+.card.rejected.active  { background: var(--red-tint); }
+.card.paid.active      { background: var(--indigo-tint); }
+
 /* ---------- Toolbar ---------- */
 .toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .toolbar-left, .toolbar-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
