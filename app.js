@@ -185,6 +185,8 @@ function baseClaim(row, attachments, history, nameMap) {
     description: row.description,
     status: row.status,
     manager_comment: row.manager_comment,
+    manager_id: row.manager_id == null ? null : Number(row.manager_id),
+    paid_by: row.paid_by == null ? null : Number(row.paid_by),
     approvers: asIntArray(row.approver_ids).map(id => ({ id, name: (nameMap && nameMap[id]) || `User #${id}` })),
     current_step: row.current_step || 0,
     decided_at: iso(row.decided_at),
@@ -263,6 +265,49 @@ function userCanApprove(user, claim) {
   const ids = asIntArray(claim.approver_ids);
   if (!ids.length) return false;
   return ids[(claim.current_step || 1) - 1] === user.id;
+}
+
+// A calendar date (YYYY-MM-DD) — the payment date a super admin picks when
+// marking a claim as paid.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// --- Revert (undo one step) -------------------------------------------------
+// Revert walks a claim back exactly one node of its lifecycle, and only the
+// actor who owns that node may do it (super admins may always override):
+//   paid                 -> approved     (the payer, i.e. a super admin)
+//   approved             -> submitted    (the final approver — manager_id)
+//   submitted @ step k>1 -> submitted @ k-1  (the approver of the previous step)
+//   submitted @ step ≤1  -> rejected     (the claimant cancels to edit & resubmit)
+// A rejected claim has nothing to revert (the claimant edits & resubmits it).
+// Returns a plan { kind, action, from, to, comment } or a refusal { error, code }.
+function planRevert(row, user) {
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const isSuper = user.role === 'superadmin';
+  if (row.status === 'paid') {
+    if (!isSuper) return { error: 'Only a super admin can revert a payment', code: 403 };
+    return { kind: 'unpay', action: 'reverted payment', from: 'paid', to: 'approved' };
+  }
+  if (row.status === 'approved') {
+    if (!isSuper && Number(row.manager_id) !== user.id) {
+      return { error: 'Only the approver who approved this claim can revert the approval', code: 403 };
+    }
+    return { kind: 'unapprove-final', action: 'reverted approval', from: 'approved', to: 'submitted' };
+  }
+  if (row.status === 'submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== user.id) {
+        return { error: 'Only the approver of the previous step can revert it', code: 403 };
+      }
+      return { kind: 'unapprove-step', action: 'reverted approval', from: 'submitted', to: 'submitted' };
+    }
+    if (!isSuper && Number(row.employee_id) !== user.id) {
+      return { error: 'Only the claimant can revert this submission', code: 403 };
+    }
+    return { kind: 'cancel', action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected',
+      comment: 'Reverted by the claimant to make changes' };
+  }
+  return { error: `A ${row.status} claim cannot be reverted`, code: 409 };
 }
 
 // --- Stale-approver guards --------------------------------------------------
@@ -771,10 +816,34 @@ app.post('/api/claims/:id/mark-paid', requireAuth, requireRole('superadmin'), ah
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved claims can be marked as paid' });
-  await q(`UPDATE claims SET status='paid', paid_by=$1, paid_at=now(), updated_at=now() WHERE id=$2`, [req.user.id, row.id]);
-  await logHistory(row.id, req.user, 'marked paid', 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
+  const paymentDate = String((req.body && req.body.payment_date) || '').trim();
+  if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
+  await q(`UPDATE claims SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  await logHistory(row.id, req.user, `marked paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   await notifyClaimantDecision(rows[0].employee_id, reimbNotify(rows[0]), 'paid');
+  res.json({ claim: await serializeOne(rows[0]) });
+}));
+
+// Revert a reimbursement claim one step back (see planRevert).
+app.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
+  const row = await loadClaimOr404(req, res);
+  if (!row) return;
+  const plan = planRevert(row, req.user);
+  if (plan.error) return res.status(plan.code).json({ error: plan.error });
+  const step = row.current_step || 0;
+  if (plan.kind === 'unpay') {
+    await q(`UPDATE claims SET status='approved', paid_by=NULL, paid_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
+  } else if (plan.kind === 'unapprove-final') {
+    await q(`UPDATE claims SET status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
+  } else if (plan.kind === 'unapprove-step') {
+    await q(`UPDATE claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step - 1, row.id]);
+  } else { // cancel
+    await q(`UPDATE claims SET status='rejected', manager_id=NULL, manager_comment=$1, decided_at=now(), updated_at=now() WHERE id=$2`,
+      [plan.comment, row.id]);
+  }
+  await logHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
@@ -868,6 +937,8 @@ function baseMealClaim(row, lines, history, nameMap) {
     recipient_name: row.recipient_name, bank_account_no: row.bank_account_no,
     total_amount: Number(row.total_cents) / 100, currency: row.currency,
     status: row.status, manager_comment: row.manager_comment,
+    manager_id: row.manager_id == null ? null : Number(row.manager_id),
+    paid_by: row.paid_by == null ? null : Number(row.paid_by),
     approvers: asIntArray(row.approver_ids).map(id => ({ id, name: (nameMap && nameMap[id]) || `User #${id}` })),
     current_step: row.current_step || 0,
     decided_at: iso(row.decided_at), paid_at: iso(row.paid_at),
@@ -1108,10 +1179,34 @@ app.post('/api/meal-claims/:id/mark-paid', requireAuth, requireRole('superadmin'
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved meal claims can be marked as paid' });
-  await q(`UPDATE meal_claims SET status='paid', paid_by=$1, paid_at=now(), updated_at=now() WHERE id=$2`, [req.user.id, row.id]);
-  await logMealHistory(row.id, req.user, 'marked paid', 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
+  const paymentDate = String((req.body && req.body.payment_date) || '').trim();
+  if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
+  await q(`UPDATE meal_claims SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  await logMealHistory(row.id, req.user, `marked paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
   await notifyClaimantDecision(rows[0].employee_id, mealNotify(rows[0]), 'paid');
+  res.json({ claim: await serializeOneMeal(rows[0]) });
+}));
+
+// Revert a meal allowance claim one step back (see planRevert).
+app.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
+  const row = await loadMealClaimOr404(req, res);
+  if (!row) return;
+  const plan = planRevert(row, req.user);
+  if (plan.error) return res.status(plan.code).json({ error: plan.error });
+  const step = row.current_step || 0;
+  if (plan.kind === 'unpay') {
+    await q(`UPDATE meal_claims SET status='approved', paid_by=NULL, paid_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
+  } else if (plan.kind === 'unapprove-final') {
+    await q(`UPDATE meal_claims SET status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
+  } else if (plan.kind === 'unapprove-step') {
+    await q(`UPDATE meal_claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step - 1, row.id]);
+  } else { // cancel
+    await q(`UPDATE meal_claims SET status='rejected', manager_id=NULL, manager_comment=$1, decided_at=now(), updated_at=now() WHERE id=$2`,
+      [plan.comment, row.id]);
+  }
+  await logMealHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 

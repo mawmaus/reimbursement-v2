@@ -768,18 +768,46 @@ function renderHistory(c) {
           ${h.comment ? `<div class="t-comment">${esc(h.comment)}</div>` : ''}</li>`).join('')}
     </ul>`;
 }
+// Whether the current user may revert (undo one step of) this claim, mirroring
+// the server's planRevert: the payer can unpay, the final approver can unapprove,
+// the previous-step approver can undo their approval, and the claimant can cancel
+// a still-pending submission back to an editable state.
+function canRevert(c, u, isOwner) {
+  const ids = (c.approvers || []).map(a => a.id);
+  const step = c.current_step || 0;
+  const isSuper = u.role === 'superadmin';
+  if (c.status === 'paid') return isSuper;
+  if (c.status === 'approved') return isSuper || c.manager_id === u.id;
+  if (c.status === 'submitted') {
+    if (step > 1) return isSuper || ids[step - 2] === u.id;
+    return isOwner || isSuper; // claimant cancels a not-yet-approved submission
+  }
+  return false;
+}
+// Contextual label + confirmation copy for the revert button.
+function revertInfo(c) {
+  const step = c.current_step || 0;
+  if (c.status === 'paid') return { label: 'Revert payment', confirm: 'Revert this payment? The claim will go back to Approved.' };
+  if (c.status === 'approved') return { label: 'Revert approval', confirm: 'Revert your approval? The claim will go back to pending review.' };
+  if (c.status === 'submitted' && step > 1) return { label: 'Revert approval', confirm: 'Revert your approval? The claim will return to the previous approver.' };
+  return { label: 'Cancel to edit', confirm: 'Cancel this submission so you can edit it? It will move to Rejected, ready to edit and resubmit.' };
+}
 function buildActions(c, u, isOwner) {
+  const btns = [];
   if (c.status === 'submitted' && canApprove(u, c)) {
-    return `<button class="btn btn-approve" data-act="approve">Approve</button>
-            <button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`;
+    btns.push(`<button class="btn btn-approve" data-act="approve">Approve</button>`);
+    btns.push(`<button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`);
   }
   if (u.role === 'superadmin' && c.status === 'approved') {
-    return `<button class="btn btn-primary" data-act="paid">Mark as paid</button>`;
+    btns.push(`<button class="btn btn-primary" data-act="paid">Mark as paid</button>`);
   }
   if (isOwner && c.status === 'rejected') {
-    return `<button class="btn btn-primary" data-act="edit">Edit &amp; resubmit</button>`;
+    btns.push(`<button class="btn btn-primary" data-act="edit">Edit &amp; resubmit</button>`);
   }
-  return '';
+  if (canRevert(c, u, isOwner)) {
+    btns.push(`<button class="btn btn-ghost" data-act="revert">${revertInfo(c).label}</button>`);
+  }
+  return btns.join('\n            ');
 }
 
 // Body for a reimbursement claim: key/value details + attachments.
@@ -880,8 +908,12 @@ async function handleAction(act, c) {
       await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
       toast('Claim approved');
     } else if (act === 'paid') {
-      await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({}) });
-      toast('Marked as paid');
+      return openPaidModal(c);
+    } else if (act === 'revert') {
+      const info = revertInfo(c);
+      if (!confirm(info.confirm)) return;
+      await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
+      toast('Reverted');
     } else if (act === 'reject') {
       return openRejectModal(c);
     } else if (act === 'edit') {
@@ -1380,6 +1412,45 @@ $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 
 // ---------------------------------------------------------------------------
 // Reject modal
+// ---------------------------------------------------------------------------
+// Mark as paid — a payment date must be chosen before the claim can be recorded
+// as paid. Defaults to today; the confirm button stays disabled until a date is
+// present.
+function openPaidModal(c) {
+  const today = new Date().toISOString().slice(0, 10);
+  openModal(`
+    <div class="modal-head"><h2>Mark ${esc(c.claim_no)} as paid</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="paidForm" class="form">
+        <label>Payment date
+          <input type="date" name="payment_date" value="${today}" max="${today}" required /></label>
+        <p class="muted" style="margin:2px 0 0;font-size:.85rem">The date the payment was actually made.</p>
+        <p class="form-error" id="paidErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="paidCancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="paidConfirm">Mark as paid</button>
+        </div>
+      </form>
+    </div>`);
+  const dateEl = $('#paidForm [name="payment_date"]');
+  const confirmBtn = $('#paidConfirm');
+  const sync = () => { confirmBtn.disabled = !dateEl.value; };
+  dateEl.addEventListener('input', sync); sync();
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#paidCancel').addEventListener('click', closeModal);
+  $('#paidForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payment_date = dateEl.value;
+    if (!payment_date) return;
+    const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+    try {
+      await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
+      toast('Marked as paid');
+      closeModal(); closeDrawer(); loadAll();
+    } catch (ex) { const el = $('#paidErr'); el.textContent = ex.message; el.hidden = false; }
+  });
+}
+
 // ---------------------------------------------------------------------------
 function openRejectModal(c) {
   openModal(`
