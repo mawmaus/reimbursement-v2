@@ -235,7 +235,7 @@ input[type="search"] { min-width: 220px; }
 .scrim { position: fixed; inset: 0; background: rgba(23,38,32,.42); z-index: 40; animation: fade .16s; }
 @keyframes fade { from { opacity: 0; } }
 .drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100%); z-index: 50;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); z-index: 50;
   background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow);
   overflow-y: auto; animation: slidein .2s ease;
 }
