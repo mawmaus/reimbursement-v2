@@ -1992,17 +1992,67 @@ function optionSelect(name, value, options) {
   </select>`;
 }
 
-// One <select> of the created users (value = user id) for an approver row.
-// The account being edited is excluded so it can't approve its own claims.
+// A searchable combobox of the created users (value = user id) for an approver
+// row. The account being edited is excluded so it can't approve its own claims.
+// A hidden input carries the selected id (name="appr_i") so the existing
+// read/submit logic is unchanged; a text input filters the list as you type.
 function approverRowSelect(i, value, excludeId) {
   const cur = value == null ? '' : String(value);
-  return `<select name="appr_${i}">
-    <option value="">— select user —</option>
-    ${settingsState.users
-      .filter(x => x.id !== excludeId)
-      .map(x => `<option value="${x.id}" ${String(x.id) === cur ? 'selected' : ''}>${
-        esc(x.full_name)} (${esc(x.username)})</option>`).join('')}
-  </select>`;
+  const sel = settingsState.users.find(x => String(x.id) === cur && x.id !== excludeId);
+  const label = sel ? `${sel.full_name} (${sel.username})` : '';
+  return `<div class="combo" data-combo="${i}">
+    <input type="hidden" name="appr_${i}" value="${esc(cur)}" />
+    <input type="text" class="combo-input" autocomplete="off" spellcheck="false"
+      role="combobox" aria-expanded="false" aria-autocomplete="list"
+      placeholder="Search user…" value="${esc(label)}" />
+    <div class="combo-list" role="listbox" hidden></div>
+  </div>`;
+}
+
+// Wire one combobox: type-to-filter, click / arrow-keys / Enter to choose,
+// Escape to close. Selecting sets the hidden id; leaving without a valid pick
+// restores the last confirmed selection (or clears it).
+function wireApproverCombo(container, excludeId) {
+  const hidden = container.querySelector('input[type="hidden"]');
+  const input = container.querySelector('.combo-input');
+  const list = container.querySelector('.combo-list');
+  const users = settingsState.users.filter(x => x.id !== excludeId);
+  const labelFor = (u) => `${u.full_name} (${u.username})`;
+  const currentLabel = () => { const u = users.find(x => String(x.id) === hidden.value); return u ? labelFor(u) : ''; };
+  let items = [], active = -1;
+
+  const render = (q) => {
+    const ql = q.trim().toLowerCase();
+    items = users.filter(u => !ql || labelFor(u).toLowerCase().includes(ql));
+    active = items.length ? 0 : -1;
+    list.innerHTML = items.length
+      ? items.map((u, idx) => `<div class="combo-opt${idx === active ? ' active' : ''}" role="option" data-id="${u.id}">${esc(labelFor(u))}</div>`).join('')
+      : '<div class="combo-empty">No matches</div>';
+  };
+  const open = (q) => { render(q == null ? '' : q); list.hidden = false; input.setAttribute('aria-expanded', 'true'); };
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); };
+  const highlight = () => {
+    [...list.querySelectorAll('.combo-opt')].forEach((el, idx) => el.classList.toggle('active', idx === active));
+    const el = list.querySelector('.combo-opt.active'); if (el) el.scrollIntoView({ block: 'nearest' });
+  };
+  const choose = (u) => { hidden.value = String(u.id); input.value = labelFor(u); close(); syncApproverRows(); };
+
+  input.addEventListener('focus', () => { input.select(); open(''); });
+  input.addEventListener('input', () => { hidden.value = ''; open(input.value); });
+  input.addEventListener('keydown', (e) => {
+    if (list.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { open(input.value); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); if (items.length) { active = (active + 1) % items.length; highlight(); } }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (items.length) { active = (active - 1 + items.length) % items.length; highlight(); } }
+    else if (e.key === 'Enter') { if (!list.hidden && active >= 0 && items[active]) { e.preventDefault(); choose(items[active]); } }
+    else if (e.key === 'Escape') { close(); }
+  });
+  // mousedown (not click) so the pick lands before the input's blur fires.
+  list.addEventListener('mousedown', (e) => {
+    const opt = e.target.closest('.combo-opt'); if (!opt) return;
+    e.preventDefault();
+    const u = users.find(x => String(x.id) === opt.dataset.id); if (u) choose(u);
+  });
+  input.addEventListener('blur', () => { setTimeout(() => { input.value = currentLabel(); close(); }, 120); });
 }
 
 // Ordered list of approver ids (as strings) being edited on the account form.
@@ -2018,6 +2068,7 @@ function renderApproverRows(excludeId) {
   $$('#approverRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     syncApproverRows(); acctApprovers.splice(+b.dataset.rm, 1); renderApproverRows(excludeId);
   }));
+  $$('#approverRows .combo').forEach(c => wireApproverCombo(c, excludeId));
 }
 // Read the current selects back into acctApprovers before re-render/submit.
 function syncApproverRows() {
