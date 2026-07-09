@@ -182,12 +182,36 @@ async function loadSummary() {
       { k: 'approved', l: 'Approved', n: s.approved + m.approved },
       { k: 'rejected', l: 'Rejected', n: s.rejected + m.rejected },
       { k: 'paid', l: 'Paid', n: s.paid + m.paid },
-      { k: 'total', l: 'Total value', n: money(s.total_amount + m.total_amount, 'IDR') }
+      // Total value is a subtotal of the currently filtered rows, not the whole
+      // ledger — computed client-side from visibleClaims (see updateTotalCard).
+      { k: 'total', l: totalCardLabel(), n: money(filteredTotal(), 'IDR') }
     ];
     $('#summaryCards').innerHTML = cards.map(c =>
       `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${c.l}</div></div>`
     ).join('');
   } catch (e) { /* ignore */ }
+}
+
+// True when any filter narrows the ledger away from the full set.
+function anyFilterActive() {
+  const f = state.filters;
+  return !!(f.status || f.department || f.q || f.claimant);
+}
+
+const totalCardLabel = () => anyFilterActive() ? 'Filtered total' : 'Total value';
+
+// Sum of the amounts for the rows currently in view (post-filter).
+function filteredTotal() {
+  return visibleClaims().reduce((sum, c) => sum + Number(rowView(c).amount || 0), 0);
+}
+
+// Refresh the total card in place so it tracks filter changes even when only
+// the client-side claimant filter changes (which skips loadSummary).
+function updateTotalCard() {
+  const n = $('#summaryCards .card.total .card-n');
+  if (n) n.textContent = money(filteredTotal(), 'IDR');
+  const l = $('#summaryCards .card.total .card-l');
+  if (l) l.textContent = totalCardLabel();
 }
 
 async function loadClaims() {
@@ -249,7 +273,7 @@ function visibleClaims() {
 function renderClaims() {
   const wrap = $('#claimRows');
   const claims = visibleClaims();
-  if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); return; }
+  if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); updateTotalCard(); return; }
   $('#emptyState').hidden = true;
   wrap.innerHTML = claims.map(c => {
     const v = rowView(c);
@@ -278,6 +302,7 @@ function renderClaims() {
     updateSelectionUI();
   }));
   updateSelectionUI();
+  updateTotalCard();
 }
 
 // Reflect selection count in the bar and sync the header select-all box.
