@@ -51,7 +51,26 @@ function fmtBytes(b) {
   if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
   return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
-function fmtDateTime(s) { return s ? s.replace('T', ' ').slice(0, 16) : '—'; }
+// Render a timestamp in Jakarta time (WIB, GMT+7) as "YYYY-MM-DD HH:MM WIB".
+// Server timestamps arrive as UTC ISO strings; anything unparseable falls back
+// to a plain trim so we never render "Invalid Date".
+function fmtDateTime(s) {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s.replace('T', ' ').slice(0, 16);
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {});
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} WIB`;
+}
+// Today's date (YYYY-MM-DD) in Jakarta time — used to default date pickers so a
+// late-evening entry doesn't roll to "tomorrow" via UTC.
+function todayWIB() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+}
 const STATUS_LABEL = { submitted: 'Pending review', approved: 'Approved', rejected: 'Rejected', paid: 'Paid' };
 
 // Group an amount's integer part with thousands separators for readability as
@@ -1081,7 +1100,7 @@ function openClaimModal(existing = null) {
     // for the user to pick from the list.
     department: state.lookups.departments.includes(u.department) ? u.department : '',
     currency: 'IDR',
-    expense_date: new Date().toISOString().slice(0, 10)
+    expense_date: todayWIB()
   };
   openModal(`
     <div class="modal-head">
@@ -1417,7 +1436,7 @@ $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 // as paid. Defaults to today; the confirm button stays disabled until a date is
 // present.
 function openPaidModal(c) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayWIB();
   openModal(`
     <div class="modal-head"><h2>Mark ${esc(c.claim_no)} as paid</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
@@ -1964,10 +1983,10 @@ function renderUserForm(u) {
       </div>
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">Permissions</div>
-      <label class="check-item"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> Can mark claims as paid (record payment)</label>` : ''}
+      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>Can mark claims as paid (record payment)</span></label>` : ''}
       <div class="section-label" style="margin-top:8px">Approval chain (approvers, in order)</div>
       <div id="approverRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm" id="addApproverBtn" style="margin-top:8px">+ Add approver</button>
+      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApproverBtn">+ Add approver</button>
       <div class="section-label" style="margin-top:8px">Bank / payout details</div>
       <div class="grid2">
         <label>Bank name<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>

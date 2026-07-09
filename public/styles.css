@@ -510,12 +510,33 @@ input[type="search"] { min-width: 220px; }
 .chain-lines { margin: 10px 0 0; padding-left: 22px; font-size: .9rem; display: flex; flex-direction: column; gap: 4px; }
 .chain-lines li { padding-left: 4px; }
 
-.line-row { display: grid; grid-template-columns: 26px 1fr 1.4fr 28px; align-items: center; gap: 8px; margin-bottom: 8px; }
+.line-row { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 8px; margin-bottom: 8px; }
 .line-step {
   display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
   background: var(--pine-tint); color: var(--pine-deep); font-size: .8rem; font-weight: 700;
 }
 .line-row select, .line-row input { padding: 7px 9px; }
+/* Remove-approver control: compact square that reddens on hover. */
+.line-row .x-btn {
+  width: 30px; height: 30px; border-radius: 8px; padding: 0;
+  display: grid; place-items: center; font-size: 1.2rem;
+  transition: background .15s, color .15s;
+}
+.line-row .x-btn:hover { background: var(--red-tint); color: var(--red); }
+/* Keep "+ Add approver" compact and left-aligned instead of stretching to the
+   full column width of the flex form. */
+.add-approver-btn { align-self: flex-start; }
+
+/* Permission toggle rendered as a bordered row (overrides the column layout the
+   generic ".form label" rule would otherwise force). */
+.form label.perm-check {
+  flex-direction: row; align-items: center; gap: 10px;
+  padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); font-size: .9rem; font-weight: 560; color: var(--ink);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.form label.perm-check:hover { border-color: var(--muted); }
+.perm-check input { width: 17px; height: 17px; flex: none; cursor: pointer; accent-color: var(--pine); }
 
 /* toast */
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 80;

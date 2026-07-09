@@ -1372,7 +1372,7 @@ app.post('/api/test-email', requireAuth, requireRole('superadmin'), ah(async (re
   const inner = `
     <p style="margin:0 0 8px">Hi ${escHtml(req.user.full_name)},</p>
     <p style="margin:0 0 8px">This is a test email from the Reimbursement Portal. If you received it, email delivery is working correctly.</p>
-    <p style="margin:0;color:#6b7280;font-size:13px">Sent ${escHtml(new Date().toISOString().replace('T', ' ').slice(0, 16))} UTC.</p>
+    <p style="margin:0;color:#6b7280;font-size:13px">Sent ${escHtml(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date()).replace(',', ''))} WIB.</p>
     ${button(`${baseUrl(req)}/`, 'Open the portal')}`;
   const r = await sendEmail({
     to,
