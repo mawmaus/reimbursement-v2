@@ -393,10 +393,13 @@ function positionRank(name, pos) {
 }
 // Whether a user may delegate account management at all. Superadmins and admins
 // always may (department- and rank-limited elsewhere); a plain user may only if
-// their job position is flagged can_manage.
+// their job position is flagged can_manage. NOTE: this now gates only *team
+// account management* (reset password / enable-disable) — account CREATION is
+// super-admin only (see POST /api/users). The 'admin' role is no longer special
+// here; management is governed purely by the position flag.
 function hasDelegation(user, pos) {
   if (!user) return false;
-  if (user.role === 'superadmin' || user.role === 'admin') return true;
+  if (user.role === 'superadmin') return true;
   const rec = pos.get(String(user.position || '').trim().toLowerCase());
   return !!(rec && rec.can_manage);
 }
@@ -493,7 +496,8 @@ app.post('/api/login', ah(async (req, res) => {
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
-    purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos)
+    purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
+    can_manage_accounts: hasDelegation(user, pos)
   } });
 }));
 
@@ -503,7 +507,8 @@ app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
   const pos = await loadPositions();
-  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos) } });
+  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+    can_manage_accounts: hasDelegation(u, pos) } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -520,7 +525,9 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
     String(bank_account_no || '').trim(), nextEmail, req.user.id]);
   const u = await loadUser(req);
-  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, await loadPositions()) } });
+  const pos = await loadPositions();
+  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+    can_manage_accounts: hasDelegation(u, pos) } });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -1408,13 +1415,12 @@ function sanitizeApproverIds(input, excludeId) {
   return out;
 }
 
-// The approval chain assigned to an account an ADMIN creates: the department's
-// Manager (position named "Manager", same department), then the FinanceAP
-// account (username "FinanceAP"). Returns whichever of the two currently exist
-// and are active, in order; a missing/disabled one is simply skipped (and, at
-// submit time, activeApproverIds() re-filters, so later deactivation degrades
-// gracefully too).
-async function adminAutoApproverChain(dept) {
+// The department Manager (position "Manager") then the FinanceAP account, as an
+// ordered approver chain. Returns whichever of the two currently exist and are
+// active. CURRENTLY UNUSED: account creation is now super-admin only, so this no
+// longer fires automatically — kept in case super-admin-created accounts should
+// auto-fill this chain (pending a product decision).
+async function adminAutoApproverChain(dept) { // eslint-disable-line no-unused-vars
   const mgr = await q(
     `SELECT id FROM users WHERE active AND lower(department) = lower($1)
        AND lower(position) = 'manager' ORDER BY id LIMIT 1`, [dept]);
@@ -1441,30 +1447,14 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
         [String(req.user.department || '').trim()]);
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), created_at: iso(u.created_at) })) });
 }));
-app.post('/api/users', requireAuth, ah(async (req, res) => {
-  const isSuper = req.user.role === 'superadmin';
-  const pos = isSuper ? null : await loadPositions();
-  if (!isSuper && !hasDelegation(req.user, pos)) {
-    return res.status(403).json({ error: 'You do not have permission to create accounts' });
-  }
+// Account creation is super-admin only. Everyone else — including admins and
+// senior positions — can no longer create accounts (they may still reset /
+// enable-disable their team; see canManageAccount).
+app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const isSuper = true;
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
   let { role, department, position, approver_ids } = req.body || {};
-  // Non-superadmins (admins and delegated seniors) may only create a standard
-  // user account, for a position ranked strictly below their own, inside their
-  // own department. The approver chain is not taken from the request: an admin's
-  // new account is auto-routed to the department Manager then FinanceAP; a
-  // delegated senior's new account gets no chain (super-admin approval only).
-  if (!isSuper) {
-    const creatorDept = String(req.user.department || '').trim();
-    if (!creatorDept) return res.status(403).json({ error: 'Your account has no department set; ask an administrator to set one.' });
-    role = 'user';
-    department = creatorDept;
-    approver_ids = req.user.role === 'admin' ? await adminAutoApproverChain(creatorDept) : [];
-    const allowed = creatablePositions(req.user, pos);
-    const posOk = allowed.some(p => p.toLowerCase() === String(position || '').trim().toLowerCase());
-    if (!posOk) return res.status(403).json({ error: 'You cannot create an account for that job position' });
-  }
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
