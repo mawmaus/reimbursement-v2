@@ -366,41 +366,52 @@ async function computePurposes(user) {
 }
 
 // --- Job-position ranking & department-scoped account management -------------
-// One ordered ladder of job positions, most senior first. Account management is
-// scoped to the actor's OWN department, and an actor may manage only positions
-// ranked strictly below their own (higher number = more junior = fewer rights).
-// Superadmins are unrestricted (all departments; they use full Settings).
-// Positions are matched case-insensitively by name against job_positions.
-const POSITION_RANKS = [
-  'Super Admin', 'President Director', 'Director', 'Senior General Manager',
-  'General Manager', 'Senior Manager', 'Manager', 'Junior Manager',
-  'Assistant Manager', 'Supervisor', 'Assistant Supervisor', 'Senior Staff',
-  'Staff', 'Intern'
-];
-// 1-based rank; Infinity for a position not on the ladder (weakest — manages
-// nobody, and is itself not manageable by rank).
-function positionRank(name) {
-  const i = POSITION_RANKS.findIndex(p => p.toLowerCase() === String(name || '').trim().toLowerCase());
-  return i === -1 ? Infinity : i + 1;
+// Job positions form an ordered ladder (job_positions.rank, 1 = most senior),
+// editable by super admins in Settings. Account management is scoped to the
+// actor's OWN department, and an actor may manage only positions ranked strictly
+// below their own (higher number = more junior = fewer rights). Superadmins are
+// unrestricted (all departments; they use full Settings). Positions are matched
+// case-insensitively by name against job_positions.
+//
+// The ladder helpers below are PURE: each takes a `pos` map (from loadPositions)
+// so a request loads the ranking once and threads it through. `pos` maps
+// lower(name) → { rank, can_manage }.
+async function loadPositions() {
+  const rows = await q('SELECT name, rank, can_manage FROM job_positions');
+  const byName = new Map();
+  for (const r of rows) {
+    byName.set(String(r.name).trim().toLowerCase(),
+      { name: String(r.name).trim(), rank: r.rank || Infinity, can_manage: !!r.can_manage });
+  }
+  return byName;
 }
-// Regular users may delegate account management only from Supervisor upward.
-// The 'admin' role is exempt from this floor (the role itself grants the
-// Manage-accounts entry) but is still department- and rank-limited.
-const DELEGATE_FLOOR_RANK = positionRank('Supervisor'); // 10
-function hasDelegation(user) {
+// 1-based rank; Infinity for a position not found (weakest — manages nobody, and
+// is itself not manageable by rank).
+function positionRank(name, pos) {
+  const rec = pos.get(String(name || '').trim().toLowerCase());
+  return rec ? rec.rank : Infinity;
+}
+// Whether a user may delegate account management at all. Superadmins and admins
+// always may (department- and rank-limited elsewhere); a plain user may only if
+// their job position is flagged can_manage.
+function hasDelegation(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin' || user.role === 'admin') return true;
-  return positionRank(user.position) <= DELEGATE_FLOOR_RANK;
+  const rec = pos.get(String(user.position || '').trim().toLowerCase());
+  return !!(rec && rec.can_manage);
 }
 
 // The canonical position names a user may create accounts for: every position
 // ranked strictly below their own. Empty unless they hold delegation rights and
-// their own position is on the ladder.
-function creatablePositions(user) {
-  if (!hasDelegation(user)) return [];
-  const rank = positionRank(user.position);
+// their own position is on the ladder. Returned most-senior-first by rank.
+function creatablePositions(user, pos) {
+  if (!hasDelegation(user, pos)) return [];
+  const rank = positionRank(user.position, pos);
   if (rank === Infinity) return [];
-  return POSITION_RANKS.filter((_, i) => (i + 1) > rank);
+  return [...pos.values()]
+    .filter((rec) => rec.rank > rank)
+    .sort((a, b) => a.rank - b.rank)
+    .map((rec) => rec.name);
 }
 
 // Whether `actor` may manage (reset password / enable-disable) the account
@@ -411,16 +422,16 @@ function creatablePositions(user) {
 // junior Supervisor whether that Supervisor is a plain user or an admin), while
 // still protecting superadmins and anyone at or above the actor's own rank.
 // (Account *creation* is separately restricted to role 'user' — see POST.)
-function canManageAccount(actor, target) {
+function canManageAccount(actor, target, pos) {
   if (actor.role === 'superadmin') return true;
-  if (!hasDelegation(actor)) return false;
+  if (!hasDelegation(actor, pos)) return false;
   if (target.role === 'superadmin') return false;
   const aDept = String(actor.department || '').trim().toLowerCase();
   const tDept = String(target.department || '').trim().toLowerCase();
   if (!aDept || aDept !== tDept) return false;
-  const tRank = positionRank(target.position);
+  const tRank = positionRank(target.position, pos);
   if (tRank === Infinity) return false;
-  return positionRank(actor.position) < tRank;
+  return positionRank(actor.position, pos) < tRank;
 }
 
 // ---------------------------------------------------------------------------
@@ -478,10 +489,11 @@ app.post('/api/login', ah(async (req, res) => {
   }
   await clearLoginFails(req);
   req.session.userId = user.id;
+  const pos = await loadPositions();
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
-    purposes: await computePurposes(user), creatable_positions: creatablePositions(user)
+    purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos)
   } });
 }));
 
@@ -490,7 +502,8 @@ app.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: true 
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u) } });
+  const pos = await loadPositions();
+  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos) } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -507,7 +520,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
     String(bank_account_no || '').trim(), nextEmail, req.user.id]);
   const u = await loadUser(req);
-  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u) } });
+  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, await loadPositions()) } });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -1395,15 +1408,33 @@ function sanitizeApproverIds(input, excludeId) {
   return out;
 }
 
+// The approval chain assigned to an account an ADMIN creates: the department's
+// Manager (position named "Manager", same department), then the FinanceAP
+// account (username "FinanceAP"). Returns whichever of the two currently exist
+// and are active, in order; a missing/disabled one is simply skipped (and, at
+// submit time, activeApproverIds() re-filters, so later deactivation degrades
+// gracefully too).
+async function adminAutoApproverChain(dept) {
+  const mgr = await q(
+    `SELECT id FROM users WHERE active AND lower(department) = lower($1)
+       AND lower(position) = 'manager' ORDER BY id LIMIT 1`, [dept]);
+  const fin = await q(
+    `SELECT id FROM users WHERE active AND lower(username) = 'financeap' ORDER BY id LIMIT 1`);
+  const ids = [];
+  if (mgr[0]) ids.push(mgr[0].id);
+  if (fin[0]) ids.push(fin[0].id);
+  return ids;
+}
+
 app.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
   // Superadmins read every account; admins and delegated seniors read only their
   // own department's accounts (to populate Manage-accounts). Everyone else is
   // forbidden.
-  if (!isSuper && !hasDelegation(req.user)) {
+  if (!isSuper && !hasDelegation(req.user, await loadPositions())) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, active, created_at';
+  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, active, created_by, created_by_name, created_at';
   const users = isSuper
     ? await q(`SELECT ${cols} FROM users ORDER BY id`)
     : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
@@ -1412,7 +1443,8 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
 }));
 app.post('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
-  if (!isSuper && !hasDelegation(req.user)) {
+  const pos = isSuper ? null : await loadPositions();
+  if (!isSuper && !hasDelegation(req.user, pos)) {
     return res.status(403).json({ error: 'You do not have permission to create accounts' });
   }
   const { username, password, full_name, email,
@@ -1420,14 +1452,16 @@ app.post('/api/users', requireAuth, ah(async (req, res) => {
   let { role, department, position, approver_ids } = req.body || {};
   // Non-superadmins (admins and delegated seniors) may only create a standard
   // user account, for a position ranked strictly below their own, inside their
-  // own department, with no approver chain — whatever the request body asks for.
+  // own department. The approver chain is not taken from the request: an admin's
+  // new account is auto-routed to the department Manager then FinanceAP; a
+  // delegated senior's new account gets no chain (super-admin approval only).
   if (!isSuper) {
     const creatorDept = String(req.user.department || '').trim();
     if (!creatorDept) return res.status(403).json({ error: 'Your account has no department set; ask an administrator to set one.' });
     role = 'user';
     department = creatorDept;
-    approver_ids = [];
-    const allowed = creatablePositions(req.user);
+    approver_ids = req.user.role === 'admin' ? await adminAutoApproverChain(creatorDept) : [];
+    const allowed = creatablePositions(req.user, pos);
     const posOk = allowed.some(p => p.toLowerCase() === String(position || '').trim().toLowerCase());
     if (!posOk) return res.status(403).json({ error: 'You cannot create an account for that job position' });
   }
@@ -1445,12 +1479,13 @@ app.post('/api/users', requireAuth, ah(async (req, res) => {
   // Only a super admin may grant the mark-paid permission.
   const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, created_by, created_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12,$13,$14) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
      String(department || '').trim(), String(position || '').trim(), nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
-     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)), canMarkPaidFlag]);
+     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)), canMarkPaidFlag,
+     req.user.id, req.user.full_name || req.user.username || '']);
   res.status(201).json({ id: rows[0].id });
 }));
 app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
@@ -1522,7 +1557,7 @@ app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
   const rows = await q('SELECT id, role, department, position FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target)) {
+  if (!canManageAccount(req.user, target, await loadPositions())) {
     return res.status(403).json({ error: 'You do not have permission to reset this account\'s password' });
   }
   const password = (req.body && req.body.password) || '';
@@ -1539,7 +1574,7 @@ app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
   const rows = await q('SELECT id, role, department, position, active FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target)) {
+  if (!canManageAccount(req.user, target, await loadPositions())) {
     return res.status(403).json({ error: 'You do not have permission to change this account' });
   }
   const next = isActive(req.body && req.body.active);
@@ -1561,17 +1596,36 @@ app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
 // Table names and flag column names are hard-coded (never user input), so
 // interpolation is safe. `flags` lists extra BOOLEAN columns (e.g. the purpose
 // gates allow_claim / allow_meal) that admins can toggle per row.
-function lookupRoutes(pathName, table, flags = []) {
+function lookupRoutes(pathName, table, flags = [], opts = {}) {
+  // `opts.ranked` adds a `rank` column (a reorderable seniority ladder) — it is
+  // selected, ordered by, and gets its own POST /reorder endpoint below.
+  const ranked = !!opts.ranked;
+  const orderBy = ranked ? 'rank, name' : 'name';
+  const extraCols = ranked ? ['rank'] : [];
   // List — any signed-in user may read (the claim form needs departments and
   // expense types). Non-admins receive only the active entries.
   app.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
     const onlyActive = req.user.role !== 'superadmin';
-    const cols = ['id', 'name', 'active', ...flags, 'created_at'].join(', ');
+    const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
     const items = await q(
       `SELECT ${cols} FROM ${table}
-       ${onlyActive ? 'WHERE active = TRUE' : ''} ORDER BY name`);
+       ${onlyActive ? 'WHERE active = TRUE' : ''} ORDER BY ${orderBy}`);
     res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at) })) });
   }));
+
+  // Reorder the whole ladder: body { order: [id, …] } sets rank = position + 1
+  // for the listed ids, atomically. Only defined for ranked lookups.
+  if (ranked) {
+    app.post(`/api/${pathName}/reorder`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+      const order = (req.body && req.body.order) || [];
+      if (!Array.isArray(order) || !order.length) return res.status(400).json({ error: 'order must be a non-empty array of ids' });
+      const ids = [];
+      for (const v of order) { const n = Number(v); if (Number.isInteger(n) && n > 0) ids.push(n); }
+      if (!ids.length) return res.status(400).json({ error: 'order must contain valid ids' });
+      await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2`, [i + 1, id])));
+      res.json({ ok: true });
+    }));
+  }
 
   app.post(`/api/${pathName}`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
     const name = String((req.body && req.body.name) || '').trim();
@@ -1614,7 +1668,7 @@ function lookupRoutes(pathName, table, flags = []) {
   }));
 }
 lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal']);
-lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal']);
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true });
 lookupRoutes('expense-types', 'expense_types');
 
 // ---------------------------------------------------------------------------

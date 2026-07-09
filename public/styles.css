@@ -390,6 +390,22 @@ input[type="search"] { min-width: 220px; }
 .tick-cell { text-align: center; }
 .tick-cell input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
+/* Reorder arrows (job-position ladder) */
+.ord-cell { width: 64px; }
+.ord-btns { display: inline-flex; flex-direction: column; gap: 2px; }
+.ord-btn {
+  width: 26px; height: 20px; padding: 0; line-height: 1; font-size: .68rem;
+  border: 1px solid var(--line); border-radius: 5px; background: var(--surface);
+  color: var(--ink-soft); cursor: pointer; transition: border-color .12s, background .12s, color .12s;
+}
+.ord-btn:hover:not(:disabled) { border-color: var(--muted); background: var(--paper); color: var(--ink); }
+.ord-btn:disabled { opacity: .3; cursor: default; }
+
+/* Inline rename (name cell → editable input) */
+.rename-row { display: flex; gap: 6px; align-items: center; }
+.rename-row .rename-input { flex: 1; min-width: 90px; padding: 5px 8px; }
+.info-note { font-size: .82rem; line-height: 1.4; }
+
 /* Accounts table: keep it inside the modal — long emails wrap instead of
    forcing a horizontal scroll, and the username sits under the name. */
 .utable td, .utable th { overflow-wrap: anywhere; }
@@ -422,6 +438,7 @@ input[type="search"] { min-width: 220px; }
 .pill.pill-off { color: var(--red); background: var(--red-tint); }
 .u-name { font-weight: 560; color: var(--ink); }
 .u-sub { font-size: .76rem; color: var(--muted); margin-top: 1px; }
+.u-creator { font-style: italic; }
 
 /* checkbox groups (export dialog) */
 .check-group { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 4px; }

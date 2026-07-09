@@ -98,6 +98,32 @@ const SCHEMA = [
   `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS allow_meal  BOOLEAN NOT NULL DEFAULT FALSE`,
   `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS allow_claim BOOLEAN NOT NULL DEFAULT FALSE`,
   `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS allow_meal  BOOLEAN NOT NULL DEFAULT FALSE`,
+  // Job positions carry an explicit seniority `rank` (1 = most senior) and a
+  // `can_manage` flag (may this position create/manage junior accounts?). These
+  // replace the old hard-coded ladder: account management is scoped to positions
+  // ranked strictly below the actor's own, and only can_manage positions (plus
+  // admins/superadmins) may delegate at all.
+  `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS rank       INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS can_manage BOOLEAN NOT NULL DEFAULT FALSE`,
+  // One-time, idempotent backfills. Rank: seed from the legacy ladder for any
+  // matching names, but only touch still-unranked rows (rank = 0) so re-running
+  // migrate never clobbers an admin's reordering.
+  `UPDATE job_positions AS jp SET rank = v.r FROM (VALUES
+      ('super admin',1),('president director',2),('director',3),('senior general manager',4),
+      ('general manager',5),('senior manager',6),('manager',7),('junior manager',8),
+      ('assistant manager',9),('supervisor',10),('assistant supervisor',11),
+      ('senior staff',12),('staff',13),('intern',14)
+    ) AS v(name, r) WHERE lower(jp.name) = v.name AND jp.rank = 0`,
+  // Any position whose name is off the legacy ladder falls in below it, ordered
+  // by id so the assignment is stable and unique.
+  `UPDATE job_positions SET rank = 100 + id WHERE rank = 0`,
+  // Preserve today's delegation floor (Supervisor and up may manage accounts).
+  // Guarded to the first run only: once any position has can_manage set, later
+  // admin edits are left alone.
+  `UPDATE job_positions SET can_manage = TRUE
+     WHERE lower(name) IN ('super admin','president director','director','senior general manager',
+       'general manager','senior manager','manager','junior manager','assistant manager','supervisor')
+       AND NOT EXISTS (SELECT 1 FROM job_positions WHERE can_manage = TRUE)`,
   `CREATE TABLE IF NOT EXISTS expense_types (
     id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL UNIQUE,
@@ -130,6 +156,12 @@ const SCHEMA = [
   // payment)? Off by default; granted by a super admin in the account editor.
   // Super admins can always mark paid regardless of this flag.
   `ALTER TABLE users  ADD COLUMN IF NOT EXISTS can_mark_paid BOOLEAN NOT NULL DEFAULT FALSE`,
+  // Creation audit: which account created this one (created through the app),
+  // plus a snapshot of the creator's name at that time (survives later renames
+  // and avoids a join). NULL / '' for accounts made directly via seed scripts or
+  // before this column existed — shown as "—" (system / unknown).
+  `ALTER TABLE users  ADD COLUMN IF NOT EXISTS created_by      INTEGER REFERENCES users(id)`,
+  `ALTER TABLE users  ADD COLUMN IF NOT EXISTS created_by_name TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS db_no TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,

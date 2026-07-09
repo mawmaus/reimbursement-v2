@@ -1725,6 +1725,10 @@ $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 // Human-readable role labels used across the account tables.
 const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
 const roleLabel = (r) => ROLE_LABELS[r] || r;
+// Creation-audit sub-line for the account tables: who created this account, or
+// "—" for accounts made directly (seed scripts) or before creator tracking.
+const creatorLine = (u) =>
+  `<div class="u-sub u-creator">Created by ${u.created_by_name ? esc(u.created_by_name) : '—'}</div>`;
 
 function openSettingsModal() {
   openModal(`
@@ -1770,7 +1774,7 @@ function renderSettingsTab() {
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true },
-    positions: { path: '/positions', noun: 'job position', purposes: true },
+    positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
     'expense-types': { path: '/expense-types', noun: 'expense type' }
   }[settingsState.tab];
   return renderLookupTab(cfg);
@@ -1783,12 +1787,23 @@ async function renderLookupTab(cfg) {
   try { ({ items } = await api(cfg.path)); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
 
-  const p = !!cfg.purposes;
-  const colspan = p ? 5 : 3;
-  // Two extra columns gate the front-page purpose buttons for this row. A user
-  // sees a purpose only when it is ticked on BOTH their department and position.
-  const purposeCell = (it, flag, label) =>
+  const p = !!cfg.purposes;         // purpose gates (New claim / New meal allowance)
+  const ranked = !!cfg.ranked;      // reorderable seniority ladder (job positions)
+  const manage = !!cfg.manage;      // "Can manage accounts" delegation flag
+  // A tick cell wires a boolean flag column (persisted immediately via PUT).
+  const flagCell = (it, flag, label) =>
     `<td class="tick-cell" data-label="${label}"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
+  // Up/down reorder controls for a ranked row (disabled at the ends).
+  const orderCell = (it, i) => `<td class="ord-cell" data-label="Order">
+      <div class="ord-btns">
+        <button type="button" class="ord-btn" data-move="up" data-id="${it.id}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
+        <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
+      </div></td>`;
+  const headCols = (ranked ? '<th style="width:64px">Order</th>' : '') + '<th>Name</th><th>Active</th>'
+    + (p ? '<th>New claim</th><th>New meal allowance</th>' : '')
+    + (manage ? '<th>Manage accounts</th>' : '')
+    + '<th style="width:220px"></th>';
+  const colspan = 2 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
@@ -1804,14 +1819,17 @@ async function renderLookupTab(cfg) {
     </div>
     <div class="settings-list">
       <table class="utable">
-        <thead><tr><th>Name</th><th>Active</th>${p ? '<th>New claim</th><th>New meal allowance</th>' : ''}<th style="width:200px"></th></tr></thead>
-        <tbody>${items.length ? items.map(it => `
+        <thead><tr>${headCols}</tr></thead>
+        <tbody>${items.length ? items.map((it, i) => `
           <tr data-id="${it.id}">
-            <td data-label="Name">${esc(it.name)}</td>
+            ${ranked ? orderCell(it, i) : ''}
+            <td data-label="Name" class="name-cell">${esc(it.name)}</td>
             <td data-label="Active">${it.active ? 'Yes' : 'No'}</td>
-            ${p ? purposeCell(it, 'allow_claim', 'New claim') + purposeCell(it, 'allow_meal', 'New meal allowance') : ''}
+            ${p ? flagCell(it, 'allow_claim', 'New claim') + flagCell(it, 'allow_meal', 'New meal allowance') : ''}
+            ${manage ? flagCell(it, 'can_manage', 'Manage accounts') : ''}
             <td class="act-cell" data-label="Actions">
               <div class="u-actions">
+                <button class="btn btn-brand-soft btn-sm" data-rename="${it.id}">Edit</button>
                 <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
                 <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">Delete</button>
               </div>
@@ -1838,8 +1856,14 @@ async function renderLookupTab(cfg) {
     try { await api(`${cfg.path}/${b.dataset.del}`, { method: 'DELETE' }); toast('Deleted'); refreshAfterSettings(); }
     catch (ex) { toast(ex.message, true); }
   }));
-  // Purpose tickboxes — persist immediately; keep local state in sync so a later
-  // active-toggle/delete re-render reflects the choice without a full reload.
+  // Inline rename — turn the name cell into an input with Save / Cancel.
+  $$('#settingsPanel [data-rename]').forEach(b => b.addEventListener('click', () => {
+    const it = byId(b.dataset.rename);
+    const cell = b.closest('tr').querySelector('.name-cell');
+    startInlineRename(cell, it, cfg);
+  }));
+  // Boolean flag tickboxes (purposes + can_manage) — persist immediately; keep
+  // local state in sync so a later re-render reflects the choice.
   $$('#settingsPanel input[data-flag]').forEach(cb => cb.addEventListener('change', async () => {
     const it = byId(cb.dataset.id);
     const flag = cb.dataset.flag, val = cb.checked;
@@ -1849,6 +1873,44 @@ async function renderLookupTab(cfg) {
       toast('Saved');
     } catch (ex) { cb.checked = !val; toast(ex.message, true); }
   }));
+  // Reorder arrows — move the row within the local list and persist the new
+  // order for the whole ladder in one call.
+  if (ranked) $$('#settingsPanel [data-move]').forEach(b => b.addEventListener('click', async () => {
+    const idx = items.findIndex(x => x.id == b.dataset.id);
+    const swap = b.dataset.move === 'up' ? idx - 1 : idx + 1;
+    if (swap < 0 || swap >= items.length) return;
+    [items[idx], items[swap]] = [items[swap], items[idx]];
+    try {
+      await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id) }) });
+      refreshAfterSettings();
+    } catch (ex) { toast(ex.message, true); refreshAfterSettings(); }
+  }));
+}
+
+// Replace a name cell's text with an editable input + Save/Cancel. Enter saves,
+// Escape cancels. On success the whole tab re-renders (keeps ordering/flags).
+function startInlineRename(cell, it, cfg) {
+  if (!cell || cell.querySelector('input')) return;
+  cell.innerHTML = `<div class="rename-row">
+      <input class="input rename-input" value="${esc(it.name)}" />
+      <button type="button" class="btn btn-primary btn-sm" data-save>Save</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-cancel>Cancel</button>
+    </div>`;
+  const input = cell.querySelector('.rename-input');
+  input.focus(); input.select();
+  const cancel = () => { cell.textContent = it.name; };
+  const save = async () => {
+    const name = input.value.trim();
+    if (!name || name === it.name) return cancel();
+    try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ name }) }); toast('Renamed'); refreshAfterSettings(); }
+    catch (ex) { toast(ex.message, true); }
+  };
+  cell.querySelector('[data-save]').addEventListener('click', save);
+  cell.querySelector('[data-cancel]').addEventListener('click', cancel);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
 }
 
 // Re-render the current tab and keep the claim-form dropdowns in sync.
@@ -1876,7 +1938,7 @@ async function renderAccountsTab() {
         <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Dept / Position</th><th>Active</th><th></th></tr></thead>
         <tbody>${users.map(u => `
           <tr>
-            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
+            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
             <td data-label="Role">${esc(roleLabel(u.role))}</td>
             <td data-label="Dept / Position"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
@@ -2065,7 +2127,7 @@ async function renderManageAccounts() {
         <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th><th class="u-actions-h">Actions</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
-            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></td>
+            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
             <td data-label="Position">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
             <td data-label="Active">${u.active
@@ -2163,6 +2225,7 @@ function renderManagedUserForm() {
             <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
           </div></label>
       </div>
+      ${state.user.role === 'admin' ? `<p class="muted info-note" style="margin:10px 0 0">Approvals route to this department's <strong>Manager</strong>, then <strong>FinanceAP</strong> — assigned automatically.</p>` : ''}
       <div class="section-label" style="margin-top:8px">Bank / payout details</div>
       <div class="grid2">
         <label>Bank name<input name="bank_name" /></label>
