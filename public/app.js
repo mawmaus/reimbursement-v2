@@ -168,28 +168,9 @@ $('#logoutBtn').addEventListener('click', async () => {
 // Load + render
 // ---------------------------------------------------------------------------
 async function loadAll() {
-  await Promise.all([loadSummary(), loadClaims()]);
-}
-
-async function loadSummary() {
-  try {
-    // Combine reimbursement + meal allowance so the cards reflect everything
-    // in the shared ledger.
-    const [a, b] = await Promise.all([api('/claims/summary'), api('/meal-claims/summary')]);
-    const s = a.summary, m = b.summary;
-    const cards = [
-      { k: 'submitted', l: 'Pending', n: s.submitted + m.submitted },
-      { k: 'approved', l: 'Approved', n: s.approved + m.approved },
-      { k: 'rejected', l: 'Rejected', n: s.rejected + m.rejected },
-      { k: 'paid', l: 'Paid', n: s.paid + m.paid },
-      // Total value is a subtotal of the currently filtered rows, not the whole
-      // ledger — computed client-side from visibleClaims (see updateTotalCard).
-      { k: 'total', l: totalCardLabel(), n: money(filteredTotal(), 'IDR') }
-    ];
-    $('#summaryCards').innerHTML = cards.map(c =>
-      `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${c.l}</div></div>`
-    ).join('');
-  } catch (e) { /* ignore */ }
+  // The summary cards are derived from the loaded claims (see renderSummaryCards
+  // in renderClaims), so loading the claims is all that's needed.
+  await loadClaims();
 }
 
 // True when any filter narrows the ledger away from the full set.
@@ -200,18 +181,23 @@ function anyFilterActive() {
 
 const totalCardLabel = () => anyFilterActive() ? 'Filtered total' : 'Total value';
 
-// Sum of the amounts for the rows currently in view (post-filter).
-function filteredTotal() {
-  return visibleClaims().reduce((sum, c) => sum + Number(rowView(c).amount || 0), 0);
-}
-
-// Refresh the total card in place so it tracks filter changes even when only
-// the client-side claimant filter changes (which skips loadSummary).
-function updateTotalCard() {
-  const n = $('#summaryCards .card.total .card-n');
-  if (n) n.textContent = money(filteredTotal(), 'IDR');
-  const l = $('#summaryCards .card.total .card-l');
-  if (l) l.textContent = totalCardLabel();
+// The summary cards describe exactly the rows currently in view, so they track
+// every active filter (status, department, search, claimant). Both claim types
+// share one ledger, so visibleClaims already spans reimbursement + meal.
+function renderSummaryCards() {
+  const claims = visibleClaims();
+  const count = st => claims.filter(c => c.status === st).length;
+  const total = claims.reduce((sum, c) => sum + Number(rowView(c).amount || 0), 0);
+  const cards = [
+    { k: 'submitted', l: 'Pending', n: count('submitted') },
+    { k: 'approved', l: 'Approved', n: count('approved') },
+    { k: 'rejected', l: 'Rejected', n: count('rejected') },
+    { k: 'paid', l: 'Paid', n: count('paid') },
+    { k: 'total', l: totalCardLabel(), n: money(total, 'IDR') }
+  ];
+  $('#summaryCards').innerHTML = cards.map(c =>
+    `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${c.l}</div></div>`
+  ).join('');
 }
 
 async function loadClaims() {
@@ -273,7 +259,7 @@ function visibleClaims() {
 function renderClaims() {
   const wrap = $('#claimRows');
   const claims = visibleClaims();
-  if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); updateTotalCard(); return; }
+  if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); renderSummaryCards(); return; }
   $('#emptyState').hidden = true;
   wrap.innerHTML = claims.map(c => {
     const v = rowView(c);
@@ -302,7 +288,7 @@ function renderClaims() {
     updateSelectionUI();
   }));
   updateSelectionUI();
-  updateTotalCard();
+  renderSummaryCards();
 }
 
 // Reflect selection count in the bar and sync the header select-all box.
