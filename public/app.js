@@ -1695,15 +1695,21 @@ async function openExportModal() {
           <label>From date<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
           <label>To date<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
         </div>
-        <div class="section-label" style="margin-top:6px">Statuses to include</div>
-        <div class="check-group">
-          ${EXPORT_STATUS_OPTS.map(o => `
-            <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${o.l}</label>`).join('')}
-        </div>
-        <div class="section-label" style="margin-top:6px">Claim types</div>
-        <div class="check-group">
-          <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> Reimbursement claims</label>
-          <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> Meal allowances</label>
+        <div class="grid2 export-groups">
+          <div class="export-group">
+            <div class="section-label">Statuses to include</div>
+            <div class="check-group">
+              ${EXPORT_STATUS_OPTS.map(o => `
+                <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${o.l}</label>`).join('')}
+            </div>
+          </div>
+          <div class="export-group">
+            <div class="section-label">Claim types</div>
+            <div class="check-group">
+              <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> Reimbursement claims</label>
+              <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> Meal allowances</label>
+            </div>
+          </div>
         </div>
         <div class="section-label" style="margin-top:6px">Users (submitters)</div>
         <div class="user-filter">
