@@ -45,6 +45,9 @@
     </div>
     <div class="topbar-right">
       <span id="userBadge" class="user-badge"></span>
+      <button id="newClaimBtn" class="btn btn-primary btn-sm" hidden>New claim</button>
+      <button id="newMealBtn" class="btn btn-primary btn-sm" hidden>New meal allowance</button>
+      <button id="exportBtn" class="btn btn-green-soft btn-sm" hidden>Export CSV</button>
       <button id="profileBtn" class="btn btn-indigo-soft btn-sm">Profile</button>
       <button id="accountsBtn" class="btn btn-brand-soft btn-sm" hidden>Manage accounts</button>
       <button id="settingsBtn" class="btn btn-brand-soft btn-sm" hidden>Settings</button>
@@ -53,51 +56,60 @@
   </header>
 
   <main class="container">
-    <section id="summaryCards" class="cards"></section>
-
-    <section class="toolbar">
-      <div class="toolbar-left">
-        <input id="searchInput" class="input" type="search" placeholder="Search claim no, name, type…" />
-        <select id="statusFilter" class="input">
-          <option value="">All statuses</option>
-          <option value="submitted">Pending review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="paid">Paid</option>
-        </select>
-        <select id="deptFilter" class="input"><option value="">All departments</option></select>
-        <select id="claimantFilter" class="input"><option value="">All claimants</option></select>
-      </div>
-      <div class="toolbar-right">
-        <button id="exportBtn" class="btn btn-green-soft" hidden>Export CSV</button>
-        <button id="newMealBtn" class="btn btn-primary" hidden>New meal allowance</button>
-        <button id="newClaimBtn" class="btn btn-primary" hidden>New claim</button>
-      </div>
+    <!-- Clean landing after login: pick a list to open. -->
+    <section id="homeView" class="home">
+      <p class="home-greeting" id="homeGreeting"></p>
+      <div class="home-menu" id="homeMenu"></div>
     </section>
 
-    <div id="selectionBar" class="selection-bar" hidden>
-      <span id="selCount" class="sel-count"></span>
-      <div class="sel-actions">
-        <button id="clearSelBtn" class="btn btn-ghost btn-sm" type="button">Clear</button>
-        <button id="deleteSelBtn" class="btn btn-danger btn-sm" type="button" hidden>Delete</button>
-        <button id="genPdfBtn" class="btn btn-primary btn-sm" type="button">Download PDF</button>
+    <!-- One claims list, opened from a home tile. -->
+    <section id="listView" hidden>
+      <div class="list-head">
+        <button id="backHome" class="btn btn-ghost btn-sm" type="button">← Menu</button>
+        <h2 class="list-title" id="listTitle"></h2>
       </div>
-    </div>
 
-    <section class="ledger">
-      <div class="ledger-head">
-        <span class="col-spine"></span>
-        <span class="col-check"><input type="checkbox" id="selectAll" aria-label="Select all claims" /></span>
-        <span class="col-no" data-sort="no" role="button" tabindex="0">Claim</span>
-        <span class="col-name" data-sort="name" role="button" tabindex="0">Claimant</span>
-        <span class="col-db" data-sort="db" role="button" tabindex="0">No DB</span>
-        <span class="col-type" data-sort="type" role="button" tabindex="0">Expense</span>
-        <span class="col-date" data-sort="date" role="button" tabindex="0">Date</span>
-        <span class="col-amt" data-sort="amount" role="button" tabindex="0">Amount</span>
-        <span class="col-status" data-sort="status" role="button" tabindex="0">Status</span>
+      <section id="summaryCards" class="cards"></section>
+
+      <section class="toolbar">
+        <div class="toolbar-left">
+          <input id="searchInput" class="input" type="search" placeholder="Search claim no, name, type, DB…" />
+          <select id="statusFilter" class="input">
+            <option value="">All statuses</option>
+            <option value="submitted">Pending review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="paid">Paid</option>
+          </select>
+          <select id="deptFilter" class="input"><option value="">All departments</option></select>
+          <select id="claimantFilter" class="input"><option value="">All claimants</option></select>
+        </div>
+      </section>
+
+      <div id="selectionBar" class="selection-bar" hidden>
+        <span id="selCount" class="sel-count"></span>
+        <div class="sel-actions">
+          <button id="clearSelBtn" class="btn btn-ghost btn-sm" type="button">Clear</button>
+          <button id="deleteSelBtn" class="btn btn-danger btn-sm" type="button" hidden>Delete</button>
+          <button id="genPdfBtn" class="btn btn-primary btn-sm" type="button">Download PDF</button>
+        </div>
       </div>
-      <div id="claimRows"></div>
-      <p id="emptyState" class="empty muted" hidden>No claims yet.</p>
+
+      <section class="ledger">
+        <div class="ledger-head">
+          <span class="col-spine"></span>
+          <span class="col-check"><input type="checkbox" id="selectAll" aria-label="Select all claims" /></span>
+          <span class="col-no" data-sort="no" role="button" tabindex="0">Claim</span>
+          <span class="col-name" data-sort="name" role="button" tabindex="0">Claimant</span>
+          <span class="col-db" data-sort="db" role="button" tabindex="0">No DB</span>
+          <span class="col-type" data-sort="type" role="button" tabindex="0">Expense</span>
+          <span class="col-date" data-sort="date" role="button" tabindex="0">Date</span>
+          <span class="col-amt" data-sort="amount" role="button" tabindex="0">Amount</span>
+          <span class="col-status" data-sort="status" role="button" tabindex="0">Status</span>
+        </div>
+        <div id="claimRows"></div>
+        <p id="emptyState" class="empty muted" hidden>No claims yet.</p>
+      </section>
     </section>
   </main>
 </div>

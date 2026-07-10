@@ -142,6 +142,33 @@ input[type="search"] { min-width: 220px; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 26px 22px 60px; }
 
+/* ---------- Home menu (clean landing) ---------- */
+.home { padding: 8px 0; }
+.home-greeting { color: var(--ink-soft); font-size: 1.05rem; margin: 6px 2px 20px; }
+.home-menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.home-tile {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+  text-align: left; padding: 22px 20px; min-height: 128px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.04));
+  transition: border-color .14s, box-shadow .14s, transform .14s;
+}
+.home-tile:hover { border-color: var(--pine); box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+.home-tile:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+.home-tile .tile-title { font-size: 1.15rem; font-weight: 650; color: var(--ink); }
+.home-tile .tile-desc { font-size: .88rem; color: var(--muted); }
+.home-tile .tile-count { margin-top: auto; font-size: .8rem; font-weight: 650; color: var(--pine-deep); text-transform: uppercase; letter-spacing: .04em; }
+/* Notification-style badge (like a phone app) for the approval queue. */
+.home-tile .tile-badge {
+  position: absolute; top: 14px; right: 14px; min-width: 26px; height: 26px; padding: 0 7px;
+  display: grid; place-items: center; border-radius: 13px; background: var(--red); color: #fff;
+  font-size: .82rem; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,.18);
+}
+
+/* ---------- List view header (back to menu) ---------- */
+.list-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.list-title { font-size: 1.25rem; font-weight: 650; margin: 0; }
+
 /* ---------- Summary cards ---------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .card {

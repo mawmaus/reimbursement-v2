@@ -7,6 +7,9 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
 
 const state = {
   user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
+  // Which list is open: 'home' (clean landing, no list), 'mine' (claims I
+  // submitted), 'approval' (awaiting my decision), or 'all' (super admin only).
+  view: 'home',
   // Active column sort for the ledger. key '' = server default (newest first);
   // dir 1 = ascending, -1 = descending.
   sort: { key: '', dir: 1 },
@@ -139,8 +142,12 @@ function showApp() {
   $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
   // Only super admins can delete claims (used to clear out test data).
   $('#deleteSelBtn').hidden = !isSuper;
+  // Land on the clean menu; a tile opens the corresponding list.
+  state.view = 'home';
+  $('#homeView').hidden = false;
+  $('#listView').hidden = true;
   loadLookups();
-  loadAll();
+  loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
 
 // Show/hide password toggle for any .pw-toggle button next to a password input.
@@ -184,6 +191,7 @@ $('#logoutBtn').addEventListener('click', async () => {
   state.user = null; state.claims = [];
   showLogin();
 });
+$('#backHome').addEventListener('click', goHome);
 
 // ---------------------------------------------------------------------------
 // Load + render
@@ -261,6 +269,7 @@ async function loadClaims() {
   renderDeptOptions();
   renderClaimantOptions();
   renderClaims();
+  renderHome(); // keep the landing menu counts / approval badge in sync
 }
 
 // Uniform row display fields for the two claim types.
@@ -295,10 +304,79 @@ function renderClaimantOptions() {
   sel.value = state.filters.claimant;
 }
 
+// Is it currently THIS user's turn to approve claim c? (The pending approver at
+// the current step.) Role-agnostic: a super admin only matches claims where
+// they are explicitly the current approver, not every claim.
+function isMyTurn(c) {
+  if (!state.user || c.status !== 'submitted') return false;
+  const ids = (c.approvers || []).map(a => a.id);
+  if (!ids.length) return false;
+  return ids[(c.current_step || 1) - 1] === state.user.id;
+}
+const myClaims = () => state.claims.filter(c => c.employee_id === (state.user && state.user.id));
+const approvalQueue = () => state.claims.filter(isMyTurn);
+
+// Claims for the open view, before the client-side claimant filter.
+function viewClaims() {
+  if (state.view === 'mine') return myClaims();
+  if (state.view === 'approval') return approvalQueue();
+  return state.claims; // 'all' / 'home'
+}
+
 // Rows currently shown, after the client-side claimant filter.
 function visibleClaims() {
   const cl = state.filters.claimant;
-  return cl ? state.claims.filter(c => c.claimant_name === cl) : state.claims;
+  const base = viewClaims();
+  return cl ? base.filter(c => c.claimant_name === cl) : base;
+}
+
+// --- Home menu (clean landing) ----------------------------------------------
+const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', all: 'All activities' };
+const VIEW_EMPTY = {
+  mine: 'You have not submitted any claims yet.',
+  approval: 'Nothing is waiting for your approval right now.',
+  all: 'No claims in the system yet.'
+};
+function renderHome() {
+  const menu = $('#homeMenu');
+  if (!menu || !state.user) return;
+  const u = state.user;
+  $('#homeGreeting').textContent = u.full_name ? `Hi ${u.full_name.split(' ')[0]} — what would you like to open?` : '';
+  const need = approvalQueue().length;
+  const mine = myClaims().length;
+  const tiles = [
+    { key: 'mine', title: 'My claims', desc: 'Claims you have submitted', count: mine },
+    { key: 'approval', title: 'Needs my approval', desc: 'Claims waiting for your decision', count: need, badge: true }
+  ];
+  if (u.role === 'superadmin') tiles.push({ key: 'all', title: 'All activities', desc: 'Every claim in the system', count: state.claims.length });
+  menu.innerHTML = tiles.map(t => `
+    <button class="home-tile" data-view="${t.key}" type="button">
+      ${t.badge && t.count > 0 ? `<span class="tile-badge" aria-label="${t.count} awaiting approval">${t.count > 99 ? '99+' : t.count}</span>` : ''}
+      <span class="tile-title">${esc(t.title)}</span>
+      <span class="tile-desc">${esc(t.desc)}</span>
+      <span class="tile-count">${t.count} ${t.count === 1 ? 'claim' : 'claims'}</span>
+    </button>`).join('');
+  $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => openView(el.dataset.view)));
+}
+
+// Open one list view; go back to the clean menu.
+function openView(key) {
+  state.view = key;
+  state.selected.clear();
+  $('#homeView').hidden = true;
+  $('#listView').hidden = false;
+  $('#listTitle').textContent = VIEW_LABEL[key] || 'Claims';
+  renderClaims();
+}
+function goHome() {
+  state.view = 'home';
+  // Clean slate: clear filters so the menu counts reflect everything.
+  state.filters = { status: '', department: '', claimant: '', q: '' };
+  const si = $('#searchInput'); if (si) si.value = '';
+  const sf = $('#statusFilter'); if (sf) sf.value = '';
+  $('#listView').hidden = true;
+  $('#homeView').hidden = false;
+  loadClaims(); // refetch unfiltered, then renderHome via loadClaims
 }
 
 // Per-column sort value extractors (mirror the ledger columns). Numeric for
@@ -347,7 +425,13 @@ $$('.ledger-head [data-sort]').forEach(h => {
 function renderClaims() {
   const wrap = $('#claimRows');
   const claims = sortClaims(visibleClaims());
-  if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); renderSummaryCards(); return; }
+  if (!claims.length) {
+    wrap.innerHTML = '';
+    const empty = $('#emptyState');
+    empty.textContent = anyFilterActive() ? 'No claims match your filters.' : (VIEW_EMPTY[state.view] || 'No claims yet.');
+    empty.hidden = false;
+    updateSelectionUI(); renderSummaryCards(); return;
+  }
   $('#emptyState').hidden = true;
   wrap.innerHTML = claims.map(c => {
     const v = rowView(c);
