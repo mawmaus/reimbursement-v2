@@ -437,6 +437,25 @@ function canManageAccount(actor, target, pos) {
   return positionRank(actor.position, pos) < tRank;
 }
 
+// --- Expense-insights visibility -------------------------------------------
+// Who may see company-wide expense insights vs. only their own department's:
+// super admins always; anyone in a Finance department (any position); and anyone
+// whose job position ranks at General Manager or above (rank <= GM's rank, since
+// rank 1 is the most senior). Everyone else is scoped to their own department.
+// GM's rank is read live from the ladder (super admins can reorder it); if no
+// "General Manager" position exists, fall back to the seeded GM rank (5).
+const GM_FALLBACK_RANK = 5;
+const isFinanceDept = (dept) => /financ/i.test(String(dept || ''));
+function insightsSeeAll(user, pos) {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  if (isFinanceDept(user.department)) return true;
+  const gm = positionRank('general manager', pos);
+  const gmRank = gm === Infinity ? GM_FALLBACK_RANK : gm;
+  const r = positionRank(user.position, pos);
+  return r !== Infinity && r <= gmRank;
+}
+
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -1282,6 +1301,112 @@ function csvCell(v) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
+// ---------------------------------------------------------------------------
+// Expense insights (charts)
+// ---------------------------------------------------------------------------
+// Aggregated spend for the Insights view. Reimbursement claims and meal
+// allowances are folded into one dataset: meal allowances appear as the category
+// "Meal allowance", grouped by each line item's date (a meal claim has no single
+// expense date). Everything is grouped by expense date. Visibility follows
+// insightsSeeAll — company-wide for super admins, Finance, and GM-and-above;
+// otherwise pinned to the viewer's own department. Filters: `year`, `department`
+// (honoured only for see-all viewers), `db` (DB-number substring — DB lives on
+// claims.db_no and, for meals, on each line's `site`), and `status`
+// (comma-separated; defaults to approved + paid, i.e. real outflow).
+const INSIGHT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
+app.get('/api/insights', requireAuth, ah(async (req, res) => {
+  const pos = await loadPositions();
+  const seeAll = insightsSeeAll(req.user, pos);
+  const ownDept = String(req.user.department || '').trim();
+
+  let statuses = String(req.query.status || '').split(',').map(s => s.trim())
+    .filter(s => INSIGHT_STATUSES.includes(s));
+  if (!statuses.length) statuses = ['approved', 'paid'];
+
+  // See-all viewers may narrow to one department; everyone else is pinned to
+  // their own. A pinned viewer with no department sees nothing.
+  const deptFilter = seeAll ? String(req.query.department || '').trim() : ownDept;
+  const db = String(req.query.db || '').trim();
+
+  const params = [];
+  const where = [];
+  const ph = statuses.map(s => { params.push(s); return `$${params.length}`; }).join(',');
+  where.push(`status IN (${ph})`);
+  where.push(`d ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`);
+  if (deptFilter) { params.push(deptFilter); where.push(`lower(department) = lower($${params.length})`); }
+  if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
+  // A non-see-all viewer whose account has no department must never see the
+  // whole company, so short-circuit to an empty result set.
+  const noScope = !seeAll && !ownDept;
+
+  const rows = noScope ? [] : await q(
+    `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo,
+            cents::bigint AS cents, cid
+       FROM (
+         SELECT expense_type AS category, department, expense_date AS d,
+                amount_cents AS cents, status, COALESCE(db_no,'') AS db, 'c' || id AS cid
+           FROM claims
+         UNION ALL
+         SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
+                l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid
+           FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
+       ) ev
+      WHERE ${where.join(' AND ')}`, params);
+
+  // Years present (desc). Resolve the selected year: the requested one when it
+  // has data, else the most recent year, else the current calendar year.
+  const yearsSet = new Set(rows.map(r => r.yr));
+  const years = [...yearsSet].sort().reverse();
+  const reqYear = String(req.query.year || '').trim();
+  const year = (reqYear && yearsSet.has(reqYear)) ? reqYear
+    : (years[0] || String(new Date().getFullYear()));
+
+  // By year (all years) — backs the yearly trend toggle.
+  const byYearMap = new Map();
+  for (const r of rows) byYearMap.set(r.yr, (byYearMap.get(r.yr) || 0) + Number(r.cents));
+  const byYear = [...byYearMap.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([y, cents]) => ({ year: y, cents }));
+
+  // Everything else is for the selected year only.
+  const inYear = rows.filter(r => r.yr === year);
+  const byTypeMap = new Map();
+  for (const r of inYear) byTypeMap.set(r.category, (byTypeMap.get(r.category) || 0) + Number(r.cents));
+  const byType = [...byTypeMap.entries()].sort((a, b) => b[1] - a[1])
+    .map(([type, cents]) => ({ type, cents }));
+
+  const monthCents = Array(12).fill(0);
+  for (const r of inYear) { const m = Number(r.mo); if (m >= 1 && m <= 12) monthCents[m - 1] += Number(r.cents); }
+  const byMonth = monthCents.map((cents, i) => ({ month: String(i + 1).padStart(2, '0'), cents }));
+
+  const total = inYear.reduce((s, r) => s + Number(r.cents), 0);
+  const claims = new Set(inYear.map(r => r.cid)).size;
+  const top = byType[0] || null;
+  const kpis = {
+    total_cents: total,
+    claims,
+    avg_cents: claims ? Math.round(total / claims) : 0,
+    top_type: top ? top.type : '',
+    top_share: top && total ? Math.round((top.cents / total) * 100) : 0
+  };
+
+  // Department options for the filter dropdown (see-all viewers only).
+  let departments = [];
+  if (seeAll) {
+    const drows = await q(
+      `SELECT DISTINCT department FROM (
+         SELECT department FROM claims UNION SELECT department FROM meal_claims
+       ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`);
+    departments = drows.map(r => r.department);
+  }
+
+  res.json({
+    scope: { all: seeAll, department: seeAll ? (deptFilter || null) : (ownDept || null) },
+    currency: 'IDR',
+    year, years, status: statuses, db, departments,
+    byType, byMonth, byYear, kpis
+  });
+}));
+
 // Export both reimbursement claims and meal allowance claims in one CSV.
 // Filters: `status` (comma-separated, any of the four), `from`/`to` (inclusive,
 // applied to each row's expense/meal date), and `types` (comma-separated:

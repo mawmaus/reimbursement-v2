@@ -15,6 +15,10 @@ const state = {
   // dir 1 = ascending, -1 = descending.
   sort: { key: '', dir: 1 },
   lookups: { departments: [], expense_types: [] },
+  // Insights view: active filters, the "monthly vs yearly" trend toggle, and the
+  // last payload from /api/insights (kept so the trend toggle re-renders without
+  // a refetch).
+  insights: { year: '', department: '', db: '', status: 'approved,paid', trend: 'month', data: null },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
   selected: new Set()
@@ -52,6 +56,16 @@ function money(amount, currency) {
   try {
     return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'IDR' }).format(amount);
   } catch { return `${currency || ''} ${Number(amount).toLocaleString()}`; }
+}
+// Compact currency for chart axes / KPI headline numbers, e.g. "IDR 84.2M".
+// Matches money()'s locale/currency convention so the Insights view reads the
+// same as the rest of the app. Amounts are in whole currency units (not cents).
+function moneyShort(amount, currency) {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency', currency: currency || 'IDR', notation: 'compact', maximumFractionDigits: 1
+    }).format(amount || 0);
+  } catch { return `${currency || ''} ${Number(amount || 0).toLocaleString()}`; }
 }
 function fmtBytes(b) {
   if (b < 1024) return b + ' B';
@@ -374,14 +388,20 @@ function renderHome() {
     { key: 'approved', title: 'Approved by me', desc: 'Claims you approved — revert if needed', count: approved }
   ];
   if (u.role === 'superadmin') tiles.push({ key: 'all', title: 'All activities', desc: 'Every claim in the system', count: state.claims.length });
+  // Insights is open to everyone; the backend scopes the data (company-wide for
+  // super admins / Finance / GM-and-above, own department for everyone else).
+  tiles.push({ key: 'insights', title: 'Insights', desc: 'Expense trends by type, month and year', link: 'View charts' });
   menu.innerHTML = tiles.map(t => `
-    <button class="home-tile" data-view="${t.key}" type="button">
+    <button class="home-tile${t.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${t.key}" type="button">
       ${t.badge && t.count > 0 ? `<span class="tile-badge" aria-label="${t.count} awaiting approval">${t.count > 99 ? '99+' : t.count}</span>` : ''}
       <span class="tile-title">${esc(t.title)}</span>
       <span class="tile-desc">${esc(t.desc)}</span>
-      <span class="tile-count">${t.count} ${t.count === 1 ? 'claim' : 'claims'}</span>
+      <span class="tile-count">${t.link ? esc(t.link) + ' →' : `${t.count} ${t.count === 1 ? 'claim' : 'claims'}`}</span>
     </button>`).join('');
-  $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => openView(el.dataset.view)));
+  $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => {
+    const v = el.dataset.view;
+    if (v === 'insights') openInsights(); else openView(v);
+  }));
 }
 
 // Open one list view; go back to the clean menu.
@@ -400,8 +420,232 @@ function goHome() {
   const si = $('#searchInput'); if (si) si.value = '';
   const sf = $('#statusFilter'); if (sf) sf.value = '';
   $('#listView').hidden = true;
+  const iv = $('#insightsView'); if (iv) iv.hidden = true;
   $('#homeView').hidden = false;
   loadClaims(); // refetch unfiltered, then renderHome via loadClaims
+}
+
+// ---------------------------------------------------------------------------
+// Insights (expense charts)
+// ---------------------------------------------------------------------------
+$('#backHomeInsights').addEventListener('click', goHome);
+
+// Status presets offered in the Insights filter. "Approved + paid" is the
+// default — it reflects real outflow (money that's been committed or moved).
+const INSIGHT_STATUS_PRESETS = [
+  { v: 'approved,paid', l: 'Approved + paid' },
+  { v: 'paid', l: 'Paid only' },
+  { v: 'approved', l: 'Approved only' },
+  { v: 'submitted,approved,paid', l: 'All except rejected' },
+  { v: 'submitted,approved,rejected,paid', l: 'All statuses' }
+];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function openInsights() {
+  state.view = 'insights';
+  $('#homeView').hidden = true;
+  $('#listView').hidden = true;
+  $('#insightsView').hidden = false;
+  loadInsights();
+}
+
+async function loadInsights() {
+  const body = $('#insightsBody');
+  body.innerHTML = '<p class="muted" style="padding:28px 4px">Loading…</p>';
+  const f = state.insights;
+  const params = new URLSearchParams();
+  if (f.year) params.set('year', f.year);
+  if (f.department) params.set('department', f.department);
+  if (f.db) params.set('db', f.db);
+  if (f.status) params.set('status', f.status);
+  try {
+    const data = await api('/insights?' + params.toString());
+    state.insights.data = data;
+    state.insights.year = data.year || ''; // server may resolve to the latest year
+    if (!data.scope.all) state.insights.department = '';
+    renderInsights();
+  } catch (ex) {
+    body.innerHTML = `<p class="form-error" style="margin:16px 0">${esc(ex.message)}</p>`;
+  }
+}
+
+function renderInsights() {
+  const d = state.insights.data;
+  if (!d) return;
+  const f = state.insights;
+  const cur = d.currency || 'IDR';
+
+  // Scope note in the header.
+  const scopeEl = $('#insightsScope');
+  scopeEl.textContent = d.scope.all
+    ? (d.scope.department ? `${d.scope.department} department` : 'Company-wide')
+    : `${d.scope.department || 'Your department'} only`;
+
+  const yearOpts = (d.years.length ? d.years : [d.year])
+    .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');
+  const deptOpts = ['<option value="">All departments</option>']
+    .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
+  const statusOpts = INSIGHT_STATUS_PRESETS
+    .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${o.l}</option>`).join('');
+
+  const k = d.kpis;
+  const kpiCards = [
+    { l: 'Total spend', v: moneyShort(k.total_cents / 100, cur) },
+    { l: 'Claims', v: String(k.claims) },
+    { l: 'Top category', v: k.top_type ? `${esc(k.top_type)} <span class="kpi-sub">${k.top_share}%</span>` : '—' },
+    { l: 'Avg per claim', v: k.claims ? moneyShort(k.avg_cents / 100, cur) : '—' }
+  ].map(c => `<div class="kpi"><div class="kpi-l">${c.l}</div><div class="kpi-v">${c.v}</div></div>`).join('');
+
+  $('#insightsBody').innerHTML = `
+    <div class="insights-filters">
+      <label>Year<select id="inYear" class="input">${yearOpts}</select></label>
+      ${d.scope.all ? `<label>Department<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
+      <label>DB No<input id="inDb" class="input" type="search" placeholder="Filter by DB…" value="${esc(f.db)}" /></label>
+      <label>Status<select id="inStatus" class="input">${statusOpts}</select></label>
+    </div>
+    <div class="insights-kpis">${kpiCards}</div>
+    <div class="insights-charts">
+      <div class="chart-card">
+        <div class="chart-head"><div>
+          <div class="chart-title">Spend by expense type</div>
+          <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))}</div>
+        </div></div>
+        <div id="typeBars" class="type-bars"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <div>
+            <div class="chart-title">Total over time</div>
+            <div class="chart-sub" id="trendSub"></div>
+          </div>
+          <div class="seg" id="trendSeg">
+            <button type="button" data-trend="month"${f.trend === 'month' ? ' class="on"' : ''}>Monthly</button>
+            <button type="button" data-trend="year"${f.trend === 'year' ? ' class="on"' : ''}>Yearly</button>
+          </div>
+        </div>
+        <div id="trendChart" class="trend-chart"></div>
+      </div>
+    </div>`;
+
+  renderTypeBars();
+  renderTrend();
+
+  // Filters — Year / Department / Status refetch; DB refetches on change (Enter
+  // or blur) so we don't hit the server on every keystroke.
+  $('#inYear').addEventListener('change', e => { f.year = e.target.value; loadInsights(); });
+  const dept = $('#inDept'); if (dept) dept.addEventListener('change', e => { f.department = e.target.value; loadInsights(); });
+  $('#inStatus').addEventListener('change', e => { f.status = e.target.value; loadInsights(); });
+  const db = $('#inDb');
+  db.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
+  db.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
+
+  $$('#trendSeg button').forEach(b => b.addEventListener('click', () => {
+    if (f.trend === b.dataset.trend) return;
+    f.trend = b.dataset.trend;
+    $$('#trendSeg button').forEach(x => x.classList.toggle('on', x.dataset.trend === f.trend));
+    renderTrend();
+  }));
+}
+
+function currentStatusLabel(v) {
+  const p = INSIGHT_STATUS_PRESETS.find(o => o.v === v);
+  return p ? p.l.toLowerCase() : v;
+}
+
+// Horizontal bars for spend-by-type. Long tails past 10 rows fold into "Other".
+function renderTypeBars() {
+  const d = state.insights.data;
+  const cur = d.currency || 'IDR';
+  const wrap = $('#typeBars');
+  let items = d.byType.slice();
+  if (!items.length) {
+    wrap.innerHTML = '<p class="muted chart-empty">No expenses match these filters.</p>';
+    return;
+  }
+  if (items.length > 10) {
+    const head = items.slice(0, 9);
+    const rest = items.slice(9).reduce((s, x) => s + x.cents, 0);
+    head.push({ type: 'Other', cents: rest });
+    items = head;
+  }
+  const max = Math.max(...items.map(i => i.cents), 1);
+  wrap.innerHTML = items.map(i => {
+    const pct = Math.max(2, Math.round((i.cents / max) * 100));
+    return `<div class="bar-row">
+      <span class="bar-label" title="${esc(i.type)}">${esc(i.type)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
+      <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}</span>
+    </div>`;
+  }).join('');
+}
+
+// A dependency-free SVG line/area chart for the monthly / yearly trend, with a
+// hover tooltip. Inline SVG inherits the theme CSS variables (var(--pine) etc.).
+function renderTrend() {
+  const d = state.insights.data;
+  const cur = d.currency || 'IDR';
+  const monthly = state.insights.trend === 'month';
+  const points = monthly
+    ? d.byMonth.map((m, i) => ({ label: MONTH_LABELS[i], value: m.cents / 100 }))
+    : d.byYear.map(y => ({ label: y.year, value: y.cents / 100 }));
+
+  const sub = $('#trendSub');
+  if (sub) sub.textContent = monthly ? `${d.year} · by month` : 'All years';
+
+  const host = $('#trendChart');
+  const hasData = points.some(p => p.value > 0);
+  if (!points.length || !hasData) {
+    host.innerHTML = '<p class="muted chart-empty">No expenses to plot for this period.</p>';
+    return;
+  }
+
+  const W = 720, H = 240, padL = 10, padR = 12, padT = 16, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = Math.max(...points.map(p => p.value), 1);
+  const n = points.length;
+  const xAt = i => padL + (n <= 1 ? plotW / 2 : (plotW * i) / (n - 1));
+  const yAt = v => padT + plotH * (1 - v / max);
+
+  // Three light horizontal gridlines + the baseline.
+  let grid = '';
+  for (let g = 0; g <= 3; g++) {
+    const gy = padT + (plotH * g) / 3;
+    grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" class="grid" />`;
+  }
+  const line = points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.value).toFixed(1)}`).join(' ');
+  const area = `M ${xAt(0).toFixed(1)},${(padT + plotH).toFixed(1)} L ${line.split(' ').join(' L ')} L ${xAt(n - 1).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
+  const dots = points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="3.5" class="dot" />`).join('');
+  const xlabels = points.map((p, i) =>
+    `<text x="${xAt(i).toFixed(1)}" y="${H - 8}" class="ax" text-anchor="middle">${esc(p.label)}</text>`).join('');
+  // Larger transparent hit targets drive the hover tooltip.
+  const hits = points.map((p, i) =>
+    `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="16" fill="transparent"
+       data-x="${((xAt(i) / W) * 100).toFixed(2)}" data-y="${((yAt(p.value) / H) * 100).toFixed(2)}"
+       data-lab="${esc(p.label)}" data-val="${esc(money(p.value, cur))}" class="hit" />`).join('');
+
+  host.innerHTML = `
+    <div class="trend-tip" id="trendTip" hidden></div>
+    <svg viewBox="0 0 ${W} ${H}" class="trend-svg" preserveAspectRatio="none" role="img"
+         aria-label="${monthly ? 'Monthly' : 'Yearly'} expense total for ${esc(d.year)}">
+      ${grid}
+      <text x="${padL}" y="${padT - 4}" class="ax ax-max">${esc(moneyShort(max, cur))}</text>
+      <path d="${area}" class="area" />
+      <polyline points="${line}" class="line" />
+      ${dots}
+      ${xlabels}
+      ${hits}
+    </svg>`;
+
+  const tip = $('#trendTip');
+  $$('#trendChart .hit').forEach(h => {
+    h.addEventListener('mouseenter', () => {
+      tip.innerHTML = `<span class="tip-lab">${h.dataset.lab}</span><span class="tip-val">${h.dataset.val}</span>`;
+      tip.style.left = h.dataset.x + '%';
+      tip.style.top = h.dataset.y + '%';
+      tip.hidden = false;
+    });
+    h.addEventListener('mouseleave', () => { tip.hidden = true; });
+  });
 }
 
 // Per-column sort value extractors (mirror the ledger columns). Numeric for
