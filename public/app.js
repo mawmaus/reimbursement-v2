@@ -7,6 +7,9 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
 
 const state = {
   user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
+  // Active column sort for the ledger. key '' = server default (newest first);
+  // dir 1 = ascending, -1 = descending.
+  sort: { key: '', dir: 1 },
   lookups: { departments: [], expense_types: [] },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
@@ -298,9 +301,52 @@ function visibleClaims() {
   return cl ? state.claims.filter(c => c.claimant_name === cl) : state.claims;
 }
 
+// Per-column sort value extractors (mirror the ledger columns). Numeric for
+// amount; everything else compares as text (with numeric-aware collation so
+// "DB 500 309" and claim numbers order naturally).
+const SORT_VAL = {
+  no: c => c.claim_no || '',
+  name: c => c.claimant_name || '',
+  db: c => rowView(c).db || '',
+  type: c => rowView(c).typeLabel || '',
+  date: c => rowView(c).date || '',
+  amount: c => Number(rowView(c).amount) || 0,
+  status: c => STATUS_LABEL[c.status] || c.status || ''
+};
+function sortClaims(claims) {
+  const { key, dir } = state.sort;
+  if (!key || !SORT_VAL[key]) return claims;
+  const val = SORT_VAL[key];
+  return [...claims].sort((a, b) => {
+    const av = val(a), bv = val(b);
+    const cmp = (typeof av === 'number' && typeof bv === 'number')
+      ? av - bv
+      : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' });
+    return cmp * dir;
+  });
+}
+// Reflect the active sort on the header (cursor + ▲/▼ via aria-sort in CSS).
+function updateSortIndicators() {
+  $$('.ledger-head [data-sort]').forEach(h => {
+    if (h.dataset.sort === state.sort.key) h.setAttribute('aria-sort', state.sort.dir === 1 ? 'ascending' : 'descending');
+    else h.removeAttribute('aria-sort');
+  });
+}
+$$('.ledger-head [data-sort]').forEach(h => {
+  const toggle = () => {
+    const key = h.dataset.sort;
+    if (state.sort.key === key) state.sort.dir *= -1;
+    else state.sort = { key, dir: 1 };
+    updateSortIndicators();
+    renderClaims();
+  };
+  h.addEventListener('click', toggle);
+  h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+});
+
 function renderClaims() {
   const wrap = $('#claimRows');
-  const claims = visibleClaims();
+  const claims = sortClaims(visibleClaims());
   if (!claims.length) { wrap.innerHTML = ''; $('#emptyState').hidden = false; updateSelectionUI(); renderSummaryCards(); return; }
   $('#emptyState').hidden = true;
   wrap.innerHTML = claims.map(c => {

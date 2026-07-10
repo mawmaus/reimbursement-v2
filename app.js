@@ -625,7 +625,7 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
     const like = `%${search}%`;
     params.push(like);
     const p = `$${params.length}`;
-    where.push(`(claim_no ILIKE ${p} OR claimant_name ILIKE ${p} OR recipient_name ILIKE ${p} OR expense_type ILIKE ${p})`);
+    where.push(`(claim_no ILIKE ${p} OR claimant_name ILIKE ${p} OR recipient_name ILIKE ${p} OR expense_type ILIKE ${p} OR db_no ILIKE ${p})`);
   }
   const rows = await q(
     `SELECT * FROM claims ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
@@ -1022,7 +1022,9 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   if (search) {
     params.push(`%${search}%`);
     const p = `$${params.length}`;
-    where.push(`(claim_no ILIKE ${p} OR claimant_name ILIKE ${p})`);
+    // Meal claims carry the DB number per line (meal_claim_lines.site), so search
+    // it via EXISTS in addition to the header fields.
+    where.push(`(claim_no ILIKE ${p} OR claimant_name ILIKE ${p} OR EXISTS (SELECT 1 FROM meal_claim_lines l WHERE l.meal_claim_id = meal_claims.id AND l.site ILIKE ${p}))`);
   }
   const rows = await q(
     `SELECT * FROM meal_claims ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
