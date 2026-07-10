@@ -264,9 +264,11 @@ async function loadClaims() {
 function rowView(c) {
   if (c.type === 'meal') {
     const first = (c.lines && c.lines[0] && c.lines[0].line_date) || (c.created_at || '').slice(0, 10);
-    return { typeLabel: 'Meal allowance', date: first, amount: c.total_amount };
+    // Meal claims carry a "DB number site" per line; surface the first one.
+    const site = (c.lines && c.lines[0] && c.lines[0].site) || '';
+    return { typeLabel: 'Meal allowance', date: first, amount: c.total_amount, db: site };
   }
-  return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount };
+  return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount, db: c.db_no || '' };
 }
 
 function renderDeptOptions() {
@@ -310,6 +312,7 @@ function renderClaims() {
       <span class="col-check"><input type="checkbox" class="row-check" data-id="${c.id}" data-type="${c.type}" ${checked} aria-label="Select ${esc(c.claim_no)}" /></span>
       <span class="col-no">${esc(c.claim_no)}</span>
       <span class="col-name">${esc(c.claimant_name)}</span>
+      <span class="col-db mono">${esc(v.db) || '—'}</span>
       <span class="col-type">${esc(v.typeLabel)}</span>
       <span class="col-date mono">${esc(v.date)}</span>
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
