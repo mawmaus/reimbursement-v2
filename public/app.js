@@ -8,7 +8,8 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
 const state = {
   user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
   // Which list is open: 'home' (clean landing, no list), 'mine' (claims I
-  // submitted), 'approval' (awaiting my decision), or 'all' (super admin only).
+  // submitted), 'approval' (awaiting my decision), 'approved' (claims I approved
+  // that I can still revert), or 'all' (super admin only).
   view: 'home',
   // Active column sort for the ledger. key '' = server default (newest first);
   // dir 1 = ascending, -1 = descending.
@@ -316,10 +317,28 @@ function isMyTurn(c) {
 const myClaims = () => state.claims.filter(c => c.employee_id === (state.user && state.user.id));
 const approvalQueue = () => state.claims.filter(isMyTurn);
 
+// Claims I have already approved and can still revert (undo my approval).
+// After I approve, a claim leaves my "Needs my approval" queue, so this is where
+// I find it again if I approved by mistake. Mirrors the server's planRevert for
+// the two "I approved this" cases: a submitted claim that has advanced past me
+// (I signed off the immediately-previous step), or a fully approved claim where
+// I was the final approver. Role-agnostic, like isMyTurn.
+function approvedByMe(c) {
+  if (!state.user) return false;
+  const uid = state.user.id;
+  const ids = (c.approvers || []).map(a => a.id);
+  const step = c.current_step || 0;
+  if (c.status === 'submitted' && step > 1) return ids[step - 2] === uid;
+  if (c.status === 'approved') return c.manager_id === uid;
+  return false;
+}
+const approvedByMeQueue = () => state.claims.filter(approvedByMe);
+
 // Claims for the open view, before the client-side claimant filter.
 function viewClaims() {
   if (state.view === 'mine') return myClaims();
   if (state.view === 'approval') return approvalQueue();
+  if (state.view === 'approved') return approvedByMeQueue();
   return state.claims; // 'all' / 'home'
 }
 
@@ -331,10 +350,11 @@ function visibleClaims() {
 }
 
 // --- Home menu (clean landing) ----------------------------------------------
-const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', all: 'All activities' };
+const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', all: 'All activities' };
 const VIEW_EMPTY = {
   mine: 'You have not submitted any claims yet.',
   approval: 'Nothing is waiting for your approval right now.',
+  approved: 'You have not approved any claims that are still open to revert.',
   all: 'No claims in the system yet.'
 };
 function renderHome() {
@@ -344,9 +364,14 @@ function renderHome() {
   $('#homeGreeting').textContent = u.full_name ? `Hi ${u.full_name.split(' ')[0]} — what would you like to open?` : '';
   const need = approvalQueue().length;
   const mine = myClaims().length;
+  const approved = approvedByMeQueue().length;
   const tiles = [
     { key: 'mine', title: 'My claims', desc: 'Claims you have submitted', count: mine },
-    { key: 'approval', title: 'Needs my approval', desc: 'Claims waiting for your decision', count: need, badge: true }
+    { key: 'approval', title: 'Needs my approval', desc: 'Claims waiting for your decision', count: need, badge: true },
+    // The revert safety net: claims I signed off that I can still undo. Shown
+    // alongside "Needs my approval" (both are approver-facing) so a mis-approval
+    // is always one click away from being reverted.
+    { key: 'approved', title: 'Approved by me', desc: 'Claims you approved — revert if needed', count: approved }
   ];
   if (u.role === 'superadmin') tiles.push({ key: 'all', title: 'All activities', desc: 'Every claim in the system', count: state.claims.length });
   menu.innerHTML = tiles.map(t => `
