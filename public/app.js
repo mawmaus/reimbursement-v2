@@ -157,10 +157,15 @@ function showApp() {
   $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
   // Only super admins can delete claims (used to clear out test data).
   $('#deleteSelBtn').hidden = !isSuper;
-  // Land on the clean menu; a tile opens the corresponding list.
+  // Land on the clean menu; a tile opens the corresponding list. Reset the
+  // Insights view and its state too — this runs on every login, and in the SPA a
+  // logout→login in the same tab must never leave the previous user's Insights
+  // (data scoped to *them*) on screen for the next account.
   state.view = 'home';
   $('#homeView').hidden = false;
   $('#listView').hidden = true;
+  $('#insightsView').hidden = true;
+  state.insights = { year: '', department: '', db: '', status: 'approved,paid', trend: 'month', data: null };
   loadLookups();
   loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
