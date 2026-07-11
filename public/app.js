@@ -1425,26 +1425,86 @@ function expenseTypeField(value) {
   }
   const isOther = !!cur && !options.some(o => o.toLowerCase() === cur.toLowerCase());
   const selectVal = isOther ? 'Others' : cur;
+  // A searchable combobox: a text box filters the list, and a hidden input holds
+  // the chosen value (so form submission + the "Others" flow are unchanged). The
+  // hidden field is validated in submitClaim, not via native `required`.
   return `<label>Type of expense
-      <select name="expense_type" id="expType" required>
-        <option value="" ${cur ? '' : 'selected'} disabled>Select…</option>
-        ${options.map(o => `<option value="${esc(o)}" ${o === selectVal ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-        <option value="Others" ${selectVal === 'Others' ? 'selected' : ''}>Others</option>
-      </select></label>
+      <div class="combo" id="expCombo">
+        <input type="text" id="expSearch" class="combo-input" role="combobox"
+               aria-autocomplete="list" aria-expanded="false" aria-controls="expList"
+               autocomplete="off" placeholder="Search or select…" value="${esc(selectVal)}" />
+        <input type="hidden" name="expense_type" id="expType" value="${esc(selectVal)}" />
+        <ul class="combo-list" id="expList" role="listbox" hidden></ul>
+      </div></label>
     <label class="full" id="expOtherWrap" ${isOther ? '' : 'hidden'}>Please specify the expense type
       <input name="expense_type_other" id="expOther" value="${isOther ? esc(cur) : ''}" placeholder="Enter the expense type" /></label>`;
 }
+// Wire the expense-type combobox: filter-as-you-type, click/keyboard select, and
+// the "Others" free-text reveal. Options are the configured types plus "Others".
 function wireExpenseTypeField() {
-  const sel = $('#expType');
-  if (!sel) return;
+  const search = $('#expSearch');
+  if (!search) return; // no-options fallback renders a plain text input
+  const hidden = $('#expType'), list = $('#expList'), combo = $('#expCombo');
   const wrap = $('#expOtherWrap'), other = $('#expOther');
-  const sync = () => {
-    const on = sel.value === 'Others';
+  const OPTIONS = state.lookups.expense_types.concat(['Others']);
+  let filtered = OPTIONS.slice();
+  let active = -1;
+
+  const syncOther = () => {
+    const on = hidden.value === 'Others';
     wrap.hidden = !on;
     if (other) other.required = on;
   };
-  sel.addEventListener('change', () => { sync(); if (sel.value === 'Others' && other) other.focus(); });
-  sync();
+  const render = () => {
+    list.innerHTML = filtered.length
+      ? filtered.map((o, i) => `<li class="combo-item${i === active ? ' active' : ''}" role="option"
+          data-val="${esc(o)}" aria-selected="${o === hidden.value}">${esc(o)}</li>`).join('')
+      : '<li class="combo-empty" aria-disabled="true">No matches</li>';
+  };
+  const open = () => { list.hidden = false; search.setAttribute('aria-expanded', 'true'); combo.classList.add('open'); };
+  const close = () => { list.hidden = true; search.setAttribute('aria-expanded', 'false'); combo.classList.remove('open'); active = -1; };
+  const filter = (term) => {
+    const t = term.trim().toLowerCase();
+    filtered = t ? OPTIONS.filter(o => o.toLowerCase().includes(t)) : OPTIONS.slice();
+    active = filtered.length ? 0 : -1;
+    render();
+  };
+  const commit = (val) => {
+    hidden.value = val; search.value = val;
+    syncOther(); close();
+    if (val === 'Others' && other) other.focus();
+  };
+  const scrollActive = () => { const el = list.querySelector('.combo-item.active'); if (el) el.scrollIntoView({ block: 'nearest' }); };
+
+  search.addEventListener('focus', () => { filter(''); search.select(); open(); });
+  search.addEventListener('input', () => { filter(search.value); open(); });
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (list.hidden) { filter(search.value); open(); } else { active = Math.min(active + 1, filtered.length - 1); render(); }
+      scrollActive();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault(); active = Math.max(active - 1, 0); render(); scrollActive();
+    } else if (e.key === 'Enter') {
+      if (!list.hidden && active >= 0 && filtered[active]) { e.preventDefault(); commit(filtered[active]); }
+    } else if (e.key === 'Escape') {
+      if (!list.hidden) { e.preventDefault(); close(); }
+    }
+  });
+  // mousedown (not click) so it fires before the input's blur, avoiding a race.
+  list.addEventListener('mousedown', (e) => {
+    const li = e.target.closest('.combo-item');
+    if (!li) return;
+    e.preventDefault();
+    commit(li.dataset.val);
+  });
+  // On blur, snap the visible text back to the committed value (never leave a
+  // half-typed non-selection on screen).
+  search.addEventListener('blur', () => setTimeout(() => {
+    if (document.activeElement !== search) { search.value = hidden.value; close(); }
+  }, 0));
+
+  syncOther();
 }
 
 // Optional inline calculator on the claim form: a running tally that lets a
@@ -1681,12 +1741,17 @@ async function submitClaim(e, existing) {
   e.preventDefault();
   const err = $('#claimError'); err.hidden = true;
   const fd = new FormData(e.target);
-  // Resolve an "Others" expense type to the free-text value the user entered.
-  if (fd.get('expense_type') === 'Others') {
+  // Resolve the expense type. "Others" uses the free-text value; the combobox has
+  // no native `required`, so an empty pick is caught here.
+  let type = String(fd.get('expense_type') || '').trim();
+  if (type === 'Others') {
     const other = String(fd.get('expense_type_other') || '').trim();
     if (!other) { err.textContent = 'Please specify the expense type.'; err.hidden = false; return; }
-    fd.set('expense_type', other);
+    type = other;
+  } else if (!type) {
+    err.textContent = 'Please choose the type of expense.'; err.hidden = false; return;
   }
+  fd.set('expense_type', type);
   fd.delete('expense_type_other');
   pendingFiles.forEach(f => fd.append('files', f));
   const btn = e.target.querySelector('button[type="submit"]');

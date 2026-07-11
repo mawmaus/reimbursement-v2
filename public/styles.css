@@ -450,6 +450,30 @@ input[type="search"] { min-width: 220px; }
 .amount-calc-btn:hover { background: var(--pine-tint); color: var(--pine-deep); }
 .amount-calc-btn[aria-expanded="true"] { background: var(--pine-tint); color: var(--pine-deep); }
 
+/* Searchable combobox (expense type) — a filter input plus a dropdown list,
+   backed by a hidden field that carries the value. */
+.combo { position: relative; }
+.combo .combo-input { width: 100%; padding-right: 32px; cursor: text; }
+.combo::after {
+  content: ""; position: absolute; right: 13px; top: 50%; width: 7px; height: 7px;
+  transform: translateY(-70%) rotate(45deg);
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  pointer-events: none; transition: transform .15s;
+}
+.combo.open::after { transform: translateY(-30%) rotate(225deg); }
+.combo-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 40; margin: 0; padding: 4px;
+  list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow); max-height: 240px; overflow-y: auto;
+}
+.combo-item {
+  padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: .9rem; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.combo-item:hover, .combo-item.active { background: var(--pine-tint); color: var(--pine-deep); }
+.combo-item[aria-selected="true"] { font-weight: 650; }
+.combo-empty { padding: 8px 10px; color: var(--muted); font-size: .85rem; }
+
 /* Inline "sum your claim" calculator */
 .calc-panel {
   margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
