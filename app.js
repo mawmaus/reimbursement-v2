@@ -1325,12 +1325,17 @@ const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 // Aggregated spend for the Insights view. Reimbursement claims and meal
 // allowances are folded into one dataset: meal allowances appear as the category
 // "Meal allowance", grouped by each line item's date (a meal claim has no single
-// expense date). Everything is grouped by expense date. Visibility follows
-// insightsSeeAll — company-wide for super admins, Finance, and GM-and-above;
-// otherwise pinned to the viewer's own department. Filters: `year`, `department`
-// (honoured only for see-all viewers), `db` (DB-number substring — DB lives on
-// claims.db_no and, for meals, on each line's `site`), and `status`
-// (comma-separated; defaults to approved + paid, i.e. real outflow).
+// expense date). Everything is grouped by expense date.
+//
+// Scope depends on the viewer (see insightsSeeAll / insightsCanView):
+//   • super admins, Finance (any position), and General Manager and above see
+//     ALL transactions company-wide;
+//   • everyone else who may view (below GM, above Assistant Supervisor) sees only
+//     the claims they approve — i.e. claims on which they are one of the
+//     approvers, across whatever departments those claims belong to.
+// Filters: `year`, `department` (narrows within the viewer's scope), `db`
+// (DB-number substring — DB lives on claims.db_no and, for meals, on each line's
+// `site`), and `status` (comma-separated; defaults to approved + paid).
 const INSIGHT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const pos = await loadPositions();
@@ -1338,15 +1343,13 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
     return res.status(403).json({ error: 'You do not have access to insights' });
   }
   const seeAll = insightsSeeAll(req.user, pos);
-  const ownDept = String(req.user.department || '').trim();
+  const mode = seeAll ? 'all' : 'approver';
 
   let statuses = String(req.query.status || '').split(',').map(s => s.trim())
     .filter(s => INSIGHT_STATUSES.includes(s));
   if (!statuses.length) statuses = ['approved', 'paid'];
 
-  // See-all viewers may narrow to one department; everyone else is pinned to
-  // their own. A pinned viewer with no department sees nothing.
-  const deptFilter = seeAll ? String(req.query.department || '').trim() : ownDept;
+  const deptFilter = String(req.query.department || '').trim();
   const db = String(req.query.db || '').trim();
 
   const params = [];
@@ -1354,22 +1357,25 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const ph = statuses.map(s => { params.push(s); return `$${params.length}`; }).join(',');
   where.push(`status IN (${ph})`);
   where.push(`d ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`);
+  // Approver-scoped viewers only see claims they approve; see-all viewers have no
+  // such restriction. (`appr` is the claim's approver_ids array; Postgres arrays
+  // are surfaced through the UNION below.)
+  if (mode === 'approver') { params.push(req.user.id); where.push(`$${params.length} = ANY(appr)`); }
   if (deptFilter) { params.push(deptFilter); where.push(`lower(department) = lower($${params.length})`); }
   if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
-  // A non-see-all viewer whose account has no department must never see the
-  // whole company, so short-circuit to an empty result set.
-  const noScope = !seeAll && !ownDept;
 
-  const rows = noScope ? [] : await q(
+  const rows = await q(
     `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo,
             cents::bigint AS cents, cid
        FROM (
          SELECT expense_type AS category, department, expense_date AS d,
-                amount_cents AS cents, status, COALESCE(db_no,'') AS db, 'c' || id AS cid
+                amount_cents AS cents, status, COALESCE(db_no,'') AS db, 'c' || id AS cid,
+                approver_ids AS appr
            FROM claims
          UNION ALL
          SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
-                l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid
+                l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
+                m.approver_ids AS appr
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
        ) ev
       WHERE ${where.join(' AND ')}`, params);
@@ -1410,18 +1416,24 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
     top_share: top && total ? Math.round((top.cents / total) * 100) : 0
   };
 
-  // Department options for the filter dropdown (see-all viewers only).
-  let departments = [];
-  if (seeAll) {
-    const drows = await q(
-      `SELECT DISTINCT department FROM (
-         SELECT department FROM claims UNION SELECT department FROM meal_claims
-       ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`);
-    departments = drows.map(r => r.department);
-  }
+  // Department options for the filter dropdown. See-all viewers get every
+  // department; approver-scoped viewers get only the departments among the claims
+  // they approve (e.g. an approver over Technician + After Sales sees both).
+  const drows = seeAll
+    ? await q(
+        `SELECT DISTINCT department FROM (
+           SELECT department FROM claims UNION SELECT department FROM meal_claims
+         ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`)
+    : await q(
+        `SELECT DISTINCT department FROM (
+           SELECT department FROM claims      WHERE $1 = ANY(approver_ids)
+           UNION
+           SELECT department FROM meal_claims WHERE $1 = ANY(approver_ids)
+         ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`, [req.user.id]);
+  const departments = drows.map(r => r.department);
 
   res.json({
-    scope: { all: seeAll, department: seeAll ? (deptFilter || null) : (ownDept || null) },
+    scope: { mode, department: deptFilter || null },
     currency: 'IDR',
     year, years, status: statuses, db, departments,
     byType, byMonth, byYear, kpis

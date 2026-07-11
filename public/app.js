@@ -466,7 +466,8 @@ async function loadInsights() {
     const data = await api('/insights?' + params.toString());
     state.insights.data = data;
     state.insights.year = data.year || ''; // server may resolve to the latest year
-    if (!data.scope.all) state.insights.department = '';
+    // Drop a department filter that isn't in this viewer's scope any more.
+    if (f.department && !data.departments.includes(f.department)) state.insights.department = '';
     renderInsights();
   } catch (ex) {
     body.innerHTML = `<p class="form-error" style="margin:16px 0">${esc(ex.message)}</p>`;
@@ -479,11 +480,12 @@ function renderInsights() {
   const f = state.insights;
   const cur = d.currency || 'IDR';
 
-  // Scope note in the header.
+  // Scope note in the header: a chosen department wins; otherwise it reflects the
+  // viewer's remit (whole company vs. the claims they approve).
   const scopeEl = $('#insightsScope');
-  scopeEl.textContent = d.scope.all
-    ? (d.scope.department ? `${d.scope.department} department` : 'Company-wide')
-    : `${d.scope.department || 'Your department'} only`;
+  scopeEl.textContent = d.scope.department
+    ? d.scope.department
+    : (d.scope.mode === 'all' ? 'Company-wide' : 'Claims you approve');
 
   const yearOpts = (d.years.length ? d.years : [d.year])
     .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');
@@ -503,7 +505,7 @@ function renderInsights() {
   $('#insightsBody').innerHTML = `
     <div class="insights-filters">
       <label>Year<select id="inYear" class="input">${yearOpts}</select></label>
-      ${d.scope.all ? `<label>Department<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
+      ${d.departments.length ? `<label>Department<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
       <label>DB No<input id="inDb" class="input" type="search" placeholder="Filter by DB…" value="${esc(f.db)}" /></label>
       <label>Status<select id="inStatus" class="input">${statusOpts}</select></label>
     </div>
