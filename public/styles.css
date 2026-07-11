@@ -129,10 +129,12 @@ input[type="search"] { min-width: 220px; }
 /* ---------- Topbar ---------- */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 8px;
   padding: 11px 22px; background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.topbar-left { display: flex; align-items: center; gap: 12px; }
+/* Brand pushes the action group + Sign out to the right; Sign out stays last. */
+.topbar-left { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+.topbar-signout { margin-left: 4px; }
 .topbar-mark { width: 34px; height: 34px; font-size: 1.05rem; border-radius: 9px; }
 .topbar-title { font-weight: 650; letter-spacing: -0.01em; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -727,11 +729,13 @@ input[type="search"] { min-width: 220px; }
 }
 
 @media (max-width: 720px) {
-  /* Topbar: let the actions wrap under the brand instead of overflowing. */
+  /* Topbar: logo top-left, Sign out top-right, everything else wraps below. */
   .topbar { flex-wrap: wrap; gap: 10px 12px; }
+  .topbar-left { order: 1; margin-right: 0; }
+  .topbar-signout { order: 2; margin-left: auto; padding: 9px 14px; min-height: 40px; }
   /* Account name gets its own full-width line, left-aligned under the logo,
      instead of floating in the middle of the button row. */
-  .topbar-right { flex-wrap: wrap; justify-content: flex-start; gap: 10px; width: 100%; }
+  .topbar-right { order: 3; flex-wrap: wrap; justify-content: flex-start; gap: 10px; width: 100%; }
   .user-badge { margin-right: 0; flex-basis: 100%; text-align: left; }
   /* Roomier touch targets so wrapped buttons don't sit shoulder-to-shoulder. */
   .topbar-right .btn-sm { padding: 9px 14px; min-height: 40px; }
