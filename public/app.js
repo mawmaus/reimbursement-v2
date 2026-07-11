@@ -388,9 +388,13 @@ function renderHome() {
     { key: 'approved', title: 'Approved by me', desc: 'Claims you approved — revert if needed', count: approved }
   ];
   if (u.role === 'superadmin') tiles.push({ key: 'all', title: 'All activities', desc: 'Every claim in the system', count: state.claims.length });
-  // Insights is open to everyone; the backend scopes the data (company-wide for
-  // super admins / Finance / GM-and-above, own department for everyone else).
-  tiles.push({ key: 'insights', title: 'Insights', desc: 'Expense trends by type, month and year', link: 'View charts' });
+  // Insights is gated to Supervisor-and-above plus all of Finance (see
+  // insightsCanView on the server). Among those, the backend scopes the data:
+  // company-wide for super admins / Finance / GM-and-above, own department for
+  // everyone else.
+  if (u.can_view_insights) {
+    tiles.push({ key: 'insights', title: 'Insights', desc: 'Expense trends by type, month and year', link: 'View charts' });
+  }
   menu.innerHTML = tiles.map(t => `
     <button class="home-tile${t.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${t.key}" type="button">
       ${t.badge && t.count > 0 ? `<span class="tile-badge" aria-label="${t.count} awaiting approval">${t.count > 99 ? '99+' : t.count}</span>` : ''}

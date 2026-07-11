@@ -445,15 +445,33 @@ function canManageAccount(actor, target, pos) {
 // GM's rank is read live from the ladder (super admins can reorder it); if no
 // "General Manager" position exists, fall back to the seeded GM rank (5).
 const GM_FALLBACK_RANK = 5;
+const SUPERVISOR_FALLBACK_RANK = 10;
 const isFinanceDept = (dept) => /financ/i.test(String(dept || ''));
+// True when `user`'s position ranks at or above `posName` (or the given fallback
+// rank if that position isn't on the ladder). rank 1 is the most senior, so
+// "at or above" means a rank number <= the threshold.
+function rankAtLeast(user, pos, posName, fallbackRank) {
+  const t = positionRank(posName, pos);
+  const threshold = t === Infinity ? fallbackRank : t;
+  const r = positionRank(user.position, pos);
+  return r !== Infinity && r <= threshold;
+}
+// Who may open the Insights view at all: super admins, anyone in a Finance
+// department (any position), and any position ranked Supervisor or above.
+function insightsCanView(user, pos) {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  if (isFinanceDept(user.department)) return true;
+  return rankAtLeast(user, pos, 'supervisor', SUPERVISOR_FALLBACK_RANK);
+}
+// Of those who can view, who sees company-wide data vs. only their own
+// department: super admins, Finance, and any position ranked General Manager or
+// above. Everyone else (Supervisor .. below-GM) is scoped to their department.
 function insightsSeeAll(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
   if (isFinanceDept(user.department)) return true;
-  const gm = positionRank('general manager', pos);
-  const gmRank = gm === Infinity ? GM_FALLBACK_RANK : gm;
-  const r = positionRank(user.position, pos);
-  return r !== Infinity && r <= gmRank;
+  return rankAtLeast(user, pos, 'general manager', GM_FALLBACK_RANK);
 }
 
 // ---------------------------------------------------------------------------
@@ -516,7 +534,7 @@ app.post('/api/login', ah(async (req, res) => {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
-    can_manage_accounts: hasDelegation(user, pos)
+    can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos)
   } });
 }));
 
@@ -527,7 +545,7 @@ app.get('/api/me', ah(async (req, res) => {
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
   const pos = await loadPositions();
   res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
-    can_manage_accounts: hasDelegation(u, pos) } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -546,7 +564,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   const u = await loadUser(req);
   const pos = await loadPositions();
   res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
-    can_manage_accounts: hasDelegation(u, pos) } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -1316,6 +1334,9 @@ const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 const INSIGHT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const pos = await loadPositions();
+  if (!insightsCanView(req.user, pos)) {
+    return res.status(403).json({ error: 'You do not have access to insights' });
+  }
   const seeAll = insightsSeeAll(req.user, pos);
   const ownDept = String(req.user.department || '').trim();
 
