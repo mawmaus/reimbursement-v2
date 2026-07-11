@@ -207,9 +207,12 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 $('#logoutBtn').addEventListener('click', async () => {
-  await api('/logout', { method: 'POST' });
-  state.user = null; state.claims = [];
-  showLogin();
+  try { await api('/logout', { method: 'POST' }); } catch { /* clear the session locally regardless */ }
+  // Hard reload on sign-out rather than a client-side view swap. This wipes all
+  // in-memory DOM/state so nothing from the previous account (e.g. their Insights
+  // charts) can linger into the next login, and it guarantees the next session
+  // loads the latest app.js instead of running a stale bundle in the same tab.
+  window.location.replace('/');
 });
 $('#backHome').addEventListener('click', goHome);
 
