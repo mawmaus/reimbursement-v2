@@ -1753,11 +1753,57 @@ function renderChips() {
   }));
 }
 
+// PUT an in-memory blob to a presigned Blob URL via XMLHttpRequest, resolving
+// with the parsed JSON metadata. We use XHR rather than fetch() because iOS
+// Safari reports upload failures as an opaque "Load failed" with no detail; XHR
+// distinguishes network / timeout / HTTP-status errors and reports progress.
+function xhrPut(url, body, contentType, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url, true);
+    xhr.setRequestHeader('content-type', contentType || 'application/octet-stream');
+    xhr.timeout = 120000; // 2 min — generous for a large photo on mobile data
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { reject(new Error('the upload response could not be read')); }
+      } else {
+        reject(new Error(`the storage service returned ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('a network error interrupted the upload'));
+    xhr.ontimeout = () => reject(new Error('the upload timed out'));
+    xhr.onabort = () => reject(new Error('the upload was cancelled'));
+    xhr.send(body);
+  });
+}
+
+// Upload one receipt to its presigned URL. iOS Safari can fail to stream a File
+// backed by a fresh camera capture ("Load failed"), so we read the bytes into an
+// in-memory Blob first — the same read the compression path already does — which
+// sidesteps the bug. Retries once on a transient network/timeout hiccup.
+async function putReceipt(url, file, onProgress) {
+  const buf = await file.arrayBuffer();
+  const type = file.type || 'application/octet-stream';
+  const body = new Blob([buf], { type });
+  try {
+    return await xhrPut(url, body, type, onProgress);
+  } catch (e) {
+    // A single automatic retry smooths over flaky mobile connections. HTTP-status
+    // errors (4xx/5xx) are deterministic, so don't bother retrying those.
+    if (/returned \d/.test(e.message)) throw e;
+    return await xhrPut(url, body, type, onProgress);
+  }
+}
+
 // Upload the chosen receipts straight to Blob storage via short-lived presigned
 // URLs, so large files never pass through the serverless function (whose request
 // body is capped at ~4.5 MB — the old cause of 413 errors). Returns the metadata
 // to attach to the claim. Files are already compressed/validated by addFiles().
-async function uploadReceipts(files) {
+async function uploadReceipts(files, onProgress) {
   if (!files.length) return [];
   const { uploads } = await api('/uploads/presign', {
     method: 'POST',
@@ -1766,13 +1812,13 @@ async function uploadReceipts(files) {
   const out = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
-    const put = await fetch(uploads[i].presignedUrl, {
-      method: 'PUT',
-      headers: { 'content-type': f.type || 'application/octet-stream' },
-      body: f
-    });
-    if (!put.ok) throw new Error(`Couldn't upload ${f.name} — please retry`);
-    const blob = await put.json();
+    let blob;
+    try {
+      blob = await putReceipt(uploads[i].presignedUrl, f,
+        onProgress ? frac => onProgress(i, files.length, frac) : null);
+    } catch (e) {
+      throw new Error(`Couldn't upload ${f.name} — ${e.message}. Please retry.`);
+    }
     out.push({ url: blob.url, original_name: f.name });
   }
   return out;
@@ -1805,7 +1851,10 @@ async function submitClaim(e, existing) {
     // Upload receipts to Blob first, then send the claim as JSON carrying only
     // their metadata — keeping large files off the size-limited API route.
     if (pendingFiles.length) btn.textContent = 'Uploading receipts…';
-    payload.attachments = await uploadReceipts(pendingFiles);
+    payload.attachments = await uploadReceipts(pendingFiles, (idx, total, frac) => {
+      const pct = Math.round(((idx + frac) / total) * 100);
+      btn.textContent = total > 1 ? `Uploading ${idx + 1}/${total}… ${pct}%` : `Uploading… ${pct}%`;
+    });
     btn.textContent = existing ? 'Resubmitting…' : 'Submitting…';
     if (existing) {
       await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
