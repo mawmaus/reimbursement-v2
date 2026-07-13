@@ -1661,7 +1661,11 @@ function isAllowedUpload(f) {
   if (f.type) return f.type === 'application/pdf' || f.type.startsWith('image/');
   return /\.(pdf|jpe?g|png|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(f.name);
 }
-const MAX_UPLOAD = 10 * 1024 * 1024; // 10 MB
+const MAX_UPLOAD = 10 * 1024 * 1024; // 10 MB — hard ceiling for any one file
+// Images are compressed to comfortably under this so they upload through our own
+// origin (POST /api/uploads/direct) rather than the vercel.com direct-upload
+// host, which some office networks / iOS setups can't reach. See DIRECT_BLOB_THRESHOLD.
+const COMPRESS_TARGET = 3.6 * 1024 * 1024;
 
 // iPhone photos: HEIC/HEIF. Browsers report the type as image/heic, image/heif
 // or (often) an empty string, so fall back to the extension too.
@@ -1728,17 +1732,17 @@ async function addFiles(list) {
       try { file = await heicToJpeg(file); }
       catch { toast(`${f.name}: couldn't read this iPhone photo`, true); continue; }
     }
-    if (file.size > MAX_UPLOAD) {
-      // Images can be re-compressed to fit; PDFs and animated GIFs can't, so
-      // those are still rejected when over the limit.
-      const compressible = file.type && file.type.startsWith('image/') && file.type !== 'image/gif';
-      if (!compressible) { toast(`${f.name} exceeds 10 MB`, true); continue; }
+    // Compress images down to the same-origin upload capacity so they take the
+    // reliable path through our own domain. Modern phone photos are often 4–8 MB,
+    // which would otherwise route to the vercel.com direct-upload host that some
+    // networks block. PDFs and animated GIFs can't be re-encoded.
+    const compressible = file.type && file.type.startsWith('image/') && file.type !== 'image/gif';
+    if (compressible && file.size > COMPRESS_TARGET) {
       toast(`Compressing ${f.name}…`);
-      try { file = await compressImage(file, MAX_UPLOAD); }
+      try { file = await compressImage(file, COMPRESS_TARGET); }
       catch { toast(`${f.name}: couldn't compress — please shrink it and retry`, true); continue; }
-      if (file.size > MAX_UPLOAD) { toast(`${f.name}: still over 10 MB after compressing`, true); continue; }
-      toast(`${f.name} compressed to fit`);
     }
+    if (file.size > MAX_UPLOAD) { toast(`${f.name} exceeds 10 MB`, true); continue; }
     pendingFiles.push(file);
   }
   renderChips();
@@ -1827,13 +1831,17 @@ async function uploadReceipts(files, onProgress) {
     // path does), which sidesteps that bug.
     const type = f.type || 'application/octet-stream';
     const body = new Blob([await f.arrayBuffer()], { type });
+    const viaDirect = f.size > DIRECT_BLOB_THRESHOLD;
     let blob;
     try {
-      blob = f.size > DIRECT_BLOB_THRESHOLD
+      blob = viaDirect
         ? await sendReceipt('PUT', presigned[i], body, type, prog)
         : await sendReceipt('POST', `/api/uploads/direct?name=${encodeURIComponent(f.name)}&type=${encodeURIComponent(type)}`, body, type, prog);
     } catch (e) {
-      throw new Error(`Couldn't upload ${f.name} — ${e.message}. Please retry.`);
+      // The trailing tag names which path failed, to aid diagnosis: "storage
+      // host" = the direct vercel.com upload (large files); "our server" = the
+      // same-origin API route (small files).
+      throw new Error(`Couldn't upload ${f.name} via ${viaDirect ? 'storage host' : 'our server'} — ${e.message}. Please retry.`);
     }
     out.push({ url: blob.url, original_name: f.name });
   }
