@@ -1753,40 +1753,71 @@ function renderChips() {
   }));
 }
 
+// Upload the chosen receipts straight to Blob storage via short-lived presigned
+// URLs, so large files never pass through the serverless function (whose request
+// body is capped at ~4.5 MB — the old cause of 413 errors). Returns the metadata
+// to attach to the claim. Files are already compressed/validated by addFiles().
+async function uploadReceipts(files) {
+  if (!files.length) return [];
+  const { uploads } = await api('/uploads/presign', {
+    method: 'POST',
+    body: JSON.stringify({ files: files.map(f => ({ name: f.name, type: f.type, size: f.size })) })
+  });
+  const out = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const put = await fetch(uploads[i].presignedUrl, {
+      method: 'PUT',
+      headers: { 'content-type': f.type || 'application/octet-stream' },
+      body: f
+    });
+    if (!put.ok) throw new Error(`Couldn't upload ${f.name} — please retry`);
+    const blob = await put.json();
+    out.push({ url: blob.url, original_name: f.name });
+  }
+  return out;
+}
+
 async function submitClaim(e, existing) {
   e.preventDefault();
   const err = $('#claimError'); err.hidden = true;
-  const fd = new FormData(e.target);
+  const payload = Object.fromEntries(new FormData(e.target).entries());
   // Resolve the expense type. "Others" uses the free-text value; the combobox has
   // no native `required`, so an empty pick is caught here.
-  let type = String(fd.get('expense_type') || '').trim();
+  let type = String(payload.expense_type || '').trim();
   if (type === 'Others') {
-    const other = String(fd.get('expense_type_other') || '').trim();
+    const other = String(payload.expense_type_other || '').trim();
     if (!other) { err.textContent = 'Please specify the expense type.'; err.hidden = false; return; }
     type = other;
   } else if (!type) {
     err.textContent = 'Please choose the type of expense.'; err.hidden = false; return;
   }
-  fd.set('expense_type', type);
-  fd.delete('expense_type_other');
+  payload.expense_type = type;
+  delete payload.expense_type_other;
   // Approver 1 is required only when this account has 2+ candidates to choose from.
-  if ((state.user.approver1_choices || []).length >= 2 && !String(fd.get('approver1') || '').trim()) {
+  if ((state.user.approver1_choices || []).length >= 2 && !String(payload.approver1 || '').trim()) {
     err.textContent = 'Please choose Approver 1.'; err.hidden = false; return;
   }
-  pendingFiles.forEach(f => fd.append('files', f));
   const btn = e.target.querySelector('button[type="submit"]');
+  const label = btn.textContent;
   btn.disabled = true;
   try {
+    // Upload receipts to Blob first, then send the claim as JSON carrying only
+    // their metadata — keeping large files off the size-limited API route.
+    if (pendingFiles.length) btn.textContent = 'Uploading receipts…';
+    payload.attachments = await uploadReceipts(pendingFiles);
+    btn.textContent = existing ? 'Resubmitting…' : 'Submitting…';
     if (existing) {
-      await api('/claims/' + existing.id, { method: 'PUT', body: fd });
+      await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
       toast('Claim resubmitted');
     } else {
-      await api('/claims', { method: 'POST', body: fd });
+      await api('/claims', { method: 'POST', body: JSON.stringify(payload) });
       toast('Claim submitted');
     }
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) {
-    err.textContent = ex.message; err.hidden = false; btn.disabled = false;
+    err.textContent = ex.message; err.hidden = false;
+    btn.disabled = false; btn.textContent = label;
   }
 }
 

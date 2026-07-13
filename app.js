@@ -4,10 +4,9 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const cookieSession = require('cookie-session');
-const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { q, qq, transaction } = require('./db');
-const { uploadReceipt, deleteReceipt } = require('./lib/blob');
+const { deleteReceipt, presignReceiptUpload, statReceipt, RECEIPT_MAX_BYTES, BLOB_URL_RE } = require('./lib/blob');
 const { sendEmail, emailConfigured, appUrl, layout, button } = require('./lib/email');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest } = require('./lib/notify');
 
@@ -77,19 +76,45 @@ app.use(cookieSession({
 }));
 
 // File uploads held in memory, then pushed to Vercel Blob.
-// Vercel server uploads are capped at ~4.5 MB per request, so limit to 4 MB.
 // Attachments are limited to PDFs and images so they can be embedded cleanly in
-// the generated claim PDF.
+// the generated claim PDF. Receipts are uploaded straight from the browser to
+// Blob storage (see /api/uploads/presign) — the serverless function caps request
+// bodies at ~4.5 MB, so routing large files through it was the source of 413s.
 const ALLOWED_MIME = new Set([
   'application/pdf',
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'
 ]);
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 4 * 1024 * 1024, files: 8 },
-  fileFilter: (req, file, cb) =>
-    ALLOWED_MIME.has(file.mimetype) ? cb(null, true) : cb(new Error(`File type not allowed: ${file.mimetype}`))
-});
+const MAX_FILES = 8;
+
+// Validate the receipts a claim references. The browser uploads each file
+// directly to Blob, then sends back only { url, original_name }. We never trust
+// that metadata: every URL must belong to our store, and we HEAD each blob to
+// read its authoritative size and content type before linking it to a claim.
+// Returns { items } on success or { error } on the first problem.
+async function verifyAttachments(list) {
+  if (list == null) return { items: [] };
+  if (!Array.isArray(list)) return { error: 'Invalid receipts' };
+  if (list.length > MAX_FILES) return { error: `Maximum ${MAX_FILES} files` };
+  const items = [];
+  for (const a of list) {
+    const url = String((a && a.url) || '');
+    if (!BLOB_URL_RE.test(url)) return { error: 'A receipt reference is invalid — please re-attach it' };
+    let info;
+    try { info = await statReceipt(url); }
+    catch { return { error: 'A receipt upload could not be verified — please re-attach it and retry' }; }
+    if (info.size > RECEIPT_MAX_BYTES) return { error: 'A receipt exceeds the size limit' };
+    const mime = String(info.contentType || '').toLowerCase();
+    if (!ALLOWED_MIME.has(mime)) return { error: `File type not allowed: ${info.contentType || 'unknown'}` };
+    items.push({
+      url,
+      pathname: info.pathname,
+      original_name: String((a && a.original_name) || info.pathname.split('/').pop() || 'file').slice(0, 200),
+      mime,
+      size: info.size
+    });
+  }
+  return { items };
+}
 
 // async route wrapper
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -788,26 +813,44 @@ async function createClaim(req, b, cents, approverIds, uploaded) {
   throw new Error('Could not allocate a claim number — please try again');
 }
 
-app.post('/api/claims', requireAuth,
-  upload.array('files', 8), ah(async (req, res) => {
+// Issue presigned upload URLs so the browser can upload receipts directly to
+// Blob storage, bypassing the serverless function's ~4.5 MB request-body limit.
+// Returns one URL per requested file, in the same order.
+app.post('/api/uploads/presign', requireAuth, ah(async (req, res) => {
+  const files = Array.isArray(req.body && req.body.files) ? req.body.files : null;
+  if (!files || !files.length) return res.status(400).json({ error: 'No files to upload' });
+  if (files.length > MAX_FILES) return res.status(400).json({ error: `Maximum ${MAX_FILES} files` });
+  const allowed = [...ALLOWED_MIME];
+  const uploads = [];
+  for (const f of files) {
+    const type = String((f && f.type) || '').toLowerCase();
+    if (!ALLOWED_MIME.has(type)) return res.status(400).json({ error: `File type not allowed: ${type || 'unknown'}` });
+    if ((Number(f && f.size) || 0) > RECEIPT_MAX_BYTES) {
+      return res.status(413).json({ error: `${(f && f.name) || 'A file'} exceeds the size limit` });
+    }
+    uploads.push(await presignReceiptUpload(f && f.name, type, allowed));
+  }
+  res.json({ uploads });
+}));
+
+app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const b = req.body || {};
     for (const f of REQUIRED_FIELDS) {
       if (!b[f] || !String(b[f]).trim()) return res.status(400).json({ error: `Missing required field: ${f}` });
     }
     const cents = parseAmountToCents(b.amount);
     if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-    // Resolve the approver chain (validating the chosen Approver 1) before any
-    // receipt upload, so a bad/missing choice fails cleanly with nothing to undo.
+    // Resolve the approver chain (validating the chosen Approver 1) before we
+    // link any receipts, so a bad/missing choice fails cleanly.
     const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
     if (built.error) return res.status(400).json({ error: built.error });
 
-    // Upload receipts to Blob first; roll them back if the claim insert fails.
-    const uploaded = [];
+    // Receipts were uploaded straight to Blob by the browser; verify each one
+    // exists in our store, then roll them back if the claim insert fails.
+    const checked = await verifyAttachments(b.attachments);
+    if (checked.error) return res.status(400).json({ error: checked.error });
+    const uploaded = checked.items;
     try {
-      for (const file of req.files || []) {
-        const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
-        uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
-      }
       const approverIds = built.ids;
       const claimId = await createClaim(req, b, cents, approverIds, uploaded);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
@@ -820,7 +863,7 @@ app.post('/api/claims', requireAuth,
     }
   }));
 
-app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req, res) => {
+app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
@@ -836,12 +879,11 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
   const cents = parseAmountToCents(b.amount);
   if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
 
-  const uploaded = [];
+  // Receipts were uploaded straight to Blob by the browser; verify them first.
+  const checked = await verifyAttachments(b.attachments);
+  if (checked.error) return res.status(400).json({ error: checked.error });
+  const uploaded = checked.items;
   try {
-    for (const file of req.files || []) {
-      const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
-      uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
-    }
     // Claimant name, department, bank details + approvers come from the account.
     const emp = (await q(
       'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
@@ -1890,10 +1932,6 @@ lookupRoutes('expense-types', 'expense_types');
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    const msg = err.code === 'LIMIT_FILE_SIZE' ? 'Each file must be 4 MB or smaller' : err.message;
-    return res.status(400).json({ error: `Upload error: ${msg}` });
-  }
   if (err) {
     console.error(err);
     return res.status(400).json({ error: err.message || 'Request failed' });
