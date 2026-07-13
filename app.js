@@ -564,6 +564,7 @@ app.post('/api/login', ah(async (req, res) => {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
+    approver1_choices: await approver1Choices(user.approver1_options),
     can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos)
   } });
 }));
