@@ -6,7 +6,7 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const { q, qq, transaction } = require('./db');
-const { deleteReceipt, presignReceiptUpload, statReceipt, RECEIPT_MAX_BYTES, BLOB_URL_RE } = require('./lib/blob');
+const { uploadReceipt, deleteReceipt, presignReceiptUpload, statReceipt, RECEIPT_MAX_BYTES, BLOB_URL_RE } = require('./lib/blob');
 const { sendEmail, emailConfigured, appUrl, layout, button } = require('./lib/email');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest } = require('./lib/notify');
 
@@ -832,6 +832,22 @@ app.post('/api/uploads/presign', requireAuth, ah(async (req, res) => {
   }
   res.json({ uploads });
 }));
+
+// Same-origin upload path: the browser POSTs the raw file bytes to our own
+// domain and we forward them to Blob. This is the reliable default for files
+// that fit under the function's ~4.5 MB body limit — some networks (and iOS
+// setups) can reach *.vercel.app but not the vercel.com host the presigned
+// direct-upload URLs point at, so routing through our origin avoids that.
+app.post('/api/uploads/direct', requireAuth,
+  express.raw({ type: () => true, limit: '4400kb' }), ah(async (req, res) => {
+    const name = String(req.query.name || 'file');
+    const type = String(req.query.type || '').toLowerCase();
+    if (!ALLOWED_MIME.has(type)) return res.status(400).json({ error: `File type not allowed: ${type || 'unknown'}` });
+    const buf = Buffer.isBuffer(req.body) ? req.body : null;
+    if (!buf || !buf.length) return res.status(400).json({ error: 'Empty upload' });
+    const r = await uploadReceipt(buf, name, type);
+    res.json({ url: r.url, pathname: r.pathname, size: buf.length, contentType: type });
+  }));
 
 app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const b = req.body || {};

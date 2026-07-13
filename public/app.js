@@ -1751,14 +1751,17 @@ function renderChips() {
   }));
 }
 
-// PUT an in-memory blob to a presigned Blob URL via XMLHttpRequest, resolving
-// with the parsed JSON metadata. We use XHR rather than fetch() because iOS
-// Safari reports upload failures as an opaque "Load failed" with no detail; XHR
-// distinguishes network / timeout / HTTP-status errors and reports progress.
-function xhrPut(url, body, contentType, onProgress) {
+// Send an in-memory blob via XMLHttpRequest, resolving with the parsed JSON
+// response. We use XHR rather than fetch() because iOS Safari reports upload
+// failures as an opaque "Load failed" with no detail; XHR distinguishes
+// network / timeout / HTTP-status errors and reports upload progress.
+function xhrSend(method, url, body, contentType, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url, true);
+    xhr.open(method, url, true);
+    // Note: no withCredentials — same-origin requests send the session cookie
+    // automatically, and the cross-origin Blob PUT must stay credential-less
+    // (its response uses a wildcard CORS origin, which credentials would block).
     xhr.setRequestHeader('content-type', contentType || 'application/octet-stream');
     xhr.timeout = 120000; // 2 min — generous for a large photo on mobile data
     if (onProgress && xhr.upload) {
@@ -1769,7 +1772,9 @@ function xhrPut(url, body, contentType, onProgress) {
         try { resolve(JSON.parse(xhr.responseText)); }
         catch { reject(new Error('the upload response could not be read')); }
       } else {
-        reject(new Error(`the storage service returned ${xhr.status}`));
+        let msg = `the server returned ${xhr.status}`;
+        try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = j.error; } catch { /* keep default */ }
+        reject(new Error(msg));
       }
     };
     xhr.onerror = () => reject(new Error('a network error interrupted the upload'));
@@ -1779,41 +1784,54 @@ function xhrPut(url, body, contentType, onProgress) {
   });
 }
 
-// Upload one receipt to its presigned URL. iOS Safari can fail to stream a File
-// backed by a fresh camera capture ("Load failed"), so we read the bytes into an
-// in-memory Blob first — the same read the compression path already does — which
-// sidesteps the bug. Retries once on a transient network/timeout hiccup.
-async function putReceipt(url, file, onProgress) {
-  const buf = await file.arrayBuffer();
-  const type = file.type || 'application/octet-stream';
-  const body = new Blob([buf], { type });
+// Files at or under this size upload through our own origin (reliable); larger
+// files must go directly to Blob to clear the serverless ~4.5 MB body limit.
+const DIRECT_BLOB_THRESHOLD = 4 * 1024 * 1024;
+
+// Upload one already-materialized receipt, retrying once on a transient
+// network/timeout hiccup (HTTP-status errors are deterministic, so not retried).
+async function sendReceipt(method, url, body, contentType, onProgress) {
   try {
-    return await xhrPut(url, body, type, onProgress);
+    return await xhrSend(method, url, body, contentType, onProgress);
   } catch (e) {
-    // A single automatic retry smooths over flaky mobile connections. HTTP-status
-    // errors (4xx/5xx) are deterministic, so don't bother retrying those.
-    if (/returned \d/.test(e.message)) throw e;
-    return await xhrPut(url, body, type, onProgress);
+    // Only a network blip or timeout is worth retrying; HTTP-status and
+    // bad-response errors are deterministic.
+    if (!/network error|timed out/.test(e.message)) throw e;
+    return await xhrSend(method, url, body, contentType, onProgress);
   }
 }
 
-// Upload the chosen receipts straight to Blob storage via short-lived presigned
-// URLs, so large files never pass through the serverless function (whose request
-// body is capped at ~4.5 MB — the old cause of 413 errors). Returns the metadata
-// to attach to the claim. Files are already compressed/validated by addFiles().
+// Upload the chosen receipts and return the metadata to attach to the claim.
+// Small files (the common case — phone photos, most PDFs) go through our own
+// domain, which is reliable everywhere the app itself loads. Only genuinely
+// large files use a presigned direct-to-Blob URL, since they can't fit through
+// the size-limited API route. Files are already compressed/validated by addFiles().
 async function uploadReceipts(files, onProgress) {
   if (!files.length) return [];
-  const { uploads } = await api('/uploads/presign', {
-    method: 'POST',
-    body: JSON.stringify({ files: files.map(f => ({ name: f.name, type: f.type, size: f.size })) })
-  });
+  // Presign only the large files that must bypass our API route.
+  const large = files.map((f, i) => ({ f, i })).filter(x => x.f.size > DIRECT_BLOB_THRESHOLD);
+  const presigned = {};
+  if (large.length) {
+    const { uploads } = await api('/uploads/presign', {
+      method: 'POST',
+      body: JSON.stringify({ files: large.map(x => ({ name: x.f.name, type: x.f.type, size: x.f.size })) })
+    });
+    large.forEach((x, k) => { presigned[x.i] = uploads[k].presignedUrl; });
+  }
   const out = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
+    const prog = onProgress ? frac => onProgress(i, files.length, frac) : null;
+    // iOS Safari can fail to stream a File backed by a fresh camera capture, so
+    // read the bytes into an in-memory Blob first (the same read the compression
+    // path does), which sidesteps that bug.
+    const type = f.type || 'application/octet-stream';
+    const body = new Blob([await f.arrayBuffer()], { type });
     let blob;
     try {
-      blob = await putReceipt(uploads[i].presignedUrl, f,
-        onProgress ? frac => onProgress(i, files.length, frac) : null);
+      blob = f.size > DIRECT_BLOB_THRESHOLD
+        ? await sendReceipt('PUT', presigned[i], body, type, prog)
+        : await sendReceipt('POST', `/api/uploads/direct?name=${encodeURIComponent(f.name)}&type=${encodeURIComponent(type)}`, body, type, prog);
     } catch (e) {
       throw new Error(`Couldn't upload ${f.name} — ${e.message}. Please retry.`);
     }
