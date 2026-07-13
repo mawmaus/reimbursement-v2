@@ -132,10 +132,8 @@ function showLogin() {
   $('#appView').hidden = true;
   $('#loginView').hidden = false;
   $('#loginForm').hidden = false;
-  // Two separate routes: account creation is an admin task; password resets go
-  // through the user's own manager.
   $('#loginHint').innerHTML =
-    'Need an account? Contact Administrator<br>Forgot your password? Contact your Manager';
+    'Need an account or forgot your password? Contact your manager';
 }
 
 function showApp() {
