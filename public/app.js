@@ -1567,6 +1567,21 @@ function wireClaimCalculator() {
   render();
 }
 
+// When the signed-in account has two or more chooseable Approver 1 candidates,
+// render a required picker of them. With one candidate it is used automatically
+// (no picker), and with none the approver chain is fixed — both return ''. On
+// resubmit, preselect the claim's existing first approver if it is still one of
+// the candidates.
+function approver1PickerHtml(existing) {
+  const choices = (state.user && state.user.approver1_choices) || [];
+  if (choices.length < 2) return '';
+  const preId = existing && existing.approvers && existing.approvers[0] ? String(existing.approvers[0].id) : '';
+  const opts = ['<option value="" disabled' + (preId ? '' : ' selected') + '>Choose an approver…</option>']
+    .concat(choices.map(c => `<option value="${c.id}" ${String(c.id) === preId ? 'selected' : ''}>${esc(c.name)}</option>`));
+  return `<label class="full">Approver 1 <span style="color:var(--danger,#d33)">*</span>
+    <select name="approver1" required>${opts.join('')}</select></label>`;
+}
+
 function openClaimModal(existing = null) {
   const u = state.user;
   const isEdit = !!existing;
@@ -1600,6 +1615,7 @@ function openClaimModal(existing = null) {
             </div>
             ${calcPanelHtml()}
           </label>
+          ${approver1PickerHtml(existing)}
           <label class="full">Description / purpose
             <textarea name="description" placeholder="What was this purchase for?">${esc(v.description || '')}</textarea>
           </label>
@@ -1753,6 +1769,10 @@ async function submitClaim(e, existing) {
   }
   fd.set('expense_type', type);
   fd.delete('expense_type_other');
+  // Approver 1 is required only when this account has 2+ candidates to choose from.
+  if ((state.user.approver1_choices || []).length >= 2 && !String(fd.get('approver1') || '').trim()) {
+    err.textContent = 'Please choose Approver 1.'; err.hidden = false; return;
+  }
   pendingFiles.forEach(f => fd.append('files', f));
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
@@ -1876,6 +1896,7 @@ function openMealAllowanceModal(existing = null) {
               </tfoot>
             </table>
           </div>
+          ${approver1PickerHtml(existing)}
           ${isEdit ? `<label class="full" style="margin-top:10px">Note to manager (optional)
             <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
           <div class="meal-note">
@@ -1908,9 +1929,13 @@ async function submitMealClaim(e, existing) {
     .filter(r => r.date || r.site || r.category || r.desc || mealAmount(r.amount))
     .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
   if (!lines.length) { err.textContent = 'Add at least one line with a date and amount'; err.hidden = false; return; }
+  const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
+  const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
+  if (needsApprover1 && !approver1) { err.textContent = 'Please choose Approver 1.'; err.hidden = false; return; }
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
   const payload = { lines };
+  if (needsApprover1) payload.approver1 = Number(approver1);
   if (existing) payload.resubmit_note = (new FormData(e.target).get('resubmit_note') || '').trim();
   try {
     if (existing) {
@@ -2485,12 +2510,12 @@ function optionSelect(name, value, options) {
 // row. The account being edited is excluded so it can't approve its own claims.
 // A hidden input carries the selected id (name="appr_i") so the existing
 // read/submit logic is unchanged; a text input filters the list as you type.
-function approverRowSelect(i, value, excludeId) {
+function approverRowSelect(i, value, excludeId, prefix = 'appr') {
   const cur = value == null ? '' : String(value);
   const sel = settingsState.users.find(x => String(x.id) === cur && x.id !== excludeId);
   const label = sel ? `${sel.full_name} (${sel.username})` : '';
   return `<div class="combo" data-combo="${i}">
-    <input type="hidden" name="appr_${i}" value="${esc(cur)}" />
+    <input type="hidden" name="${prefix}_${i}" value="${esc(cur)}" />
     <input type="text" class="combo-input" autocomplete="off" spellcheck="false"
       role="combobox" aria-expanded="false" aria-autocomplete="list"
       placeholder="Search user…" value="${esc(label)}" />
@@ -2501,7 +2526,7 @@ function approverRowSelect(i, value, excludeId) {
 // Wire one combobox: type-to-filter, click / arrow-keys / Enter to choose,
 // Escape to close. Selecting sets the hidden id; leaving without a valid pick
 // restores the last confirmed selection (or clears it).
-function wireApproverCombo(container, excludeId) {
+function wireApproverCombo(container, excludeId, onChoose = syncApproverRows) {
   const hidden = container.querySelector('input[type="hidden"]');
   const input = container.querySelector('.combo-input');
   const list = container.querySelector('.combo-list');
@@ -2527,7 +2552,7 @@ function wireApproverCombo(container, excludeId) {
     [...list.querySelectorAll('.combo-opt')].forEach((el, idx) => el.classList.toggle('active', idx === active));
     const el = list.querySelector('.combo-opt.active'); if (el) el.scrollIntoView({ block: 'nearest' });
   };
-  const choose = (u) => { hidden.value = String(u.id); input.value = labelFor(u); close(); syncApproverRows(); };
+  const choose = (u) => { hidden.value = String(u.id); input.value = labelFor(u); close(); onChoose(); };
 
   input.addEventListener('focus', () => { input.select(); open(''); });
   input.addEventListener('input', () => { hidden.value = ''; open(input.value); });
@@ -2570,10 +2595,36 @@ function syncApproverRows() {
   });
 }
 
+// Candidate pool for a chooseable Approver 1 (super admin only). Same combobox
+// machinery as the fixed chain, but an unordered set of options the submitter
+// later picks one of. Stored/submitted as approver1_options.
+let acctApprover1Options = [];
+function renderApprover1Options(excludeId) {
+  const wrap = $('#approver1OptionRows');
+  if (!wrap) return;
+  wrap.innerHTML = acctApprover1Options.length ? acctApprover1Options.map((val, i) => `
+    <div class="line-row" data-i="${i}">
+      <span class="line-step">${i + 1}</span>
+      ${approverRowSelect(i, val, excludeId, 'a1opt')}
+      <button type="button" class="x-btn" data-rm="${i}" aria-label="Remove candidate">×</button>
+    </div>`).join('') : '<p class="muted" style="font-size:.85rem;margin:4px 0">No candidates — Approver 1 comes from the fixed chain below.</p>';
+  $$('#approver1OptionRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    syncApprover1Options(); acctApprover1Options.splice(+b.dataset.rm, 1); renderApprover1Options(excludeId);
+  }));
+  $$('#approver1OptionRows .combo').forEach(c => wireApproverCombo(c, excludeId, syncApprover1Options));
+}
+function syncApprover1Options() {
+  $$('#approver1OptionRows .line-row').forEach(row => {
+    const i = +row.dataset.i;
+    acctApprover1Options[i] = row.querySelector(`[name="a1opt_${i}"]`).value;
+  });
+}
+
 function renderUserForm(u) {
   const isEdit = !!u;
   const excludeId = isEdit ? u.id : null;
   acctApprovers = isEdit ? (u.approver_ids || []).map(String) : [];
+  acctApprover1Options = isEdit ? (u.approver1_options || []).map(String) : [];
   openModal2(`
     <div class="modal-head">
       <h2>${isEdit ? 'Edit ' + esc(u.username) : 'New user'}</h2>
@@ -2602,6 +2653,11 @@ function renderUserForm(u) {
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">Permissions</div>
       <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>Can mark claims as paid (record payment)</span></label>` : ''}
+      ${state.user.role === 'superadmin' ? `
+      <div class="section-label" style="margin-top:8px">Approver 1 — let the submitter choose from</div>
+      <p class="muted" style="font-size:.82rem;margin:0 0 6px">Add <strong>two or more</strong> accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With <strong>one</strong>, it's used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.</p>
+      <div id="approver1OptionRows"></div>
+      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApprover1OptBtn">+ Add candidate</button>` : ''}
       <div class="section-label" style="margin-top:8px">Approval chain (approvers, in order)</div>
       <div id="approverRows"></div>
       <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApproverBtn">+ Add approver</button>
@@ -2623,9 +2679,14 @@ function renderUserForm(u) {
   $('#uCancel').addEventListener('click', closeModal2);
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
+  if (state.user.role === 'superadmin') {
+    renderApprover1Options(excludeId);
+    $('#addApprover1OptBtn').addEventListener('click', () => { syncApprover1Options(); acctApprover1Options.push(''); renderApprover1Options(excludeId); });
+  }
   $('#uForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     syncApproverRows();
+    if (state.user.role === 'superadmin') syncApprover1Options();
     const fd = new FormData(e.target);
     const payload = {
       username: fd.get('username'), full_name: fd.get('full_name'),
@@ -2636,7 +2697,10 @@ function renderUserForm(u) {
       bank_account_no: fd.get('bank_account_no') || '',
       approver_ids: acctApprovers.filter(Boolean).map(Number)
     };
-    if (state.user.role === 'superadmin') payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
+    if (state.user.role === 'superadmin') {
+      payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
+      payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
+    }
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;
     try {

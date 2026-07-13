@@ -152,6 +152,12 @@ const SCHEMA = [
   // Each account has an ordered list of approvers (the users who approve that
   // account's claims, in sequence). Chosen from the created users in Settings.
   `ALTER TABLE users  ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
+  // Optional candidate pool for a *chooseable* Approver 1. When non-empty, the
+  // account holder must pick one of these accounts as the first approver each time
+  // they submit a claim; the fixed `approver_ids` chain above then runs after that
+  // chosen approver (as steps 2, 3, …). When empty, submission uses `approver_ids`
+  // unchanged. Only a super admin edits this list.
+  `ALTER TABLE users  ADD COLUMN IF NOT EXISTS approver1_options INTEGER[] NOT NULL DEFAULT '{}'`,
   // Per-account permission: may this account mark claims as paid (record the
   // payment)? Off by default; granted by a super admin in the account editor.
   // Super admins can always mark paid regardless of this flag.

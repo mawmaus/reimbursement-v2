@@ -125,7 +125,7 @@ const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -329,6 +329,36 @@ async function activeApproverIds(candidateIds) {
   const rows = await q(`SELECT id FROM users WHERE id IN (${ph}) AND active = TRUE`, ids);
   const ok = new Set(rows.map(r => Number(r.id)));
   return ids.filter(id => ok.has(id));
+}
+
+// Build the ordered, still-active approver id list for a claim being submitted or
+// resubmitted. `optionsRaw` is the account's chooseable-Approver-1 candidate pool
+// and `baseRaw` its fixed chain. Behaviour keys off how many candidates are still
+// active:
+//   • none   → the chain is just the fixed list (legacy behaviour).
+//   • one    → that candidate is Approver 1 automatically (no choice needed).
+//   • two+   → the submitter must have picked one (`chosenRaw`) as Approver 1.
+// The resulting Approver 1 is prepended to the fixed chain (de-duplicated).
+// Returns { ids } on success or { error } when a required choice is missing or
+// invalid — the caller maps that to a 400. Async because it filters out
+// deactivated accounts (which could never act on the claim).
+async function resolveSubmitApprovers(optionsRaw, baseRaw, chosenRaw) {
+  const [activeOpts, base] = await Promise.all([
+    activeApproverIds(optionsRaw),
+    activeApproverIds(baseRaw),
+  ]);
+  if (!activeOpts.length) return { ids: base };
+  let first;
+  if (activeOpts.length === 1) {
+    first = activeOpts[0];
+  } else {
+    const chosen = Number(chosenRaw);
+    if (!Number.isInteger(chosen) || !activeOpts.includes(chosen)) {
+      return { error: 'Please choose an Approver 1 for this claim' };
+    }
+    first = chosen;
+  }
+  return { ids: [first, ...base.filter(id => id !== first)] };
 }
 
 // How many still-open (submitted) claims — reimbursement + meal — have this user
@@ -540,11 +570,28 @@ app.post('/api/login', ah(async (req, res) => {
 
 app.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: true }); });
 
+// Resolve an account's chooseable-Approver-1 candidate pool to [{id, name}],
+// keeping only still-active accounts (an inactive one could never approve) and
+// preserving the configured order. Empty for accounts without the feature.
+async function approver1Choices(optionsRaw) {
+  const ids = asIntArray(optionsRaw);
+  if (!ids.length) return [];
+  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
+  const rows = await q(
+    `SELECT id, full_name, username FROM users WHERE id IN (${ph}) AND active = TRUE`, ids);
+  const byId = new Map(rows.map(r => [Number(r.id), r]));
+  return ids.filter(id => byId.has(id)).map(id => {
+    const r = byId.get(id);
+    return { id, name: r.full_name || r.username || `User #${id}` };
+  });
+}
+
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
   const pos = await loadPositions();
   res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+    approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));
 
@@ -564,6 +611,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   const u = await loadUser(req);
   const pos = await loadPositions();
   res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+    approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));
 
@@ -747,6 +795,10 @@ app.post('/api/claims', requireAuth,
     }
     const cents = parseAmountToCents(b.amount);
     if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
+    // Resolve the approver chain (validating the chosen Approver 1) before any
+    // receipt upload, so a bad/missing choice fails cleanly with nothing to undo.
+    const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
+    if (built.error) return res.status(400).json({ error: built.error });
 
     // Upload receipts to Blob first; roll them back if the claim insert fails.
     const uploaded = [];
@@ -755,7 +807,7 @@ app.post('/api/claims', requireAuth,
         const r = await uploadReceipt(file.buffer, file.originalname, file.mimetype);
         uploaded.push({ ...r, original_name: file.originalname, mime: file.mimetype, size: file.size });
       }
-      const approverIds = await activeApproverIds(req.user.approver_ids);
+      const approverIds = built.ids;
       const claimId = await createClaim(req, b, cents, approverIds, uploaded);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       const first = currentApproverId(rows[0]);
@@ -791,9 +843,11 @@ app.put('/api/claims/:id', requireAuth, upload.array('files', 8), ah(async (req,
     }
     // Claimant name, department, bank details + approvers come from the account.
     const emp = (await q(
-      'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
+      'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
       [row.employee_id]))[0] || {};
-    const approverIds = await activeApproverIds(emp.approver_ids);
+    const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, b.approver1);
+    if (built.error) { for (const u of uploaded) await deleteReceipt(u.url); return res.status(400).json({ error: built.error }); }
+    const approverIds = built.ids;
     const claimId = Number(row.id);
     const queries = [qq(
       `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
@@ -1154,7 +1208,9 @@ async function createMealClaim(req, lines, totalCents, approverIds) {
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const approverIds = await activeApproverIds(req.user.approver_ids);
+  const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  const approverIds = built.ids;
   const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);
@@ -1175,9 +1231,11 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   // Bank details + approvers come from the claimant's account.
   const emp = (await q(
-    'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids FROM users WHERE id = $1',
+    'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
     [row.employee_id]))[0] || {};
-  const approverIds = await activeApproverIds(emp.approver_ids);
+  const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, (req.body || {}).approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  const approverIds = built.ids;
   const claimId = Number(row.id);
   const queries = [qq(
     `UPDATE meal_claims SET total_cents=$1, department=$2, bank_name=$3, recipient_name=$4,
@@ -1600,12 +1658,12 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   if (!isSuper && !hasDelegation(req.user, await loadPositions())) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, active, created_by, created_by_name, created_at';
+  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active, created_by, created_by_name, created_at';
   const users = isSuper
     ? await q(`SELECT ${cols} FROM users ORDER BY id`)
     : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
         [String(req.user.department || '').trim()]);
-  res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), created_at: iso(u.created_at) })) });
+  res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at) })) });
 }));
 // Account creation is super-admin only. Everyone else — including admins and
 // senior positions — can no longer create accounts (they may still reset /
@@ -1614,7 +1672,7 @@ app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, re
   const isSuper = true;
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
-  let { role, department, position, approver_ids } = req.body || {};
+  let { role, department, position, approver_ids, approver1_options } = req.body || {};
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -1629,12 +1687,13 @@ app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, re
   // Only a super admin may grant the mark-paid permission.
   const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid, created_by, created_by_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12,$13,$14) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, created_by, created_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12::int[],$13,$14,$15) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
      String(department || '').trim(), String(position || '').trim(), nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
-     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)), canMarkPaidFlag,
+     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)),
+     intArrayLiteral(sanitizeApproverIds(approver1_options)), canMarkPaidFlag,
      req.user.id, req.user.full_name || req.user.username || '']);
   res.status(201).json({ id: rows[0].id });
 }));
@@ -1643,7 +1702,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
   const { username, full_name, role, department, position, active, password, email,
-    bank_name, recipient_name, bank_account_no, approver_ids, can_mark_paid } = req.body || {};
+    bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;
@@ -1664,6 +1723,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   }
   const nextApprovers = approver_ids !== undefined
     ? sanitizeApproverIds(approver_ids, u.id) : asIntArray(u.approver_ids);
+  const nextApprover1Options = approver1_options !== undefined
+    ? sanitizeApproverIds(approver1_options, u.id) : asIntArray(u.approver1_options);
   // Stale-approver guard: deactivating an account that is the pending approver on
   // open claims would strand them (they could no longer sign in to act). Block it
   // so an admin resolves or reassigns those claims first.
@@ -1677,7 +1738,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
-             can_mark_paid=$12 WHERE id=$13`, [
+             can_mark_paid=$12, approver1_options=$14::int[] WHERE id=$13`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -1690,7 +1751,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     intArrayLiteral(nextApprovers),
     nextEmail,
     can_mark_paid !== undefined ? isActive(can_mark_paid) : u.can_mark_paid,
-    u.id
+    u.id,
+    intArrayLiteral(nextApprover1Options)
   ]);
   if (password) {
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
