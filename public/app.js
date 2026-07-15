@@ -2283,6 +2283,7 @@ async function openProfileModal() {
         ${bankNameField(me.bank_name)}
         <label>Recipient bank account name<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="Name on the account" /></label>
         <label>Bank account number<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="Account number" /></label>
+        <p class="form-note caution">The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.</p>
         <p class="form-error" id="profileErr" hidden></p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="profileCancel">Close</button>

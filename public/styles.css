@@ -123,6 +123,7 @@ input[type="search"] { min-width: 220px; }
 .form label { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 560; color: var(--ink-soft); }
 .form-error { color: var(--red); background: var(--red-tint); border-radius: 8px; padding: 9px 12px; margin: 0; font-size: .85rem; }
 .form-note { color: var(--pine); background: var(--pine-tint); border-radius: 8px; padding: 9px 12px; margin: 0; font-size: .85rem; }
+.form-note.caution { color: var(--amber); background: var(--amber-tint); line-height: 1.4; }
 .fee-note { color: var(--red); background: var(--red-tint); border-radius: 8px; padding: 8px 11px; margin: 6px 0 0; font-size: .82rem; line-height: 1.4; }
 .login-hint { font-size: .78rem; margin-top: 18px; text-align: center; white-space: pre-line; }
 
