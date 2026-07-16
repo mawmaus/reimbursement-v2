@@ -356,11 +356,18 @@ function approvedByMe(c) {
 }
 const approvedByMeQueue = () => state.claims.filter(approvedByMe);
 
+// Claims already marked as paid — the payer's revert queue. A can_mark_paid
+// account (Finance AP) sits in the approver chain, so paid claims it recorded
+// stay visible in state.claims; this surfaces them so a mistaken payment can be
+// reverted (canRevert lets the payer unpay any paid claim).
+const paidQueue = () => state.claims.filter(c => c.status === 'paid');
+
 // Claims for the open view, before the client-side claimant filter.
 function viewClaims() {
   if (state.view === 'mine') return myClaims();
   if (state.view === 'approval') return approvalQueue();
   if (state.view === 'approved') return approvedByMeQueue();
+  if (state.view === 'paid') return paidQueue();
   return state.claims; // 'all' / 'home'
 }
 
@@ -372,11 +379,12 @@ function visibleClaims() {
 }
 
 // --- Home menu (clean landing) ----------------------------------------------
-const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', all: 'All activities' };
+const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', paid: 'Paid claims', all: 'All activities' };
 const VIEW_EMPTY = {
   mine: 'You have not submitted any claims yet.',
   approval: 'Nothing is waiting for your approval right now.',
   approved: 'You have not approved any claims that are still open to revert.',
+  paid: 'No claims have been marked as paid yet.',
   all: 'No claims in the system yet.'
 };
 function renderHome() {
@@ -395,6 +403,12 @@ function renderHome() {
     // is always one click away from being reverted.
     { key: 'approved', title: 'Approved by me', desc: 'Claims you approved — revert if needed', count: approved }
   ];
+  // Finance AP (can_mark_paid) needs a home for claims already marked paid, so a
+  // mistaken payment can be found and reverted. Same permission gate as the
+  // "Mark as paid" / unpay actions.
+  if (u.role === 'superadmin' || u.can_mark_paid) {
+    tiles.push({ key: 'paid', title: 'Paid claims', desc: 'Claims marked as paid — revert if needed', count: paidQueue().length });
+  }
   if (u.role === 'superadmin') tiles.push({ key: 'all', title: 'All activities', desc: 'Every claim in the system', count: state.claims.length });
   // Insights is gated to Supervisor-and-above plus all of Finance (see
   // insightsCanView on the server). Among those, the backend scopes the data:
