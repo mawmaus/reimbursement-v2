@@ -177,7 +177,13 @@ function parseAmountToCents(input) {
 }
 async function nextClaimNo() {
   const year = new Date().getFullYear();
-  const rows = await q('SELECT COUNT(*)::int AS n FROM claims WHERE claim_no LIKE $1', [`RC-${year}-%`]);
+  // Derive from the highest existing suffix, not COUNT(*): a deleted claim
+  // would otherwise make the count point at an already-used number, colliding
+  // on every retry (see the createClaim retry loop).
+  const rows = await q(
+    `SELECT COALESCE(MAX(SUBSTRING(claim_no FROM '[0-9]+$')::int), 0) AS n
+       FROM claims WHERE claim_no LIKE $1`,
+    [`RC-${year}-%`]);
   return `RC-${year}-${String(Number(rows[0].n) + 1).padStart(4, '0')}`;
 }
 async function logHistory(claimId, actor, action, fromStatus, toStatus, comment = '') {
@@ -1074,7 +1080,12 @@ app.delete('/api/claims/:id', requireAuth, requireRole('superadmin'), ah(async (
 // ---------------------------------------------------------------------------
 async function nextMealClaimNo() {
   const year = new Date().getFullYear();
-  const rows = await q('SELECT COUNT(*)::int AS n FROM meal_claims WHERE claim_no LIKE $1', [`MA-${year}-%`]);
+  // Highest existing suffix + 1, not COUNT(*) — same deletion-collision reason
+  // as nextClaimNo.
+  const rows = await q(
+    `SELECT COALESCE(MAX(SUBSTRING(claim_no FROM '[0-9]+$')::int), 0) AS n
+       FROM meal_claims WHERE claim_no LIKE $1`,
+    [`MA-${year}-%`]);
   return `MA-${year}-${String(Number(rows[0].n) + 1).padStart(4, '0')}`;
 }
 async function logMealHistory(claimId, actor, action, fromStatus, toStatus, comment = '') {
