@@ -901,10 +901,26 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const cents = parseAmountToCents(b.amount);
   if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
 
+  // A resubmit replaces the claim's whole receipt set: the client sends the ids
+  // of the existing attachments it kept, plus any newly uploaded ones. Anything
+  // the claimant removed in the form is dropped here. An older client that sends
+  // no keep list keeps everything it already had (it can't remove receipts).
+  const existingAtts = await q('SELECT id, blob_url FROM attachments WHERE claim_id = $1', [row.id]);
+  const keepIds = b.keep_attachment_ids == null
+    ? existingAtts.map(a => Number(a.id))
+    : asIntArray(b.keep_attachment_ids);
+  const keepSet = new Set(keepIds);
+  const dropped = existingAtts.filter(a => !keepSet.has(Number(a.id)));
+  const keptCount = existingAtts.length - dropped.length;
+
   // Receipts were uploaded straight to Blob by the browser; verify them first.
   const checked = await verifyAttachments(b.attachments);
   if (checked.error) return res.status(400).json({ error: checked.error });
   const uploaded = checked.items;
+  if (keptCount + uploaded.length > MAX_FILES) {
+    for (const u of uploaded) await deleteReceipt(u.url);
+    return res.status(400).json({ error: `Maximum ${MAX_FILES} files` });
+  }
   try {
     // Claimant name, department, bank details + approvers come from the account.
     const emp = (await q(
@@ -924,6 +940,10 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
        String(emp.bank_account_no || '').trim(),
        String(b.expense_type).trim(), cents, String(b.currency || row.currency).trim().slice(0, 8),
        String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, claimId])];
+    if (dropped.length) {
+      queries.push(qq('DELETE FROM attachments WHERE claim_id = $1 AND id = ANY($2::int[])',
+        [claimId, intArrayLiteral(dropped.map(a => Number(a.id)))]));
+    }
     for (const u of uploaded) {
       queries.push(qq(
         `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
@@ -934,6 +954,14 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
        VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
       [claimId, req.user.id, String(req.user.full_name || '').trim(), String(b.resubmit_note || '').trim()]));
     await transaction(queries);
+    // Only once the rows are committed do we bin the blobs of the removed
+    // receipts — a blob delete can't be rolled back, so doing it earlier would
+    // orphan the claim's rows if the transaction failed. A failure here must not
+    // reach the catch below (which would delete the blobs of a now-committed
+    // claim); a leftover blob nothing points at is harmless.
+    for (const a of dropped) {
+      try { await deleteReceipt(a.blob_url); } catch { /* ignore */ }
+    }
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
     const first = currentApproverId(rows[0]);
     if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));

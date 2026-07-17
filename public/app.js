@@ -1407,6 +1407,11 @@ $('#modal2Scrim').addEventListener('click', closeModal2);
 // New / Edit claim
 // ---------------------------------------------------------------------------
 let pendingFiles = [];
+// On edit & resubmit, the receipts already on the claim, as { id, original_name }.
+// The claimant can remove them in the form; whatever survives is sent back as
+// keep_attachment_ids and the server drops the rest.
+let keptAttachments = [];
+let keptClaimId = null;   // claim being edited, for the kept chips' view links
 
 // Render a <select> when the admin has configured options, otherwise a plain
 // text input so claims can still be submitted before settings are populated.
@@ -1598,6 +1603,10 @@ function openClaimModal(existing = null) {
   const u = state.user;
   const isEdit = !!existing;
   pendingFiles = [];
+  keptAttachments = existing
+    ? (existing.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
+    : [];
+  keptClaimId = existing ? existing.id : null;
   const v = existing || {
     claimant_name: u.full_name,
     // Only prefill the department if it is a registered one; otherwise leave it
@@ -1635,6 +1644,8 @@ function openClaimModal(existing = null) {
             <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
           <div class="full">
             <div class="section-label" style="margin-top:4px">Receipts / files</div>
+            ${isEdit ? `<p class="form-note drop-note">The receipts already on this claim are kept. Remove any you
+              want to replace — only attach a file again if you removed it first.</p>` : ''}
             <div class="drop" id="dropZone">
               <strong>Click to choose files</strong> or drag &amp; drop<br>
               <span style="font-size:.8rem">PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)</span>
@@ -1661,6 +1672,7 @@ function openClaimModal(existing = null) {
   drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
   drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); addFiles(e.dataTransfer.files); });
   fileInput.addEventListener('change', () => addFiles(fileInput.files));
+  renderChips();
 
   attachAmountGrouping($('#claimForm [name="amount"]'));
   wireExpenseTypeField();
@@ -1736,7 +1748,7 @@ async function compressImage(file, maxBytes) {
 
 async function addFiles(list) {
   for (const f of Array.from(list)) {
-    if (pendingFiles.length >= 8) { toast('Maximum 8 files', true); break; }
+    if (keptAttachments.length + pendingFiles.length >= 8) { toast('Maximum 8 files', true); break; }
     if (!isAllowedUpload(f)) { toast(`${f.name}: only PDF or image files are allowed`, true); continue; }
     let file = f;
     // iPhone HEIC/HEIF photos aren't viewable in browsers, so convert them to
@@ -1761,11 +1773,23 @@ async function addFiles(list) {
   }
   renderChips();
 }
+// Chips for the claim's receipts: the ones already saved (openable, so the
+// claimant can check what is there before replacing it) followed by the files
+// picked in this session. Removing either kind is what drops it from the claim.
 function renderChips() {
-  $('#fileChips').innerHTML = pendingFiles.map((f, i) =>
-    `<span class="file-chip">${esc(f.name)} <button type="button" data-i="${i}" aria-label="Remove">×</button></span>`).join('');
+  const saved = keptAttachments.map((a, i) =>
+    `<span class="file-chip file-chip-saved">
+      <a href="/api/claims/${keptClaimId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>
+      <button type="button" data-kind="kept" data-i="${i}" aria-label="Remove ${esc(a.original_name)}">×</button>
+    </span>`);
+  const picked = pendingFiles.map((f, i) =>
+    `<span class="file-chip">${esc(f.name)}
+      <button type="button" data-kind="new" data-i="${i}" aria-label="Remove ${esc(f.name)}">×</button>
+    </span>`);
+  $('#fileChips').innerHTML = saved.concat(picked).join('');
   $$('#fileChips button').forEach(b => b.addEventListener('click', () => {
-    pendingFiles.splice(+b.dataset.i, 1); renderChips();
+    (b.dataset.kind === 'kept' ? keptAttachments : pendingFiles).splice(+b.dataset.i, 1);
+    renderChips();
   }));
 }
 
@@ -1895,6 +1919,8 @@ async function submitClaim(e, existing) {
     });
     btn.textContent = existing ? 'Resubmitting…' : 'Submitting…';
     if (existing) {
+      // Receipts the claimant left in place; the server drops the rest.
+      payload.keep_attachment_ids = keptAttachments.map(a => a.id);
       await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
       toast('Claim resubmitted');
     } else {

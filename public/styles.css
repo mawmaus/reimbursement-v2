@@ -430,7 +430,11 @@ input[type="search"] { min-width: 220px; }
 .file-chip { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem; background: var(--pine-tint);
   color: var(--pine-deep); border-radius: 99px; padding: 4px 6px 4px 11px; }
 .file-chip button { border: none; background: rgba(0,0,0,.08); border-radius: 50%; width: 18px; height: 18px;
-  cursor: pointer; line-height: 1; color: var(--pine-deep); }
+  cursor: pointer; line-height: 1; color: var(--pine-deep); flex: none; }
+/* A receipt already saved on the claim — its name opens the file. */
+.file-chip-saved a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.file-chip-saved a:hover { text-decoration-thickness: 2px; }
+.drop-note { margin-bottom: 10px; line-height: 1.4; }
 
 /* Amount field: fixed currency prefix + amount input + calculator toggle */
 .amount-field { display: flex; align-items: stretch; gap: 0;
