@@ -229,6 +229,7 @@ function baseClaim(row, attachments, history, nameMap) {
       size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
     })),
     history: (history || []).map(h => ({
+      actor_id: h.actor_id == null ? null : Number(h.actor_id),
       actor_name: h.actor_name, action: h.action, from_status: h.from_status,
       to_status: h.to_status, comment: h.comment, created_at: iso(h.created_at)
     }))
@@ -243,7 +244,7 @@ async function serializeMany(rows) {
     `SELECT id, claim_id, original_name, mime_type, size_bytes, uploaded_at
      FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids);
   const hist = await q(
-    `SELECT claim_id, actor_name, action, from_status, to_status, comment, created_at
+    `SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
      FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids);
   const a = groupBy(atts, 'claim_id');
   const h = groupBy(hist, 'claim_id');
@@ -1164,6 +1165,7 @@ function baseMealClaim(row, lines, history, nameMap) {
       amount: Number(l.amount_cents) / 100, description: l.description
     })),
     history: (history || []).map(h => ({
+      actor_id: h.actor_id == null ? null : Number(h.actor_id),
       actor_name: h.actor_name, action: h.action, from_status: h.from_status,
       to_status: h.to_status, comment: h.comment, created_at: iso(h.created_at)
     }))
@@ -1176,7 +1178,7 @@ async function serializeManyMeal(rows) {
   const lines = await q(
     `SELECT * FROM meal_claim_lines WHERE meal_claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
   const hist = await q(
-    `SELECT meal_claim_id, actor_name, action, from_status, to_status, comment, created_at
+    `SELECT meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
      FROM meal_claim_history WHERE meal_claim_id IN (${ph}) ORDER BY id`, ids);
   const l = groupBy(lines, 'meal_claim_id');
   const h = groupBy(hist, 'meal_claim_id');

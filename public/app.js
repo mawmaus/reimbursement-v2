@@ -216,6 +216,26 @@ $('#logoutBtn').addEventListener('click', async () => {
 });
 $('#backHome').addEventListener('click', goHome);
 
+// Manual refresh: reload the ledger so statuses reflect any decisions made
+// elsewhere since the view was opened. Spins the icon while fetching and stamps
+// the time it last synced.
+const refreshBtn = $('#refreshBtn');
+if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+  refreshBtn.classList.add('is-loading');
+  try { await loadClaims(); }
+  catch (ex) { /* surfaced by api()'s own error handling */ }
+  finally { refreshBtn.classList.remove('is-loading'); }
+});
+
+// Show when the ledger was last synced, next to the Refresh button.
+function stampRefreshed() {
+  const el = $('#refreshStamp');
+  if (!el) return;
+  const t = new Date();
+  el.textContent = 'Updated ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el.hidden = false;
+}
+
 // ---------------------------------------------------------------------------
 // Load + render
 // ---------------------------------------------------------------------------
@@ -293,6 +313,7 @@ async function loadClaims() {
   renderClaimantOptions();
   renderClaims();
   renderHome(); // keep the landing menu counts / approval badge in sync
+  stampRefreshed();
 }
 
 // Uniform row display fields for the two claim types.
@@ -356,6 +377,20 @@ function approvedByMe(c) {
 }
 const approvedByMeQueue = () => state.claims.filter(approvedByMe);
 
+// Every claim that came into my queue and that I actually decided on — approved
+// (at any step) or rejected — regardless of where the claim sits now. Derived
+// from the claim's own history (actions logged against my user id), so it stays
+// correct after the claim advances, gets paid, or is reverted. This is a
+// read-only record of my decisions; the row's status column shows each claim's
+// current state, so a Refresh reflects any change others have made since.
+function reviewedByMe(c) {
+  if (!state.user) return false;
+  const uid = state.user.id;
+  return (c.history || []).some(h =>
+    h.actor_id === uid && (h.action === 'rejected' || String(h.action).startsWith('approved')));
+}
+const reviewedByMeQueue = () => state.claims.filter(reviewedByMe);
+
 // Claims already marked as paid — the payer's revert queue. A can_mark_paid
 // account (Finance AP) sits in the approver chain, so paid claims it recorded
 // stay visible in state.claims; this surfaces them so a mistaken payment can be
@@ -367,6 +402,7 @@ function viewClaims() {
   if (state.view === 'mine') return myClaims();
   if (state.view === 'approval') return approvalQueue();
   if (state.view === 'approved') return approvedByMeQueue();
+  if (state.view === 'reviewed') return reviewedByMeQueue();
   if (state.view === 'paid') return paidQueue();
   return state.claims; // 'all' / 'home'
 }
@@ -379,11 +415,12 @@ function visibleClaims() {
 }
 
 // --- Home menu (clean landing) ----------------------------------------------
-const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', paid: 'Paid claims', all: 'All activities' };
+const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', reviewed: 'Reviewed by me', paid: 'Paid claims', all: 'All activities' };
 const VIEW_EMPTY = {
   mine: 'You have not submitted any claims yet.',
   approval: 'Nothing is waiting for your approval right now.',
   approved: 'You have not approved any claims that are still open to revert.',
+  reviewed: 'No claims have come to you for a decision yet.',
   paid: 'No claims have been marked as paid yet.',
   all: 'No claims in the system yet.'
 };
@@ -395,6 +432,10 @@ function renderHome() {
   const need = approvalQueue().length;
   const mine = myClaims().length;
   const approved = approvedByMeQueue().length;
+  const reviewed = reviewedByMeQueue().length;
+  // Am I an approver on any claim? Gates the approver-facing "Reviewed by me"
+  // tile so pure submitters (never in an approval chain) don't see an empty one.
+  const iAmApprover = state.claims.some(c => (c.approvers || []).some(a => a.id === u.id));
   const tiles = [
     { key: 'mine', title: 'My claims', desc: 'Claims you have submitted', count: mine },
     { key: 'approval', title: 'Needs my approval', desc: 'Claims waiting for your decision', count: need, badge: true },
@@ -403,6 +444,11 @@ function renderHome() {
     // is always one click away from being reverted.
     { key: 'approved', title: 'Approved by me', desc: 'Claims you approved — revert if needed', count: approved }
   ];
+  // The full decision record: every claim that came to me and that I approved or
+  // rejected, with each row showing the claim's current status.
+  if (iAmApprover || reviewed) {
+    tiles.push({ key: 'reviewed', title: 'Reviewed by me', desc: 'Claims you approved or rejected', count: reviewed });
+  }
   // Finance AP (can_mark_paid) needs a home for claims already marked paid, so a
   // mistaken payment can be found and reverted. Same permission gate as the
   // "Mark as paid" / unpay actions.

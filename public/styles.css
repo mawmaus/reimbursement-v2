@@ -177,6 +177,13 @@ input[type="search"] { min-width: 220px; }
 /* ---------- List view header (back to menu) ---------- */
 .list-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .list-title { font-size: 1.25rem; font-weight: 650; margin: 0; }
+.refresh-btn { margin-left: auto; }
+.refresh-stamp { font-size: .78rem; color: var(--muted, #6b7280); white-space: nowrap; }
+.refresh-stamp + .refresh-btn { margin-left: 8px; }
+.refresh-icon { display: inline-block; }
+.refresh-btn.is-loading { opacity: .7; pointer-events: none; }
+.refresh-btn.is-loading .refresh-icon { animation: refresh-spin .7s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }
 
 /* ---------- Insights (expense charts) ---------- */
 .insights-scope {
