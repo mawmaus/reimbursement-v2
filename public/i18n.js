@@ -382,7 +382,19 @@
       'No accounts yet.': 'Belum ada akun.',
       'Set a new password for {name} ({username}).': 'Setel kata sandi baru untuk {name} ({username}).',
       'New password': 'Kata sandi baru',
-      'Password reset': 'Kata sandi direset'
+      'Password reset': 'Kata sandi direset',
+      // Claim window
+      'Claim window': 'Batas waktu klaim',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'Atur seberapa lama ke belakang sebuah pengeluaran boleh bertanggal dan tetap dapat diklaim. Kedua aturan berlaku — tanggal paling awal yang efektif adalah yang lebih baru.',
+      'Maximum age (days)': 'Usia maksimum (hari)',
+      'No limit': 'Tanpa batas',
+      'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'Pengeluaran yang lebih lama dari jumlah hari ini tidak dapat diklaim. Kosongkan untuk tanpa batas.',
+      'Earliest allowed expense date': 'Tanggal pengeluaran paling awal yang diizinkan',
+      'No expense dated before this can be claimed. Leave blank for no limit.': 'Pengeluaran bertanggal sebelum ini tidak dapat diklaim. Kosongkan untuk tanpa batas.',
+      'Only expenses dated {date} or later can be claimed.': 'Hanya pengeluaran bertanggal {date} atau setelahnya yang dapat diklaim.',
+      'No date limit is set — expenses of any date can be claimed.': 'Tidak ada batas tanggal — pengeluaran tanggal berapa pun dapat diklaim.',
+      'Claim date limit saved': 'Batas tanggal klaim disimpan',
+      'Expenses dated before {date} can no longer be claimed.': 'Pengeluaran bertanggal sebelum {date} tidak dapat lagi diklaim.'
     },
 
     // -------------------------------------------------------------------- Thai
@@ -708,7 +720,19 @@
       'No accounts yet.': 'ยังไม่มีบัญชี',
       'Set a new password for {name} ({username}).': 'ตั้งรหัสผ่านใหม่สำหรับ {name} ({username})',
       'New password': 'รหัสผ่านใหม่',
-      'Password reset': 'รีเซ็ตรหัสผ่านแล้ว'
+      'Password reset': 'รีเซ็ตรหัสผ่านแล้ว',
+      // Claim window
+      'Claim window': 'ช่วงเวลาการเบิก',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'กำหนดว่าค่าใช้จ่ายย้อนหลังได้นานเพียงใดจึงยังเบิกได้ ใช้ทั้งสองกฎ — วันที่เริ่มต้นที่มีผลคือวันที่ที่ใหม่กว่า',
+      'Maximum age (days)': 'อายุสูงสุด (วัน)',
+      'No limit': 'ไม่จำกัด',
+      'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'ค่าใช้จ่ายที่เก่ากว่าจำนวนวันนี้จะเบิกไม่ได้ เว้นว่างไว้เพื่อไม่จำกัด',
+      'Earliest allowed expense date': 'วันที่ค่าใช้จ่ายเก่าที่สุดที่อนุญาต',
+      'No expense dated before this can be claimed. Leave blank for no limit.': 'ค่าใช้จ่ายที่ลงวันที่ก่อนหน้านี้จะเบิกไม่ได้ เว้นว่างไว้เพื่อไม่จำกัด',
+      'Only expenses dated {date} or later can be claimed.': 'เบิกได้เฉพาะค่าใช้จ่ายที่ลงวันที่ {date} หรือหลังจากนั้น',
+      'No date limit is set — expenses of any date can be claimed.': 'ไม่มีการกำหนดขีดจำกัดวันที่ — เบิกค่าใช้จ่ายวันที่ใดก็ได้',
+      'Claim date limit saved': 'บันทึกขีดจำกัดวันที่เบิกแล้ว',
+      'Expenses dated before {date} can no longer be claimed.': 'ค่าใช้จ่ายที่ลงวันที่ก่อน {date} ไม่สามารถเบิกได้อีกต่อไป'
     },
 
     // -------------------------------------------------------------- Vietnamese
@@ -1034,7 +1058,19 @@
       'No accounts yet.': 'Chưa có tài khoản nào.',
       'Set a new password for {name} ({username}).': 'Đặt mật khẩu mới cho {name} ({username}).',
       'New password': 'Mật khẩu mới',
-      'Password reset': 'Đã đặt lại mật khẩu'
+      'Password reset': 'Đã đặt lại mật khẩu',
+      // Claim window
+      'Claim window': 'Thời hạn yêu cầu',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'Đặt khoảng thời gian tối đa mà một khoản chi vẫn có thể được yêu cầu hoàn. Cả hai quy tắc đều áp dụng — ngày sớm nhất có hiệu lực là ngày muộn hơn.',
+      'Maximum age (days)': 'Số ngày tối đa',
+      'No limit': 'Không giới hạn',
+      'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'Các khoản chi cũ hơn số ngày này không thể được yêu cầu. Để trống nếu không giới hạn.',
+      'Earliest allowed expense date': 'Ngày chi sớm nhất được phép',
+      'No expense dated before this can be claimed. Leave blank for no limit.': 'Không khoản chi nào có ngày trước ngày này được yêu cầu. Để trống nếu không giới hạn.',
+      'Only expenses dated {date} or later can be claimed.': 'Chỉ những khoản chi có ngày {date} trở về sau mới được yêu cầu.',
+      'No date limit is set — expenses of any date can be claimed.': 'Không đặt giới hạn ngày — khoản chi ở bất kỳ ngày nào cũng có thể được yêu cầu.',
+      'Claim date limit saved': 'Đã lưu giới hạn ngày yêu cầu',
+      'Expenses dated before {date} can no longer be claimed.': 'Các khoản chi có ngày trước {date} không còn được yêu cầu.'
     },
 
     // ------------------------------------------------------------------ Khmer
@@ -1360,7 +1396,19 @@
       'No accounts yet.': 'មិនទាន់មានគណនីទេ។',
       'Set a new password for {name} ({username}).': 'កំណត់ពាក្យសម្ងាត់ថ្មីសម្រាប់ {name} ({username})។',
       'New password': 'ពាក្យសម្ងាត់ថ្មី',
-      'Password reset': 'បានកំណត់ពាក្យសម្ងាត់ឡើងវិញ'
+      'Password reset': 'បានកំណត់ពាក្យសម្ងាត់ឡើងវិញ',
+      // Claim window
+      'Claim window': 'រយៈពេលកំណត់សំណើ',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'កំណត់ថាតើការចំណាយអាចមានកាលបរិច្ឆេទថយក្រោយប៉ុន្មាន ហើយនៅតែអាចស្នើសុំបាន។ ច្បាប់ទាំងពីរអនុវត្ត — កាលបរិច្ឆេទដំបូងបំផុតដែលមានប្រសិទ្ធភាពគឺកាលបរិច្ឆេទក្រោយជាង។',
+      'Maximum age (days)': 'អាយុអតិបរមា (ថ្ងៃ)',
+      'No limit': 'គ្មានកំណត់',
+      'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'ការចំណាយដែលចាស់ជាងចំនួនថ្ងៃនេះមិនអាចស្នើសុំបានទេ។ ទុកទទេសម្រាប់គ្មានកំណត់។',
+      'Earliest allowed expense date': 'កាលបរិច្ឆេទចំណាយដំបូងបំផុតដែលអនុញ្ញាត',
+      'No expense dated before this can be claimed. Leave blank for no limit.': 'ការចំណាយដែលមានកាលបរិច្ឆេទមុននេះមិនអាចស្នើសុំបានទេ។ ទុកទទេសម្រាប់គ្មានកំណត់។',
+      'Only expenses dated {date} or later can be claimed.': 'អាចស្នើសុំបានតែការចំណាយដែលមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
+      'No date limit is set — expenses of any date can be claimed.': 'គ្មានការកំណត់កាលបរិច្ឆេទ — អាចស្នើសុំការចំណាយកាលបរិច្ឆេទណាក៏បាន។',
+      'Claim date limit saved': 'បានរក្សាទុកការកំណត់កាលបរិច្ឆេទសំណើ',
+      'Expenses dated before {date} can no longer be claimed.': 'ការចំណាយដែលមានកាលបរិច្ឆេទមុន {date} មិនអាចស្នើសុំបានទៀតទេ។'
     },
 
     // --------------------------------------------------------------- Filipino
@@ -1686,7 +1734,19 @@
       'No accounts yet.': 'Wala pang account.',
       'Set a new password for {name} ({username}).': 'Magtakda ng bagong password para kay {name} ({username}).',
       'New password': 'Bagong password',
-      'Password reset': 'Na-reset ang password'
+      'Password reset': 'Na-reset ang password',
+      // Claim window
+      'Claim window': 'Hangganan ng pag-claim',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'Itakda kung gaano kalayo pabalik puwedeng ma-date ang isang gastos at ma-claim pa rin. Parehong nalalapat ang mga panuntunan — ang epektibong pinakamaagang petsa ay kung alin ang mas huli.',
+      'Maximum age (days)': 'Pinakamataas na edad (araw)',
+      'No limit': 'Walang limitasyon',
+      'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'Ang mga gastos na mas luma sa dami ng araw na ito ay hindi na maaaring i-claim. Iwanang blangko kung walang limitasyon.',
+      'Earliest allowed expense date': 'Pinakamaagang pinapayagang petsa ng gastos',
+      'No expense dated before this can be claimed. Leave blank for no limit.': 'Walang gastos na may petsa bago nito ang maaaring i-claim. Iwanang blangko kung walang limitasyon.',
+      'Only expenses dated {date} or later can be claimed.': 'Ang mga gastos lang na may petsang {date} o mas bago ang maaaring i-claim.',
+      'No date limit is set — expenses of any date can be claimed.': 'Walang nakatakdang limitasyon sa petsa — anumang petsa ng gastos ay maaaring i-claim.',
+      'Claim date limit saved': 'Na-save ang limitasyon ng petsa ng claim',
+      'Expenses dated before {date} can no longer be claimed.': 'Ang mga gastos na may petsa bago ang {date} ay hindi na maaaring i-claim.'
     }
   };
 

@@ -15,6 +15,9 @@ const state = {
   // dir 1 = ascending, -1 = descending.
   sort: { key: '', dir: 1 },
   lookups: { departments: [], expense_types: [] },
+  // Claim-date policy (from GET /api/claim-window). `earliest` is the computed
+  // earliest expense date a claim may carry, or null when unrestricted.
+  claimLimit: { max_age_days: null, earliest_date: null, earliest: null },
   // Insights view: active filters, the "monthly vs yearly" trend toggle, and the
   // last payload from /api/insights (kept so the trend toggle re-renders without
   // a refetch).
@@ -275,6 +278,16 @@ async function loadLookups() {
     state.lookups.departments = (d.items || []).filter(i => i.active).map(i => i.name);
     state.lookups.expense_types = (e.items || []).filter(i => i.active).map(i => i.name);
   } catch { /* form falls back to free text */ }
+  // The claim-date policy gates how old an expense may be; the form uses it to
+  // set the date picker's min and to validate before submit.
+  try { state.claimLimit = await api('/claim-window'); } catch { /* no limit enforced client-side */ }
+}
+// The earliest expense date a claim may carry, or '' when unrestricted.
+const claimEarliest = () => (state.claimLimit && state.claimLimit.earliest) || '';
+// A small note under a date field stating the policy floor (blank when none).
+function claimLimitNote() {
+  const e = claimEarliest();
+  return e ? `<p class="form-note" style="margin-top:4px">${esc(t('Only expenses dated {date} or later can be claimed.', { date: e }))}</p>` : '';
 }
 
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -1765,7 +1778,7 @@ function openClaimModal(existing = null) {
     <div class="modal-body">
       <form id="claimForm" class="form">
         <div class="grid2">
-          <label>${esc(t('Date'))}<input name="expense_date" type="date" required value="${esc(v.expense_date || '')}" /></label>
+          <label>${esc(t('Date'))}<input name="expense_date" type="date" required ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(v.expense_date || '')}" />${claimLimitNote()}</label>
           <label>${esc(t('DB No.'))}<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
           ${expenseTypeField(v.expense_type)}
           <label>${esc(t('Amount'))}
@@ -2047,6 +2060,12 @@ async function submitClaim(e, existing) {
   if ((state.user.approver1_choices || []).length >= 2 && !String(payload.approver1 || '').trim()) {
     err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
   }
+  // Claim-date policy: block an expense dated before the allowed floor.
+  const earliest = claimEarliest();
+  if (earliest && String(payload.expense_date || '') < earliest) {
+    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest });
+    err.hidden = false; return;
+  }
   const btn = e.target.querySelector('button[type="submit"]');
   const label = btn.textContent;
   btn.disabled = true;
@@ -2107,7 +2126,7 @@ function mealAmountSelect(val) {
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
-    <td data-label="${esc(t('Date'))}"><input name="date" type="date" value="${esc(r.date || '')}" /></td>
+    <td data-label="${esc(t('Date'))}"><input name="date" type="date" ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(r.date || '')}" /></td>
     <td data-label="${esc(t('DB Number Site'))}"><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
     <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${esc(t('Install / Repair / Service…'))}" /></td>
     <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
@@ -2161,6 +2180,7 @@ function openMealAllowanceModal(existing = null) {
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
+        ${claimLimitNote()}
         <p class="form-error" id="mealError" hidden></p>
         <div class="meal-scroll">
           <div class="meal-table-wrap">
@@ -2214,6 +2234,12 @@ async function submitMealClaim(e, existing) {
     .filter(r => r.date || r.site || r.category || r.desc || mealAmount(r.amount))
     .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
   if (!lines.length) { err.textContent = t('Add at least one line with a date and amount'); err.hidden = false; return; }
+  // Claim-date policy: block any line dated before the allowed floor.
+  const earliest = claimEarliest();
+  if (earliest && lines.some(l => String(l.date || '') < earliest)) {
+    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest });
+    err.hidden = false; return;
+  }
   const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
   if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
@@ -2526,7 +2552,8 @@ const SETTINGS_TABS = [
   { key: 'accounts', label: 'Accounts' },
   { key: 'departments', label: 'Departments' },
   { key: 'positions', label: 'Job positions' },
-  { key: 'expense-types', label: 'Expense types' }
+  { key: 'expense-types', label: 'Expense types' },
+  { key: 'claim-window', label: 'Claim window' }
 ];
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
@@ -2585,12 +2612,59 @@ function renderSettingsTab() {
   settingsState.departments = state.lookups.departments;
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
+  if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true },
     positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
     'expense-types': { path: '/expense-types', noun: 'expense type' }
   }[settingsState.tab];
   return renderLookupTab(cfg);
+}
+
+// --- Claim window (how far back an expense may be dated) ----------------------
+// Superadmin-only editor for the rolling window (N days) and the absolute cutoff
+// date. Both may be set; the effective floor shown is whichever is later.
+async function renderClaimWindowTab() {
+  const panel = $('#settingsPanel');
+  let cw;
+  try { cw = await api('/claim-window'); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  state.claimLimit = cw;
+  const status = cw.earliest
+    ? t('Only expenses dated {date} or later can be claimed.', { date: cw.earliest })
+    : t('No date limit is set — expenses of any date can be claimed.');
+  panel.innerHTML = `
+    <div class="settings-controls" style="max-width:560px">
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.'))}</p>
+      <form id="cwForm" class="form">
+        <label>${esc(t('Maximum age (days)'))}
+          <input name="max_age_days" type="number" min="0" max="3650" inputmode="numeric" placeholder="${esc(t('No limit'))}" value="${cw.max_age_days != null ? cw.max_age_days : ''}" />
+          <span class="form-note" style="font-weight:400;color:var(--muted);font-size:.8rem">${esc(t('Expenses older than this many days cannot be claimed. Leave blank for no limit.'))}</span>
+        </label>
+        <label>${esc(t('Earliest allowed expense date'))}
+          <input name="earliest_date" type="date" value="${esc(cw.earliest_date || '')}" />
+          <span class="form-note" style="font-weight:400;color:var(--muted);font-size:.8rem">${esc(t('No expense dated before this can be claimed. Leave blank for no limit.'))}</span>
+        </label>
+        <div style="margin:14px 0;padding:10px 12px;background:var(--pine-tint);border:1px solid var(--line);border-radius:8px;font-size:.85rem;color:var(--ink-soft)">${esc(status)}</div>
+        <p class="form-error" id="cwErr" hidden></p>
+        <div class="modal-actions" style="justify-content:flex-start">
+          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
+        </div>
+      </form>
+    </div>`;
+  $('#cwForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#cwErr'); err.hidden = true;
+    const fd = new FormData(e.target);
+    try {
+      const updated = await api('/claim-window', { method: 'PUT', body: JSON.stringify({
+        max_age_days: fd.get('max_age_days'), earliest_date: fd.get('earliest_date')
+      }) });
+      state.claimLimit = updated;
+      toast(t('Claim date limit saved'));
+      renderClaimWindowTab();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  });
 }
 
 // --- Generic lookup manager (departments / positions / expense types) --------

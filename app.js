@@ -152,6 +152,64 @@ const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 const SUPPORTED_LANGS = ['en', 'id', 'th', 'vi', 'km', 'fil'];
 const normLang = (v) => SUPPORTED_LANGS.includes(String(v || '')) ? String(v) : 'en';
 
+// --- App-wide settings (key/value store) -----------------------------------
+async function loadAppSettings() {
+  const rows = await q('SELECT key, value FROM app_settings');
+  const out = {};
+  for (const r of rows) out[r.key] = r.value;
+  return out;
+}
+async function setAppSetting(key, value) {
+  await q(
+    `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, now())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+    [key, String(value == null ? '' : value)]);
+}
+
+// --- Claim date policy ------------------------------------------------------
+const isISODate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+// Today's date (YYYY-MM-DD) in Jakarta time — matches the client's todayWIB() so
+// a late-evening submission doesn't roll to "tomorrow" via UTC.
+function todayJakarta() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+}
+// Subtract n whole days from a YYYY-MM-DD string (date-only arithmetic in UTC).
+function subDaysISO(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+// The earliest expense date a claim may carry under the current policy, or null
+// when unrestricted. A rolling window (N days back from today) and an absolute
+// cutoff can both be set; the effective floor is the later (max) of the two.
+function claimEarliestFrom(settings) {
+  const bounds = [];
+  const days = parseInt(settings.claim_max_age_days, 10);
+  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayJakarta(), days));
+  if (isISODate(settings.claim_earliest_date)) bounds.push(settings.claim_earliest_date);
+  if (!bounds.length) return null;
+  return bounds.reduce((a, b) => (a > b ? a : b));
+}
+// Reject a set of expense/line dates if any falls before the policy floor.
+// Returns { earliest, error } on violation, or null when all dates are allowed.
+async function claimDateViolation(dates) {
+  const earliest = claimEarliestFrom(await loadAppSettings());
+  if (!earliest) return null;
+  const bad = dates.some(d => isISODate(d) && d < earliest);
+  return bad ? { earliest, error: `Expenses dated before ${earliest} can no longer be claimed.` } : null;
+}
+// Response shape for the claim-date policy (shared by GET/PUT /api/claim-window).
+function claimWindowView(settings) {
+  const days = parseInt(settings.claim_max_age_days, 10);
+  return {
+    max_age_days: Number.isFinite(days) && days > 0 ? days : null,
+    earliest_date: isISODate(settings.claim_earliest_date) ? settings.claim_earliest_date : null,
+    earliest: claimEarliestFrom(settings)
+  };
+}
+
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
@@ -667,6 +725,37 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));
 
+// Claim-date policy: how far back an expense may be dated and still be claimable.
+// Any signed-in user reads it (the claim form needs it to validate); only a super
+// admin changes it (from Settings).
+app.get('/api/claim-window', requireAuth, ah(async (req, res) => {
+  res.json(claimWindowView(await loadAppSettings()));
+}));
+
+app.put('/api/claim-window', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const b = req.body || {};
+  // Rolling window in days: a positive integer, or blank/0 to disable.
+  let days = '';
+  if (b.max_age_days != null && String(b.max_age_days).trim() !== '') {
+    const n = parseInt(b.max_age_days, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 3650) {
+      return res.status(400).json({ error: 'Maximum age must be a whole number of days between 0 and 3650' });
+    }
+    days = n > 0 ? String(n) : '';
+  }
+  // Absolute earliest date (YYYY-MM-DD), or blank to disable.
+  let earliest = '';
+  if (b.earliest_date != null && String(b.earliest_date).trim() !== '') {
+    if (!isISODate(String(b.earliest_date).trim())) {
+      return res.status(400).json({ error: 'Earliest date must be a valid date' });
+    }
+    earliest = String(b.earliest_date).trim();
+  }
+  await setAppSetting('claim_max_age_days', days);
+  await setAppSetting('claim_earliest_date', earliest);
+  res.json(claimWindowView(await loadAppSettings()));
+}));
+
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
   const { current_password, new_password } = req.body || {};
   if (!new_password || String(new_password).length < 8) {
@@ -882,6 +971,9 @@ app.post('/api/claims', requireAuth, ah(async (req, res) => {
     }
     const cents = parseAmountToCents(b.amount);
     if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
+    // Enforce the claim-date policy (rolling window + absolute cutoff).
+    const dv = await claimDateViolation([String(b.expense_date).trim()]);
+    if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
     // Resolve the approver chain (validating the chosen Approver 1) before we
     // link any receipts, so a bad/missing choice fails cleanly.
     const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
@@ -920,6 +1012,8 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   }
   const cents = parseAmountToCents(b.amount);
   if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
+  const dv = await claimDateViolation([String(b.expense_date).trim()]);
+  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
 
   // A resubmit replaces the claim's whole receipt set: the client sends the ids
   // of the existing attachments it kept, plus any newly uploaded ones. Anything
@@ -1327,6 +1421,8 @@ async function createMealClaim(req, lines, totalCents, approverIds) {
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date));
+  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   const approverIds = built.ids;
@@ -1348,6 +1444,8 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   }
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date));
+  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   // Bank details + approvers come from the claimant's account.
   const emp = (await q(
     'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',

@@ -248,6 +248,19 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_pwreset_token ON password_resets(token_hash)`,
   `CREATE INDEX IF NOT EXISTS idx_pwreset_user  ON password_resets(user_id)`,
+  // --- App-wide settings (key/value) ------------------------------------------
+  // Simple key/value store for global configuration a super admin controls from
+  // the Settings screen. Current keys:
+  //   claim_max_age_days  — rolling window: an expense dated more than N days
+  //                         before today (Asia/Jakarta) can't be claimed. '' / 0 = off.
+  //   claim_earliest_date — absolute cutoff (YYYY-MM-DD): no expense dated before
+  //                         this can be claimed. '' = off.
+  // Both may be set; the effective earliest claimable date is the later of the two.
+  `CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
   // --- Login throttling -------------------------------------------------------
   // Failed-login counter, keyed by client IP. Kept in the database (not just an
   // in-memory Map) so the limit holds across serverless instances, which each
