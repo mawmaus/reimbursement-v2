@@ -14,25 +14,32 @@
     <div class="brand">
       <img class="logo logo-lg" src="logo.svg" alt="Cibes" />
       <div>
-        <h1>Reimbursement Portal</h1>
-        <p class="muted">Sign in to submit, approve, or process claims.</p>
+        <h1 data-i18n="Reimbursement Portal">Reimbursement Portal</h1>
+        <p class="muted" data-i18n="Sign in to submit, approve, or process claims.">Sign in to submit, approve, or process claims.</p>
       </div>
     </div>
     <form id="loginForm" class="form" autocomplete="on">
-      <label>Username
+      <label><span data-i18n="Username">Username</span>
         <input name="username" type="text" required autocomplete="username" />
       </label>
-      <label>Password
+      <label><span data-i18n="Password">Password</span>
         <div class="pw-wrap">
           <input name="password" type="password" required autocomplete="current-password" />
-          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+          <button type="button" class="pw-toggle" data-i18n-aria="Show password" aria-label="Show password">👁</button>
         </div>
       </label>
       <p id="loginError" class="form-error" hidden></p>
-      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+      <button type="submit" class="btn btn-primary btn-block" data-i18n="Sign in">Sign in</button>
     </form>
 
     <p class="login-hint muted" id="loginHint"></p>
+
+    <div class="login-lang">
+      <label class="lang-select" title="Language">
+        <span class="lang-globe" aria-hidden="true">🌐</span>
+        <select id="loginLang" aria-label="Language"></select>
+      </label>
+    </div>
   </div>
 </div>
 
@@ -41,18 +48,22 @@
   <header class="topbar">
     <div class="topbar-left">
       <img class="logo logo-sm" src="logo.svg" alt="Cibes" />
-      <span class="topbar-title">Reimbursement Portal</span>
+      <span class="topbar-title" data-i18n="Reimbursement Portal">Reimbursement Portal</span>
     </div>
     <div class="topbar-right">
       <span id="userBadge" class="user-badge"></span>
-      <button id="newClaimBtn" class="btn btn-primary btn-sm" hidden>New claim</button>
-      <button id="newMealBtn" class="btn btn-primary btn-sm" hidden>New meal allowance</button>
-      <button id="exportBtn" class="btn btn-green-soft btn-sm" hidden>Export CSV</button>
-      <button id="profileBtn" class="btn btn-indigo-soft btn-sm">Profile</button>
-      <button id="accountsBtn" class="btn btn-brand-soft btn-sm" hidden>Manage accounts</button>
-      <button id="settingsBtn" class="btn btn-brand-soft btn-sm" hidden>Settings</button>
+      <label class="lang-select topbar-lang" title="Language">
+        <span class="lang-globe" aria-hidden="true">🌐</span>
+        <select id="topLang" aria-label="Language"></select>
+      </label>
+      <button id="newClaimBtn" class="btn btn-primary btn-sm" hidden data-i18n="New claim">New claim</button>
+      <button id="newMealBtn" class="btn btn-primary btn-sm" hidden data-i18n="New meal allowance">New meal allowance</button>
+      <button id="exportBtn" class="btn btn-green-soft btn-sm" hidden data-i18n="Export CSV">Export CSV</button>
+      <button id="profileBtn" class="btn btn-indigo-soft btn-sm" data-i18n="Profile">Profile</button>
+      <button id="accountsBtn" class="btn btn-brand-soft btn-sm" hidden data-i18n="Manage accounts">Manage accounts</button>
+      <button id="settingsBtn" class="btn btn-brand-soft btn-sm" hidden data-i18n="Settings">Settings</button>
     </div>
-    <button id="logoutBtn" class="btn btn-danger-ghost btn-sm topbar-signout">Sign out</button>
+    <button id="logoutBtn" class="btn btn-danger-ghost btn-sm topbar-signout" data-i18n="Sign out">Sign out</button>
   </header>
 
   <main class="container">
@@ -65,8 +76,8 @@
     <!-- Expense insights (charts), opened from a home tile. -->
     <section id="insightsView" hidden>
       <div class="list-head">
-        <button id="backHomeInsights" class="btn btn-ghost btn-sm" type="button">← Menu</button>
-        <h2 class="list-title">Insights</h2>
+        <button id="backHomeInsights" class="btn btn-ghost btn-sm" type="button" data-i18n="← Menu">← Menu</button>
+        <h2 class="list-title" data-i18n="Insights">Insights</h2>
         <span id="insightsScope" class="insights-scope"></span>
       </div>
       <div id="insightsBody"></div>
@@ -75,11 +86,11 @@
     <!-- One claims list, opened from a home tile. -->
     <section id="listView" hidden>
       <div class="list-head">
-        <button id="backHome" class="btn btn-ghost btn-sm" type="button">← Menu</button>
+        <button id="backHome" class="btn btn-ghost btn-sm" type="button" data-i18n="← Menu">← Menu</button>
         <h2 class="list-title" id="listTitle"></h2>
         <span id="refreshStamp" class="refresh-stamp" hidden></span>
-        <button id="refreshBtn" class="btn btn-ghost btn-sm refresh-btn" type="button" title="Reload claims and statuses">
-          <span class="refresh-icon" aria-hidden="true">↻</span> Refresh
+        <button id="refreshBtn" class="btn btn-ghost btn-sm refresh-btn" type="button" data-i18n-title="Reload claims and statuses" title="Reload claims and statuses">
+          <span class="refresh-icon" aria-hidden="true">↻</span> <span data-i18n="Refresh">Refresh</span>
         </button>
       </div>
 
@@ -87,42 +98,42 @@
 
       <section class="toolbar">
         <div class="toolbar-left">
-          <input id="searchInput" class="input" type="search" placeholder="Search claim no, name, type, DB…" />
+          <input id="searchInput" class="input" type="search" data-i18n-ph="Search claim no, name, type, DB…" placeholder="Search claim no, name, type, DB…" />
           <select id="statusFilter" class="input">
-            <option value="">All statuses</option>
-            <option value="submitted">Pending review</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="paid">Paid</option>
+            <option value="" data-i18n="All statuses">All statuses</option>
+            <option value="submitted" data-i18n="Pending review">Pending review</option>
+            <option value="approved" data-i18n="Approved">Approved</option>
+            <option value="rejected" data-i18n="Rejected">Rejected</option>
+            <option value="paid" data-i18n="Paid">Paid</option>
           </select>
-          <select id="deptFilter" class="input"><option value="">All departments</option></select>
-          <select id="claimantFilter" class="input"><option value="">All claimants</option></select>
+          <select id="deptFilter" class="input"><option value="" data-i18n="All departments">All departments</option></select>
+          <select id="claimantFilter" class="input"><option value="" data-i18n="All claimants">All claimants</option></select>
         </div>
       </section>
 
       <div id="selectionBar" class="selection-bar" hidden>
         <span id="selCount" class="sel-count"></span>
         <div class="sel-actions">
-          <button id="clearSelBtn" class="btn btn-ghost btn-sm" type="button">Clear</button>
-          <button id="deleteSelBtn" class="btn btn-danger btn-sm" type="button" hidden>Delete</button>
-          <button id="genPdfBtn" class="btn btn-primary btn-sm" type="button">Download PDF</button>
+          <button id="clearSelBtn" class="btn btn-ghost btn-sm" type="button" data-i18n="Clear">Clear</button>
+          <button id="deleteSelBtn" class="btn btn-danger btn-sm" type="button" hidden data-i18n="Delete">Delete</button>
+          <button id="genPdfBtn" class="btn btn-primary btn-sm" type="button" data-i18n="Download PDF">Download PDF</button>
         </div>
       </div>
 
       <section class="ledger">
         <div class="ledger-head">
           <span class="col-spine"></span>
-          <span class="col-check"><input type="checkbox" id="selectAll" aria-label="Select all claims" /></span>
-          <span class="col-no" data-sort="no" role="button" tabindex="0">Claim</span>
-          <span class="col-name" data-sort="name" role="button" tabindex="0">Claimant</span>
-          <span class="col-db" data-sort="db" role="button" tabindex="0">No DB</span>
-          <span class="col-type" data-sort="type" role="button" tabindex="0">Expense</span>
-          <span class="col-date" data-sort="date" role="button" tabindex="0">Date</span>
-          <span class="col-amt" data-sort="amount" role="button" tabindex="0">Amount</span>
-          <span class="col-status" data-sort="status" role="button" tabindex="0">Status</span>
+          <span class="col-check"><input type="checkbox" id="selectAll" data-i18n-aria="Select all claims" aria-label="Select all claims" /></span>
+          <span class="col-no" data-sort="no" role="button" tabindex="0" data-i18n="Claim">Claim</span>
+          <span class="col-name" data-sort="name" role="button" tabindex="0" data-i18n="Claimant">Claimant</span>
+          <span class="col-db" data-sort="db" role="button" tabindex="0" data-i18n="No DB">No DB</span>
+          <span class="col-type" data-sort="type" role="button" tabindex="0" data-i18n="Expense">Expense</span>
+          <span class="col-date" data-sort="date" role="button" tabindex="0" data-i18n="Date">Date</span>
+          <span class="col-amt" data-sort="amount" role="button" tabindex="0" data-i18n="Amount">Amount</span>
+          <span class="col-status" data-sort="status" role="button" tabindex="0" data-i18n="Status">Status</span>
         </div>
         <div id="claimRows"></div>
-        <p id="emptyState" class="empty muted" hidden>No claims yet.</p>
+        <p id="emptyState" class="empty muted" hidden data-i18n="No claims yet.">No claims yet.</p>
       </section>
     </section>
   </main>
@@ -142,6 +153,7 @@
 
 <div id="toast" class="toast" hidden></div>
 
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

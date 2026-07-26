@@ -92,7 +92,11 @@ function todayWIB() {
     timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
 }
+// English status labels — the source of truth for sorting and for the PDF
+// (whose font can't render non-Latin scripts). The UI uses statusLabel() so it
+// shows the active language instead.
 const STATUS_LABEL = { submitted: 'Pending review', approved: 'Approved', rejected: 'Rejected', paid: 'Paid' };
+const statusLabel = (s) => t(STATUS_LABEL[s] || s || '');
 
 // Group an amount's integer part with thousands separators for readability as
 // the user types, e.g. "1000000" → "1,000,000". Commas are stripped again by
@@ -119,12 +123,95 @@ function attachAmountGrouping(input) {
 // Auth / boot
 // ---------------------------------------------------------------------------
 async function boot() {
+  initLangUI();          // populate + wire the language switchers, apply chrome
   try {
     const { user } = await api('/me');
     state.user = user;
+    adoptAccountLang(user); // the account's saved language is authoritative
     showApp();
   } catch {
     showLogin();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Language switching
+// ---------------------------------------------------------------------------
+// Adopt the language stored on the account (the cross-device default). Called
+// after /login and /me: the account wins over the local cache, so signing in on
+// a new device switches to the user's saved language.
+function adoptAccountLang(user) {
+  const lang = user && I18N.normalize(user.language);
+  if (lang && lang !== I18N.getLang()) I18N.setLangLocal(lang);
+  applyLangChrome();
+}
+
+// Re-translate the static chrome (top bar, list head, filters, login) and keep
+// both switchers showing the active language.
+function applyLangChrome() {
+  I18N.applyStatic();
+  syncLangSelectors();
+  renderLoginHint();
+}
+
+function renderLoginHint() {
+  const el = $('#loginHint');
+  if (el) el.textContent = t('Need an account or forgot your password? Contact your manager');
+}
+
+// Fill both <select>s with the language list (labelled by native name) and wire
+// their change handlers. The login switcher only affects the local cache; the
+// top-bar switcher also persists the choice to the signed-in account.
+function initLangUI() {
+  const fill = (sel) => {
+    if (!sel) return;
+    sel.innerHTML = I18N.LANGS.map(l =>
+      `<option value="${l.code}">${esc(I18N.NATIVE[l.code] || l.label)}</option>`).join('');
+    sel.value = I18N.getLang();
+  };
+  const login = $('#loginLang'), top = $('#topLang');
+  fill(login); fill(top);
+  if (login) login.addEventListener('change', () => {
+    I18N.setLangLocal(login.value);
+    applyLangChrome();
+  });
+  if (top) top.addEventListener('change', () => changeLanguage(top.value));
+  applyLangChrome();
+}
+
+function syncLangSelectors() {
+  const cur = I18N.getLang();
+  const login = $('#loginLang'), top = $('#topLang');
+  if (login && login.value !== cur) login.value = cur;
+  if (top && top.value !== cur) top.value = cur;
+}
+
+// A signed-in user picks a language: apply it instantly (chrome + whatever view
+// is open), then persist it to their account so it becomes their default across
+// devices. The account save is best-effort — the local switch already happened.
+async function changeLanguage(code) {
+  const next = I18N.normalize(code);
+  I18N.setLangLocal(next);
+  applyLangChrome();
+  rerenderDynamic();
+  try {
+    const { user } = await api('/me', { method: 'PUT', body: JSON.stringify({ language: next }) });
+    if (user) state.user = { ...state.user, ...user };
+    toast(t('Language updated'));
+  } catch (ex) { toast(ex.message, true); }
+}
+
+// Re-render the dynamic view currently on screen so its generated text picks up
+// the new language. Modals and the drawer overlay the top-bar switcher, so only
+// the home / list / insights surfaces can be visible when this runs.
+function rerenderDynamic() {
+  if (!state.user) return;
+  renderHome();
+  if (state.view === 'insights') { if (state.insights.data) renderInsights(); }
+  else if (state.view && state.view !== 'home') {
+    const title = $('#listTitle');
+    if (title) title.textContent = viewLabel(state.view);
+    renderClaims();
   }
 }
 
@@ -132,8 +219,7 @@ function showLogin() {
   $('#appView').hidden = true;
   $('#loginView').hidden = false;
   $('#loginForm').hidden = false;
-  $('#loginHint').innerHTML =
-    'Need an account or forgot your password? Contact your manager';
+  renderLoginHint();
 }
 
 function showApp() {
@@ -202,6 +288,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
     });
     state.user = user;
     e.target.reset();
+    adoptAccountLang(user);
     showApp();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
@@ -231,8 +318,8 @@ if (refreshBtn) refreshBtn.addEventListener('click', async () => {
 function stampRefreshed() {
   const el = $('#refreshStamp');
   if (!el) return;
-  const t = new Date();
-  el.textContent = 'Updated ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const now = new Date();
+  el.textContent = t('Updated {time}', { time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
   el.hidden = false;
 }
 
@@ -251,7 +338,7 @@ function anyFilterActive() {
   return !!(f.status || f.department || f.q || f.claimant);
 }
 
-const totalCardLabel = () => anyFilterActive() ? 'Filtered total' : 'Total value';
+const totalCardLabel = () => anyFilterActive() ? t('Filtered total') : t('Total value');
 
 // The summary cards describe exactly the rows currently in view, so they track
 // every active filter (status, department, search, claimant). Both claim types
@@ -262,10 +349,10 @@ function renderSummaryCards() {
   const total = claims.reduce((sum, c) => sum + Number(rowView(c).amount || 0), 0);
   // status key doubles as the filter value; the total card is display-only.
   const cards = [
-    { k: 'submitted', l: 'Pending', n: count('submitted'), status: 'submitted' },
-    { k: 'approved', l: 'Approved', n: count('approved'), status: 'approved' },
-    { k: 'rejected', l: 'Rejected', n: count('rejected'), status: 'rejected' },
-    { k: 'paid', l: 'Paid', n: count('paid'), status: 'paid' },
+    { k: 'submitted', l: t('Pending'), n: count('submitted'), status: 'submitted' },
+    { k: 'approved', l: t('Approved'), n: count('approved'), status: 'approved' },
+    { k: 'rejected', l: t('Rejected'), n: count('rejected'), status: 'rejected' },
+    { k: 'paid', l: t('Paid'), n: count('paid'), status: 'paid' },
     { k: 'total', l: totalCardLabel(), n: money(total, 'IDR') }
   ];
   $('#summaryCards').innerHTML = cards.map(c => {
@@ -273,7 +360,7 @@ function renderSummaryCards() {
       return `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${esc(c.l)}</div></div>`;
     }
     const active = state.filters.status === c.status;
-    const hint = active ? `Clear ${c.l.toLowerCase()} filter` : `Show only ${c.l.toLowerCase()} claims`;
+    const hint = active ? t('Clear {label} filter', { label: c.l }) : t('Show only {label} claims', { label: c.l });
     return `<div class="card ${c.k} card-filter${active ? ' active' : ''}" data-status="${c.status}"
       role="button" tabindex="0" aria-pressed="${active}" title="${esc(hint)}">
       <div class="card-n">${esc(c.n)}</div><div class="card-l">${esc(c.l)}</div></div>`;
@@ -322,7 +409,7 @@ function rowView(c) {
     const first = (c.lines && c.lines[0] && c.lines[0].line_date) || (c.created_at || '').slice(0, 10);
     // Meal claims carry a "DB number site" per line; surface the first one.
     const site = (c.lines && c.lines[0] && c.lines[0].site) || '';
-    return { typeLabel: 'Meal allowance', date: first, amount: c.total_amount, db: site };
+    return { typeLabel: t('Meal allowance'), date: first, amount: c.total_amount, db: site };
   }
   return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount, db: c.db_no || '' };
 }
@@ -415,6 +502,8 @@ function visibleClaims() {
 }
 
 // --- Home menu (clean landing) ----------------------------------------------
+// English source maps; viewLabel()/viewEmpty() translate at render time so a
+// language switch updates them without reloading the constant.
 const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', reviewed: 'Reviewed by me', paid: 'Paid claims', all: 'All activities' };
 const VIEW_EMPTY = {
   mine: 'You have not submitted any claims yet.',
@@ -424,11 +513,13 @@ const VIEW_EMPTY = {
   paid: 'No claims have been marked as paid yet.',
   all: 'No claims in the system yet.'
 };
+const viewLabel = (k) => t(VIEW_LABEL[k] || 'Claims');
+const viewEmpty = (k) => t(VIEW_EMPTY[k] || 'No claims yet.');
 function renderHome() {
   const menu = $('#homeMenu');
   if (!menu || !state.user) return;
   const u = state.user;
-  $('#homeGreeting').textContent = u.full_name ? `Hi ${u.full_name.split(' ')[0]} — what would you like to open?` : '';
+  $('#homeGreeting').textContent = u.full_name ? t('Hi {name} — what would you like to open?', { name: u.full_name.split(' ')[0] }) : '';
   const need = approvalQueue().length;
   const mine = myClaims().length;
   const approved = approvedByMeQueue().length;
@@ -437,38 +528,38 @@ function renderHome() {
   // tile so pure submitters (never in an approval chain) don't see an empty one.
   const iAmApprover = state.claims.some(c => (c.approvers || []).some(a => a.id === u.id));
   const tiles = [
-    { key: 'mine', title: 'My claims', desc: 'Claims you have submitted', count: mine },
-    { key: 'approval', title: 'Needs my approval', desc: 'Claims waiting for your decision', count: need, badge: true },
+    { key: 'mine', title: t('My claims'), desc: t('Claims you have submitted'), count: mine },
+    { key: 'approval', title: t('Needs my approval'), desc: t('Claims waiting for your decision'), count: need, badge: true },
     // The revert safety net: claims I signed off that I can still undo. Shown
     // alongside "Needs my approval" (both are approver-facing) so a mis-approval
     // is always one click away from being reverted.
-    { key: 'approved', title: 'Approved by me', desc: 'Claims you approved — revert if needed', count: approved }
+    { key: 'approved', title: t('Approved by me'), desc: t('Claims you approved — revert if needed'), count: approved }
   ];
   // The full decision record: every claim that came to me and that I approved or
   // rejected, with each row showing the claim's current status.
   if (iAmApprover || reviewed) {
-    tiles.push({ key: 'reviewed', title: 'Reviewed by me', desc: 'Claims you approved or rejected', count: reviewed });
+    tiles.push({ key: 'reviewed', title: t('Reviewed by me'), desc: t('Claims you approved or rejected'), count: reviewed });
   }
   // Finance AP (can_mark_paid) needs a home for claims already marked paid, so a
   // mistaken payment can be found and reverted. Same permission gate as the
   // "Mark as paid" / unpay actions.
   if (u.role === 'superadmin' || u.can_mark_paid) {
-    tiles.push({ key: 'paid', title: 'Paid claims', desc: 'Claims marked as paid — revert if needed', count: paidQueue().length });
+    tiles.push({ key: 'paid', title: t('Paid claims'), desc: t('Claims marked as paid — revert if needed'), count: paidQueue().length });
   }
-  if (u.role === 'superadmin') tiles.push({ key: 'all', title: 'All activities', desc: 'Every claim in the system', count: state.claims.length });
+  if (u.role === 'superadmin') tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
   // Insights is gated to Supervisor-and-above plus all of Finance (see
   // insightsCanView on the server). Among those, the backend scopes the data:
   // company-wide for super admins / Finance / GM-and-above, own department for
   // everyone else.
   if (u.can_view_insights) {
-    tiles.push({ key: 'insights', title: 'Insights', desc: 'Expense trends by type, month and year', link: 'View charts' });
+    tiles.push({ key: 'insights', title: t('Insights'), desc: t('Expense trends by type, month and year'), link: t('View charts') });
   }
-  menu.innerHTML = tiles.map(t => `
-    <button class="home-tile${t.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${t.key}" type="button">
-      ${t.badge && t.count > 0 ? `<span class="tile-badge" aria-label="${t.count} awaiting approval">${t.count > 99 ? '99+' : t.count}</span>` : ''}
-      <span class="tile-title">${esc(t.title)}</span>
-      <span class="tile-desc">${esc(t.desc)}</span>
-      <span class="tile-count">${t.link ? esc(t.link) + ' →' : `${t.count} ${t.count === 1 ? 'claim' : 'claims'}`}</span>
+  menu.innerHTML = tiles.map(tile => `
+    <button class="home-tile${tile.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${tile.key}" type="button">
+      ${tile.badge && tile.count > 0 ? `<span class="tile-badge" aria-label="${esc(t('{count} awaiting approval', { count: tile.count }))}">${tile.count > 99 ? '99+' : tile.count}</span>` : ''}
+      <span class="tile-title">${esc(tile.title)}</span>
+      <span class="tile-desc">${esc(tile.desc)}</span>
+      <span class="tile-count">${tile.link ? esc(tile.link) + ' →' : esc(tile.count === 1 ? t('{n} claim', { n: tile.count }) : t('{n} claims', { n: tile.count }))}</span>
     </button>`).join('');
   $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.view;
@@ -482,7 +573,7 @@ function openView(key) {
   state.selected.clear();
   $('#homeView').hidden = true;
   $('#listView').hidden = false;
-  $('#listTitle').textContent = VIEW_LABEL[key] || 'Claims';
+  $('#listTitle').textContent = viewLabel(key);
   renderClaims();
 }
 function goHome() {
@@ -511,7 +602,6 @@ const INSIGHT_STATUS_PRESETS = [
   { v: 'submitted,approved,paid', l: 'All except rejected' },
   { v: 'submitted,approved,rejected,paid', l: 'All statuses' }
 ];
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function openInsights() {
   state.view = 'insights';
@@ -523,7 +613,7 @@ function openInsights() {
 
 async function loadInsights() {
   const body = $('#insightsBody');
-  body.innerHTML = '<p class="muted" style="padding:28px 4px">Loading…</p>';
+  body.innerHTML = `<p class="muted" style="padding:28px 4px">${esc(t('Loading…'))}</p>`;
   const f = state.insights;
   const params = new URLSearchParams();
   if (f.year) params.set('year', f.year);
@@ -553,35 +643,35 @@ function renderInsights() {
   const scopeEl = $('#insightsScope');
   scopeEl.textContent = d.scope.department
     ? d.scope.department
-    : (d.scope.mode === 'all' ? 'Company-wide' : 'Claims you approve');
+    : (d.scope.mode === 'all' ? t('Company-wide') : t('Claims you approve'));
 
   const yearOpts = (d.years.length ? d.years : [d.year])
     .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');
-  const deptOpts = ['<option value="">All departments</option>']
+  const deptOpts = [`<option value="">${esc(t('All departments'))}</option>`]
     .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
   const statusOpts = INSIGHT_STATUS_PRESETS
-    .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${o.l}</option>`).join('');
+    .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${esc(t(o.l))}</option>`).join('');
 
   const k = d.kpis;
   const kpiCards = [
-    { l: 'Total spend', v: moneyShort(k.total_cents / 100, cur) },
-    { l: 'Claims', v: String(k.claims) },
-    { l: 'Top category', v: k.top_type ? `${esc(k.top_type)} <span class="kpi-sub">${k.top_share}%</span>` : '—' },
-    { l: 'Avg per claim', v: k.claims ? moneyShort(k.avg_cents / 100, cur) : '—' }
-  ].map(c => `<div class="kpi"><div class="kpi-l">${c.l}</div><div class="kpi-v">${c.v}</div></div>`).join('');
+    { l: t('Total spend'), v: moneyShort(k.total_cents / 100, cur) },
+    { l: t('Claims'), v: String(k.claims) },
+    { l: t('Top category'), v: k.top_type ? `${esc(k.top_type)} <span class="kpi-sub">${k.top_share}%</span>` : '—' },
+    { l: t('Avg per claim'), v: k.claims ? moneyShort(k.avg_cents / 100, cur) : '—' }
+  ].map(c => `<div class="kpi"><div class="kpi-l">${esc(c.l)}</div><div class="kpi-v">${c.v}</div></div>`).join('');
 
   $('#insightsBody').innerHTML = `
     <div class="insights-filters">
-      <label>Year<select id="inYear" class="input">${yearOpts}</select></label>
-      ${d.departments.length ? `<label>Department<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
-      <label>DB No<input id="inDb" class="input" type="search" placeholder="Filter by DB…" value="${esc(f.db)}" /></label>
-      <label>Status<select id="inStatus" class="input">${statusOpts}</select></label>
+      <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
+      ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
+      <label>${esc(t('DB No'))}<input id="inDb" class="input" type="search" placeholder="${esc(t('Filter by DB…'))}" value="${esc(f.db)}" /></label>
+      <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
     <div class="insights-charts">
       <div class="chart-card">
         <div class="chart-head"><div>
-          <div class="chart-title">Spend by expense type</div>
+          <div class="chart-title">${esc(t('Spend by expense type'))}</div>
           <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))}</div>
         </div></div>
         <div id="typeBars" class="type-bars"></div>
@@ -589,12 +679,12 @@ function renderInsights() {
       <div class="chart-card">
         <div class="chart-head">
           <div>
-            <div class="chart-title">Total over time</div>
+            <div class="chart-title">${esc(t('Total over time'))}</div>
             <div class="chart-sub" id="trendSub"></div>
           </div>
           <div class="seg" id="trendSeg">
-            <button type="button" data-trend="month"${f.trend === 'month' ? ' class="on"' : ''}>Monthly</button>
-            <button type="button" data-trend="year"${f.trend === 'year' ? ' class="on"' : ''}>Yearly</button>
+            <button type="button" data-trend="month"${f.trend === 'month' ? ' class="on"' : ''}>${esc(t('Monthly'))}</button>
+            <button type="button" data-trend="year"${f.trend === 'year' ? ' class="on"' : ''}>${esc(t('Yearly'))}</button>
           </div>
         </div>
         <div id="trendChart" class="trend-chart"></div>
@@ -623,7 +713,7 @@ function renderInsights() {
 
 function currentStatusLabel(v) {
   const p = INSIGHT_STATUS_PRESETS.find(o => o.v === v);
-  return p ? p.l.toLowerCase() : v;
+  return p ? t(p.l) : v;
 }
 
 // Horizontal bars for spend-by-type. Long tails past 10 rows fold into "Other".
@@ -633,13 +723,13 @@ function renderTypeBars() {
   const wrap = $('#typeBars');
   let items = d.byType.slice();
   if (!items.length) {
-    wrap.innerHTML = '<p class="muted chart-empty">No expenses match these filters.</p>';
+    wrap.innerHTML = `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
     return;
   }
   if (items.length > 10) {
     const head = items.slice(0, 9);
     const rest = items.slice(9).reduce((s, x) => s + x.cents, 0);
-    head.push({ type: 'Other', cents: rest });
+    head.push({ type: t('Other'), cents: rest });
     items = head;
   }
   const max = Math.max(...items.map(i => i.cents), 1);
@@ -659,17 +749,18 @@ function renderTrend() {
   const d = state.insights.data;
   const cur = d.currency || 'IDR';
   const monthly = state.insights.trend === 'month';
+  const monthNames = I18N.months();
   const points = monthly
-    ? d.byMonth.map((m, i) => ({ label: MONTH_LABELS[i], value: m.cents / 100 }))
+    ? d.byMonth.map((m, i) => ({ label: monthNames[i], value: m.cents / 100 }))
     : d.byYear.map(y => ({ label: y.year, value: y.cents / 100 }));
 
   const sub = $('#trendSub');
-  if (sub) sub.textContent = monthly ? `${d.year} · by month` : 'All years';
+  if (sub) sub.textContent = monthly ? t('{year} · by month', { year: d.year }) : t('All years');
 
   const host = $('#trendChart');
   const hasData = points.some(p => p.value > 0);
   if (!points.length || !hasData) {
-    host.innerHTML = '<p class="muted chart-empty">No expenses to plot for this period.</p>';
+    host.innerHTML = `<p class="muted chart-empty">${esc(t('No expenses to plot for this period.'))}</p>`;
     return;
   }
 
@@ -771,7 +862,7 @@ function renderClaims() {
   if (!claims.length) {
     wrap.innerHTML = '';
     const empty = $('#emptyState');
-    empty.textContent = anyFilterActive() ? 'No claims match your filters.' : (VIEW_EMPTY[state.view] || 'No claims yet.');
+    empty.textContent = anyFilterActive() ? t('No claims match your filters.') : viewEmpty(state.view);
     empty.hidden = false;
     updateSelectionUI(); renderSummaryCards(); return;
   }
@@ -789,7 +880,7 @@ function renderClaims() {
       <span class="col-type">${esc(v.typeLabel)}</span>
       <span class="col-date mono">${esc(v.date)}</span>
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
-      <span class="col-status"><span class="pill ${c.status}">${STATUS_LABEL[c.status]}</span></span>
+      <span class="col-status"><span class="pill ${c.status}">${esc(statusLabel(c.status))}</span></span>
     </div>`; }).join('');
   $$('.ledger-row', wrap).forEach(el => {
     const open = () => openDrawer(el.dataset.id, el.dataset.type);
@@ -811,7 +902,7 @@ function renderClaims() {
 function updateSelectionUI() {
   const n = state.selected.size;
   $('#selectionBar').hidden = n === 0;
-  $('#selCount').textContent = `${n} claim${n === 1 ? '' : 's'} selected`;
+  $('#selCount').textContent = n === 1 ? t('{n} claim selected', { n }) : t('{n} claims selected', { n });
   const boxes = $$('.row-check');
   const all = $('#selectAll');
   if (all) {
@@ -856,16 +947,18 @@ $('#deleteSelBtn').addEventListener('click', deleteSelected);
 async function deleteSelected() {
   const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
   if (!chosen.length) return;
-  if (!confirm(`Permanently delete ${chosen.length} claim${chosen.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+  const dn = chosen.length;
+  if (!confirm(dn === 1 ? t('Permanently delete {n} claim? This cannot be undone.', { n: dn })
+    : t('Permanently delete {n} claims? This cannot be undone.', { n: dn }))) return;
   const btn = $('#deleteSelBtn'); const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Deleting…';
+  btn.disabled = true; btn.textContent = t('Deleting…');
   try {
     for (const c of chosen) {
       const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
       await api(path + c.id, { method: 'DELETE' });
     }
     state.selected.clear();
-    toast(`Deleted ${chosen.length} claim${chosen.length === 1 ? '' : 's'}`);
+    toast(dn === 1 ? t('Deleted {n} claim', { n: dn }) : t('Deleted {n} claims', { n: dn }));
     loadAll();
   } catch (ex) { toast(ex.message, true); }
   finally { btn.disabled = false; btn.textContent = orig; }
@@ -875,7 +968,7 @@ async function generatePdf() {
   const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
   if (!chosen.length) return;
   const btn = $('#genPdfBtn'); const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Preparing…';
+  btn.disabled = true; btn.textContent = t('Preparing…');
   try {
     // Pull full details (approvers, history, attachment list) for each claim.
     const detailed = [];
@@ -895,9 +988,9 @@ async function generatePdf() {
       : `claims-${new Date().toISOString().slice(0, 10)}.pdf`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast(`PDF ready — ${detailed.length} claim${detailed.length === 1 ? '' : 's'}`);
+    toast(detailed.length === 1 ? t('PDF ready — {n} claim', { n: detailed.length }) : t('PDF ready — {n} claims', { n: detailed.length }));
   } catch (ex) {
-    toast(ex.message || 'Could not generate PDF', true);
+    toast(ex.message || t('Could not generate PDF'), true);
   } finally { btn.disabled = false; btn.textContent = orig; }
 }
 
@@ -1235,26 +1328,29 @@ function stepStateFor(c, n) {
   if (c.status === 'rejected') return n < c.current_step ? 'done' : (n === c.current_step ? 'rejected' : 'pending');
   return n < c.current_step ? 'done' : (n === c.current_step ? 'current' : 'pending');
 }
+// English step-state labels (kept for the PDF). stepStateLabel() localises them
+// for the on-screen approval chain.
 const STEP_STATE_LABEL = { done: 'Approved', current: 'Pending', rejected: 'Rejected', pending: 'Upcoming' };
+const stepStateLabel = (st) => t(STEP_STATE_LABEL[st] || st || '');
 
 // --- Shared drawer builders (both claim types share these shapes) ------------
 function renderChainProgress(c) {
   if (!c.approvers || !c.approvers.length) return '';
   return `
-    <div class="section-label">Approval chain</div>
+    <div class="section-label">${esc(t('Approval chain'))}</div>
     <ol class="chain-progress">
       ${c.approvers.map((a, idx) => {
         const st = stepStateFor(c, idx + 1);
         return `<li class="cp ${st}">
           <span class="cp-dot">${st === 'done' ? '✓' : (st === 'rejected' ? '×' : idx + 1)}</span>
           <div class="cp-body"><div class="cp-label">${esc(a.name)}</div></div>
-          <span class="cp-state">${STEP_STATE_LABEL[st]}</span></li>`;
+          <span class="cp-state">${esc(stepStateLabel(st))}</span></li>`;
       }).join('')}
     </ol>`;
 }
 function renderHistory(c) {
   return `
-    <div class="section-label">History</div>
+    <div class="section-label">${esc(t('History'))}</div>
     <ul class="timeline">
       ${c.history.map(h => `
         <li><span class="t-action">${esc(h.action)}</span>
@@ -1281,25 +1377,25 @@ function canRevert(c, u, isOwner) {
 // Contextual label + confirmation copy for the revert button.
 function revertInfo(c) {
   const step = c.current_step || 0;
-  if (c.status === 'paid') return { label: 'Revert payment', confirm: 'Revert this payment? The claim will go back to Approved.' };
-  if (c.status === 'approved') return { label: 'Revert approval', confirm: 'Revert your approval? The claim will go back to pending review.' };
-  if (c.status === 'submitted' && step > 1) return { label: 'Revert approval', confirm: 'Revert your approval? The claim will return to the previous approver.' };
-  return { label: 'Cancel to edit', confirm: 'Cancel this submission so you can edit it? It will move to Rejected, ready to edit and resubmit.' };
+  if (c.status === 'paid') return { label: t('Revert payment'), confirm: t('Revert this payment? The claim will go back to Approved.') };
+  if (c.status === 'approved') return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will go back to pending review.') };
+  if (c.status === 'submitted' && step > 1) return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will return to the previous approver.') };
+  return { label: t('Cancel to edit'), confirm: t('Cancel this submission so you can edit it? It will move to Rejected, ready to edit and resubmit.') };
 }
 function buildActions(c, u, isOwner) {
   const btns = [];
   if (c.status === 'submitted' && canApprove(u, c)) {
-    btns.push(`<button class="btn btn-approve" data-act="approve">Approve</button>`);
-    btns.push(`<button class="btn btn-danger" data-act="reject">Reject &amp; return</button>`);
+    btns.push(`<button class="btn btn-approve" data-act="approve">${esc(t('Approve'))}</button>`);
+    btns.push(`<button class="btn btn-danger" data-act="reject">${esc(t('Reject & return'))}</button>`);
   }
   if ((u.role === 'superadmin' || u.can_mark_paid) && c.status === 'approved') {
-    btns.push(`<button class="btn btn-primary" data-act="paid">Mark as paid</button>`);
+    btns.push(`<button class="btn btn-primary" data-act="paid">${esc(t('Mark as paid'))}</button>`);
   }
   if (isOwner && c.status === 'rejected') {
-    btns.push(`<button class="btn btn-primary" data-act="edit">Edit &amp; resubmit</button>`);
+    btns.push(`<button class="btn btn-primary" data-act="edit">${esc(t('Edit & resubmit'))}</button>`);
   }
   if (canRevert(c, u, isOwner)) {
-    btns.push(`<button class="btn btn-ghost" data-act="revert">${revertInfo(c).label}</button>`);
+    btns.push(`<button class="btn btn-ghost" data-act="revert">${esc(revertInfo(c).label)}</button>`);
   }
   return btns.join('\n            ');
 }
@@ -1307,24 +1403,24 @@ function buildActions(c, u, isOwner) {
 // Body for a reimbursement claim: key/value details + attachments.
 function reimbursementBody(c) {
   const attachments = c.attachments.length ? `
-    <div class="section-label">Attachments</div>
+    <div class="section-label">${esc(t('Attachments'))}</div>
     <ul class="attach-list">
       ${c.attachments.map(a => `
         <li><a href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">
           📎 <span>${esc(a.original_name)}</span><span class="fsize">${fmtBytes(a.size_bytes)}</span></a></li>`).join('')}
-    </ul>` : '<div class="section-label">Attachments</div><p class="muted">None uploaded.</p>';
+    </ul>` : `<div class="section-label">${esc(t('Attachments'))}</div><p class="muted">${esc(t('None uploaded.'))}</p>`;
   return `
     <dl class="kv">
-      <dt>Claimant</dt><dd>${esc(c.claimant_name)}</dd>
-      <dt>Department</dt><dd>${esc(c.department)}</dd>
-      ${c.db_no ? `<dt>DB No.</dt><dd>${esc(c.db_no)}</dd>` : ''}
-      <dt>Expense type</dt><dd>${esc(c.expense_type)}</dd>
-      <dt>Expense date</dt><dd>${esc(c.expense_date)}</dd>
-      <dt>Amount</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
-      <dt>Recipient</dt><dd>${esc(c.recipient_name)}</dd>
-      <dt>Bank</dt><dd>${esc(c.bank_name)}</dd>
-      <dt>Account no.</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-      ${c.description ? `<dt>Description</dt><dd>${esc(c.description)}</dd>` : ''}
+      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
+      <dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>
+      ${c.db_no ? `<dt>${esc(t('DB No.'))}</dt><dd>${esc(c.db_no)}</dd>` : ''}
+      <dt>${esc(t('Expense type'))}</dt><dd>${esc(c.expense_type)}</dd>
+      <dt>${esc(t('Expense date'))}</dt><dd>${esc(c.expense_date)}</dd>
+      <dt>${esc(t('Amount'))}</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
+      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
+      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
+      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      ${c.description ? `<dt>${esc(t('Description'))}</dt><dd>${esc(c.description)}</dd>` : ''}
     </dl>
     ${attachments}`;
 }
@@ -1333,27 +1429,27 @@ function reimbursementBody(c) {
 function mealBody(c) {
   const rows = (c.lines || []).map(l => `
     <tr>
-      <td class="mono" data-label="Date">${esc(l.line_date)}</td>
-      <td data-label="DB Number Site">${esc(l.site)}</td>
-      <td data-label="Job Category">${esc(l.job_category)}</td>
-      <td class="meal-amt" data-label="Amount">${esc(money(l.amount, c.currency))}</td>
-      <td data-label="Additional Description">${esc(l.description)}</td>
+      <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
+      <td data-label="${esc(t('DB Number Site'))}">${esc(l.site)}</td>
+      <td data-label="${esc(t('Job Category'))}">${esc(l.job_category)}</td>
+      <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
+      <td data-label="${esc(t('Additional Description'))}">${esc(l.description)}</td>
     </tr>`).join('');
   return `
     <dl class="kv">
-      <dt>Claimant</dt><dd>${esc(c.claimant_name)}</dd>
-      ${c.department ? `<dt>Department</dt><dd>${esc(c.department)}</dd>` : ''}
-      <dt>Recipient</dt><dd>${esc(c.recipient_name)}</dd>
-      <dt>Bank</dt><dd>${esc(c.bank_name)}</dd>
-      <dt>Account no.</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
+      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
+      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
+      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
+      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
     </dl>
-    <div class="section-label">Meal allowance lines</div>
+    <div class="section-label">${esc(t('Meal allowance lines'))}</div>
     <div class="meal-table-wrap">
       <table class="meal-table">
-        <thead><tr><th>Date</th><th>DB Number Site</th><th>Job Category</th><th>Amount</th><th>Additional Description</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5" class="muted" style="padding:12px">No lines.</td></tr>'}</tbody>
+        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB Number Site'))}</th><th>${esc(t('Job Category'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Additional Description'))}</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="5" class="muted" style="padding:12px">${esc(t('No lines.'))}</td></tr>`}</tbody>
         <tfoot><tr>
-          <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
+          <td colspan="3" class="meal-total-label">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))}</td>
           <td class="meal-total">${esc(money(c.total_amount, c.currency))}</td>
           <td></td>
         </tr></tfoot>
@@ -1369,23 +1465,23 @@ async function openDrawer(id, type = 'reimbursement') {
   const isOwner = c.employee_id === u.id;
 
   const rejectedNote = (c.status === 'rejected' && c.manager_comment) ? `
-    <div class="note-box"><div class="nb-label">Returned by manager</div>
+    <div class="note-box"><div class="nb-label">${esc(t('Returned by manager'))}</div>
       <div>${esc(c.manager_comment)}</div></div>` : '';
   const body = type === 'meal' ? mealBody(c) : reimbursementBody(c);
   const actions = buildActions(c, u, isOwner);
 
   $('#drawer').innerHTML = `
     <div class="drawer-head">
-      <div><h2>${esc(c.claim_no)} <span class="pill ${c.status}">${STATUS_LABEL[c.status]}</span></h2>
-        <p class="muted" style="margin:4px 0 0;font-size:.85rem">Submitted ${fmtDateTime(c.created_at)}</p></div>
-      <button class="x-btn" aria-label="Close">×</button>
+      <div><h2>${esc(c.claim_no)} <span class="pill ${c.status}">${esc(statusLabel(c.status))}</span></h2>
+        <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('Submitted {time}', { time: fmtDateTime(c.created_at) }))}</p></div>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
     <div class="drawer-body">
       ${rejectedNote}
       ${body}
       ${renderChainProgress(c)}
       ${renderHistory(c)}
-      <div class="drawer-actions">${actions || '<span class="muted" style="font-size:.85rem">No actions available for your role at this stage.</span>'}</div>
+      <div class="drawer-actions">${actions || `<span class="muted" style="font-size:.85rem">${esc(t('No actions available for your role at this stage.'))}</span>`}</div>
     </div>`;
 
   $('#drawer .x-btn').addEventListener('click', closeDrawer);
@@ -1400,14 +1496,14 @@ async function handleAction(act, c) {
   try {
     if (act === 'approve') {
       await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
-      toast('Claim approved');
+      toast(t('Claim approved'));
     } else if (act === 'paid') {
       return openPaidModal(c);
     } else if (act === 'revert') {
       const info = revertInfo(c);
       if (!confirm(info.confirm)) return;
       await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
-      toast('Reverted');
+      toast(t('Reverted'));
     } else if (act === 'reject') {
       return openRejectModal(c);
     } else if (act === 'edit') {
@@ -1470,7 +1566,7 @@ function lookupField(name, label, value, options, attrs = '') {
   if (cur && !opts.includes(cur)) opts.unshift(cur); // keep an existing value that was since removed
   return `<label>${label}
     <select name="${name}" required>
-      <option value="" ${cur ? '' : 'selected'} disabled>Select…</option>
+      <option value="" ${cur ? '' : 'selected'} disabled>${esc(t('Select…'))}</option>
       ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}
     </select></label>`;
 }
@@ -1484,23 +1580,23 @@ function expenseTypeField(value) {
   const options = state.lookups.expense_types;
   const cur = value || '';
   if (!options.length) {
-    return `<label>Type of expense<input name="expense_type" required placeholder="Travel, Meals, Supplies…" value="${esc(cur)}" /></label>`;
+    return `<label>${esc(t('Type of expense'))}<input name="expense_type" required placeholder="${esc(t('Travel, Meals, Supplies…'))}" value="${esc(cur)}" /></label>`;
   }
   const isOther = !!cur && !options.some(o => o.toLowerCase() === cur.toLowerCase());
   const selectVal = isOther ? 'Others' : cur;
   // A searchable combobox: a text box filters the list, and a hidden input holds
   // the chosen value (so form submission + the "Others" flow are unchanged). The
   // hidden field is validated in submitClaim, not via native `required`.
-  return `<label>Type of expense
+  return `<label>${esc(t('Type of expense'))}
       <div class="combo" id="expCombo">
         <input type="text" id="expSearch" class="combo-input" role="combobox"
                aria-autocomplete="list" aria-expanded="false" aria-controls="expList"
-               autocomplete="off" placeholder="Search or select…" value="${esc(selectVal)}" />
+               autocomplete="off" placeholder="${esc(t('Search or select…'))}" value="${esc(selectVal)}" />
         <input type="hidden" name="expense_type" id="expType" value="${esc(selectVal)}" />
         <ul class="combo-list" id="expList" role="listbox" hidden></ul>
       </div></label>
-    <label class="full" id="expOtherWrap" ${isOther ? '' : 'hidden'}>Please specify the expense type
-      <input name="expense_type_other" id="expOther" value="${isOther ? esc(cur) : ''}" placeholder="Enter the expense type" /></label>`;
+    <label class="full" id="expOtherWrap" ${isOther ? '' : 'hidden'}>${esc(t('Please specify the expense type'))}
+      <input name="expense_type_other" id="expOther" value="${isOther ? esc(cur) : ''}" placeholder="${esc(t('Enter the expense type'))}" /></label>`;
 }
 // Wire the expense-type combobox: filter-as-you-type, click/keyboard select, and
 // the "Others" free-text reveal. Options are the configured types plus "Others".
@@ -1522,7 +1618,7 @@ function wireExpenseTypeField() {
     list.innerHTML = filtered.length
       ? filtered.map((o, i) => `<li class="combo-item${i === active ? ' active' : ''}" role="option"
           data-val="${esc(o)}" aria-selected="${o === hidden.value}">${esc(o)}</li>`).join('')
-      : '<li class="combo-empty" aria-disabled="true">No matches</li>';
+      : `<li class="combo-empty" aria-disabled="true">${esc(t('No matches'))}</li>`;
   };
   const open = () => { list.hidden = false; search.setAttribute('aria-expanded', 'true'); combo.classList.add('open'); };
   const close = () => { list.hidden = true; search.setAttribute('aria-expanded', 'false'); combo.classList.remove('open'); active = -1; };
@@ -1575,15 +1671,15 @@ function wireExpenseTypeField() {
 function calcPanelHtml() {
   return `<div class="calc-panel" id="calcPanel" hidden>
     <div class="calc-input-row">
-      <input id="calcInput" inputmode="decimal" placeholder="Add an amount…" />
-      <button type="button" class="btn btn-ghost btn-sm" id="calcAdd">Add</button>
+      <input id="calcInput" inputmode="decimal" placeholder="${esc(t('Add an amount…'))}" />
+      <button type="button" class="btn btn-ghost btn-sm" id="calcAdd">${esc(t('Add'))}</button>
     </div>
     <ul class="calc-list" id="calcList"></ul>
     <div class="calc-foot">
-      <div class="calc-total-wrap"><span>Total</span><strong id="calcTotal">0</strong></div>
+      <div class="calc-total-wrap"><span>${esc(t('Total'))}</span><strong id="calcTotal">0</strong></div>
       <div class="calc-foot-btns">
-        <button type="button" class="btn btn-ghost btn-sm" id="calcClear">Clear</button>
-        <button type="button" class="btn btn-primary btn-sm" id="calcApply">Use total</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="calcClear">${esc(t('Clear'))}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="calcApply">${esc(t('Use total'))}</button>
       </div>
     </div>
   </div>`;
@@ -1598,8 +1694,8 @@ function wireClaimCalculator() {
     $('#calcList').innerHTML = entries.length
       ? entries.map((n, i) =>
           `<li><span class="mono">${groupAmount(String(n))}</span>
-             <button type="button" data-i="${i}" aria-label="Remove">×</button></li>`).join('')
-      : `<li class="calc-empty">No amounts added yet.</li>`;
+             <button type="button" data-i="${i}" aria-label="${esc(t('Remove'))}">×</button></li>`).join('')
+      : `<li class="calc-empty">${esc(t('No amounts added yet.'))}</li>`;
     $('#calcTotal').textContent = groupAmount(String(sum())) || '0';
     $$('#calcList button[data-i]').forEach(b =>
       b.addEventListener('click', () => { entries.splice(+b.dataset.i, 1); render(); }));
@@ -1639,9 +1735,9 @@ function approver1PickerHtml(existing) {
   const choices = (state.user && state.user.approver1_choices) || [];
   if (choices.length < 2) return '';
   const preId = existing && existing.approvers && existing.approvers[0] ? String(existing.approvers[0].id) : '';
-  const opts = ['<option value="" disabled' + (preId ? '' : ' selected') + '>Choose an approver…</option>']
+  const opts = ['<option value="" disabled' + (preId ? '' : ' selected') + '>' + esc(t('Choose an approver…')) + '</option>']
     .concat(choices.map(c => `<option value="${c.id}" ${String(c.id) === preId ? 'selected' : ''}>${esc(c.name)}</option>`));
-  return `<label class="full">Approver 1 <span style="color:var(--danger,#d33)">*</span>
+  return `<label class="full">${esc(t('Approver 1'))} <span style="color:var(--danger,#d33)">*</span>
     <select name="approver1" required>${opts.join('')}</select></label>`;
 }
 
@@ -1663,38 +1759,37 @@ function openClaimModal(existing = null) {
   };
   openModal(`
     <div class="modal-head">
-      <h2>${isEdit ? 'Edit &amp; resubmit claim' : 'New reimbursement claim'}</h2>
-      <button class="x-btn" aria-label="Close">×</button>
+      <h2>${isEdit ? esc(t('Edit & resubmit claim')) : esc(t('New reimbursement claim'))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
     <div class="modal-body">
       <form id="claimForm" class="form">
         <div class="grid2">
-          <label>Date<input name="expense_date" type="date" required value="${esc(v.expense_date || '')}" /></label>
-          <label>DB No.<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
+          <label>${esc(t('Date'))}<input name="expense_date" type="date" required value="${esc(v.expense_date || '')}" /></label>
+          <label>${esc(t('DB No.'))}<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
           ${expenseTypeField(v.expense_type)}
-          <label>Amount
+          <label>${esc(t('Amount'))}
             <div class="amount-field">
               <span class="amount-cur">${esc(v.currency || 'IDR')}</span>
               <input type="hidden" name="currency" value="${esc(v.currency || 'IDR')}" />
               <input name="amount" required inputmode="decimal" placeholder="0" value="${existing ? existing.amount : ''}" />
               <button type="button" class="amount-calc-btn" id="calcToggle" aria-expanded="false"
-                aria-controls="calcPanel" title="Add up amounts">🧮</button>
+                aria-controls="calcPanel" title="${esc(t('Add up amounts'))}">🧮</button>
             </div>
             ${calcPanelHtml()}
           </label>
           ${approver1PickerHtml(existing)}
-          <label class="full">Description / purpose
-            <textarea name="description" placeholder="What was this purchase for?">${esc(v.description || '')}</textarea>
+          <label class="full">${esc(t('Description / purpose'))}
+            <textarea name="description" placeholder="${esc(t('What was this purchase for?'))}">${esc(v.description || '')}</textarea>
           </label>
-          ${isEdit ? `<label class="full">Note to manager (optional)
-            <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
+          ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
+            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
           <div class="full">
-            <div class="section-label" style="margin-top:4px">Receipts / files</div>
-            ${isEdit ? `<p class="form-note drop-note">The receipts already on this claim are kept. Remove any you
-              want to replace — only attach a file again if you removed it first.</p>` : ''}
+            <div class="section-label" style="margin-top:4px">${esc(t('Receipts / files'))}</div>
+            ${isEdit ? `<p class="form-note drop-note">${esc(t('The receipts already on this claim are kept. Remove any you want to replace — only attach a file again if you removed it first.'))}</p>` : ''}
             <div class="drop" id="dropZone">
-              <strong>Click to choose files</strong> or drag &amp; drop<br>
-              <span style="font-size:.8rem">PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)</span>
+              <strong>${esc(t('Click to choose files'))}</strong>${esc(t(' or drag & drop'))}<br>
+              <span style="font-size:.8rem">${esc(t('PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)'))}</span>
               <input id="fileInput" type="file" multiple hidden
                 accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
             </div>
@@ -1703,8 +1798,8 @@ function openClaimModal(existing = null) {
         </div>
         <p class="form-error" id="claimError" hidden></p>
         <div class="modal-actions sticky-foot">
-          <button type="button" class="btn btn-ghost" id="cancelClaim">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
+          <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
@@ -1794,15 +1889,15 @@ async function compressImage(file, maxBytes) {
 
 async function addFiles(list) {
   for (const f of Array.from(list)) {
-    if (keptAttachments.length + pendingFiles.length >= 8) { toast('Maximum 8 files', true); break; }
-    if (!isAllowedUpload(f)) { toast(`${f.name}: only PDF or image files are allowed`, true); continue; }
+    if (keptAttachments.length + pendingFiles.length >= 8) { toast(t('Maximum 8 files'), true); break; }
+    if (!isAllowedUpload(f)) { toast(t('{name}: only PDF or image files are allowed', { name: f.name }), true); continue; }
     let file = f;
     // iPhone HEIC/HEIF photos aren't viewable in browsers, so convert them to
     // JPEG up front (regardless of size) before the 10 MB check below.
     if (isHeic(file)) {
-      toast(`Converting ${f.name}…`);
+      toast(t('Converting {name}…', { name: f.name }));
       try { file = await heicToJpeg(file); }
-      catch { toast(`${f.name}: couldn't read this iPhone photo`, true); continue; }
+      catch { toast(t("{name}: couldn't read this iPhone photo", { name: f.name }), true); continue; }
     }
     // Compress images down to the same-origin upload capacity so they take the
     // reliable path through our own domain. Modern phone photos are often 4–8 MB,
@@ -1810,11 +1905,11 @@ async function addFiles(list) {
     // networks block. PDFs and animated GIFs can't be re-encoded.
     const compressible = file.type && file.type.startsWith('image/') && file.type !== 'image/gif';
     if (compressible && file.size > COMPRESS_TARGET) {
-      toast(`Compressing ${f.name}…`);
+      toast(t('Compressing {name}…', { name: f.name }));
       try { file = await compressImage(file, COMPRESS_TARGET); }
-      catch { toast(`${f.name}: couldn't compress — please shrink it and retry`, true); continue; }
+      catch { toast(t("{name}: couldn't compress — please shrink it and retry", { name: f.name }), true); continue; }
     }
-    if (file.size > MAX_UPLOAD) { toast(`${f.name} exceeds 10 MB`, true); continue; }
+    if (file.size > MAX_UPLOAD) { toast(t('{name} exceeds 10 MB', { name: f.name }), true); continue; }
     pendingFiles.push(file);
   }
   renderChips();
@@ -1826,11 +1921,11 @@ function renderChips() {
   const saved = keptAttachments.map((a, i) =>
     `<span class="file-chip file-chip-saved">
       <a href="/api/claims/${keptClaimId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>
-      <button type="button" data-kind="kept" data-i="${i}" aria-label="Remove ${esc(a.original_name)}">×</button>
+      <button type="button" data-kind="kept" data-i="${i}" aria-label="${esc(t('Remove'))} ${esc(a.original_name)}">×</button>
     </span>`);
   const picked = pendingFiles.map((f, i) =>
     `<span class="file-chip">${esc(f.name)}
-      <button type="button" data-kind="new" data-i="${i}" aria-label="Remove ${esc(f.name)}">×</button>
+      <button type="button" data-kind="new" data-i="${i}" aria-label="${esc(t('Remove'))} ${esc(f.name)}">×</button>
     </span>`);
   $('#fileChips').innerHTML = saved.concat(picked).join('');
   $$('#fileChips button').forEach(b => b.addEventListener('click', () => {
@@ -1941,16 +2036,16 @@ async function submitClaim(e, existing) {
   let type = String(payload.expense_type || '').trim();
   if (type === 'Others') {
     const other = String(payload.expense_type_other || '').trim();
-    if (!other) { err.textContent = 'Please specify the expense type.'; err.hidden = false; return; }
+    if (!other) { err.textContent = t('Please specify the expense type.'); err.hidden = false; return; }
     type = other;
   } else if (!type) {
-    err.textContent = 'Please choose the type of expense.'; err.hidden = false; return;
+    err.textContent = t('Please choose the type of expense.'); err.hidden = false; return;
   }
   payload.expense_type = type;
   delete payload.expense_type_other;
   // Approver 1 is required only when this account has 2+ candidates to choose from.
   if ((state.user.approver1_choices || []).length >= 2 && !String(payload.approver1 || '').trim()) {
-    err.textContent = 'Please choose Approver 1.'; err.hidden = false; return;
+    err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
   }
   const btn = e.target.querySelector('button[type="submit"]');
   const label = btn.textContent;
@@ -1958,20 +2053,20 @@ async function submitClaim(e, existing) {
   try {
     // Upload receipts to Blob first, then send the claim as JSON carrying only
     // their metadata — keeping large files off the size-limited API route.
-    if (pendingFiles.length) btn.textContent = 'Uploading receipts…';
+    if (pendingFiles.length) btn.textContent = t('Uploading receipts…');
     payload.attachments = await uploadReceipts(pendingFiles, (idx, total, frac) => {
       const pct = Math.round(((idx + frac) / total) * 100);
-      btn.textContent = total > 1 ? `Uploading ${idx + 1}/${total}… ${pct}%` : `Uploading… ${pct}%`;
+      btn.textContent = total > 1 ? t('Uploading {i}/{total}… {pct}%', { i: idx + 1, total, pct }) : t('Uploading… {pct}%', { pct });
     });
-    btn.textContent = existing ? 'Resubmitting…' : 'Submitting…';
+    btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
     if (existing) {
       // Receipts the claimant left in place; the server drops the rest.
       payload.keep_attachment_ids = keptAttachments.map(a => a.id);
       await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
-      toast('Claim resubmitted');
+      toast(t('Claim resubmitted'));
     } else {
       await api('/claims', { method: 'POST', body: JSON.stringify(payload) });
-      toast('Claim submitted');
+      toast(t('Claim submitted'));
     }
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) {
@@ -2004,7 +2099,7 @@ function mealAmountSelect(val) {
   const opts = [...MEAL_RATES];
   if (cur && !opts.includes(cur)) opts.unshift(cur);
   return `<select name="amount" class="meal-amt">
-    <option value="" ${cur ? '' : 'selected'}>— select —</option>
+    <option value="" ${cur ? '' : 'selected'}>${esc(t('— select —'))}</option>
     ${opts.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${groupAmount(String(n))}</option>`).join('')}
   </select>`;
 }
@@ -2012,12 +2107,12 @@ function mealAmountSelect(val) {
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
-    <td data-label="Date"><input name="date" type="date" value="${esc(r.date || '')}" /></td>
-    <td data-label="DB Number Site"><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
-    <td data-label="Job Category"><input name="category" value="${esc(r.category || '')}" placeholder="Install / Repair / Service…" /></td>
-    <td data-label="Amount">${mealAmountSelect(r.amount)}</td>
-    <td data-label="Additional Description"><input name="desc" value="${esc(r.desc || '')}" placeholder="Surabaya" /></td>
-    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="Remove row">×</button></td>
+    <td data-label="${esc(t('Date'))}"><input name="date" type="date" value="${esc(r.date || '')}" /></td>
+    <td data-label="${esc(t('DB Number Site'))}"><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
+    <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${esc(t('Install / Repair / Service…'))}" /></td>
+    <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
+    <td data-label="${esc(t('Additional Description'))}"><input name="desc" value="${esc(r.desc || '')}" placeholder="${esc(t('Surabaya'))}" /></td>
+    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
   </tr>`;
 }
 function readMealRows() {
@@ -2033,7 +2128,7 @@ function mealTotal() { return mealRows.reduce((s, r) => s + mealAmount(r.amount)
 function renderMealRows() {
   $('#mealRows').innerHTML = mealRows.length
     ? mealRows.map(mealRowHtml).join('')
-    : `<tr><td colspan="6" class="muted" style="padding:14px;text-align:center">No rows yet — add one below.</td></tr>`;
+    : `<tr><td colspan="6" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
   $('#mealTotal').textContent = idr(mealTotal());
   $$('#mealRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
@@ -2058,13 +2153,13 @@ function openMealAllowanceModal(existing = null) {
   }
   openModal(`
     <div class="modal-head">
-      <h2>${isEdit ? 'Edit &amp; resubmit meal allowance' : 'Meal Allowance Claim Form'}</h2>
-      <button class="x-btn" aria-label="Close">×</button>
+      <h2>${isEdit ? esc(t('Edit & resubmit meal allowance')) : esc(t('Meal Allowance Claim Form'))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
     <div class="modal-body">
       <form id="mealForm" class="form">
         <div class="meal-topbar">
-          <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">+ Add row</button>
+          <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
         <p class="form-error" id="mealError" hidden></p>
         <div class="meal-scroll">
@@ -2072,14 +2167,14 @@ function openMealAllowanceModal(existing = null) {
             <table class="meal-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>DB Number Site</th><th>Job Category</th>
-                  <th>Amount</th><th>Additional Description</th><th aria-label="Remove"></th>
+                  <th>${esc(t('Date'))}</th><th>${esc(t('DB Number Site'))}</th><th>${esc(t('Job Category'))}</th>
+                  <th>${esc(t('Amount'))}</th><th>${esc(t('Additional Description'))}</th><th aria-label="${esc(t('Remove'))}"></th>
                 </tr>
               </thead>
               <tbody id="mealRows"></tbody>
               <tfoot>
                 <tr>
-                  <td colspan="3" class="meal-total-label">TOTAL CLAIM MEAL ALLOWANCE</td>
+                  <td colspan="3" class="meal-total-label">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))}</td>
                   <td class="meal-total" id="mealTotal">Rp 0</td>
                   <td colspan="2"></td>
                 </tr>
@@ -2087,17 +2182,17 @@ function openMealAllowanceModal(existing = null) {
             </table>
           </div>
           ${approver1PickerHtml(existing)}
-          ${isEdit ? `<label class="full" style="margin-top:10px">Note to manager (optional)
-            <input name="resubmit_note" placeholder="What you changed since the rejection" /></label>` : ''}
+          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
+            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
           <div class="meal-note">
-            <strong>MEAL ALLOWANCE CLAIM</strong>
+            <strong>${esc(t('MEAL ALLOWANCE CLAIM'))}</strong>
             BODETABEK AREA — IDR 75.000,-
             EXCLUDE BODETABEK AREA — IDR 120.000,-
           </div>
         </div>
         <div class="modal-actions meal-foot">
-          <button type="button" class="btn btn-ghost" id="mealCancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">${isEdit ? 'Resubmit claim' : 'Submit claim'}</button>
+          <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
@@ -2118,10 +2213,10 @@ async function submitMealClaim(e, existing) {
   const lines = mealRows
     .filter(r => r.date || r.site || r.category || r.desc || mealAmount(r.amount))
     .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
-  if (!lines.length) { err.textContent = 'Add at least one line with a date and amount'; err.hidden = false; return; }
+  if (!lines.length) { err.textContent = t('Add at least one line with a date and amount'); err.hidden = false; return; }
   const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
-  if (needsApprover1 && !approver1) { err.textContent = 'Please choose Approver 1.'; err.hidden = false; return; }
+  if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
   const payload = { lines };
@@ -2130,10 +2225,10 @@ async function submitMealClaim(e, existing) {
   try {
     if (existing) {
       await api('/meal-claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
-      toast('Meal claim resubmitted');
+      toast(t('Meal claim resubmitted'));
     } else {
       await api('/meal-claims', { method: 'POST', body: JSON.stringify(payload) });
-      toast('Meal claim submitted');
+      toast(t('Meal claim submitted'));
     }
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
@@ -2149,16 +2244,16 @@ $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 function openPaidModal(c) {
   const today = todayWIB();
   openModal(`
-    <div class="modal-head"><h2>Mark ${esc(c.claim_no)} as paid</h2><button class="x-btn">×</button></div>
+    <div class="modal-head"><h2>${esc(t('Mark {no} as paid', { no: c.claim_no }))}</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
       <form id="paidForm" class="form">
-        <label>Payment date
+        <label>${esc(t('Payment date'))}
           <input type="date" name="payment_date" value="${today}" max="${today}" required /></label>
-        <p class="muted" style="margin:2px 0 0;font-size:.85rem">The date the payment was actually made.</p>
+        <p class="muted" style="margin:2px 0 0;font-size:.85rem">${esc(t('The date the payment was actually made.'))}</p>
         <p class="form-error" id="paidErr" hidden></p>
         <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="paidCancel">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="paidConfirm">Mark as paid</button>
+          <button type="button" class="btn btn-ghost" id="paidCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary" id="paidConfirm">${esc(t('Mark as paid'))}</button>
         </div>
       </form>
     </div>`);
@@ -2175,7 +2270,7 @@ function openPaidModal(c) {
     const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
     try {
       await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
-      toast('Marked as paid');
+      toast(t('Marked as paid'));
       closeModal(); closeDrawer(); loadAll();
     } catch (ex) { const el = $('#paidErr'); el.textContent = ex.message; el.hidden = false; }
   });
@@ -2184,15 +2279,15 @@ function openPaidModal(c) {
 // ---------------------------------------------------------------------------
 function openRejectModal(c) {
   openModal(`
-    <div class="modal-head"><h2>Reject ${esc(c.claim_no)}</h2><button class="x-btn">×</button></div>
+    <div class="modal-head"><h2>${esc(t('Reject {no}', { no: c.claim_no }))}</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
       <form id="rejectForm" class="form">
-        <label>Reason for rejection (sent back to the claimant)
-          <textarea name="comment" required placeholder="Explain what needs to change…"></textarea></label>
+        <label>${esc(t('Reason for rejection (sent back to the claimant)'))}
+          <textarea name="comment" required placeholder="${esc(t('Explain what needs to change…'))}"></textarea></label>
         <p class="form-error" id="rejErr" hidden></p>
         <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="rejCancel">Cancel</button>
-          <button type="submit" class="btn btn-danger">Reject &amp; return</button>
+          <button type="button" class="btn btn-ghost" id="rejCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-danger">${esc(t('Reject & return'))}</button>
         </div>
       </form>
     </div>`);
@@ -2204,7 +2299,7 @@ function openRejectModal(c) {
     const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
     try {
       await api(`${base}${c.id}/reject`, { method: 'POST', body: JSON.stringify({ comment }) });
-      toast('Claim returned to claimant');
+      toast(t('Claim returned to claimant'));
       closeModal(); closeDrawer(); loadAll();
     } catch (ex) { const el = $('#rejErr'); el.textContent = ex.message; el.hidden = false; }
   });
@@ -2228,49 +2323,49 @@ async function openExportModal() {
   users.sort((a, b) => String(a.full_name).localeCompare(String(b.full_name)));
 
   openModal(`
-    <div class="modal-head"><h2>Export claims to CSV</h2><button class="x-btn">×</button></div>
+    <div class="modal-head"><h2>${esc(t('Export claims to CSV'))}</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
       <form id="exportForm" class="form">
         <div class="grid2">
-          <label>From date<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
-          <label>To date<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
+          <label>${esc(t('From date'))}<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
+          <label>${esc(t('To date'))}<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
         </div>
         <div class="grid2 export-groups">
           <div class="export-group">
-            <div class="section-label">Statuses to include</div>
+            <div class="section-label">${esc(t('Statuses to include'))}</div>
             <div class="check-group">
               ${EXPORT_STATUS_OPTS.map(o => `
-                <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${o.l}</label>`).join('')}
+                <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${esc(t(o.l))}</label>`).join('')}
             </div>
           </div>
           <div class="export-group">
-            <div class="section-label">Claim types</div>
+            <div class="section-label">${esc(t('Claim types'))}</div>
             <div class="check-group">
-              <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> Reimbursement claims</label>
-              <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> Meal allowances</label>
+              <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> ${esc(t('Reimbursement claims'))}</label>
+              <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> ${esc(t('Meal allowances'))}</label>
             </div>
           </div>
         </div>
-        <div class="section-label" style="margin-top:6px">Users (submitters)</div>
+        <div class="section-label" style="margin-top:6px">${esc(t('Users (submitters)'))}</div>
         <div class="user-filter">
           <div class="uf-toolbar">
-            <input id="ufSearch" class="input" type="search" placeholder="Search names…" />
-            <button type="button" class="btn btn-ghost btn-sm" id="ufAll">Select all</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="ufNone">Clear</button>
+            <input id="ufSearch" class="input" type="search" placeholder="${esc(t('Search names…'))}" />
+            <button type="button" class="btn btn-ghost btn-sm" id="ufAll">${esc(t('Select all'))}</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="ufNone">${esc(t('Clear'))}</button>
           </div>
           <div class="uf-list" id="ufList">
             ${users.length ? users.map(u => `
               <label class="uf-item" data-name="${esc((u.full_name + ' ' + u.username).toLowerCase())}">
                 <span class="uf-name">${esc(u.full_name)} <span class="muted">(${esc(u.username)})</span></span>
                 <input type="checkbox" name="employee" value="${u.id}" checked />
-              </label>`).join('') : '<p class="muted" style="padding:8px">No users.</p>'}
+              </label>`).join('') : `<p class="muted" style="padding:8px">${esc(t('No users.'))}</p>`}
           </div>
         </div>
-        <p class="muted" style="font-size:.8rem;margin:10px 0 0">Leave dates blank to export all dates. Dates apply to the expense / meal date.</p>
+        <p class="muted" style="font-size:.8rem;margin:10px 0 0">${esc(t('Leave dates blank to export all dates. Dates apply to the expense / meal date.'))}</p>
         <p class="form-error" id="exportErr" hidden></p>
         <div class="modal-actions sticky-foot">
-          <button type="button" class="btn btn-ghost" id="exportCancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">Download CSV</button>
+          <button type="button" class="btn btn-ghost" id="exportCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Download CSV'))}</button>
         </div>
       </form>
     </div>`);
@@ -2297,10 +2392,10 @@ async function openExportModal() {
     const statuses = fd.getAll('status');
     const types = fd.getAll('types');
     const emps = fd.getAll('employee');
-    if (!types.length) { err.textContent = 'Pick at least one claim type.'; err.hidden = false; return; }
-    if (!emps.length) { err.textContent = 'Pick at least one user.'; err.hidden = false; return; }
+    if (!types.length) { err.textContent = t('Pick at least one claim type.'); err.hidden = false; return; }
+    if (!emps.length) { err.textContent = t('Pick at least one user.'); err.hidden = false; return; }
     const from = fd.get('from'), to = fd.get('to');
-    if (from && to && from > to) { err.textContent = 'The “from” date is after the “to” date.'; err.hidden = false; return; }
+    if (from && to && from > to) { err.textContent = t('The “from” date is after the “to” date.'); err.hidden = false; return; }
     const p = new URLSearchParams();
     if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
     if (types.length < 2) p.set('types', types.join(','));
@@ -2329,14 +2424,14 @@ function bankNameField(current) {
   const isOther = !!cur && !isBca;
   const choice = isBca ? 'BCA' : (isOther ? 'Others' : 'BCA'); // default to BCA when unset
   return `
-    <label>Bank name
+    <label>${esc(t('Bank name'))}
       <select name="bank_choice" id="bankChoice">
         <option value="BCA" ${choice === 'BCA' ? 'selected' : ''}>BCA</option>
-        <option value="Others" ${choice === 'Others' ? 'selected' : ''}>Others</option>
+        <option value="Others" ${choice === 'Others' ? 'selected' : ''}>${esc(t('Others'))}</option>
       </select></label>
-    <label id="bankOtherWrap" ${choice === 'Others' ? '' : 'hidden'}>Bank name (please specify)
-      <input name="bank_name_custom" id="bankNameCustom" value="${isOther ? esc(cur) : ''}" placeholder="Enter your bank name" /></label>
-    <p class="fee-note" id="bankFeeNote" ${choice === 'BCA' ? 'hidden' : ''}>⚠ A fee of IDR 2,500 is charged for every payment to a non-BCA bank account.</p>`;
+    <label id="bankOtherWrap" ${choice === 'Others' ? '' : 'hidden'}>${esc(t('Bank name (please specify)'))}
+      <input name="bank_name_custom" id="bankNameCustom" value="${isOther ? esc(cur) : ''}" placeholder="${esc(t('Enter your bank name'))}" /></label>
+    <p class="fee-note" id="bankFeeNote" ${choice === 'BCA' ? 'hidden' : ''}>${esc(t('⚠ A fee of IDR 2,500 is charged for every payment to a non-BCA bank account.'))}</p>`;
 }
 // Toggle the custom field + fee note as the bank choice changes. Returns a
 // getter for the effective bank name to use on submit.
@@ -2359,34 +2454,34 @@ async function openProfileModal() {
   let me = state.user || {};
   try { ({ user: me } = await api('/me')); } catch { /* fall back to state.user */ }
   openModal(`
-    <div class="modal-head"><h2>My profile</h2><button class="x-btn">×</button></div>
+    <div class="modal-head"><h2>${esc(t('My profile'))}</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
       <form id="profileForm" class="form">
-        <div class="section-label">Contact</div>
-        <label>Email (used for password resets &amp; notifications)
-          <input name="email" type="email" value="${esc(me.email || '')}" placeholder="you@company.com" /></label>
-        <div class="section-label" style="margin-top:14px">Bank / payout details</div>
+        <div class="section-label">${esc(t('Contact'))}</div>
+        <label>${esc(t('Email (used for password resets & notifications)'))}
+          <input name="email" type="email" value="${esc(me.email || '')}" placeholder="${esc(t('you@company.com'))}" /></label>
+        <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
         ${bankNameField(me.bank_name)}
-        <label>Recipient bank account name<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="Name on the account" /></label>
-        <label>Bank account number<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="Account number" /></label>
-        <p class="form-note caution">The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.</p>
+        <label>${esc(t('Recipient bank account name'))}<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="${esc(t('Name on the account'))}" /></label>
+        <label>${esc(t('Bank account number'))}<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="${esc(t('Account number'))}" /></label>
+        <p class="form-note caution">${esc(t('The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.'))}</p>
         <p class="form-error" id="profileErr" hidden></p>
         <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="profileCancel">Close</button>
-          <button type="submit" class="btn btn-primary">Save details</button>
+          <button type="button" class="btn btn-ghost" id="profileCancel">${esc(t('Close'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Save details'))}</button>
         </div>
       </form>
       <form id="pwForm" class="form" style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">
-        <div class="section-label">Change password</div>
-        <label>Current password
+        <div class="section-label">${esc(t('Change password'))}</div>
+        <label>${esc(t('Current password'))}
           <div class="pw-wrap"><input name="current_password" type="password" required />
-            <button type="button" class="pw-toggle" aria-label="Show password">👁</button></div></label>
-        <label>New password (min 8 characters)
+            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button></div></label>
+        <label>${esc(t('New password (min 8 characters)'))}
           <div class="pw-wrap"><input name="new_password" type="password" required minlength="8" />
-            <button type="button" class="pw-toggle" aria-label="Show password">👁</button></div></label>
+            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button></div></label>
         <p class="form-error" id="pwErr" hidden></p>
         <div class="modal-actions">
-          <button type="submit" class="btn btn-primary">Update password</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Update password'))}</button>
         </div>
       </form>
     </div>`);
@@ -2400,7 +2495,7 @@ async function openProfileModal() {
     const fd = new FormData(e.target);
     const effectiveBank = bankName();
     if ($('#bankChoice').value === 'Others' && !effectiveBank) {
-      err.textContent = 'Please enter your bank name.'; err.hidden = false; return;
+      err.textContent = t('Please enter your bank name.'); err.hidden = false; return;
     }
     try {
       const { user } = await api('/me', { method: 'PUT', body: JSON.stringify({
@@ -2408,7 +2503,7 @@ async function openProfileModal() {
         bank_name: effectiveBank, recipient_name: fd.get('recipient_name'),
         bank_account_no: fd.get('bank_account_no') }) });
       if (user) state.user = { ...state.user, ...user };
-      toast('Profile saved');
+      toast(t('Profile saved'));
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 
@@ -2419,7 +2514,7 @@ async function openProfileModal() {
     try {
       await api('/me/password', { method: 'POST', body: JSON.stringify({
         current_password: fd.get('current_password'), new_password: fd.get('new_password') }) });
-      toast('Password updated'); e.target.reset();
+      toast(t('Password updated')); e.target.reset();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 }
@@ -2442,25 +2537,25 @@ $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
 // Human-readable role labels used across the account tables.
 const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
-const roleLabel = (r) => ROLE_LABELS[r] || r;
+const roleLabel = (r) => t(ROLE_LABELS[r] || r);
 // Creation-audit sub-line for the account tables: who created this account, or
 // "—" for accounts made directly (seed scripts) or before creator tracking.
 const creatorLine = (u) =>
-  `<div class="u-sub u-creator">Created by ${u.created_by_name ? esc(u.created_by_name) : '—'}</div>`;
+  `<div class="u-sub u-creator">${u.created_by_name ? esc(t('Created by {name}', { name: u.created_by_name })) : t('Created by {name}', { name: '—' })}</div>`;
 
 function openSettingsModal() {
   openModal(`
     <div class="modal-head">
-      <h2>Settings</h2>
+      <h2>${esc(t('Settings'))}</h2>
       <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">Send test email</button>
+        <button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">${esc(t('Send test email'))}</button>
         <button class="x-btn">×</button>
       </div>
     </div>
     <div class="modal-body">
       <div class="tabs" id="settingsTabs">
-        ${SETTINGS_TABS.map(t =>
-          `<button class="tab ${t.key === settingsState.tab ? 'active' : ''}" data-tab="${t.key}">${t.label}</button>`).join('')}
+        ${SETTINGS_TABS.map(tab =>
+          `<button class="tab ${tab.key === settingsState.tab ? 'active' : ''}" data-tab="${tab.key}">${esc(t(tab.label))}</button>`).join('')}
       </div>
       <div id="settingsPanel"></div>
     </div>`);
@@ -2474,13 +2569,13 @@ function openSettingsModal() {
 
 // Confirm email delivery: sends a test message (default: the admin's own email).
 async function sendTestEmail() {
-  const to = prompt('Send a test email to:', (state.user && state.user.email) || '');
+  const to = prompt(t('Send a test email to:'), (state.user && state.user.email) || '');
   if (to === null) return; // cancelled
   const btn = $('#testEmailBtn');
   btn.disabled = true;
   try {
     const r = await api('/test-email', { method: 'POST', body: JSON.stringify({ to: to.trim() }) });
-    toast(`Test email sent to ${r.to}`);
+    toast(t('Test email sent to {to}', { to: r.to }));
   } catch (ex) { toast(ex.message, true); }
   finally { btn.disabled = false; }
 }
@@ -2488,7 +2583,7 @@ async function sendTestEmail() {
 function renderSettingsTab() {
   const panel = $('#settingsPanel');
   settingsState.departments = state.lookups.departments;
-  panel.innerHTML = '<p class="muted" style="padding:20px 0">Loading…</p>';
+  panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true },
@@ -2508,31 +2603,32 @@ async function renderLookupTab(cfg) {
   const p = !!cfg.purposes;         // purpose gates (New claim / New meal allowance)
   const ranked = !!cfg.ranked;      // reorderable seniority ladder (job positions)
   const manage = !!cfg.manage;      // "Can manage accounts" delegation flag
+  const noun = t(cfg.noun);         // localised singular noun for this lookup
   // A tick cell wires a boolean flag column (persisted immediately via PUT).
   const flagCell = (it, flag, label) =>
-    `<td class="tick-cell" data-label="${label}"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
+    `<td class="tick-cell" data-label="${esc(label)}"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
   // Up/down reorder controls for a ranked row (disabled at the ends).
-  const orderCell = (it, i) => `<td class="ord-cell" data-label="Order">
+  const orderCell = (it, i) => `<td class="ord-cell" data-label="${esc(t('Order'))}">
       <div class="ord-btns">
-        <button type="button" class="ord-btn" data-move="up" data-id="${it.id}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
-        <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
+        <button type="button" class="ord-btn" data-move="up" data-id="${it.id}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('Move up'))}">▲</button>
+        <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
       </div></td>`;
-  const headCols = (ranked ? '<th style="width:64px">Order</th>' : '') + '<th>Name</th><th>Active</th>'
-    + (p ? '<th>New claim</th><th>New meal allowance</th>' : '')
-    + (manage ? '<th>Manage accounts</th>' : '')
+  const headCols = (ranked ? `<th style="width:64px">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th><th>${esc(t('Active'))}</th>`
+    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th>` : '')
+    + (manage ? `<th>${esc(t('Manage accounts'))}</th>` : '')
     + '<th style="width:220px"></th>';
   const colspan = 2 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
         <div style="display:flex;gap:8px;align-items:flex-end">
-          <label style="flex:1;margin:0">Add ${cfg.noun}<input name="name" required placeholder="Name" /></label>
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          <label style="flex:1;margin:0">${esc(t('Add {noun}', { noun }))}<input name="name" required placeholder="${esc(t('Name'))}" /></label>
+          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Add'))}</button>
         </div>
         <p class="form-error" id="lookupErr" hidden></p>
       </form>
       <div class="settings-search">
-        <input id="lookupSearch" class="input" type="search" placeholder="Search ${cfg.noun}s…" />
+        <input id="lookupSearch" class="input" type="search" placeholder="${esc(t('Search {noun}…', { noun }))}" />
       </div>
     </div>
     <div class="settings-list">
@@ -2541,18 +2637,18 @@ async function renderLookupTab(cfg) {
         <tbody>${items.length ? items.map((it, i) => `
           <tr data-id="${it.id}">
             ${ranked ? orderCell(it, i) : ''}
-            <td data-label="Name" class="name-cell">${esc(it.name)}</td>
-            <td data-label="Active">${it.active ? 'Yes' : 'No'}</td>
-            ${p ? flagCell(it, 'allow_claim', 'New claim') + flagCell(it, 'allow_meal', 'New meal allowance') : ''}
-            ${manage ? flagCell(it, 'can_manage', 'Manage accounts') : ''}
-            <td class="act-cell" data-label="Actions">
+            <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
+            <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
+            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) : ''}
+            ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
+            <td class="act-cell" data-label="${esc(t('Actions'))}">
               <div class="u-actions">
-                <button class="btn btn-brand-soft btn-sm" data-rename="${it.id}">Edit</button>
-                <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? 'Disable' : 'Enable'}</button>
-                <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">Delete</button>
+                <button class="btn btn-brand-soft btn-sm" data-rename="${it.id}">${esc(t('Edit'))}</button>
+                <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
+                <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">${esc(t('Delete'))}</button>
               </div>
             </td>
-          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">No ${cfg.noun}s yet.</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No {noun} entries yet.', { noun }))}</td></tr>`}</tbody>
       </table>
     </div>`;
   wireTableSearch($('#lookupSearch'), '#settingsPanel .settings-list');
@@ -2561,7 +2657,7 @@ async function renderLookupTab(cfg) {
   $('#lookupForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = new FormData(e.target).get('name').trim();
-    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name }) }); toast('Added'); refreshAfterSettings(); }
+    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name }) }); toast(t('Added')); refreshAfterSettings(); }
     catch (ex) { const el = $('#lookupErr'); el.textContent = ex.message; el.hidden = false; }
   });
   $$('#settingsPanel [data-toggle]').forEach(b => b.addEventListener('click', async () => {
@@ -2570,8 +2666,8 @@ async function renderLookupTab(cfg) {
     catch (ex) { toast(ex.message, true); }
   }));
   $$('#settingsPanel [data-del]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm(`Delete this ${cfg.noun}? Existing claims keep their recorded value.`)) return;
-    try { await api(`${cfg.path}/${b.dataset.del}`, { method: 'DELETE' }); toast('Deleted'); refreshAfterSettings(); }
+    if (!confirm(t('Delete this {noun}? Existing claims keep their recorded value.', { noun }))) return;
+    try { await api(`${cfg.path}/${b.dataset.del}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
     catch (ex) { toast(ex.message, true); }
   }));
   // Inline rename — turn the name cell into an input with Save / Cancel.
@@ -2588,7 +2684,7 @@ async function renderLookupTab(cfg) {
     try {
       await api(`${cfg.path}/${cb.dataset.id}`, { method: 'PUT', body: JSON.stringify({ [flag]: val }) });
       if (it) it[flag] = val;
-      toast('Saved');
+      toast(t('Saved'));
     } catch (ex) { cb.checked = !val; toast(ex.message, true); }
   }));
   // Reorder arrows — move the row within the local list and persist the new
@@ -2611,8 +2707,8 @@ function startInlineRename(cell, it, cfg) {
   if (!cell || cell.querySelector('input')) return;
   cell.innerHTML = `<div class="rename-row">
       <input class="input rename-input" value="${esc(it.name)}" />
-      <button type="button" class="btn btn-primary btn-sm" data-save>Save</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-cancel>Cancel</button>
+      <button type="button" class="btn btn-primary btn-sm" data-save>${esc(t('Save'))}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-cancel>${esc(t('Cancel'))}</button>
     </div>`;
   const input = cell.querySelector('.rename-input');
   input.focus(); input.select();
@@ -2620,7 +2716,7 @@ function startInlineRename(cell, it, cfg) {
   const save = async () => {
     const name = input.value.trim();
     if (!name || name === it.name) return cancel();
-    try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ name }) }); toast('Renamed'); refreshAfterSettings(); }
+    try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ name }) }); toast(t('Renamed')); refreshAfterSettings(); }
     catch (ex) { toast(ex.message, true); }
   };
   cell.querySelector('[data-save]').addEventListener('click', save);
@@ -2647,24 +2743,24 @@ async function renderAccountsTab() {
   panel.innerHTML = `
     <div class="settings-controls">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
-        <input id="acctSearch" class="input" type="search" placeholder="Search users…" style="flex:1" />
-        <button class="btn btn-primary btn-sm" id="addUserBtn">+ Add user</button>
+        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
+        <button class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>
       </div>
     </div>
     <div class="settings-list">
       <table class="utable utable-users">
-        <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Dept / Position</th><th>Active</th><th></th></tr></thead>
+        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Role'))}</th><th>${esc(t('Dept / Position'))}</th><th>${esc(t('Active'))}</th><th></th></tr></thead>
         <tbody>${users.map(u => `
           <tr>
-            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
-            <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="Role">${esc(roleLabel(u.role))}</td>
-            <td data-label="Dept / Position"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
-            <td data-label="Active">${u.active ? 'Yes' : 'No'}</td>
-            <td class="act-cell" data-label="Actions">${(state.user.role === 'superadmin' || u.role === 'user')
+            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
+            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}</td>
+            <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
+            <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'user')
               ? `<div class="u-actions">
-                <button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">Edit</button>
-                ${u.id != state.user.id ? `<button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-green-soft'}" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>` : ''}
+                <button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">${esc(t('Edit'))}</button>
+                ${u.id != state.user.id ? `<button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-green-soft'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>` : ''}
               </div>`
               : '<span class="muted">—</span>'}</td>
           </tr>`).join('')}</tbody>
@@ -2676,10 +2772,10 @@ async function renderAccountsTab() {
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
   $$('#settingsPanel [data-active]').forEach(b => b.addEventListener('click', async () => {
     const u = users.find(x => x.id == b.dataset.active);
-    if (u.active && !confirm(`Disable ${u.full_name}'s account? They won't be able to sign in until re-enabled.`)) return;
+    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
     try {
       await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
-      toast(u.active ? 'Account disabled' : 'Account enabled');
+      toast(u.active ? t('Account disabled') : t('Account enabled'));
       renderAccountsTab();
     } catch (ex) { toast(ex.message, true); }
   }));
@@ -2692,7 +2788,7 @@ function optionSelect(name, value, options) {
   const opts = [...options];
   if (cur && !opts.includes(cur)) opts.unshift(cur);
   return `<select name="${name}">
-    <option value="">— none —</option>
+    <option value="">${esc(t('— none —'))}</option>
     ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}
   </select>`;
 }
@@ -2709,7 +2805,7 @@ function approverRowSelect(i, value, excludeId, prefix = 'appr') {
     <input type="hidden" name="${prefix}_${i}" value="${esc(cur)}" />
     <input type="text" class="combo-input" autocomplete="off" spellcheck="false"
       role="combobox" aria-expanded="false" aria-autocomplete="list"
-      placeholder="Search user…" value="${esc(label)}" />
+      placeholder="${esc(t('Search user…'))}" value="${esc(label)}" />
     <div class="combo-list" role="listbox" hidden></div>
   </div>`;
 }
@@ -2735,7 +2831,7 @@ function wireApproverCombo(container, excludeId, onChoose = syncApproverRows) {
     active = items.length ? 0 : -1;
     list.innerHTML = items.length
       ? items.map((u, idx) => `<div class="combo-opt${idx === active ? ' active' : ''}" role="option" data-id="${u.id}">${esc(labelFor(u))}</div>`).join('')
-      : '<div class="combo-empty">No matches</div>';
+      : `<div class="combo-empty">${esc(t('No matches'))}</div>`;
   };
   const open = (q) => { render(q == null ? '' : q); list.hidden = false; input.setAttribute('aria-expanded', 'true'); };
   const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); };
@@ -2771,8 +2867,8 @@ function renderApproverRows(excludeId) {
     <div class="line-row" data-i="${i}">
       <span class="line-step">${i + 1}</span>
       ${approverRowSelect(i, val, excludeId)}
-      <button type="button" class="x-btn" data-rm="${i}" aria-label="Remove approver">×</button>
-    </div>`).join('') : '<p class="muted" style="font-size:.85rem;margin:4px 0">No approvers — only a Super Admin can approve.</p>';
+      <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove approver'))}">×</button>
+    </div>`).join('') : `<p class="muted" style="font-size:.85rem;margin:4px 0">${esc(t('No approvers — only a Super Admin can approve.'))}</p>`;
   $$('#approverRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     syncApproverRows(); acctApprovers.splice(+b.dataset.rm, 1); renderApproverRows(excludeId);
   }));
@@ -2797,8 +2893,8 @@ function renderApprover1Options(excludeId) {
     <div class="line-row" data-i="${i}">
       <span class="line-step">${i + 1}</span>
       ${approverRowSelect(i, val, excludeId, 'a1opt')}
-      <button type="button" class="x-btn" data-rm="${i}" aria-label="Remove candidate">×</button>
-    </div>`).join('') : '<p class="muted" style="font-size:.85rem;margin:4px 0">No candidates — Approver 1 comes from the fixed chain below.</p>';
+      <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove candidate'))}">×</button>
+    </div>`).join('') : `<p class="muted" style="font-size:.85rem;margin:4px 0">${esc(t('No candidates — Approver 1 comes from the fixed chain below.'))}</p>`;
   $$('#approver1OptionRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     syncApprover1Options(); acctApprover1Options.splice(+b.dataset.rm, 1); renderApprover1Options(excludeId);
   }));
@@ -2818,50 +2914,50 @@ function renderUserForm(u) {
   acctApprover1Options = isEdit ? (u.approver1_options || []).map(String) : [];
   openModal2(`
     <div class="modal-head">
-      <h2>${isEdit ? 'Edit ' + esc(u.username) : 'New user'}</h2>
+      <h2>${isEdit ? esc(t('Edit {username}', { username: u.username })) : esc(t('New user'))}</h2>
       <button type="button" class="x-btn" id="uClose">×</button>
     </div>
     <div class="modal-body">
     <form id="uForm" class="form">
       <div class="grid2">
-        <label>Username<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
-        <label>Full name<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
-        <label>Email (for resets &amp; notifications)<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="you@company.com" /></label>
-        ${state.user.role === 'superadmin' ? `<label>Role
+        <label>${esc(t('Username'))}<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
+        <label>${esc(t('Full name'))}<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
+        <label>${esc(t('Email (for resets & notifications)'))}<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="${esc(t('you@company.com'))}" /></label>
+        ${state.user.role === 'superadmin' ? `<label>${esc(t('Role'))}
           <select name="role">
-            <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>Super Admin</option>
-            <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>Admin</option>
-            <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>User</option>
+            <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>${esc(t('Super Admin'))}</option>
+            <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>${esc(t('Admin'))}</option>
+            <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>${esc(t('User'))}</option>
           </select></label>` : ''}
-        <label>Department${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
-        <label>Job position${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
-        <label>${isEdit ? 'Reset password (optional)' : 'Password'}
+        <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
+        <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
+        <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
           <div class="pw-wrap">
             <input name="password" type="password" ${isEdit ? '' : 'required'} />
-            <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button>
           </div></label>
       </div>
       ${state.user.role === 'superadmin' ? `
-      <div class="section-label" style="margin-top:8px">Permissions</div>
-      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>Can mark claims as paid (record payment)</span></label>` : ''}
+      <div class="section-label" style="margin-top:8px">${esc(t('Permissions'))}</div>
+      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>` : ''}
       ${state.user.role === 'superadmin' ? `
-      <div class="section-label" style="margin-top:8px">Approver 1 — let the submitter choose from</div>
-      <p class="muted" style="font-size:.82rem;margin:0 0 6px">Add <strong>two or more</strong> accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With <strong>one</strong>, it's used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.</p>
+      <div class="section-label" style="margin-top:8px">${esc(t('Approver 1 — let the submitter choose from'))}</div>
+      <p class="muted" style="font-size:.82rem;margin:0 0 6px">${esc(t('Add two or more accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With one, it\'s used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.'))}</p>
       <div id="approver1OptionRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApprover1OptBtn">+ Add candidate</button>` : ''}
-      <div class="section-label" style="margin-top:8px">Approval chain (approvers, in order)</div>
+      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApprover1OptBtn">${esc(t('+ Add candidate'))}</button>` : ''}
+      <div class="section-label" style="margin-top:8px">${esc(t('Approval chain (approvers, in order)'))}</div>
       <div id="approverRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApproverBtn">+ Add approver</button>
-      <div class="section-label" style="margin-top:8px">Bank / payout details</div>
+      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApproverBtn">${esc(t('+ Add approver'))}</button>
+      <div class="section-label" style="margin-top:8px">${esc(t('Bank / payout details'))}</div>
       <div class="grid2">
-        <label>Bank name<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>
-        <label>Recipient name<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
-        <label>Bank account no.<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
+        <label>${esc(t('Bank name'))}<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>
+        <label>${esc(t('Recipient name'))}<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
+        <label>${esc(t('Bank account no.'))}<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
       </div>
       <p class="form-error" id="uErr" hidden></p>
       <div class="modal-actions sticky-foot">
-        <button type="button" class="btn btn-ghost btn-sm" id="uCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary btn-sm">${isEdit ? 'Save' : 'Create'}</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="uCancel">${esc(t('Cancel'))}</button>
+        <button type="submit" class="btn btn-primary btn-sm">${isEdit ? esc(t('Save')) : esc(t('Create'))}</button>
       </div>
     </form>
     </div>`);
@@ -2897,7 +2993,7 @@ function renderUserForm(u) {
     try {
       if (isEdit) await api('/users/' + u.id, { method: 'PUT', body: JSON.stringify(payload) });
       else await api('/users', { method: 'POST', body: JSON.stringify(payload) });
-      closeModal2(); toast('User saved'); renderAccountsTab();
+      closeModal2(); toast(t('User saved')); renderAccountsTab();
     } catch (ex) { const el = $('#uErr'); el.textContent = ex.message; el.hidden = false; }
   });
 }
@@ -2910,11 +3006,11 @@ function renderUserForm(u) {
 function openManageAccountsModal() {
   openModal(`
     <div class="modal-head">
-      <h2>Manage accounts</h2>
+      <h2>${esc(t('Manage accounts'))}</h2>
       <button class="x-btn">×</button>
     </div>
     <div class="modal-body" id="maBody">
-      <p class="muted" style="padding:20px 0">Loading…</p>
+      <p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>
     </div>`);
   $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
@@ -2929,25 +3025,25 @@ async function renderManageAccounts() {
   const dept = state.user.department || '';
   body.innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-      <input id="maSearch" class="input" type="search" placeholder="Search users…" style="flex:1" />
+      <input id="maSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
     </div>
-    <p class="muted" style="margin:0 0 12px;font-size:.85rem">Accounts in <strong>${esc(dept) || '—'}</strong>. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.</p>
+    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
     <div class="settings-list">
       <table class="utable utable-manage">
-        <thead><tr><th>User</th><th>Email</th><th>Position</th><th>Active</th><th class="u-actions-h">Actions</th></tr></thead>
+        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
-            <td data-label="User"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
-            <td class="u-wrap" data-label="Email">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="Position">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
-            <td data-label="Active">${u.active
-                ? '<span class="pill pill-on">Active</span>'
-                : '<span class="pill pill-off">Disabled</span>'}</td>
-            <td class="act-cell" data-label="Actions">${maCanManage(u) ? `<div class="u-actions">
-              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">Reset password</button>
-              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? 'Disable' : 'Enable'}</button>
+            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
+            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Active'))}">${u.active
+                ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
+                : `<span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${maCanManage(u) ? `<div class="u-actions">
+              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
+              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
             </div>` : '<span class="muted">—</span>'}</td>
-          </tr>`).join('') : '<tr><td colspan="5" class="muted" style="padding:16px">No accounts yet.</td></tr>'}</tbody>
+          </tr>`).join('') : `<tr><td colspan="5" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
       </table>
     </div>`;
   wireTableSearch($('#maSearch'), '#maBody .settings-list');
@@ -2955,10 +3051,10 @@ async function renderManageAccounts() {
     renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
   $$('#maBody [data-active]').forEach(b => b.addEventListener('click', async () => {
     const u = users.find(x => x.id == b.dataset.active);
-    if (u.active && !confirm(`Disable ${u.full_name}'s account? They won't be able to sign in until re-enabled.`)) return;
+    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
     try {
       await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
-      toast(u.active ? 'Account disabled' : 'Account enabled');
+      toast(u.active ? t('Account disabled') : t('Account enabled'));
       renderManageAccounts();
     } catch (ex) { toast(ex.message, true); }
   }));
@@ -2978,21 +3074,21 @@ function renderResetPasswordForm(u) {
   if (!u) return;
   openModal2(`
     <div class="modal-head">
-      <h2>Reset password</h2>
+      <h2>${esc(t('Reset password'))}</h2>
       <button type="button" class="x-btn" id="rpClose">×</button>
     </div>
     <div class="modal-body">
     <form id="rpForm" class="form">
-      <p class="muted" style="margin:0 0 12px;font-size:.9rem">Set a new password for <strong>${esc(u.full_name)}</strong> (${esc(u.username)}).</p>
-      <label>New password
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set a new password for {name} ({username}).', { name: u.full_name, username: u.username }))}</p>
+      <label>${esc(t('New password'))}
         <div class="pw-wrap">
           <input name="password" type="password" required minlength="8" />
-          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+          <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button>
         </div></label>
       <p class="form-error" id="rpErr" hidden></p>
       <div class="modal-actions">
-        <button type="button" class="btn btn-ghost btn-sm" id="rpCancel">Cancel</button>
-        <button type="submit" class="btn btn-primary btn-sm">Reset password</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="rpCancel">${esc(t('Cancel'))}</button>
+        <button type="submit" class="btn btn-primary btn-sm">${esc(t('Reset password'))}</button>
       </div>
     </form>
     </div>`);
@@ -3003,7 +3099,7 @@ function renderResetPasswordForm(u) {
     const password = new FormData(e.target).get('password');
     try {
       await api('/users/' + u.id + '/reset-password', { method: 'POST', body: JSON.stringify({ password }) });
-      closeModal2(); toast('Password reset');
+      closeModal2(); toast(t('Password reset'));
     } catch (ex) { const el = $('#rpErr'); el.textContent = ex.message; el.hidden = false; }
   });
 }

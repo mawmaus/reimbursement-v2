@@ -147,10 +147,15 @@ function asIntArray(v) {
 // A Postgres int[] literal ("{1,2,3}") for binding as $n::int[].
 const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 
+// Supported UI languages. A user's chosen language becomes their default and is
+// stored on the account; anything unknown falls back to English.
+const SUPPORTED_LANGS = ['en', 'id', 'th', 'vi', 'km', 'fil'];
+const normLang = (v) => SUPPORTED_LANGS.includes(String(v || '')) ? String(v) : 'en';
+
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, language, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -595,6 +600,7 @@ app.post('/api/login', ah(async (req, res) => {
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
+    language: normLang(user.language),
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
     approver1_choices: await approver1Choices(user.approver1_options),
     can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos)
@@ -623,7 +629,7 @@ app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
   const pos = await loadPositions();
-  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+  res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));
@@ -631,19 +637,32 @@ app.get('/api/me', ah(async (req, res) => {
 // Self-service profile: a user may edit their own bank / payout details (but
 // not role, department, approvers, etc.).
 app.put('/api/me', requireAuth, ah(async (req, res) => {
-  const { bank_name, recipient_name, bank_account_no, email } = req.body || {};
+  const body = req.body || {};
+  // Language-only updates (from the language switcher) skip the bank/email fields
+  // so switching language never touches or requires the rest of the profile.
+  if (Object.prototype.hasOwnProperty.call(body, 'language') && Object.keys(body).length === 1) {
+    await q('UPDATE users SET language = $1 WHERE id = $2', [normLang(body.language), req.user.id]);
+    const u = await loadUser(req);
+    const pos = await loadPositions();
+    return res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u),
+      creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
+      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+  }
+  const { bank_name, recipient_name, bank_account_no, email } = body;
   const nextEmail = normEmail(email);
   if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });
   if (nextEmail) {
     const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1 AND id <> $2', [nextEmail, req.user.id]);
     if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
   }
-  await q('UPDATE users SET bank_name = $1, recipient_name = $2, bank_account_no = $3, email = $4 WHERE id = $5', [
+  // A language may ride along with a full profile save too.
+  const nextLang = Object.prototype.hasOwnProperty.call(body, 'language') ? normLang(body.language) : normLang(req.user.language);
+  await q('UPDATE users SET bank_name = $1, recipient_name = $2, bank_account_no = $3, email = $4, language = $5 WHERE id = $6', [
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
-    String(bank_account_no || '').trim(), nextEmail, req.user.id]);
+    String(bank_account_no || '').trim(), nextEmail, nextLang, req.user.id]);
   const u = await loadUser(req);
   const pos = await loadPositions();
-  res.json({ user: { ...u, purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+  res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
 }));

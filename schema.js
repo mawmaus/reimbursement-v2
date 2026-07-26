@@ -24,6 +24,10 @@ const SCHEMA = [
   // Email address for the account. Used for password-reset links and workflow
   // notifications (submissions to approve, rejections). Stored lower-cased.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`,
+  // Preferred UI language (BCP-47-ish short code: 'en','id','th','vi','km','fil').
+  // Set when a user picks a language from the switcher; it becomes their default
+  // and follows the account across devices. Defaults to English.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'`,
   // Role model: superadmin (full access), admin (Manage accounts + Export CSV),
   // user (no admin powers). Widen the CHECK to the three-role set and normalise
   // any legacy value outside it to 'user'. NOTE: we deliberately do NOT remap
