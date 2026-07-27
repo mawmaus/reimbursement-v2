@@ -152,6 +152,26 @@ const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 const SUPPORTED_LANGS = ['en', 'id', 'th', 'vi', 'km', 'fil'];
 const normLang = (v) => SUPPORTED_LANGS.includes(String(v || '')) ? String(v) : 'en';
 
+// --- Regions (data-access scoping) ------------------------------------------
+// An account belongs to one region (a regions.name value) or the sentinel '*'
+// = All regions. Data is hidden outside the account's region; super admins and
+// '*' accounts see everything. Regions are a managed lookup (Settings).
+const ALL_REGIONS = '*';
+function seesAllRegions(user) {
+  return !!user && (user.role === 'superadmin' || user.region === ALL_REGIONS);
+}
+// Resolve a requested region to its canonical stored value: '*' stays '*'; a
+// known active region name is returned with the lookup's casing; '' stays '';
+// anything else -> null (invalid). Used when assigning a region to an account
+// or an All-regions submitter's claim.
+async function normRegion(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (s === ALL_REGIONS) return ALL_REGIONS;
+  if (!s) return '';
+  const rows = await q('SELECT name FROM regions WHERE lower(name) = lower($1) AND active = TRUE', [s]);
+  return rows[0] ? rows[0].name : null;
+}
+
 // --- App-wide settings (key/value store) -----------------------------------
 async function loadAppSettings() {
   const rows = await q('SELECT key, value FROM app_settings');
@@ -184,9 +204,11 @@ const CAPABILITIES = [
   { key: 'view_insights_all', label: 'View company-wide insights', desc: 'Open expense insights across every department.' }
 ];
 const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
-const EDITABLE_ROLES = ['admin', 'user'];
+// Editable roles shown as columns in the matrix (superadmin is implicit/all-on).
+const EDITABLE_ROLES = ['admin', 'manager', 'employee', 'user'];
 // Only capabilities set true here are granted by default; everything else false.
-const ROLE_DEFAULTS = { admin: { export_csv: true }, user: {} };
+// New roles (manager/employee) start with nothing — configure them in the matrix.
+const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, employee: {}, user: {} };
 
 // The stored (or default) matrix, normalised to { role: { cap: bool } } for
 // every editable role and capability. Superadmin is not included (always true).
@@ -275,7 +297,7 @@ function claimWindowView(settings) {
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, language, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, language, region, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -342,6 +364,7 @@ function baseClaim(row, attachments, history, nameMap) {
     claimant_name: row.claimant_name,
     expense_date: row.expense_date,
     department: row.department,
+    region: row.region || '',
     bank_name: row.bank_name,
     recipient_name: row.recipient_name,
     bank_account_no: row.bank_account_no,
@@ -628,6 +651,8 @@ function canManageAccount(actor, target, pos) {
   if (actor.role === 'superadmin') return true;
   if (!hasDelegation(actor, pos)) return false;
   if (target.role === 'superadmin') return false;
+  // Region isolation: a region-scoped actor manages only same-region accounts.
+  if (!seesAllRegions(actor) && String(target.region || '') !== String(actor.region || '')) return false;
   const aDept = String(actor.department || '').trim().toLowerCase();
   const tDept = String(target.department || '').trim().toLowerCase();
   if (!aDept || aDept !== tDept) return false;
@@ -735,7 +760,7 @@ app.post('/api/login', ah(async (req, res) => {
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
-    language: normLang(user.language),
+    language: normLang(user.language), region: user.region || '',
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
     approver1_choices: await approver1Choices(user.approver1_options),
     can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
@@ -926,6 +951,10 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
   }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
   if (search) {
@@ -941,9 +970,17 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
-  const seeAll = userCan(req.user, 'view_all_claims');
-  const scope = seeAll ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
-  const params = seeAll ? [] : [req.user.id];
+  const where = [];
+  const params = [];
+  if (!userCan(req.user, 'view_all_claims')) {
+    params.push(req.user.id);
+    where.push(`(employee_id = $${params.length} OR $${params.length} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
+  const scope = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(amount_cents),0)::bigint AS total
      FROM claims ${scope} GROUP BY status`, params);
@@ -958,6 +995,9 @@ app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own claims' });
+  }
   if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own claims' });
@@ -971,22 +1011,22 @@ const CLAIM_SEQ = "pg_get_serial_sequence('claims','id')";
 
 // Create a claim together with its attachments and initial history row as one
 // atomic transaction — all commit or none. Retries on a claim_no collision.
-async function createClaim(req, b, cents, approverIds, uploaded) {
+async function createClaim(req, b, cents, approverIds, uploaded, region) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextClaimNo();
     const queries = [qq(
       `INSERT INTO claims
         (claim_no, employee_id, claimant_name, expense_date, department, db_no, bank_name,
          recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
-         status, approver_ids, current_step)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15)`,
+         status, approver_ids, current_step, region)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15,$16)`,
       [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(b.expense_date).trim(),
        String(req.user.department || '').trim(), String(b.db_no || '').trim(),
        String(req.user.bank_name || '').trim(),
        String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
        String(b.expense_type).trim(), cents,
        String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
-       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
     for (const u of uploaded) {
       queries.push(qq(
         `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
@@ -1066,9 +1106,18 @@ app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const checked = await verifyAttachments(b.attachments);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const uploaded = checked.items;
+    // Region the claim belongs to: single-region submitters get their own
+    // region; an All-regions submitter must pick one (the form shows a picker).
+    let claimRegion;
+    if (req.user.region === ALL_REGIONS) {
+      claimRegion = await normRegion(b.region);
+      if (!claimRegion || claimRegion === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region for this claim' });
+    } else {
+      claimRegion = String(req.user.region || '');
+    }
     try {
       const approverIds = built.ids;
-      const claimId = await createClaim(req, b, cents, approverIds, uploaded);
+      const claimId = await createClaim(req, b, cents, approverIds, uploaded, claimRegion);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       const first = currentApproverId(rows[0]);
       if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
@@ -1345,7 +1394,7 @@ function baseMealClaim(row, lines, history, nameMap) {
   return {
     id: row.id, type: 'meal', claim_no: row.claim_no,
     employee_id: row.employee_id, claimant_name: row.claimant_name,
-    department: row.department, bank_name: row.bank_name,
+    department: row.department, region: row.region || '', bank_name: row.bank_name,
     recipient_name: row.recipient_name, bank_account_no: row.bank_account_no,
     total_amount: Number(row.total_cents) / 100, currency: row.currency,
     status: row.status, manager_comment: row.manager_comment,
@@ -1403,6 +1452,10 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
   }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
   if (search) {
@@ -1419,9 +1472,17 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
-  const seeAll = userCan(req.user, 'view_all_claims');
-  const scope = seeAll ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
-  const params = seeAll ? [] : [req.user.id];
+  const where = [];
+  const params = [];
+  if (!userCan(req.user, 'view_all_claims')) {
+    params.push(req.user.id);
+    where.push(`(employee_id = $${params.length} OR $${params.length} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
+  const scope = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(total_cents),0)::bigint AS total
      FROM meal_claims ${scope} GROUP BY status`, params);
@@ -1436,6 +1497,9 @@ app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own meal claims' });
+  }
   if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own meal claims' });
@@ -1471,18 +1535,18 @@ function mealLineQuery(claimIdExpr, l, i) {
 
 // Create a meal claim, its line items and initial history row as one atomic
 // transaction. Retries on a claim_no collision.
-async function createMealClaim(req, lines, totalCents, approverIds) {
+async function createMealClaim(req, lines, totalCents, approverIds, region) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextMealClaimNo();
     const queries = [qq(
       `INSERT INTO meal_claims
         (claim_no, employee_id, claimant_name, department, bank_name, recipient_name,
-         bank_account_no, total_cents, currency, status, approver_ids, current_step)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11)`,
+         bank_account_no, total_cents, currency, status, approver_ids, current_step, region)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11,$12)`,
       [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
        String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
        String(req.user.bank_account_no || '').trim(), totalCents, 'IDR',
-       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
     lines.forEach((l, i) => queries.push(mealLineQuery(`currval(${MEAL_SEQ})`, l, i)));
     queries.push(qq(
       `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
@@ -1509,7 +1573,14 @@ app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   const approverIds = built.ids;
-  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds);
+  let claimRegion;
+  if (req.user.region === ALL_REGIONS) {
+    claimRegion = await normRegion((req.body || {}).region);
+    if (!claimRegion || claimRegion === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region for this claim' });
+  } else {
+    claimRegion = String(req.user.region || '');
+  }
+  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds, claimRegion);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
@@ -1721,6 +1792,8 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   if (mode === 'approver') { params.push(req.user.id); where.push(`$${params.length} = ANY(appr)`); }
   if (deptFilter) { params.push(deptFilter); where.push(`lower(department) = lower($${params.length})`); }
   if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
+  // Region isolation: unless the viewer sees all regions, restrict to their own.
+  if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
 
   const rows = await q(
     `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo,
@@ -1728,12 +1801,12 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
        FROM (
          SELECT expense_type AS category, department, expense_date AS d,
                 amount_cents AS cents, status, COALESCE(db_no,'') AS db, 'c' || id AS cid,
-                approver_ids AS appr
+                approver_ids AS appr, region
            FROM claims
          UNION ALL
          SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
                 l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
-                m.approver_ids AS appr
+                m.approver_ids AS appr, m.region AS region
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
        ) ev
       WHERE ${where.join(' AND ')}`, params);
@@ -1832,6 +1905,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     }
     if (from) { params.push(from); where.push(`c.expense_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`c.expense_date <= $${params.length}`); }
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
     const rows = await q(
       `SELECT c.*, u.username AS employee_username FROM claims c JOIN users u ON u.id = c.employee_id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`, params);
@@ -1859,6 +1933,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     }
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`m.region = $${params.length}`); }
     const rows = await q(
       `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
               m.bank_account_no, m.currency, m.status, m.manager_comment, m.decided_at, m.paid_at,
@@ -1896,7 +1971,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
 // Admin: users
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
-const ROLES = ['superadmin', 'admin', 'user'];
+const ROLES = ['superadmin', 'admin', 'manager', 'employee', 'user'];
 
 // Send a test email so an admin can confirm the Resend configuration works.
 // Defaults to the admin's own account email; a recipient can be supplied.
@@ -1932,6 +2007,19 @@ function sanitizeApproverIds(input, excludeId) {
   }
   return out;
 }
+// An account's approvers must be in the same region as the account (All-regions
+// accounts and All-regions approvers are unrestricted). Returns an error string
+// if any listed approver is out of region, else '' when the chain is valid.
+async function approversRegionError(ids, region) {
+  const list = [...new Set(ids)].filter(Boolean);
+  if (!list.length || region === ALL_REGIONS || !region) return '';
+  const rows = await q(`SELECT region FROM users WHERE id = ANY($1::int[])`, [intArrayLiteral(list)]);
+  for (const r of rows) {
+    const rr = String(r.region || '');
+    if (rr !== String(region) && rr !== ALL_REGIONS) return 'Approvers must be in the same region as the account';
+  }
+  return '';
+}
 
 // The department Manager (position "Manager") then the FinanceAP account, as an
 // ordered approver chain. Returns whichever of the two currently exist and are
@@ -1958,11 +2046,17 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   if (!isSuper && !hasDelegation(req.user, await loadPositions())) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active, created_by, created_by_name, created_at';
-  const users = isSuper
-    ? await q(`SELECT ${cols} FROM users ORDER BY id`)
-    : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
-        [String(req.user.department || '').trim()]);
+  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active, created_by, created_by_name, created_at';
+  let users;
+  if (isSuper) {
+    users = await q(`SELECT ${cols} FROM users ORDER BY id`);
+  } else {
+    const where = ['lower(department) = lower($1)'];
+    const params = [String(req.user.department || '').trim()];
+    // Region isolation: a region-scoped manager sees only same-region accounts.
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
+    users = await q(`SELECT ${cols} FROM users WHERE ${where.join(' AND ')} ORDER BY id`, params);
+  }
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at) })) });
 }));
 // Account creation is super-admin only. Everyone else — including admins and
@@ -1984,16 +2078,30 @@ app.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req
     const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1', [nextEmail]);
     if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
   }
+  // Region: super admins / all-region creators choose any region (incl. All
+  // regions); a region-scoped creator may only create accounts in their region.
+  let region;
+  if (seesAllRegions(req.user)) {
+    region = await normRegion((req.body || {}).region);
+    if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  } else {
+    region = String(req.user.region || '');
+  }
+  if (!region) return res.status(400).json({ error: 'Region is required' });
+  const apprIds = sanitizeApproverIds(approver_ids);
+  const appr1Ids = sanitizeApproverIds(approver1_options);
+  const are = await approversRegionError([...apprIds, ...appr1Ids], region);
+  if (are) return res.status(400).json({ error: are });
   // Only a super admin may grant the mark-paid permission.
   const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, created_by, created_by_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12::int[],$13,$14,$15) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, created_by, created_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
-     String(department || '').trim(), String(position || '').trim(), nextEmail,
+     String(department || '').trim(), String(position || '').trim(), region, nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
-     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)),
-     intArrayLiteral(sanitizeApproverIds(approver1_options)), canMarkPaidFlag,
+     String(bank_account_no || '').trim(), intArrayLiteral(apprIds),
+     intArrayLiteral(appr1Ids), canMarkPaidFlag,
      req.user.id, req.user.full_name || req.user.username || '']);
   res.status(201).json({ id: rows[0].id });
 }));
@@ -2001,9 +2109,14 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const { username, full_name, role, department, position, active, password, email,
+  const { username, full_name, role, department, position, region, active, password, email,
     bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  let nextRegion = u.region;
+  if (region !== undefined) {
+    nextRegion = await normRegion(region);
+    if (nextRegion === null) return res.status(400).json({ error: 'Invalid region' });
+  }
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;
   if (username != null && String(username).trim() && String(username).trim() !== u.username) {
@@ -2025,6 +2138,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     ? sanitizeApproverIds(approver_ids, u.id) : asIntArray(u.approver_ids);
   const nextApprover1Options = approver1_options !== undefined
     ? sanitizeApproverIds(approver1_options, u.id) : asIntArray(u.approver1_options);
+  const areEdit = await approversRegionError([...nextApprovers, ...nextApprover1Options], nextRegion);
+  if (areEdit) return res.status(400).json({ error: areEdit });
   // Stale-approver guard: deactivating an account that is the pending approver on
   // open claims would strand them (they could no longer sign in to act). Block it
   // so an admin resolves or reassigns those claims first.
@@ -2038,7 +2153,7 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
-             can_mark_paid=$12, approver1_options=$14::int[] WHERE id=$13`, [
+             can_mark_paid=$12, approver1_options=$14::int[], region=$15 WHERE id=$13`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -2052,7 +2167,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     nextEmail,
     can_mark_paid !== undefined ? isActive(can_mark_paid) : u.can_mark_paid,
     u.id,
-    intArrayLiteral(nextApprover1Options)
+    intArrayLiteral(nextApprover1Options),
+    nextRegion
   ]);
   if (password) {
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -2182,6 +2298,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
 lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal']);
 lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true });
 lookupRoutes('expense-types', 'expense_types');
+lookupRoutes('regions', 'regions');
 
 // --- Role permissions matrix -------------------------------------------------
 // Read the editable capability matrix. Super admin is implicitly all-true and is

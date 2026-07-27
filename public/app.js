@@ -14,7 +14,7 @@ const state = {
   // Active column sort for the ledger. key '' = server default (newest first);
   // dir 1 = ascending, -1 = descending.
   sort: { key: '', dir: 1 },
-  lookups: { departments: [], expense_types: [] },
+  lookups: { departments: [], expense_types: [], regions: [] },
   // Claim-date policy (from GET /api/claim-window). `earliest` is the computed
   // earliest expense date a claim may carry, or null when unrestricted.
   claimLimit: { max_age_days: null, earliest_date: null, earliest: null },
@@ -283,9 +283,10 @@ document.addEventListener('click', (e) => {
 // Active departments + expense types drive the claim form dropdowns.
 async function loadLookups() {
   try {
-    const [d, e] = await Promise.all([api('/departments'), api('/expense-types')]);
+    const [d, e, r] = await Promise.all([api('/departments'), api('/expense-types'), api('/regions')]);
     state.lookups.departments = (d.items || []).filter(i => i.active).map(i => i.name);
     state.lookups.expense_types = (e.items || []).filter(i => i.active).map(i => i.name);
+    state.lookups.regions = (r.items || []).filter(i => i.active).map(i => i.name);
   } catch { /* form falls back to free text */ }
   // The claim-date policy gates how old an expense may be; the form uses it to
   // set the date picker's min and to validate before submit.
@@ -1789,6 +1790,11 @@ function openClaimModal(existing = null) {
         <div class="grid2">
           <label>${esc(t('Date'))}<input name="expense_date" type="date" required ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(v.expense_date || '')}" />${claimLimitNote()}</label>
           <label>${esc(t('DB No.'))}<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
+          ${state.user.region === '*' ? `<label>${esc(t('Region'))}
+            <select name="region" required>
+              <option value="" ${!v.region ? 'selected' : ''} disabled>${esc(t('Select a region'))}</option>
+              ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${v.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+            </select></label>` : ''}
           ${expenseTypeField(v.expense_type)}
           <label>${esc(t('Amount'))}
             <div class="amount-field">
@@ -2186,6 +2192,11 @@ function openMealAllowanceModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="mealForm" class="form">
+        ${state.user.region === '*' ? `<label style="display:block;margin-bottom:8px;max-width:280px">${esc(t('Region'))}
+          <select name="region" required>
+            <option value="" ${!(existing && existing.region) ? 'selected' : ''} disabled>${esc(t('Select a region'))}</option>
+            ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(existing && existing.region) === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+          </select></label>` : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -2256,6 +2267,11 @@ async function submitMealClaim(e, existing) {
   btn.disabled = true;
   const payload = { lines };
   if (needsApprover1) payload.approver1 = Number(approver1);
+  if (state.user.region === '*') {
+    const region = String((new FormData(e.target).get('region') || '')).trim();
+    if (!region) { err.textContent = t('Please choose a region.'); err.hidden = false; btn.disabled = false; return; }
+    payload.region = region;
+  }
   if (existing) payload.resubmit_note = (new FormData(e.target).get('resubmit_note') || '').trim();
   try {
     if (existing) {
@@ -2495,6 +2511,8 @@ async function openProfileModal() {
         <div class="section-label">${esc(t('Contact'))}</div>
         <label>${esc(t('Email (used for password resets & notifications)'))}
           <input name="email" type="email" value="${esc(me.email || '')}" placeholder="${esc(t('you@company.com'))}" /></label>
+        ${me.region ? `<div class="section-label" style="margin-top:14px">${esc(t('Region'))}</div>
+        <p class="muted" style="margin:0">${esc(regionLabel(me.region))} <span style="font-size:.8rem">— ${esc(t('set by your administrator'))}</span></p>` : ''}
         <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
         ${bankNameField(me.bank_name)}
         <label>${esc(t('Recipient bank account name'))}<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="${esc(t('Name on the account'))}" /></label>
@@ -2562,6 +2580,7 @@ const SETTINGS_TABS = [
   { key: 'departments', label: 'Departments', cap: 'manage_settings' },
   { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
+  { key: 'regions', label: 'Regions', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
   { key: 'roles', label: 'Roles', super: true }
 ];
@@ -2579,8 +2598,10 @@ $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
 // Human-readable role labels used across the account tables.
-const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
+const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', employee: 'Employee', user: 'User' };
 const roleLabel = (r) => t(ROLE_LABELS[r] || r);
+// Display label for an account/claim region: '*' -> All regions, '' -> em dash.
+const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');
 // Creation-audit sub-line for the account tables: who created this account, or
 // "—" for accounts made directly (seed scripts) or before creator tracking.
 const creatorLine = (u) =>
@@ -2636,7 +2657,8 @@ function renderSettingsTab() {
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true },
     positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
-    'expense-types': { path: '/expense-types', noun: 'expense type' }
+    'expense-types': { path: '/expense-types', noun: 'expense type' },
+    regions: { path: '/regions', noun: 'region' }
   }[settingsState.tab];
   return renderLookupTab(cfg);
 }
@@ -2894,7 +2916,7 @@ async function renderAccountsTab() {
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}</td>
+            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${esc(t('Region'))}: ${esc(regionLabel(u.region))}</div></td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
             <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'user')
@@ -3067,10 +3089,17 @@ function renderUserForm(u) {
           <select name="role">
             <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>${esc(t('Super Admin'))}</option>
             <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>${esc(t('Admin'))}</option>
+            <option value="manager" ${isEdit && u.role === 'manager' ? 'selected' : ''}>${esc(t('Manager'))}</option>
+            <option value="employee" ${isEdit && u.role === 'employee' ? 'selected' : ''}>${esc(t('Employee'))}</option>
             <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>${esc(t('User'))}</option>
           </select></label>` : ''}
         <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
+        ${state.user.role === 'superadmin' ? `<label>${esc(t('Region'))}
+          <select name="region">
+            ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${isEdit && u.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+            <option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>
+          </select></label>` : ''}
         <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
           <div class="pw-wrap">
             <input name="password" type="password" ${isEdit ? '' : 'required'} />
@@ -3127,6 +3156,7 @@ function renderUserForm(u) {
     if (state.user.role === 'superadmin') {
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
+      payload.region = fd.get('region') || '';
     }
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;

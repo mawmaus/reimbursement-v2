@@ -8,7 +8,7 @@ const SCHEMA = [
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name     TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('superadmin','admin','user')),
+    role          TEXT NOT NULL CHECK (role IN ('superadmin','admin','manager','employee','user')),
     department    TEXT NOT NULL DEFAULT '',
     position      TEXT NOT NULL DEFAULT '',
     active        BOOLEAN NOT NULL DEFAULT TRUE,
@@ -28,14 +28,20 @@ const SCHEMA = [
   // Set when a user picks a language from the switcher; it becomes their default
   // and follows the account across devices. Defaults to English.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'`,
-  // Role model: superadmin (full access), admin (Manage accounts + Export CSV),
-  // user (no admin powers). Widen the CHECK to the three-role set and normalise
-  // any legacy value outside it to 'user'. NOTE: we deliberately do NOT remap
-  // 'admin' → 'superadmin' here — under the current model 'admin' is a real
-  // limited role, and an idempotent remap would clobber admins on every boot.
+  // Region the account belongs to (a regions.name value, or '*' = All regions).
+  // Data outside the account's region is hidden; super admins and '*' accounts
+  // see everything. Existing super admins get '*' so they keep full visibility.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
+  `UPDATE users SET region = '*' WHERE role = 'superadmin' AND region = ''`,
+  // Role model: superadmin (full access) plus admin / manager / employee / user,
+  // whose powers are configured in the editable role-permission matrix. Widen
+  // the CHECK to the five-role set and normalise any legacy value outside it to
+  // 'user'. NOTE: we deliberately do NOT remap 'admin' → 'superadmin' here —
+  // 'admin' is a real role, and an idempotent remap would clobber admins on
+  // every boot.
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`,
-  `UPDATE users SET role = 'user' WHERE role NOT IN ('superadmin','admin')`,
-  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','admin','user'))`,
+  `UPDATE users SET role = 'user' WHERE role NOT IN ('superadmin','admin','manager','employee','user')`,
+  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','admin','manager','employee','user'))`,
   `CREATE TABLE IF NOT EXISTS claims (
     id              SERIAL PRIMARY KEY,
     claim_no        TEXT NOT NULL UNIQUE,
@@ -88,6 +94,18 @@ const SCHEMA = [
     active     BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Regions scope data access: an account belongs to one region (or the special
+  // "All regions") and, outside of super admins / all-region accounts, sees only
+  // that region's claims. A managed lookup like departments. Seed the countries
+  // the portal serves; a super admin can add / rename / disable them.
+  `CREATE TABLE IF NOT EXISTS regions (
+    id         SERIAL PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `INSERT INTO regions (name) VALUES ('Indonesia'),('Thailand'),('Vietnam'),('Philippines'),('Cambodia')
+     ON CONFLICT (name) DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS job_positions (
     id         SERIAL PRIMARY KEY,
     name       TEXT NOT NULL UNIQUE,
@@ -176,6 +194,11 @@ const SCHEMA = [
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS approver_ids INTEGER[] NOT NULL DEFAULT '{}'`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS chain_id INTEGER REFERENCES approval_chains(id)`,
   `ALTER TABLE claims ADD COLUMN IF NOT EXISTS current_step INTEGER NOT NULL DEFAULT 0`,
+  // Region is stamped onto each claim at creation (from the submitter's account),
+  // like department — so a claim keeps its region even if the account changes.
+  `ALTER TABLE claims ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
+  `UPDATE claims c SET region = u.region FROM users u
+     WHERE c.employee_id = u.id AND c.region = '' AND u.region NOT IN ('', '*')`,
   // --- Meal allowance claims -------------------------------------------------
   // A meal allowance claim is a header plus many line items (one row per day on
   // the paper "Meal Allowance Claim Form"). It follows the same submit → approve
@@ -225,6 +248,9 @@ const SCHEMA = [
     comment       TEXT NOT NULL DEFAULT '',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  `ALTER TABLE meal_claims ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
+  `UPDATE meal_claims c SET region = u.region FROM users u
+     WHERE c.employee_id = u.id AND c.region = '' AND u.region NOT IN ('', '*')`,
   `CREATE INDEX IF NOT EXISTS idx_meal_lines_claim   ON meal_claim_lines(meal_claim_id)`,
   `CREATE INDEX IF NOT EXISTS idx_meal_history_claim ON meal_claim_history(meal_claim_id)`,
   `CREATE INDEX IF NOT EXISTS idx_meal_claims_employee ON meal_claims(employee_id)`,
