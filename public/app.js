@@ -225,6 +225,16 @@ function showLogin() {
   renderLoginHint();
 }
 
+// Client mirrors of the server capability checks (userCan / canMarkPaid). caps
+// is the per-role matrix sent with the user; superadmin implicitly holds all.
+function uCan(cap) {
+  const u = state.user;
+  return !!(u && (u.role === 'superadmin' || (u.caps && u.caps[cap])));
+}
+function canPay(u) {
+  return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
+}
+
 function showApp() {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
@@ -236,16 +246,15 @@ function showApp() {
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
   const isSuper = u.role === 'superadmin';
-  const isAdmin = u.role === 'admin';
-  // Export CSV: superadmins and admins. Settings (lookups): superadmins only.
-  $('#exportBtn').hidden = !(isSuper || isAdmin);
-  $('#settingsBtn').hidden = !isSuper;
-  // "Manage accounts": shown to non-superadmins whose position may manage their
-  // team's accounts (reset password / enable-disable). Account CREATION lives in
-  // Settings and is super-admin only. Superadmins use full Settings instead.
+  // Buttons follow the role-capability matrix (Settings → Roles).
+  $('#exportBtn').hidden = !uCan('export_csv');
+  $('#settingsBtn').hidden = !(isSuper || uCan('manage_settings'));
+  // "Manage accounts": shown to non-superadmins whose position/role may manage
+  // their team's accounts (reset password / enable-disable). Superadmins use
+  // full Settings instead.
   $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
-  // Only super admins can delete claims (used to clear out test data).
-  $('#deleteSelBtn').hidden = !isSuper;
+  // Deleting claims (used to clear out test data) follows the matrix.
+  $('#deleteSelBtn').hidden = !uCan('delete_claims');
   // Land on the clean menu; a tile opens the corresponding list. Reset the
   // Insights view and its state too — this runs on every login, and in the SPA a
   // logout→login in the same tab must never leave the previous user's Insights
@@ -556,10 +565,10 @@ function renderHome() {
   // Finance AP (can_mark_paid) needs a home for claims already marked paid, so a
   // mistaken payment can be found and reverted. Same permission gate as the
   // "Mark as paid" / unpay actions.
-  if (u.role === 'superadmin' || u.can_mark_paid) {
+  if (canPay(u)) {
     tiles.push({ key: 'paid', title: t('Paid claims'), desc: t('Claims marked as paid — revert if needed'), count: paidQueue().length });
   }
-  if (u.role === 'superadmin') tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
+  if (uCan('view_all_claims')) tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
   // Insights is gated to Supervisor-and-above plus all of Finance (see
   // insightsCanView on the server). Among those, the backend scopes the data:
   // company-wide for super admins / Finance / GM-and-above, own department for
@@ -1379,7 +1388,7 @@ function canRevert(c, u, isOwner) {
   const ids = (c.approvers || []).map(a => a.id);
   const step = c.current_step || 0;
   const isSuper = u.role === 'superadmin';
-  if (c.status === 'paid') return isSuper || !!u.can_mark_paid;
+  if (c.status === 'paid') return canPay(u);
   if (c.status === 'approved') return isSuper || c.manager_id === u.id;
   if (c.status === 'submitted') {
     if (step > 1) return isSuper || ids[step - 2] === u.id;
@@ -1401,7 +1410,7 @@ function buildActions(c, u, isOwner) {
     btns.push(`<button class="btn btn-approve" data-act="approve">${esc(t('Approve'))}</button>`);
     btns.push(`<button class="btn btn-danger" data-act="reject">${esc(t('Reject & return'))}</button>`);
   }
-  if ((u.role === 'superadmin' || u.can_mark_paid) && c.status === 'approved') {
+  if (canPay(u) && c.status === 'approved') {
     btns.push(`<button class="btn btn-primary" data-act="paid">${esc(t('Mark as paid'))}</button>`);
   }
   if (isOwner && c.status === 'rejected') {
@@ -2549,12 +2558,19 @@ async function openProfileModal() {
 // Admin: Settings (accounts, departments, positions, expense types)
 // ---------------------------------------------------------------------------
 const SETTINGS_TABS = [
-  { key: 'accounts', label: 'Accounts' },
-  { key: 'departments', label: 'Departments' },
-  { key: 'positions', label: 'Job positions' },
-  { key: 'expense-types', label: 'Expense types' },
-  { key: 'claim-window', label: 'Claim window' }
+  { key: 'accounts', label: 'Accounts', super: true },
+  { key: 'departments', label: 'Departments', cap: 'manage_settings' },
+  { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
+  { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
+  { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
+  { key: 'roles', label: 'Roles', super: true }
 ];
+// Tabs visible to the current user: super-admin-only tabs (Accounts, Roles) show
+// only to superadmins; the rest need the matching capability.
+function visibleSettingsTabs() {
+  const isSuper = state.user && state.user.role === 'superadmin';
+  return SETTINGS_TABS.filter(tab => tab.super ? isSuper : (tab.cap ? uCan(tab.cap) : true));
+}
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
@@ -2571,24 +2587,27 @@ const creatorLine = (u) =>
   `<div class="u-sub u-creator">${u.created_by_name ? esc(t('Created by {name}', { name: u.created_by_name })) : t('Created by {name}', { name: '—' })}</div>`;
 
 function openSettingsModal() {
+  const tabs = visibleSettingsTabs();
+  if (!tabs.some(x => x.key === settingsState.tab)) settingsState.tab = tabs.length ? tabs[0].key : 'accounts';
+  const isSuper = state.user && state.user.role === 'superadmin';
   openModal(`
     <div class="modal-head">
       <h2>${esc(t('Settings'))}</h2>
       <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">${esc(t('Send test email'))}</button>
+        ${isSuper ? `<button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">${esc(t('Send test email'))}</button>` : ''}
         <button class="x-btn">×</button>
       </div>
     </div>
     <div class="modal-body">
       <div class="tabs" id="settingsTabs">
-        ${SETTINGS_TABS.map(tab =>
+        ${tabs.map(tab =>
           `<button class="tab ${tab.key === settingsState.tab ? 'active' : ''}" data-tab="${tab.key}">${esc(t(tab.label))}</button>`).join('')}
       </div>
       <div id="settingsPanel"></div>
     </div>`);
   $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#testEmailBtn').addEventListener('click', sendTestEmail);
+  if (isSuper) $('#testEmailBtn').addEventListener('click', sendTestEmail);
   $$('#settingsTabs .tab').forEach(b =>
     b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openSettingsModal(); }));
   renderSettingsTab();
@@ -2613,6 +2632,7 @@ function renderSettingsTab() {
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
+  if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true },
     positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
@@ -2665,6 +2685,52 @@ async function renderClaimWindowTab() {
       renderClaimWindowTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
+}
+
+// --- Roles: editable capability matrix (super admin only) --------------------
+// Rows are capabilities, columns are the three roles. Super Admin is always all
+// -on and locked; Admin / User checkboxes persist immediately via PUT. These
+// grants are additive on top of job-position / department / flag permissions.
+async function renderRolesTab() {
+  const panel = $('#settingsPanel');
+  let data;
+  try { data = await api('/role-permissions'); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const { capabilities, roles, matrix } = data;
+  const roleCols = ['superadmin', ...roles];
+  const head = `<th>${esc(t('Capability'))}</th>`
+    + roleCols.map(r => `<th style="text-align:center;width:110px">${esc(roleLabel(r))}</th>`).join('');
+  const cell = (cap, role) => {
+    if (role === 'superadmin') {
+      return `<td class="tick-cell" style="text-align:center"><input type="checkbox" checked disabled title="${esc(t('Super Admin always has every permission.'))}" /></td>`;
+    }
+    const on = !!(matrix[role] && matrix[role][cap]);
+    return `<td class="tick-cell" style="text-align:center"><input type="checkbox" data-role="${role}" data-cap="${cap}" ${on ? 'checked' : ''} /></td>`;
+  };
+  panel.innerHTML = `
+    <div class="settings-controls">
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Choose what each role can do. Super Admin always has every permission. These grants are added on top of what a user already gets from their job position and department.'))}</p>
+    </div>
+    <div class="settings-list">
+      <table class="utable">
+        <thead><tr>${head}</tr></thead>
+        <tbody>${capabilities.map(c => `
+          <tr>
+            <td data-label="${esc(t('Capability'))}" class="name-cell">
+              <div>${esc(t(c.label))}</div>
+              <div class="u-sub" style="color:var(--muted);font-size:.8rem;font-weight:400">${esc(t(c.desc))}</div>
+            </td>
+            ${roleCols.map(r => cell(c.key, r)).join('')}
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  $$('#settingsPanel input[data-cap]').forEach(cb => cb.addEventListener('change', async () => {
+    const role = cb.dataset.role, cap = cb.dataset.cap, value = cb.checked;
+    try {
+      await api('/role-permissions', { method: 'PUT', body: JSON.stringify({ role, cap, value }) });
+      toast(t('Saved'));
+    } catch (ex) { cb.checked = !value; toast(ex.message, true); }
+  }));
 }
 
 // --- Generic lookup manager (departments / positions / expense types) --------

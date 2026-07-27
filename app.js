@@ -166,6 +166,68 @@ async function setAppSetting(key, value) {
     [key, String(value == null ? '' : value)]);
 }
 
+// --- Role permissions (editable capability matrix) --------------------------
+// Beyond the fixed role (superadmin/admin/user), a super admin can grant each
+// role extra capabilities. These are ADDITIVE: they only widen what a user may
+// do on top of what their job position / department / flags already allow. The
+// matrix is stored as JSON in app_settings under `role_permissions`; superadmin
+// is always all-true and never stored. Defaults reproduce the pre-matrix
+// behaviour (admins could export CSV; everyone else nothing extra).
+const CAPABILITIES = [
+  { key: 'view_all_claims',   label: 'View all claims',            desc: 'See every claim in the system, not only their own or ones they approve.' },
+  { key: 'mark_paid',         label: 'Mark claims as paid',        desc: 'Record and revert payments on approved claims.' },
+  { key: 'delete_claims',     label: 'Delete claims',              desc: 'Permanently delete reimbursement or meal allowance claims.' },
+  { key: 'export_csv',        label: 'Export claims to CSV',       desc: 'Download reimbursement and meal claims as a CSV file.' },
+  { key: 'create_accounts',   label: 'Create accounts',            desc: 'Add new user accounts.' },
+  { key: 'manage_accounts',   label: 'Manage accounts',            desc: 'Reset passwords and enable or disable accounts.' },
+  { key: 'manage_settings',   label: 'Manage settings',            desc: 'Edit departments, job positions, expense types and the claim date limit.' },
+  { key: 'view_insights_all', label: 'View company-wide insights', desc: 'Open expense insights across every department.' }
+];
+const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
+const EDITABLE_ROLES = ['admin', 'user'];
+// Only capabilities set true here are granted by default; everything else false.
+const ROLE_DEFAULTS = { admin: { export_csv: true }, user: {} };
+
+// The stored (or default) matrix, normalised to { role: { cap: bool } } for
+// every editable role and capability. Superadmin is not included (always true).
+async function loadRolePerms() {
+  const settings = await loadAppSettings();
+  let stored = {};
+  try { stored = settings.role_permissions ? JSON.parse(settings.role_permissions) : {}; }
+  catch { stored = {}; }
+  const out = {};
+  for (const role of EDITABLE_ROLES) {
+    out[role] = {};
+    const s = stored[role] || {};
+    for (const c of CAPABILITIES) {
+      out[role][c.key] = Object.prototype.hasOwnProperty.call(s, c.key)
+        ? !!s[c.key] : !!ROLE_DEFAULTS[role][c.key];
+    }
+  }
+  return out;
+}
+// Flatten the matrix into this user's own capability map. Superadmins get all.
+function capsFor(user, perms) {
+  const isSuper = user && user.role === 'superadmin';
+  const out = {};
+  for (const c of CAPABILITIES) out[c.key] = isSuper ? true : !!(perms[user.role] && perms[user.role][c.key]);
+  return out;
+}
+// Attach the computed capability map to a user object so the sync helpers below
+// and the client payload can read it; returns the map.
+async function attachCaps(user) {
+  if (!user) return {};
+  user.caps = capsFor(user, await loadRolePerms());
+  return user.caps;
+}
+// Does this user hold a capability? Relies on caps being attached (attachCaps /
+// requireAuth). Superadmin always passes even if caps were not attached.
+function userCan(user, cap) {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  return !!(user.caps && user.caps[cap]);
+}
+
 // --- Claim date policy ------------------------------------------------------
 const isISODate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 // Today's date (YYYY-MM-DD) in Jakarta time — matches the client's todayWIB() so
@@ -219,12 +281,23 @@ async function loadUser(req) {
 const requireAuth = ah(async (req, res, next) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
+  await attachCaps(u);
   req.user = u;
   next();
 });
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'You do not have permission for this action' });
+    }
+    next();
+  };
+}
+// Like requireRole, but gates on an editable capability from the role matrix.
+// Must run after requireAuth (which attaches req.user.caps).
+function requireCap(cap) {
+  return (req, res, next) => {
+    if (!userCan(req.user, cap)) {
       return res.status(403).json({ error: 'You do not have permission for this action' });
     }
     next();
@@ -369,7 +442,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Who may record a payment (mark paid / revert a payment): super admins always,
 // plus any account a super admin has granted the can_mark_paid permission.
 function canMarkPaid(user) {
-  return user.role === 'superadmin' || user.can_mark_paid === true;
+  return user.role === 'superadmin' || user.can_mark_paid === true || userCan(user, 'mark_paid');
 }
 
 // --- Revert (undo one step) -------------------------------------------------
@@ -525,6 +598,7 @@ function positionRank(name, pos) {
 function hasDelegation(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
+  if (userCan(user, 'manage_accounts')) return true;
   const rec = pos.get(String(user.position || '').trim().toLowerCase());
   return !!(rec && rec.can_manage);
 }
@@ -586,6 +660,7 @@ function rankAtLeast(user, pos, posName, fallbackRank) {
 function insightsCanView(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
+  if (userCan(user, 'view_insights_all')) return true;
   if (isFinanceDept(user.department)) return true;
   return rankAtLeast(user, pos, 'supervisor', SUPERVISOR_FALLBACK_RANK);
 }
@@ -595,6 +670,7 @@ function insightsCanView(user, pos) {
 function insightsSeeAll(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
+  if (userCan(user, 'view_insights_all')) return true;
   if (isFinanceDept(user.department)) return true;
   return rankAtLeast(user, pos, 'general manager', GM_FALLBACK_RANK);
 }
@@ -655,13 +731,15 @@ app.post('/api/login', ah(async (req, res) => {
   await clearLoginFails(req);
   req.session.userId = user.id;
   const pos = await loadPositions();
+  await attachCaps(user);
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
     language: normLang(user.language),
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
     approver1_choices: await approver1Choices(user.approver1_options),
-    can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos)
+    can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
+    caps: user.caps
   } });
 }));
 
@@ -687,9 +765,10 @@ app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
   const pos = await loadPositions();
+  await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -702,9 +781,10 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     await q('UPDATE users SET language = $1 WHERE id = $2', [normLang(body.language), req.user.id]);
     const u = await loadUser(req);
     const pos = await loadPositions();
+    await attachCaps(u);
     return res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u),
       creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
-      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
   }
   const { bank_name, recipient_name, bank_account_no, email } = body;
   const nextEmail = normEmail(email);
@@ -720,9 +800,10 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_account_no || '').trim(), nextEmail, nextLang, req.user.id]);
   const u = await loadUser(req);
   const pos = await loadPositions();
+  await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
 }));
 
 // Claim-date policy: how far back an expense may be dated and still be claimable.
@@ -732,7 +813,7 @@ app.get('/api/claim-window', requireAuth, ah(async (req, res) => {
   res.json(claimWindowView(await loadAppSettings()));
 }));
 
-app.put('/api/claim-window', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
   // Rolling window in days: a positive integer, or blank/0 to disable.
   let days = '';
@@ -840,7 +921,7 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
   const params = [];
   const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
 
-  if (req.user.role !== 'superadmin') {
+  if (!userCan(req.user, 'view_all_claims')) {
     params.push(req.user.id);
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
@@ -860,8 +941,9 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
-  const scope = req.user.role === 'superadmin' ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
-  const params = req.user.role === 'superadmin' ? [] : [req.user.id];
+  const seeAll = userCan(req.user, 'view_all_claims');
+  const scope = seeAll ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
+  const params = seeAll ? [] : [req.user.id];
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(amount_cents),0)::bigint AS total
      FROM claims ${scope} GROUP BY status`, params);
@@ -876,7 +958,7 @@ app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own claims' });
   }
@@ -1198,7 +1280,7 @@ app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) =
 // Delete a reimbursement claim outright (super admin only) — clears its
 // attachments (and their blobs) and history first. Meant for tidying up test
 // data; there is no undo.
-app.delete('/api/claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.delete('/api/claims/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   const atts = await q('SELECT blob_url FROM attachments WHERE claim_id = $1', [row.id]);
@@ -1316,7 +1398,7 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const where = [];
   const params = [];
   const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
-  if (req.user.role !== 'superadmin') {
+  if (!userCan(req.user, 'view_all_claims')) {
     params.push(req.user.id);
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
@@ -1337,8 +1419,9 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
-  const scope = req.user.role === 'superadmin' ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
-  const params = req.user.role === 'superadmin' ? [] : [req.user.id];
+  const seeAll = userCan(req.user, 'view_all_claims');
+  const scope = seeAll ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
+  const params = seeAll ? [] : [req.user.id];
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(total_cents),0)::bigint AS total
      FROM meal_claims ${scope} GROUP BY status`, params);
@@ -1353,7 +1436,7 @@ app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own meal claims' });
   }
@@ -1362,7 +1445,7 @@ app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
 
 // Delete a meal allowance claim outright (super admin only) — removes its line
 // items and history first. For clearing test data; no undo.
-app.delete('/api/meal-claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.delete('/api/meal-claims/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
   const claimId = Number(row.id);
@@ -1721,7 +1804,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
 // reimbursement, meal \u2014 defaults to both). Reimbursement claims export one row
 // each; meal allowances export one row per line item (per day), so finance sees
 // the full daily breakdown. A shared column set carries both.
-app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(async (req, res) => {
+app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req, res) => {
   const { from, to } = req.query;
   const statuses = String(req.query.status || '').split(',').map(s => s.trim())
     .filter(s => EXPORT_STATUSES.includes(s));
@@ -1885,8 +1968,8 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
 // Account creation is super-admin only. Everyone else — including admins and
 // senior positions — can no longer create accounts (they may still reset /
 // enable-disable their team; see canManageAccount).
-app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const isSuper = true;
+app.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req, res) => {
+  const isSuper = req.user.role === 'superadmin';
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
   let { role, department, position, approver_ids, approver1_options } = req.body || {};
@@ -2045,7 +2128,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
   // Reorder the whole ladder: body { order: [id, …] } sets rank = position + 1
   // for the listed ids, atomically. Only defined for ranked lookups.
   if (ranked) {
-    app.post(`/api/${pathName}/reorder`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+    app.post(`/api/${pathName}/reorder`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
       const order = (req.body && req.body.order) || [];
       if (!Array.isArray(order) || !order.length) return res.status(400).json({ error: 'order must be a non-empty array of ids' });
       const ids = [];
@@ -2056,7 +2139,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     }));
   }
 
-  app.post(`/api/${pathName}`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  app.post(`/api/${pathName}`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
     const name = String((req.body && req.body.name) || '').trim();
     if (!name) return res.status(400).json({ error: 'Name is required' });
     const exists = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1)`, [name]);
@@ -2065,7 +2148,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     res.status(201).json({ id: rows[0].id });
   }));
 
-  app.put(`/api/${pathName}/:id`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  app.put(`/api/${pathName}/:id`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
     const rows = await q(`SELECT * FROM ${table} WHERE id = $1`, [req.params.id]);
     const item = rows[0];
     if (!item) return res.status(404).json({ error: 'Not found' });
@@ -2090,7 +2173,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     res.json({ ok: true });
   }));
 
-  app.delete(`/api/${pathName}/:id`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  app.delete(`/api/${pathName}/:id`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
     const rows = await q(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
@@ -2099,6 +2182,29 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
 lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal']);
 lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true });
 lookupRoutes('expense-types', 'expense_types');
+
+// --- Role permissions matrix -------------------------------------------------
+// Read the editable capability matrix. Super admin is implicitly all-true and is
+// omitted from `matrix`. Any account that can manage settings may view it.
+app.get('/api/role-permissions', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+  res.json({
+    capabilities: CAPABILITIES,
+    roles: EDITABLE_ROLES,
+    matrix: await loadRolePerms(),
+    superadminLocked: true
+  });
+}));
+// Toggle one capability for one editable role. Editing the matrix is super-admin
+// only, so an account merely granted `manage_settings` cannot escalate itself.
+app.put('/api/role-permissions', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const { role, cap, value } = req.body || {};
+  if (!EDITABLE_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (!CAPABILITY_KEYS.has(cap)) return res.status(400).json({ error: 'Invalid capability' });
+  const matrix = await loadRolePerms();
+  matrix[role][cap] = isActive(value);
+  await setAppSetting('role_permissions', JSON.stringify(matrix));
+  res.json({ ok: true, matrix });
+}));
 
 // ---------------------------------------------------------------------------
 // Static frontend + error handling
