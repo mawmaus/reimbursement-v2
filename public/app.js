@@ -3345,6 +3345,24 @@ function renderUserForm(u) {
   if (state.user.role === 'superadmin') {
     renderApprover1Options(excludeId);
     $('#addApprover1OptBtn').addEventListener('click', () => { syncApprover1Options(); acctApprover1Options.push(''); renderApprover1Options(excludeId); });
+    // Departments and job positions are per-region now, so when the Region
+    // changes reload its lists and rebuild those two pickers. The current pick is
+    // preserved (optionSelect keeps a value even if it's not in the new region).
+    const regionSel = $('#uForm select[name="region"]');
+    if (regionSel) regionSel.addEventListener('change', async () => {
+      const region = regionSel.value;
+      const concrete = region && region !== '*';
+      const qs = concrete ? `?region=${encodeURIComponent(region)}` : '';
+      let depts, positions;
+      try {
+        const [d, p] = await Promise.all([api('/departments' + qs), api('/positions' + qs)]);
+        const uniq = (items) => [...new Set((items || []).filter(i => i.active).map(i => i.name))];
+        depts = uniq(d.items); positions = uniq(p.items);
+      } catch (ex) { toast(ex.message, true); return; }
+      const rebuild = (sel, options) => { if (sel) sel.outerHTML = optionSelect(sel.name, sel.value, options); };
+      rebuild($('#uForm select[name="department"]'), depts);
+      rebuild($('#uForm select[name="position"]'), positions);
+    });
   }
   $('#uForm').addEventListener('submit', async (e) => {
     e.preventDefault();
