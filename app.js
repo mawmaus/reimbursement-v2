@@ -2314,7 +2314,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     const onlyActive = req.user.role !== 'superadmin';
     const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
     const region = regional ? await resolveLookupRegion(req.user, req.query.region) : null;
-    if (region === null) return res.status(400).json({ error: 'Invalid region' });
+    if (regional && region === null) return res.status(400).json({ error: 'Invalid region' });
     const wheres = [];
     const params = [];
     if (onlyActive) wheres.push('active = TRUE');
