@@ -2711,7 +2711,10 @@ function openRegionsLanding() {
       <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
     </div>
     <div class="modal-body"><div id="settingsPanel"></div></div>`);
-  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  // Plain (non-flex) modal so the whole body scrolls: the landing is a page of
+  // region cards plus the management list, not a frozen bar over one scroll
+  // region (which is what modal-flex sets up, and which our nested wrappers break).
+  $('#modal').classList.add('modal-xwide');
   $('#modal .x-btn').addEventListener('click', closeModal);
   renderRegionsLanding();
 }
