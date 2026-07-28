@@ -19,7 +19,9 @@
   --red-tint:   #f9e4e1;
   --indigo:     #3f5896;
   --indigo-tint:#e6e9f5;
-  --shadow:     0 8px 30px -12px rgba(40,40,45,.26);
+  --shadow:     0 12px 34px -12px rgba(40,40,45,.24);
+  --shadow-sm:  0 1px 2px rgba(23,38,32,.05);
+  --shadow-md:  0 10px 26px -14px rgba(23,38,32,.30);
 
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -78,7 +80,8 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 
 .input, .form input, .form select, .form textarea {
   font: inherit; color: var(--ink); background: var(--surface);
-  border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; width: 100%;
+  transition: border-color .14s, box-shadow .14s;
 }
 .input:focus, .form input:focus, .form select:focus, .form textarea:focus {
   outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint);
@@ -131,7 +134,8 @@ input[type="search"] { min-width: 220px; }
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 8px;
-  padding: 11px 22px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 11px 22px; background: rgba(255,255,255,.85); backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line); box-shadow: var(--shadow-sm);
 }
 /* Brand pushes the action group + Sign out to the right; Sign out stays last. */
 .topbar-left { display: flex; align-items: center; gap: 12px; margin-right: auto; }
@@ -152,11 +156,11 @@ input[type="search"] { min-width: 220px; }
 .home-tile {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
   text-align: left; padding: 22px 20px; min-height: 128px; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.04));
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow-sm);
   transition: border-color .14s, box-shadow .14s, transform .14s;
 }
-.home-tile:hover { border-color: var(--pine); box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+.home-tile:hover { border-color: var(--pine); box-shadow: var(--shadow-md); transform: translateY(-3px); }
 .home-tile:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
 .home-tile .tile-title { font-size: 1.15rem; font-weight: 650; color: var(--ink); }
 .home-tile .tile-desc { font-size: .88rem; color: var(--muted); }
@@ -198,12 +202,14 @@ input[type="search"] { min-width: 220px; }
 }
 .insights-filters .input { min-width: 160px; }
 .insights-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
-.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-.kpi-l { font-size: .73rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
-.kpi-v { margin-top: 6px; font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px;
+  box-shadow: var(--shadow-sm); }
+.kpi-l { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
+.kpi-v { margin-top: 7px; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .kpi-sub { font-size: .85rem; font-weight: 650; color: var(--pine-deep); }
 .insights-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; min-width: 0;
+  box-shadow: var(--shadow-sm); }
 .chart-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
 .chart-title { font-size: 1rem; font-weight: 650; }
 .chart-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
@@ -244,44 +250,55 @@ input[type="search"] { min-width: 220px; }
 .trend-tip .tip-lab { font-size: .7rem; opacity: .75; }
 .trend-tip .tip-val { font-size: .85rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 
-/* ---------- Summary cards ---------- */
+/* ---------- Summary stat cards ---------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .card {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px;
-  border-left: 3px solid var(--line); min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px 15px; min-width: 0; display: flex; flex-direction: column; gap: 9px;
+  box-shadow: 0 1px 2px rgba(23,38,32,.05);
+  transition: box-shadow .16s, border-color .16s, transform .07s, background .16s;
 }
-.card .card-n { font-family: var(--mono); font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums;
-  line-height: 1.12; letter-spacing: -.02em; }
-/* Money totals run long (IDR reaches millions/billions). Size them to fit a
-   150px card so "IDR 1,000,000" wraps at the space into two tidy lines, and
-   only let genuinely huge figures break rather than spill past the border. */
-.card.total .card-n { font-size: 1.3rem; overflow-wrap: anywhere; }
-.card .card-l { font-size: .73rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 650; }
-.card.submitted { border-left-color: var(--amber); }
-.card.approved  { border-left-color: var(--green); }
-.card.rejected  { border-left-color: var(--red); }
-.card.paid      { border-left-color: var(--indigo); }
-.card.total     { border-left-color: var(--pine); }
+/* Label sits on top with a small status dot; the number reads big below it. */
+.card .card-l {
+  order: -1; display: flex; align-items: center; gap: 7px; margin: 0;
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650;
+}
+.card .card-l::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.card .card-n {
+  font-size: 1.95rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1; letter-spacing: -.025em; color: var(--ink);
+}
+/* Money totals run long (IDR reaches millions/billions) — size to wrap tidily. */
+.card.total .card-n { font-size: 1.5rem; overflow-wrap: anywhere; }
+.card.submitted .card-l::before { background: var(--amber); }
+.card.approved  .card-l::before { background: var(--green); }
+.card.rejected  .card-l::before { background: var(--red); }
+.card.paid      .card-l::before { background: var(--indigo); }
+.card.total     .card-l::before { background: var(--pine); }
 
-/* Status cards double as filters: click to narrow the ledger to that status.
-   Hover/active keep each card's coloured left accent (so we lean on background
-   tint + shadow rather than changing border-color). */
-.card-filter { cursor: pointer; user-select: none;
-  transition: background .15s, box-shadow .15s, transform .05s; }
-.card-filter:hover { box-shadow: 0 6px 18px -12px rgba(0,0,0,.4); }
-.card-filter:active { transform: translateY(1px); }
+/* Status cards double as filters: click to narrow the ledger to that status. */
+.card-filter { cursor: pointer; user-select: none; }
+.card-filter:hover { border-color: var(--muted); box-shadow: 0 8px 20px -12px rgba(23,38,32,.32); transform: translateY(-2px); }
+.card-filter:active { transform: translateY(0); }
 .card-filter:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
-.card.submitted.active { background: var(--amber-tint); }
-.card.approved.active  { background: var(--green-tint); }
-.card.rejected.active  { background: var(--red-tint); }
-.card.paid.active      { background: var(--indigo-tint); }
+.card.submitted.active { background: var(--amber-tint); border-color: var(--amber); }
+.card.approved.active  { background: var(--green-tint); border-color: var(--green); }
+.card.rejected.active  { background: var(--red-tint); border-color: var(--red); }
+.card.paid.active      { background: var(--indigo-tint); border-color: var(--indigo); }
 
 /* ---------- Toolbar ---------- */
-.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.toolbar-left, .toolbar-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbar-left, .toolbar-right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+/* Filters sit inline on one row: search grows, selects size to their content.
+   (The base .input is width:100% for forms — override that here.) */
+.toolbar-left { flex: 1; }
+.toolbar-left .input { width: auto; }
+.toolbar-left #searchInput { flex: 1 1 260px; min-width: 200px; }
+.toolbar-left select.input { flex: 0 0 auto; }
 
 /* ---------- Ledger ---------- */
-.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(23,38,32,.05); }
 .ledger-head, .ledger-row {
   display: grid;
   grid-template-columns: 4px 36px 130px 1.2fr 120px 1.2fr 110px 130px 120px;
@@ -488,6 +505,42 @@ input[type="search"] { min-width: 220px; }
 .combo-item[aria-selected="true"] { font-weight: 650; }
 .combo-empty { padding: 8px 10px; color: var(--muted); font-size: .85rem; }
 
+/* ---------- Modern select (custom dropdown replacing native <select>) ------- */
+.msel { position: relative; }
+.msel-native { position: absolute !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.msel-trigger {
+  width: 100%; display: flex; align-items: center; font: inherit; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 34px 9px 12px; transition: border-color .14s, box-shadow .14s;
+}
+.msel-trigger:hover { border-color: var(--muted); }
+.msel-trigger:focus-visible, .msel.open .msel-trigger { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.msel-val { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel-val.placeholder { color: var(--muted); }
+.msel::after {
+  content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px;
+  transform: translateY(-70%) rotate(45deg); border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  pointer-events: none; transition: transform .15s;
+}
+.msel.open::after { transform: translateY(-30%) rotate(225deg); border-color: var(--pine); }
+.msel-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 5px); z-index: 45; padding: 5px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  max-height: 300px; overflow-y: auto; animation: mselpop .12s ease;
+}
+@keyframes mselpop { from { opacity: 0; transform: translateY(-5px); } }
+.msel-search { position: sticky; top: -5px; background: var(--surface); padding: 1px 1px 6px; margin: -5px -5px 5px; border-bottom: 1px solid var(--line-soft); z-index: 1; }
+.msel-search input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: .88rem; }
+.msel-search input:focus { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.msel-opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: .9rem; color: var(--ink); }
+.msel-opt .msel-lab { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel-opt .msel-check { flex: none; color: var(--pine-deep); opacity: 0; font-weight: 700; }
+.msel-opt.sel .msel-check { opacity: 1; }
+.msel-opt.sel .msel-lab { font-weight: 650; }
+.msel-opt:hover, .msel-opt.active { background: var(--pine-tint); color: var(--pine-deep); }
+.msel-empty { padding: 12px 10px; color: var(--muted); font-size: .85rem; text-align: center; }
+.toolbar-left .msel { flex: 0 0 auto; min-width: 172px; }
+
 /* Inline "sum your claim" calculator */
 .calc-panel {
   margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
@@ -548,17 +601,21 @@ input[type="search"] { min-width: 220px; }
 /* Accounts table: keep it inside the modal — long emails wrap instead of
    forcing a horizontal scroll, and the username sits under the name. */
 .utable td, .utable th { overflow-wrap: anywhere; }
-.utable-users { table-layout: fixed; }
-.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 24%; }
-.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 22%; }
-.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 14%; }
-.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 20%; }
-.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 9%; }
-.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 11%; }
-/* Role/Active hold single short words — don't let the global anywhere-break
-   chop "superadmin" or the "Active" header mid-word on narrower tablets. */
+/* Seven columns (User, Email, Role, Region, Dept/Position, Active, Actions);
+   widths sum to 100% so table-layout:fixed never overflows its container. */
+.utable-users { table-layout: fixed; width: 100%; }
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 22%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 20%; }
+.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 11%; }
+.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 12%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 16%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 8%; }
+.utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 11%; }
+/* Role/Region/Active hold single short words — don't let the global
+   anywhere-break chop "Super Admin" / "Active" mid-word on narrower tablets. */
 .utable-users td:nth-child(3), .utable-users th:nth-child(3),
-.utable-users td:nth-child(5), .utable-users th:nth-child(5) { overflow-wrap: normal; }
+.utable-users td:nth-child(4), .utable-users th:nth-child(4),
+.utable-users td:nth-child(6), .utable-users th:nth-child(6) { overflow-wrap: normal; }
 /* Delegated "Manage accounts" table: wider actions column, and its cells must
    never break words (the buttons live here). */
 .utable-manage { table-layout: fixed; }
@@ -664,7 +721,7 @@ input[type="search"] { min-width: 220px; }
 .modal-flex #settingsTabs { flex: none; }
 .modal-flex #settingsPanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .settings-controls { flex: none; }
-.settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .settings-list .utable thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
 .settings-search { margin-bottom: 14px; }
 .settings-search input { width: 100%; }
@@ -747,15 +804,24 @@ input[type="search"] { min-width: 220px; }
   .topbar-signout { order: 2; margin-left: auto; padding: 9px 14px; min-height: 40px; }
   /* Account name gets its own full-width line, left-aligned under the logo,
      instead of floating in the middle of the button row. */
-  .topbar-right { order: 3; flex-wrap: wrap; justify-content: flex-start; gap: 10px; width: 100%; }
+  .topbar-right { order: 3; flex-wrap: wrap; justify-content: flex-start; gap: 8px; width: 100%; }
   .user-badge { margin-right: 0; flex-basis: 100%; text-align: left; }
-  /* Roomier touch targets so wrapped buttons don't sit shoulder-to-shoulder. */
-  .topbar-right .btn-sm { padding: 9px 14px; min-height: 40px; }
+  /* Compact pills — neat and tappable without dominating the screen. */
+  .topbar-right .btn-sm { padding: 7px 12px; min-height: 34px; font-size: .84rem; }
+  .topbar-lang, .topbar-right select { min-height: 34px; font-size: .84rem; }
+
+  /* "My claims" header: Menu + Refresh on the top row, title on its own line. */
+  .list-head { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 14px; }
+  #backHome { order: 1; }
+  .refresh-btn { order: 2; margin-left: auto; }
+  .list-title { order: 3; flex-basis: 100%; font-size: 1.15rem; }
+  .refresh-stamp { order: 4; flex-basis: 100%; font-size: .72rem; margin-top: -2px; }
 
   /* Toolbar: stack search + filters full width, actions on their own row. */
   .toolbar { flex-direction: column; align-items: stretch; }
   .toolbar-left, .toolbar-right { flex-direction: column; align-items: stretch; }
   .toolbar-left .input, input[type="search"], select.input { min-width: 0; width: 100%; }
+  .toolbar-left .msel { flex-basis: 100%; min-width: 0; width: 100%; }
   .toolbar-right .btn { width: 100%; }
 
   /* Insights filters stack full width; scope chip drops below the title. */
@@ -787,13 +853,18 @@ input[type="search"] { min-width: 220px; }
   .modal-actions.sticky-foot { margin: 14px -16px -18px; padding: 14px 16px; }
 }
 
-/* Small phones — two-up summary cards and tighter type. */
+/* Small phones — 2×2 status cards with the total on its own full-width row,
+   tighter type, and no oversized controls. */
 @media (max-width: 460px) {
-  .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .card { padding: 13px 13px; }
-  .card .card-n { font-size: 1.45rem; }
+  .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+  .card { padding: 10px 12px; border-radius: 10px; }
+  .card .card-n { font-size: 1.3rem; }
+  .card .card-l { font-size: .66rem; letter-spacing: .05em; }
+  .card.total { grid-column: 1 / -1; }
+  .card.total .card-n { font-size: 1.2rem; }
   .topbar-title { display: none; }
-  .btn-sm { padding: 6px 10px; }
+  .btn-sm { padding: 6px 10px; font-size: .82rem; }
+  .list-title { font-size: 1.05rem; }
 }
 
 /* Phones — reflow data-dense tables into labelled cards so nothing is clipped
@@ -910,4 +981,38 @@ input[type="search"] { min-width: 220px; }
 
 @media (max-width: 720px) {
   .lang-select select { max-width: 120px; }
+}
+
+/* --- Region workspace (Settings) ------------------------------------------ */
+/* Regions landing: a grid of cards, one per region, that open its workspace. */
+.region-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.region-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 16px 18px; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color .14s, box-shadow .14s, transform .14s;
+}
+.region-card:hover { border-color: var(--pine); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.region-card:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+.region-card-name { font-size: 1.05rem; font-weight: 650; color: var(--ink); }
+.region-card-go { color: var(--pine-deep); font-size: 1.2rem; font-weight: 700; }
+
+/* Workspace header: back-to-regions button sitting beside the title, with the
+   active region shown as a brand pill. */
+.ws-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ws-region {
+  display: inline-block; margin-left: 4px; padding: 2px 10px;
+  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--pine-deep); background: var(--pine-tint);
+  border-radius: 999px; vertical-align: middle;
+}
+
+/* "Locked" hint under a non-editable column header in the Roles matrix. */
+.role-locked {
+  margin-top: 2px; font-size: .68rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted);
 }

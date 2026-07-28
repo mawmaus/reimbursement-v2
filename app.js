@@ -204,29 +204,54 @@ const CAPABILITIES = [
   { key: 'view_insights_all', label: 'View company-wide insights', desc: 'Open expense insights across every department.' }
 ];
 const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
-// Editable roles shown as columns in the matrix (superadmin is implicit/all-on).
-const EDITABLE_ROLES = ['admin', 'manager', 'employee', 'user'];
+// Editable roles shown as rows in the region matrix (superadmin is implicit/all
+// -on and never shown). Ordered senior → junior to match the workspace UI.
+const EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Roles a Country Manager / Managing Director may toggle within their own
+// region: Mid Management, Low Management, Finance. Their own row (admin) and the
+// Employee baseline stay locked, so a CM/MD cannot escalate themselves or
+// silently widen the employee baseline. Super admins are held to the same set
+// in a region workspace — the global defaults are the place for broad changes.
+const REGION_EDITABLE_ROLES = ['manager', 'lowmgmt', 'finance'];
 // Only capabilities set true here are granted by default; everything else false.
-// New roles (manager/employee) start with nothing — configure them in the matrix.
-const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, employee: {}, user: {} };
+// New roles start with nothing — configure them per region in the matrix.
+const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, lowmgmt: {}, finance: {}, employee: {} };
 
-// The stored (or default) matrix, normalised to { role: { cap: bool } } for
-// every editable role and capability. Superadmin is not included (always true).
-async function loadRolePerms() {
-  const settings = await loadAppSettings();
-  let stored = {};
-  try { stored = settings.role_permissions ? JSON.parse(settings.role_permissions) : {}; }
-  catch { stored = {}; }
+// Fill a raw stored matrix into a complete { role: { cap: bool } }, taking each
+// missing entry from `fallback` (another filled matrix) or, failing that, from
+// ROLE_DEFAULTS. Lets a region matrix inherit from the global defaults.
+function fillMatrix(stored, fallback) {
   const out = {};
   for (const role of EDITABLE_ROLES) {
     out[role] = {};
-    const s = stored[role] || {};
+    const s = (stored && stored[role]) || {};
+    const fb = (fallback && fallback[role]) || null;
     for (const c of CAPABILITIES) {
-      out[role][c.key] = Object.prototype.hasOwnProperty.call(s, c.key)
-        ? !!s[c.key] : !!ROLE_DEFAULTS[role][c.key];
+      out[role][c.key] = Object.prototype.hasOwnProperty.call(s, c.key) ? !!s[c.key]
+        : fb ? !!fb[c.key]
+        : !!ROLE_DEFAULTS[role][c.key];
     }
   }
   return out;
+}
+// The global default matrix (app_settings.role_permissions), normalised. Serves
+// as the fallback for any region without its own overrides.
+function loadGlobalRolePerms(settings) {
+  let stored = {};
+  try { stored = settings.role_permissions ? JSON.parse(settings.role_permissions) : {}; }
+  catch { stored = {}; }
+  return fillMatrix(stored, null);
+}
+// The effective matrix for one region: that region's stored overrides layered on
+// top of the global defaults. '*'/blank (All-regions accounts) use the globals.
+async function loadRolePermsForRegion(region, settings) {
+  settings = settings || await loadAppSettings();
+  const global = loadGlobalRolePerms(settings);
+  if (!region || region === ALL_REGIONS) return global;
+  let byRegion = {};
+  try { byRegion = settings.role_permissions_by_region ? JSON.parse(settings.role_permissions_by_region) : {}; }
+  catch { byRegion = {}; }
+  return fillMatrix(byRegion[region], global);
 }
 // Flatten the matrix into this user's own capability map. Superadmins get all.
 function capsFor(user, perms) {
@@ -236,10 +261,11 @@ function capsFor(user, perms) {
   return out;
 }
 // Attach the computed capability map to a user object so the sync helpers below
-// and the client payload can read it; returns the map.
+// and the client payload can read it; returns the map. Caps come from the
+// account's own region matrix (falling back to the global defaults).
 async function attachCaps(user) {
   if (!user) return {};
-  user.caps = capsFor(user, await loadRolePerms());
+  user.caps = capsFor(user, await loadRolePermsForRegion(user.region));
   return user.caps;
 }
 // Does this user hold a capability? Relies on caps being attached (attachCaps /
@@ -644,9 +670,9 @@ function creatablePositions(user, pos) {
 // seniors) may manage any NON-superadmin in their OWN department whose position
 // ranks strictly below their own — regardless of the target's role. This keeps
 // management purely rank + department based (a Manager can reset/disable a more
-// junior Supervisor whether that Supervisor is a plain user or an admin), while
+// junior Supervisor whether that Supervisor is an employee or an admin), while
 // still protecting superadmins and anyone at or above the actor's own rank.
-// (Account *creation* is separately restricted to role 'user' — see POST.)
+// (Account *creation* is gated by the create_accounts capability — see POST.)
 function canManageAccount(actor, target, pos) {
   if (actor.role === 'superadmin') return true;
   if (!hasDelegation(actor, pos)) return false;
@@ -1106,15 +1132,8 @@ app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const checked = await verifyAttachments(b.attachments);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const uploaded = checked.items;
-    // Region the claim belongs to: single-region submitters get their own
-    // region; an All-regions submitter must pick one (the form shows a picker).
-    let claimRegion;
-    if (req.user.region === ALL_REGIONS) {
-      claimRegion = await normRegion(b.region);
-      if (!claimRegion || claimRegion === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region for this claim' });
-    } else {
-      claimRegion = String(req.user.region || '');
-    }
+    // Region is glued to the account — every claim inherits the submitter's.
+    const claimRegion = String(req.user.region || '');
     try {
       const approverIds = built.ids;
       const claimId = await createClaim(req, b, cents, approverIds, uploaded, claimRegion);
@@ -1573,13 +1592,8 @@ app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   const approverIds = built.ids;
-  let claimRegion;
-  if (req.user.region === ALL_REGIONS) {
-    claimRegion = await normRegion((req.body || {}).region);
-    if (!claimRegion || claimRegion === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region for this claim' });
-  } else {
-    claimRegion = String(req.user.region || '');
-  }
+  // Region is glued to the account — every claim inherits the submitter's.
+  const claimRegion = String(req.user.region || '');
   const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds, claimRegion);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);
@@ -1971,7 +1985,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
 // Admin: users
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
-const ROLES = ['superadmin', 'admin', 'manager', 'employee', 'user'];
+const ROLES = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 
 // Send a test email so an admin can confirm the Resend configuration works.
 // Defaults to the admin's own account email; a recipient can be supplied.
@@ -2300,27 +2314,58 @@ lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_ma
 lookupRoutes('expense-types', 'expense_types');
 lookupRoutes('regions', 'regions');
 
-// --- Role permissions matrix -------------------------------------------------
-// Read the editable capability matrix. Super admin is implicitly all-true and is
-// omitted from `matrix`. Any account that can manage settings may view it.
-app.get('/api/role-permissions', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+// --- Role permissions matrix (region-scoped) --------------------------------
+// The capability matrix is configured per region. Who may open it: super admins
+// (any region) and a region's Country Manager / Managing Director (role 'admin',
+// their own region only). Super Admin is implicitly all-true and omitted from
+// `matrix`; only Mid Management / Low Management / Finance rows are editable.
+function canAccessRoleMatrix(user) {
+  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+}
+// Which region a request may act on. Non-superadmins are pinned to their own
+// region whatever they ask for; super admins / All-regions accounts may target
+// any region they name. Returns null for a named-but-unknown region.
+async function resolveMatrixRegion(user, requested) {
+  if (!seesAllRegions(user)) return String(user.region || '');
+  return normRegion(requested);
+}
+
+// Read the editable capability matrix for a region (?region=Name).
+app.get('/api/role-permissions', requireAuth, ah(async (req, res) => {
+  if (!canAccessRoleMatrix(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
+  const region = await resolveMatrixRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
   res.json({
     capabilities: CAPABILITIES,
     roles: EDITABLE_ROLES,
-    matrix: await loadRolePerms(),
+    editableRoles: REGION_EDITABLE_ROLES,
+    region,
+    matrix: await loadRolePermsForRegion(region),
     superadminLocked: true
   });
 }));
-// Toggle one capability for one editable role. Editing the matrix is super-admin
-// only, so an account merely granted `manage_settings` cannot escalate itself.
-app.put('/api/role-permissions', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+// Toggle one capability for one editable role in one region. A CM/MD may only
+// touch their own region and only the Mid/Low/Finance rows — never their own
+// (admin) row or the Employee baseline — so they cannot self-escalate. Overrides
+// are stored sparsely so unset capabilities keep tracking the global defaults.
+app.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
+  if (!canAccessRoleMatrix(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
   const { role, cap, value } = req.body || {};
-  if (!EDITABLE_ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  const region = await resolveMatrixRegion(req.user, (req.body || {}).region);
+  if (!region || region === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region' });
+  if (!REGION_EDITABLE_ROLES.includes(role)) return res.status(400).json({ error: 'This role is not editable' });
   if (!CAPABILITY_KEYS.has(cap)) return res.status(400).json({ error: 'Invalid capability' });
-  const matrix = await loadRolePerms();
-  matrix[role][cap] = isActive(value);
-  await setAppSetting('role_permissions', JSON.stringify(matrix));
-  res.json({ ok: true, matrix });
+
+  const settings = await loadAppSettings();
+  let byRegion = {};
+  try { byRegion = settings.role_permissions_by_region ? JSON.parse(settings.role_permissions_by_region) : {}; }
+  catch { byRegion = {}; }
+  const store = byRegion[region] || {};
+  if (!store[role]) store[role] = {};
+  store[role][cap] = isActive(value);
+  byRegion[region] = store;
+  await setAppSetting('role_permissions_by_region', JSON.stringify(byRegion));
+  res.json({ ok: true, region, matrix: await loadRolePermsForRegion(region, { ...settings, role_permissions_by_region: JSON.stringify(byRegion) }) });
 }));
 
 // ---------------------------------------------------------------------------

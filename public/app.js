@@ -248,7 +248,10 @@ function showApp() {
   const isSuper = u.role === 'superadmin';
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');
-  $('#settingsBtn').hidden = !(isSuper || uCan('manage_settings'));
+  // Settings opens for super admins, anyone who can manage settings, and a
+  // region's Country Manager / MD (role 'admin') — who use it to reach their
+  // region's Roles matrix.
+  $('#settingsBtn').hidden = !(isSuper || uCan('manage_settings') || u.role === 'admin');
   // "Manage accounts": shown to non-superadmins whose position/role may manage
   // their team's accounts (reset password / enable-disable). Superadmins use
   // full Settings instead.
@@ -400,7 +403,7 @@ function renderSummaryCards() {
 function setStatusFilter(status) {
   state.filters.status = state.filters.status === status ? '' : status;
   const sel = $('#statusFilter');
-  if (sel) sel.value = state.filters.status;
+  if (sel) { sel.value = state.filters.status; if (sel._mselRefresh) sel._mselRefresh(); }
   loadClaims();
 }
 
@@ -444,6 +447,7 @@ function renderDeptOptions() {
   sel.innerHTML = '<option value="">All departments</option>' +
     depts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
   sel.value = current;
+  if (sel._mselRefresh) sel._mselRefresh();
 }
 
 // Claimant dropdown mirrors the department one; filtering is applied client-side
@@ -456,6 +460,89 @@ function renderClaimantOptions() {
   sel.innerHTML = '<option value="">All claimants</option>' +
     names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   sel.value = state.filters.claimant;
+  if (sel._mselRefresh) sel._mselRefresh();
+}
+
+// Replace a native <select> with a modern custom dropdown. The native element
+// stays in the DOM (visually hidden) so its value + change events keep driving
+// the existing filter logic; the custom UI just mirrors and updates it. Reads
+// options live, so dynamically-populated selects work. Adds a search box once a
+// list grows past 8 items (handy for the 100+ claimants).
+function enhanceSelect(sel) {
+  if (!sel || sel.dataset.msel) return;
+  sel.dataset.msel = '1';
+  const wrap = document.createElement('div');
+  wrap.className = 'msel';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add('msel-native');
+  sel.setAttribute('tabindex', '-1'); sel.setAttribute('aria-hidden', 'true');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button'; trigger.className = 'msel-trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false');
+  const menu = document.createElement('div');
+  menu.className = 'msel-menu'; menu.setAttribute('role', 'listbox'); menu.hidden = true;
+  wrap.appendChild(trigger); wrap.appendChild(menu);
+
+  let activeIdx = -1;
+  const searchable = () => sel.options.length > 8;
+  const refreshTrigger = () => {
+    const o = sel.options[sel.selectedIndex];
+    const placeholder = sel.selectedIndex <= 0 && !sel.value;
+    trigger.innerHTML = `<span class="msel-val${placeholder ? ' placeholder' : ''}">${esc(o ? o.textContent : '')}</span>`;
+  };
+  const optsBox = () => menu.querySelector('.msel-opts');
+  const renderOpts = (filter) => {
+    const f = String(filter || '').trim().toLowerCase();
+    const html = [...sel.options].filter(o => !f || o.textContent.toLowerCase().includes(f)).map(o =>
+      `<div class="msel-opt${o.value === sel.value ? ' sel' : ''}" role="option" data-val="${esc(o.value)}" aria-selected="${o.value === sel.value}"><span class="msel-lab">${esc(o.textContent)}</span><span class="msel-check" aria-hidden="true">✓</span></div>`).join('');
+    optsBox().innerHTML = html || `<div class="msel-empty">${esc(t('No matches'))}</div>`;
+    activeIdx = -1;
+  };
+  const optEls = () => [...menu.querySelectorAll('.msel-opt')];
+  const setActive = (i) => {
+    const els = optEls(); if (!els.length) return;
+    activeIdx = (i + els.length) % els.length;
+    els.forEach((e, idx) => e.classList.toggle('active', idx === activeIdx));
+    els[activeIdx].scrollIntoView({ block: 'nearest' });
+  };
+  const onDocDown = (e) => { if (!wrap.contains(e.target)) close(); };
+  const onKey = (e) => {
+    if (menu.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
+    else if (e.key === 'Enter') { e.preventDefault(); const els = optEls(); if (activeIdx >= 0 && els[activeIdx]) choose(els[activeIdx].dataset.val); }
+  };
+  function open() {
+    if (!menu.hidden) return;
+    menu.innerHTML = (searchable() ? `<div class="msel-search"><input type="text" class="msel-input" placeholder="${esc(t('Search…'))}" aria-label="${esc(t('Search…'))}"></div>` : '') + `<div class="msel-opts"></div>`;
+    renderOpts('');
+    menu.hidden = false; wrap.classList.add('open'); trigger.setAttribute('aria-expanded', 'true');
+    const inp = menu.querySelector('.msel-input');
+    if (inp) { inp.addEventListener('input', () => renderOpts(inp.value)); setTimeout(() => inp.focus(), 0); }
+    document.addEventListener('mousedown', onDocDown, true);
+    document.addEventListener('keydown', onKey, true);
+  }
+  function close() {
+    if (menu.hidden) return;
+    menu.hidden = true; wrap.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', onDocDown, true);
+    document.removeEventListener('keydown', onKey, true);
+  }
+  function choose(val) {
+    if (sel.value !== val) { sel.value = val; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    refreshTrigger(); close(); trigger.focus();
+  }
+  trigger.addEventListener('click', () => (menu.hidden ? open() : close()));
+  trigger.addEventListener('keydown', (e) => {
+    if (menu.hidden && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); setActive(0); }
+  });
+  menu.addEventListener('click', (e) => { const o = e.target.closest('.msel-opt'); if (o) choose(o.dataset.val); });
+  sel.addEventListener('change', refreshTrigger);
+  sel._mselRefresh = refreshTrigger;
+  refreshTrigger();
 }
 
 // Is it currently THIS user's turn to approve claim c? (The pending approver at
@@ -604,7 +691,7 @@ function goHome() {
   // Clean slate: clear filters so the menu counts reflect everything.
   state.filters = { status: '', department: '', claimant: '', q: '' };
   const si = $('#searchInput'); if (si) si.value = '';
-  const sf = $('#statusFilter'); if (sf) sf.value = '';
+  const sf = $('#statusFilter'); if (sf) { sf.value = ''; if (sf._mselRefresh) sf._mselRefresh(); }
   $('#listView').hidden = true;
   const iv = $('#insightsView'); if (iv) iv.hidden = true;
   $('#homeView').hidden = false;
@@ -945,6 +1032,8 @@ $('#statusFilter').addEventListener('change', e => { state.filters.status = e.ta
 $('#deptFilter').addEventListener('change', e => { state.filters.department = e.target.value; loadClaims(); });
 // Claimant filter is client-side, so just re-render (no server round-trip).
 $('#claimantFilter').addEventListener('change', e => { state.filters.claimant = e.target.value; renderClaims(); });
+// Upgrade the three filter <select>s to modern custom dropdowns.
+['#statusFilter', '#deptFilter', '#claimantFilter'].forEach(id => enhanceSelect($(id)));
 
 // ---------------------------------------------------------------------------
 // Selection + PDF export
@@ -1790,11 +1879,6 @@ function openClaimModal(existing = null) {
         <div class="grid2">
           <label>${esc(t('Date'))}<input name="expense_date" type="date" required ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(v.expense_date || '')}" />${claimLimitNote()}</label>
           <label>${esc(t('DB No.'))}<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
-          ${state.user.region === '*' ? `<label>${esc(t('Region'))}
-            <select name="region" required>
-              <option value="" ${!v.region ? 'selected' : ''} disabled>${esc(t('Select a region'))}</option>
-              ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${v.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-            </select></label>` : ''}
           ${expenseTypeField(v.expense_type)}
           <label>${esc(t('Amount'))}
             <div class="amount-field">
@@ -2192,11 +2276,6 @@ function openMealAllowanceModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="mealForm" class="form">
-        ${state.user.region === '*' ? `<label style="display:block;margin-bottom:8px;max-width:280px">${esc(t('Region'))}
-          <select name="region" required>
-            <option value="" ${!(existing && existing.region) ? 'selected' : ''} disabled>${esc(t('Select a region'))}</option>
-            ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(existing && existing.region) === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-          </select></label>` : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -2267,11 +2346,6 @@ async function submitMealClaim(e, existing) {
   btn.disabled = true;
   const payload = { lines };
   if (needsApprover1) payload.approver1 = Number(approver1);
-  if (state.user.region === '*') {
-    const region = String((new FormData(e.target).get('region') || '')).trim();
-    if (!region) { err.textContent = t('Please choose a region.'); err.hidden = false; btn.disabled = false; return; }
-    payload.region = region;
-  }
   if (existing) payload.resubmit_note = (new FormData(e.target).get('resubmit_note') || '').trim();
   try {
     if (existing) {
@@ -2575,20 +2649,27 @@ async function openProfileModal() {
 // ---------------------------------------------------------------------------
 // Admin: Settings (accounts, departments, positions, expense types)
 // ---------------------------------------------------------------------------
+// Tabs inside a region workspace. Regions themselves live one level up (the
+// Regions landing), so there is no Regions tab here.
 const SETTINGS_TABS = [
   { key: 'accounts', label: 'Accounts', super: true },
   { key: 'departments', label: 'Departments', cap: 'manage_settings' },
   { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
-  { key: 'regions', label: 'Regions', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
-  { key: 'roles', label: 'Roles', super: true }
+  { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
-// Tabs visible to the current user: super-admin-only tabs (Accounts, Roles) show
-// only to superadmins; the rest need the matching capability.
+// Tabs visible to the current user. Accounts is super-admin only; the Roles
+// matrix is open to super admins and a region's Country Manager / MD (role
+// 'admin'); the rest need the matching capability.
 function visibleSettingsTabs() {
-  const isSuper = state.user && state.user.role === 'superadmin';
-  return SETTINGS_TABS.filter(tab => tab.super ? isSuper : (tab.cap ? uCan(tab.cap) : true));
+  const u = state.user;
+  const isSuper = u && u.role === 'superadmin';
+  return SETTINGS_TABS.filter(tab => {
+    if (tab.roleMatrix) return isSuper || (u && u.role === 'admin');
+    if (tab.super) return isSuper;
+    return tab.cap ? uCan(tab.cap) : true;
+  });
 }
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
@@ -2598,7 +2679,7 @@ $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
 // Human-readable role labels used across the account tables.
-const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', manager: 'Manager', employee: 'Employee', user: 'User' };
+const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Country Manager / Managing Director', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
 const roleLabel = (r) => t(ROLE_LABELS[r] || r);
 // Display label for an account/claim region: '*' -> All regions, '' -> em dash.
 const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');
@@ -2607,17 +2688,73 @@ const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');
 const creatorLine = (u) =>
   `<div class="u-sub u-creator">${u.created_by_name ? esc(t('Created by {name}', { name: u.created_by_name })) : t('Created by {name}', { name: '—' })}</div>`;
 
+// Settings entry point. A super admin first picks a region (the Regions
+// landing); everyone else is pinned to their own region and drops straight into
+// that region's workspace.
 function openSettingsModal() {
-  const tabs = visibleSettingsTabs();
-  if (!tabs.some(x => x.key === settingsState.tab)) settingsState.tab = tabs.length ? tabs[0].key : 'accounts';
-  const isSuper = state.user && state.user.role === 'superadmin';
+  const u = state.user;
+  const isSuper = u && u.role === 'superadmin';
+  if (!isSuper) settingsState.region = String(u.region || '');
+  if (isSuper && !settingsState.region) return openRegionsLanding();
+  return openRegionWorkspace();
+}
+
+// Regions landing (super admin): cards to enter a region's workspace, plus the
+// full region list manager (add / rename / enable-disable / delete) below.
+function openRegionsLanding() {
   openModal(`
     <div class="modal-head">
-      <h2>${esc(t('Settings'))}</h2>
-      <div style="display:flex;gap:8px;align-items:center">
-        ${isSuper ? `<button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">${esc(t('Send test email'))}</button>` : ''}
-        <button class="x-btn">×</button>
+      <h2>${esc(t('Regions'))}</h2>
+      <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
+    </div>
+    <div class="modal-body"><div id="settingsPanel"></div></div>`);
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  renderRegionsLanding();
+}
+
+async function renderRegionsLanding() {
+  const panel = $('#settingsPanel');
+  panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
+  let items;
+  try { ({ items } = await api('/regions')); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const active = items.filter(r => r.active);
+  panel.innerHTML = `
+    <p class="muted" style="margin:0 0 14px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
+    <div class="region-grid">
+      ${active.length ? active.map(r => `
+        <button type="button" class="region-card" data-region="${esc(r.name)}">
+          <span class="region-card-name">${esc(r.name)}</span>
+          <span class="region-card-go" aria-hidden="true">→</span>
+        </button>`).join('') : `<p class="muted">${esc(t('No regions yet. Add one below.'))}</p>`}
+    </div>
+    <div class="section-label" style="margin-top:20px">${esc(t('Manage regions'))}</div>
+    <div id="regionManage"></div>`;
+  $$('#settingsPanel .region-card').forEach(c => c.addEventListener('click', () => {
+    settingsState.region = c.dataset.region;
+    settingsState.tab = 'accounts';
+    openRegionWorkspace();
+  }));
+  renderLookupTab({ path: '/regions', noun: 'region' }, '#regionManage');
+}
+
+// A region's workspace: tabs for that region's settings. Super admins get a
+// "← Regions" button to go back and switch regions; region-pinned managers do
+// not (they only ever see their own).
+function openRegionWorkspace() {
+  const u = state.user;
+  const isSuper = u && u.role === 'superadmin';
+  const region = settingsState.region;
+  const tabs = visibleSettingsTabs();
+  if (!tabs.some(x => x.key === settingsState.tab)) settingsState.tab = tabs.length ? tabs[0].key : 'roles';
+  openModal(`
+    <div class="modal-head">
+      <div class="ws-head">
+        ${isSuper ? `<button type="button" class="btn btn-ghost btn-sm ws-back" id="wsBack">← ${esc(t('Regions'))}</button>` : ''}
+        <h2>${esc(t('Settings'))}${region ? ` <span class="ws-region">${esc(region)}</span>` : ''}</h2>
       </div>
+      <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
     </div>
     <div class="modal-body">
       <div class="tabs" id="settingsTabs">
@@ -2628,9 +2765,10 @@ function openSettingsModal() {
     </div>`);
   $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  if (isSuper) $('#testEmailBtn').addEventListener('click', sendTestEmail);
+  const back = $('#wsBack');
+  if (back) back.addEventListener('click', () => { settingsState.region = null; openRegionsLanding(); });
   $$('#settingsTabs .tab').forEach(b =>
-    b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openSettingsModal(); }));
+    b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openRegionWorkspace(); }));
   renderSettingsTab();
 }
 
@@ -2657,8 +2795,7 @@ function renderSettingsTab() {
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true },
     positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
-    'expense-types': { path: '/expense-types', noun: 'expense type' },
-    regions: { path: '/regions', noun: 'region' }
+    'expense-types': { path: '/expense-types', noun: 'expense type' }
   }[settingsState.tab];
   return renderLookupTab(cfg);
 }
@@ -2709,29 +2846,34 @@ async function renderClaimWindowTab() {
   });
 }
 
-// --- Roles: editable capability matrix (super admin only) --------------------
-// Rows are capabilities, columns are the three roles. Super Admin is always all
-// -on and locked; Admin / User checkboxes persist immediately via PUT. These
-// grants are additive on top of job-position / department / flag permissions.
+// --- Roles: region-scoped capability matrix ----------------------------------
+// Rows are capabilities; columns are the region's roles (Super Admin is never
+// shown — it always holds every permission). The Country Manager / MD and
+// Employee columns are shown locked for reference; Mid Management, Low
+// Management and Finance are editable and persist immediately via PUT. Grants
+// are additive on top of job-position / department / flag permissions, and
+// apply only within the selected region.
 async function renderRolesTab() {
   const panel = $('#settingsPanel');
+  const region = settingsState.region;
   let data;
-  try { data = await api('/role-permissions'); }
+  try { data = await api('/role-permissions' + (region ? `?region=${encodeURIComponent(region)}` : '')); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const { capabilities, roles, matrix } = data;
-  const roleCols = ['superadmin', ...roles];
+  const { capabilities, roles, editableRoles, matrix } = data;
+  const editable = new Set(editableRoles || []);
   const head = `<th>${esc(t('Capability'))}</th>`
-    + roleCols.map(r => `<th style="text-align:center;width:110px">${esc(roleLabel(r))}</th>`).join('');
+    + roles.map(r => `<th style="text-align:center;width:120px">${esc(roleLabel(r))}${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
   const cell = (cap, role) => {
-    if (role === 'superadmin') {
-      return `<td class="tick-cell" style="text-align:center"><input type="checkbox" checked disabled title="${esc(t('Super Admin always has every permission.'))}" /></td>`;
-    }
     const on = !!(matrix[role] && matrix[role][cap]);
-    return `<td class="tick-cell" style="text-align:center"><input type="checkbox" data-role="${role}" data-cap="${cap}" ${on ? 'checked' : ''} /></td>`;
+    const canEdit = editable.has(role);
+    const title = canEdit ? '' : (role === 'employee'
+      ? t('The Employee baseline is fixed.')
+      : t('Country Manager / Managing Director permissions are set by the Super Admin.'));
+    return `<td class="tick-cell" style="text-align:center"><input type="checkbox" ${canEdit ? `data-role="${role}" data-cap="${cap}"` : 'disabled'} ${on ? 'checked' : ''}${title ? ` title="${esc(title)}"` : ''} /></td>`;
   };
   panel.innerHTML = `
     <div class="settings-controls">
-      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Choose what each role can do. Super Admin always has every permission. These grants are added on top of what a user already gets from their job position and department.'))}</p>
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Country Manager / Managing Director and Employee rows are shown for reference. These grants are added on top of what a user already gets from their job position and department.', { region: region || t('this region') }))}</p>
     </div>
     <div class="settings-list">
       <table class="utable">
@@ -2742,22 +2884,22 @@ async function renderRolesTab() {
               <div>${esc(t(c.label))}</div>
               <div class="u-sub" style="color:var(--muted);font-size:.8rem;font-weight:400">${esc(t(c.desc))}</div>
             </td>
-            ${roleCols.map(r => cell(c.key, r)).join('')}
+            ${roles.map(r => cell(c.key, r)).join('')}
           </tr>`).join('')}</tbody>
       </table>
     </div>`;
   $$('#settingsPanel input[data-cap]').forEach(cb => cb.addEventListener('change', async () => {
     const role = cb.dataset.role, cap = cb.dataset.cap, value = cb.checked;
     try {
-      await api('/role-permissions', { method: 'PUT', body: JSON.stringify({ role, cap, value }) });
+      await api('/role-permissions', { method: 'PUT', body: JSON.stringify({ region, role, cap, value }) });
       toast(t('Saved'));
     } catch (ex) { cb.checked = !value; toast(ex.message, true); }
   }));
 }
 
 // --- Generic lookup manager (departments / positions / expense types) --------
-async function renderLookupTab(cfg) {
-  const panel = $('#settingsPanel');
+async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
+  const panel = $(mountSel);
   let items;
   try { ({ items } = await api(cfg.path)); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
@@ -2889,10 +3031,33 @@ function startInlineRename(cell, it, cfg) {
   });
 }
 
-// Re-render the current tab and keep the claim-form dropdowns in sync.
-function refreshAfterSettings() { loadLookups(); renderSettingsTab(); }
+// Re-render whatever settings view is open and keep the claim-form dropdowns in
+// sync. On the Regions landing (super admin, no region chosen) that's the
+// landing; inside a region workspace it's the active tab.
+function refreshAfterSettings() {
+  loadLookups();
+  const isSuper = state.user && state.user.role === 'superadmin';
+  if (isSuper && !settingsState.region) return renderRegionsLanding();
+  renderSettingsTab();
+}
 
 // --- Accounts (users) --------------------------------------------------------
+// Current sort for the accounts table: key + direction (1 = A→Z, -1 = Z→A).
+let accountsSort = { key: 'full_name', dir: 1 };
+// Sort a copy of the accounts by the active column, always tie-breaking on name.
+function sortAccounts(users) {
+  const { key, dir } = accountsSort;
+  const val = (u) => key === 'active' ? (u.active ? 1 : 0) : String(u[key] || '').toLowerCase();
+  const name = (u) => String(u.full_name || '').toLowerCase();
+  return [...users].sort((a, b) => {
+    const va = val(a), vb = val(b);
+    if (va < vb) return -dir;
+    if (va > vb) return dir;
+    return name(a).localeCompare(name(b));
+  });
+}
+
+// Fetch the accounts once, then paint from cache so re-sorting is instant.
 async function renderAccountsTab() {
   const panel = $('#settingsPanel');
   let users, positions;
@@ -2901,6 +3066,19 @@ async function renderAccountsTab() {
   } catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   settingsState.positions = positions.map(p => p.name);
   settingsState.users = users;
+  paintAccounts();
+}
+
+function paintAccounts() {
+  const panel = $('#settingsPanel');
+  const users = settingsState.users || [];
+  const sorted = sortAccounts(users);
+  // A clickable header cell that sorts by `key` and shows the active arrow.
+  const th = (key, label) => {
+    const on = accountsSort.key === key;
+    const arrow = on ? (accountsSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (accountsSort.dir === 1 ? 'ascending' : 'descending') : 'none'}" style="cursor:pointer;user-select:none;white-space:nowrap">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
+  };
 
   panel.innerHTML = `
     <div class="settings-controls">
@@ -2911,15 +3089,16 @@ async function renderAccountsTab() {
     </div>
     <div class="settings-list">
       <table class="utable utable-users">
-        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Role'))}</th><th>${esc(t('Dept / Position'))}</th><th>${esc(t('Active'))}</th><th></th></tr></thead>
-        <tbody>${users.map(u => `
+        <thead><tr>${th('full_name', t('User'))}${th('email', t('Email'))}${th('role', t('Role'))}${th('region', t('Region'))}${th('department', t('Dept / Position'))}${th('active', t('Active'))}<th></th></tr></thead>
+        <tbody>${sorted.map(u => `
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${esc(t('Region'))}: ${esc(regionLabel(u.region))}</div></td>
+            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}</td>
+            <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
-            <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'user')
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'employee')
               ? `<div class="u-actions">
                 <button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">${esc(t('Edit'))}</button>
                 ${u.id != state.user.id ? `<button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-green-soft'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>` : ''}
@@ -2929,6 +3108,17 @@ async function renderAccountsTab() {
       </table>
     </div>`;
   wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
+  // Clicking (or pressing Enter/Space on) a header sorts by that column; the same
+  // header again flips the direction.
+  const applySort = (key) => {
+    if (accountsSort.key === key) accountsSort.dir *= -1;
+    else accountsSort = { key, dir: 1 };
+    paintAccounts();
+  };
+  $$('#settingsPanel th[data-sort]').forEach(h => {
+    h.addEventListener('click', () => applySort(h.dataset.sort));
+    h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applySort(h.dataset.sort); } });
+  });
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
@@ -3087,17 +3277,14 @@ function renderUserForm(u) {
         <label>${esc(t('Email (for resets & notifications)'))}<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="${esc(t('you@company.com'))}" /></label>
         ${state.user.role === 'superadmin' ? `<label>${esc(t('Role'))}
           <select name="role">
-            <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>${esc(t('Super Admin'))}</option>
-            <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>${esc(t('Admin'))}</option>
-            <option value="manager" ${isEdit && u.role === 'manager' ? 'selected' : ''}>${esc(t('Manager'))}</option>
-            <option value="employee" ${isEdit && u.role === 'employee' ? 'selected' : ''}>${esc(t('Employee'))}</option>
-            <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>${esc(t('User'))}</option>
+            ${['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
+              `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
           </select></label>` : ''}
         <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
         ${state.user.role === 'superadmin' ? `<label>${esc(t('Region'))}
           <select name="region">
-            ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${isEdit && u.region === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+            ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(isEdit ? u.region === r : r === settingsState.region) ? 'selected' : ''}>${esc(r)}</option>`).join('')}
             <option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>
           </select></label>` : ''}
         <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
