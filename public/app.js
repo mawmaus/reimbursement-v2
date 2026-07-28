@@ -2711,10 +2711,10 @@ function openRegionsLanding() {
       <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
     </div>
     <div class="modal-body"><div id="settingsPanel"></div></div>`);
-  // Plain (non-flex) modal so the whole body scrolls: the landing is a page of
-  // region cards plus the management list, not a frozen bar over one scroll
-  // region (which is what modal-flex sets up, and which our nested wrappers break).
-  $('#modal').classList.add('modal-xwide');
+  // Frozen-header model: the intro + region cards + add/search bar stay put
+  // while the region table scrolls. renderRegionsLanding lays out #settingsPanel
+  // so the table is a direct scrolling child (see there).
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   renderRegionsLanding();
 }
@@ -2726,23 +2726,30 @@ async function renderRegionsLanding() {
   try { ({ items } = await api('/regions')); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const active = items.filter(r => r.active);
-  panel.innerHTML = `
-    <p class="muted" style="margin:0 0 14px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
-    <div class="region-grid">
-      ${active.length ? active.map(r => `
-        <button type="button" class="region-card" data-region="${esc(r.name)}">
-          <span class="region-card-name">${esc(r.name)}</span>
-          <span class="region-card-go" aria-hidden="true">→</span>
-        </button>`).join('') : `<p class="muted">${esc(t('No regions yet. Add one below.'))}</p>`}
-    </div>
-    <div class="section-label" style="margin-top:20px">${esc(t('Manage regions'))}</div>
-    <div id="regionManage"></div>`;
+  // Render the region-list manager straight into the panel first, so its table
+  // (.settings-list) is a direct flex child of #settingsPanel and owns the
+  // scroll. Then pin a frozen header (intro + region cards + the "Manage
+  // regions" label) above it — .settings-controls (add + search) stays frozen
+  // too, so only the table scrolls.
+  await renderLookupTab({ path: '/regions', noun: 'region' }, '#settingsPanel');
+  const header = `
+    <div class="region-landing-head">
+      <p class="muted" style="margin:0 0 14px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
+      <div class="region-grid">
+        ${active.length ? active.map(r => `
+          <button type="button" class="region-card" data-region="${esc(r.name)}">
+            <span class="region-card-name">${esc(r.name)}</span>
+            <span class="region-card-go" aria-hidden="true">→</span>
+          </button>`).join('') : `<p class="muted">${esc(t('No regions yet. Add one below.'))}</p>`}
+      </div>
+      <div class="section-label" style="margin-top:20px">${esc(t('Manage regions'))}</div>
+    </div>`;
+  panel.insertAdjacentHTML('afterbegin', header);
   $$('#settingsPanel .region-card').forEach(c => c.addEventListener('click', () => {
     settingsState.region = c.dataset.region;
     settingsState.tab = 'accounts';
     openRegionWorkspace();
   }));
-  renderLookupTab({ path: '/regions', noun: 'region' }, '#regionManage');
 }
 
 // A region's workspace: tabs for that region's settings. Super admins get a

@@ -984,6 +984,9 @@ input[type="search"] { min-width: 220px; }
 }
 
 /* --- Region workspace (Settings) ------------------------------------------ */
+/* Regions landing: the intro + cards + "Manage regions" label form a frozen
+   header (flex:none) above the scrolling region table. */
+.region-landing-head { flex: none; }
 /* Regions landing: a grid of cards, one per region, that open its workspace. */
 .region-grid {
   display: grid; gap: 12px;
