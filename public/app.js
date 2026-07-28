@@ -287,9 +287,12 @@ document.addEventListener('click', (e) => {
 async function loadLookups() {
   try {
     const [d, e, r] = await Promise.all([api('/departments'), api('/expense-types'), api('/regions')]);
-    state.lookups.departments = (d.items || []).filter(i => i.active).map(i => i.name);
-    state.lookups.expense_types = (e.items || []).filter(i => i.active).map(i => i.name);
-    state.lookups.regions = (r.items || []).filter(i => i.active).map(i => i.name);
+    // Lookups come scoped to the signed-in user's region; an All-regions account
+    // gets every region's rows, so de-duplicate names for the pickers.
+    const uniqNames = (items) => [...new Set((items || []).filter(i => i.active).map(i => i.name))];
+    state.lookups.departments = uniqNames(d.items);
+    state.lookups.expense_types = uniqNames(e.items);
+    state.lookups.regions = uniqNames(r.items);
   } catch { /* form falls back to free text */ }
   // The claim-date policy gates how old an expense may be; the form uses it to
   // set the date picker's min and to validate before submit.
@@ -2793,9 +2796,9 @@ function renderSettingsTab() {
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
-    departments: { path: '/departments', noun: 'department', purposes: true },
-    positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
-    'expense-types': { path: '/expense-types', noun: 'expense type' }
+    departments: { path: '/departments', noun: 'department', purposes: true, regional: true },
+    positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true, regional: true },
+    'expense-types': { path: '/expense-types', noun: 'expense type', regional: true }
   }[settingsState.tab];
   return renderLookupTab(cfg);
 }
@@ -2805,10 +2808,13 @@ function renderSettingsTab() {
 // date. Both may be set; the effective floor shown is whichever is later.
 async function renderClaimWindowTab() {
   const panel = $('#settingsPanel');
+  // Scoped to the workspace region. This is a separate context from the logged-in
+  // user's own claim limit (state.claimLimit, set by loadLookups), so it must not
+  // overwrite it.
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
   let cw;
-  try { cw = await api('/claim-window'); }
+  try { cw = await api('/claim-window' + regionQS); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  state.claimLimit = cw;
   const status = cw.earliest
     ? t('Only expenses dated {date} or later can be claimed.', { date: cw.earliest })
     : t('No date limit is set — expenses of any date can be claimed.');
@@ -2836,10 +2842,10 @@ async function renderClaimWindowTab() {
     const err = $('#cwErr'); err.hidden = true;
     const fd = new FormData(e.target);
     try {
-      const updated = await api('/claim-window', { method: 'PUT', body: JSON.stringify({
-        max_age_days: fd.get('max_age_days'), earliest_date: fd.get('earliest_date')
+      await api('/claim-window', { method: 'PUT', body: JSON.stringify({
+        max_age_days: fd.get('max_age_days'), earliest_date: fd.get('earliest_date'),
+        ...(settingsState.region ? { region: settingsState.region } : {})
       }) });
-      state.claimLimit = updated;
       toast(t('Claim date limit saved'));
       renderClaimWindowTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
@@ -2900,8 +2906,15 @@ async function renderRolesTab() {
 // --- Generic lookup manager (departments / positions / expense types) --------
 async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const panel = $(mountSel);
+  // Regional lookups (departments / positions / expense types) are scoped to the
+  // workspace's region; the region list itself is global. Reads carry ?region;
+  // create/reorder carry it in the body. Edits/deletes are authorised server-side
+  // from the row's own region, so they need nothing extra.
+  const regionScoped = !!(cfg.regional && settingsState.region);
+  const regionQS = regionScoped ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  const regionBody = regionScoped ? { region: settingsState.region } : {};
   let items;
-  try { ({ items } = await api(cfg.path)); }
+  try { ({ items } = await api(cfg.path + regionQS)); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
 
   const p = !!cfg.purposes;         // purpose gates (New claim / New meal allowance)
@@ -2961,7 +2974,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   $('#lookupForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = new FormData(e.target).get('name').trim();
-    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name }) }); toast(t('Added')); refreshAfterSettings(); }
+    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) }); toast(t('Added')); refreshAfterSettings(); }
     catch (ex) { const el = $('#lookupErr'); el.textContent = ex.message; el.hidden = false; }
   });
   $$('#settingsPanel [data-toggle]').forEach(b => b.addEventListener('click', async () => {
@@ -2999,7 +3012,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
     if (swap < 0 || swap >= items.length) return;
     [items[idx], items[swap]] = [items[swap], items[idx]];
     try {
-      await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id) }) });
+      await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id), ...regionBody }) });
       refreshAfterSettings();
     } catch (ex) { toast(ex.message, true); refreshAfterSettings(); }
   }));
@@ -3060,12 +3073,19 @@ function sortAccounts(users) {
 // Fetch the accounts once, then paint from cache so re-sorting is instant.
 async function renderAccountsTab() {
   const panel = $('#settingsPanel');
-  let users, positions;
+  const region = settingsState.region;
+  const rQS = region ? `?region=${encodeURIComponent(region)}` : '';
+  let users, positions, depts;
   try {
-    [{ users }, { items: positions }] = await Promise.all([api('/users'), api('/positions')]);
+    [{ users }, { items: positions }, { items: depts }] =
+      await Promise.all([api('/users'), api('/positions' + rQS), api('/departments' + rQS)]);
   } catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   settingsState.positions = positions.map(p => p.name);
-  settingsState.users = users;
+  // The account form's Department picker should reflect this region's list.
+  settingsState.departments = depts.filter(d => d.active).map(d => d.name);
+  // Scope the workspace's account list to this region (All-regions accounts, e.g.
+  // super admins, stay visible everywhere).
+  settingsState.users = region ? users.filter(u => u.region === region || u.region === '*') : users;
   paintAccounts();
 }
 

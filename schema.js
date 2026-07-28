@@ -157,6 +157,45 @@ const SCHEMA = [
     active     BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // --- Per-region lookups ----------------------------------------------------
+  // Departments, job positions and expense types are scoped to a region: each
+  // region keeps its own list (own active flags, purpose gates and — for
+  // positions — its own rank order). Add the region column, swap the global
+  // name-uniqueness for per-region (region, name) uniqueness, then, on the first
+  // run only, fan today's global entries out into every region: the originals
+  // stay in the first region and copies are made for the rest. The still-blank
+  // region marker ('') identifies un-migrated rows, so re-running never
+  // duplicates or resurrects deletions.
+  `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE expense_types ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE departments   DROP CONSTRAINT IF EXISTS departments_name_key`,
+  `ALTER TABLE job_positions DROP CONSTRAINT IF EXISTS job_positions_name_key`,
+  `ALTER TABLE expense_types DROP CONSTRAINT IF EXISTS expense_types_name_key`,
+  `ALTER TABLE departments   DROP CONSTRAINT IF EXISTS departments_region_name_key`,
+  `ALTER TABLE job_positions DROP CONSTRAINT IF EXISTS job_positions_region_name_key`,
+  `ALTER TABLE expense_types DROP CONSTRAINT IF EXISTS expense_types_region_name_key`,
+  `ALTER TABLE departments   ADD CONSTRAINT departments_region_name_key   UNIQUE (region, name)`,
+  `ALTER TABLE job_positions ADD CONSTRAINT job_positions_region_name_key UNIQUE (region, name)`,
+  `ALTER TABLE expense_types ADD CONSTRAINT expense_types_region_name_key UNIQUE (region, name)`,
+  // Fan-out copies into every region except the first (source = un-migrated
+  // region-'' rows, so this fires only on the first run).
+  `INSERT INTO departments (name, active, allow_claim, allow_meal, region)
+     SELECT t.name, t.active, t.allow_claim, t.allow_meal, r.name
+       FROM departments t CROSS JOIN regions r
+      WHERE t.region = '' AND r.id <> (SELECT MIN(id) FROM regions)`,
+  `INSERT INTO job_positions (name, active, allow_claim, allow_meal, rank, can_manage, region)
+     SELECT t.name, t.active, t.allow_claim, t.allow_meal, t.rank, t.can_manage, r.name
+       FROM job_positions t CROSS JOIN regions r
+      WHERE t.region = '' AND r.id <> (SELECT MIN(id) FROM regions)`,
+  `INSERT INTO expense_types (name, active, region)
+     SELECT t.name, t.active, r.name
+       FROM expense_types t CROSS JOIN regions r
+      WHERE t.region = '' AND r.id <> (SELECT MIN(id) FROM regions)`,
+  // Anchor the originals to the first region, clearing the '' marker.
+  `UPDATE departments   SET region = (SELECT name FROM regions ORDER BY id LIMIT 1) WHERE region = '' AND EXISTS (SELECT 1 FROM regions)`,
+  `UPDATE job_positions SET region = (SELECT name FROM regions ORDER BY id LIMIT 1) WHERE region = '' AND EXISTS (SELECT 1 FROM regions)`,
+  `UPDATE expense_types SET region = (SELECT name FROM regions ORDER BY id LIMIT 1) WHERE region = '' AND EXISTS (SELECT 1 FROM regions)`,
   // An approval chain is a named, ordered sequence of approval steps ("lines").
   // It can optionally be scoped to a single department.
   `CREATE TABLE IF NOT EXISTS approval_chains (

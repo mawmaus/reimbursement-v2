@@ -291,32 +291,50 @@ function subDaysISO(dateStr, n) {
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 }
-// The earliest expense date a claim may carry under the current policy, or null
+// The claim-date policy for a region: its saved window if any, else the global
+// claim_max_age_days / claim_earliest_date defaults. Returns the two raw setting
+// values so the helpers below can treat region and global policy identically.
+function claimWindowSettings(settings, region) {
+  let byRegion = {};
+  try { byRegion = settings.claim_window_by_region ? JSON.parse(settings.claim_window_by_region) : {}; }
+  catch { byRegion = {}; }
+  const r = region && region !== ALL_REGIONS ? byRegion[region] : null;
+  const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
+  return {
+    claim_max_age_days: has(r, 'max_age_days') ? r.max_age_days : settings.claim_max_age_days,
+    claim_earliest_date: has(r, 'earliest_date') ? r.earliest_date : settings.claim_earliest_date
+  };
+}
+// The earliest expense date a claim may carry under a resolved policy, or null
 // when unrestricted. A rolling window (N days back from today) and an absolute
 // cutoff can both be set; the effective floor is the later (max) of the two.
-function claimEarliestFrom(settings) {
+function claimEarliestFrom(cw) {
   const bounds = [];
-  const days = parseInt(settings.claim_max_age_days, 10);
+  const days = parseInt(cw.claim_max_age_days, 10);
   if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayJakarta(), days));
-  if (isISODate(settings.claim_earliest_date)) bounds.push(settings.claim_earliest_date);
+  if (isISODate(cw.claim_earliest_date)) bounds.push(cw.claim_earliest_date);
   if (!bounds.length) return null;
   return bounds.reduce((a, b) => (a > b ? a : b));
 }
-// Reject a set of expense/line dates if any falls before the policy floor.
-// Returns { earliest, error } on violation, or null when all dates are allowed.
-async function claimDateViolation(dates) {
-  const earliest = claimEarliestFrom(await loadAppSettings());
+// Reject a set of expense/line dates if any falls before the policy floor for the
+// submitter's `region`. Returns { earliest, error } on violation, or null when
+// all dates are allowed.
+async function claimDateViolation(dates, region) {
+  const cw = claimWindowSettings(await loadAppSettings(), region);
+  const earliest = claimEarliestFrom(cw);
   if (!earliest) return null;
   const bad = dates.some(d => isISODate(d) && d < earliest);
   return bad ? { earliest, error: `Expenses dated before ${earliest} can no longer be claimed.` } : null;
 }
-// Response shape for the claim-date policy (shared by GET/PUT /api/claim-window).
-function claimWindowView(settings) {
-  const days = parseInt(settings.claim_max_age_days, 10);
+// Response shape for the claim-date policy (shared by GET/PUT /api/claim-window),
+// for a given region.
+function claimWindowView(settings, region) {
+  const cw = claimWindowSettings(settings, region);
+  const days = parseInt(cw.claim_max_age_days, 10);
   return {
     max_age_days: Number.isFinite(days) && days > 0 ? days : null,
-    earliest_date: isISODate(settings.claim_earliest_date) ? settings.claim_earliest_date : null,
-    earliest: claimEarliestFrom(settings)
+    earliest_date: isISODate(cw.claim_earliest_date) ? cw.claim_earliest_date : null,
+    earliest: claimEarliestFrom(cw)
   };
 }
 
@@ -600,9 +618,17 @@ async function computePurposes(user) {
   const dept = String(user.department || '').trim();
   const pos = String(user.position || '').trim();
   if (!dept || !pos) return empty;
+  // Match the lookups in the user's own region; All-regions/blank accounts fall
+  // back to matching any region's row.
+  const region = String(user.region || '');
+  const concrete = region && region !== ALL_REGIONS;
   const [drows, prows] = await Promise.all([
-    q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
-    q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
+    concrete
+      ? q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [dept, region])
+      : q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
+    concrete
+      ? q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [pos, region])
+      : q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
   ]);
   const d = drows[0], p = prows[0];
   if (!d || !p) return empty;
@@ -623,8 +649,13 @@ async function computePurposes(user) {
 // The ladder helpers below are PURE: each takes a `pos` map (from loadPositions)
 // so a request loads the ranking once and threads it through. `pos` maps
 // lower(name) → { rank, can_manage }.
-async function loadPositions() {
-  const rows = await q('SELECT name, rank, can_manage FROM job_positions');
+async function loadPositions(region) {
+  // Ranks are per region now: load the ladder for a concrete region, or every
+  // row (All-regions / unspecified — names collide, last wins) otherwise.
+  const concrete = region && region !== ALL_REGIONS;
+  const rows = concrete
+    ? await q('SELECT name, rank, can_manage FROM job_positions WHERE region = $1', [region])
+    : await q('SELECT name, rank, can_manage FROM job_positions');
   const byName = new Map();
   for (const r of rows) {
     byName.set(String(r.name).trim().toLowerCase(),
@@ -781,7 +812,7 @@ app.post('/api/login', ah(async (req, res) => {
   }
   await clearLoginFails(req);
   req.session.userId = user.id;
-  const pos = await loadPositions();
+  const pos = await loadPositions(user.region);
   await attachCaps(user);
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
@@ -815,7 +846,7 @@ async function approver1Choices(optionsRaw) {
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  const pos = await loadPositions();
+  const pos = await loadPositions(u.region);
   await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
@@ -831,7 +862,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   if (Object.prototype.hasOwnProperty.call(body, 'language') && Object.keys(body).length === 1) {
     await q('UPDATE users SET language = $1 WHERE id = $2', [normLang(body.language), req.user.id]);
     const u = await loadUser(req);
-    const pos = await loadPositions();
+    const pos = await loadPositions(u.region);
     await attachCaps(u);
     return res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u),
       creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
@@ -850,7 +881,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
     String(bank_account_no || '').trim(), nextEmail, nextLang, req.user.id]);
   const u = await loadUser(req);
-  const pos = await loadPositions();
+  const pos = await loadPositions(u.region);
   await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
@@ -858,14 +889,20 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
 }));
 
 // Claim-date policy: how far back an expense may be dated and still be claimable.
-// Any signed-in user reads it (the claim form needs it to validate); only a super
-// admin changes it (from Settings).
+// Scoped per region: a submitter reads their own region's policy (the claim form
+// needs it to validate); a super admin reads/edits any region via ?region /
+// body.region. Only accounts that can manage settings change it, and region
+// -scoped managers only for their own region.
 app.get('/api/claim-window', requireAuth, ah(async (req, res) => {
-  res.json(claimWindowView(await loadAppSettings()));
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json(claimWindowView(await loadAppSettings(), region));
 }));
 
 app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   // Rolling window in days: a positive integer, or blank/0 to disable.
   let days = '';
   if (b.max_age_days != null && String(b.max_age_days).trim() !== '') {
@@ -883,9 +920,14 @@ app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(asyn
     }
     earliest = String(b.earliest_date).trim();
   }
-  await setAppSetting('claim_max_age_days', days);
-  await setAppSetting('claim_earliest_date', earliest);
-  res.json(claimWindowView(await loadAppSettings()));
+  // Persist under the region's key, layered over the global defaults.
+  const settings = await loadAppSettings();
+  let byRegion = {};
+  try { byRegion = settings.claim_window_by_region ? JSON.parse(settings.claim_window_by_region) : {}; }
+  catch { byRegion = {}; }
+  byRegion[region] = { max_age_days: days, earliest_date: earliest };
+  await setAppSetting('claim_window_by_region', JSON.stringify(byRegion));
+  res.json(claimWindowView({ ...settings, claim_window_by_region: JSON.stringify(byRegion) }, region));
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -1120,7 +1162,7 @@ app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const cents = parseAmountToCents(b.amount);
     if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
     // Enforce the claim-date policy (rolling window + absolute cutoff).
-    const dv = await claimDateViolation([String(b.expense_date).trim()]);
+    const dv = await claimDateViolation([String(b.expense_date).trim()], req.user.region);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
     // Resolve the approver chain (validating the chosen Approver 1) before we
     // link any receipts, so a bad/missing choice fails cleanly.
@@ -1162,7 +1204,7 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   }
   const cents = parseAmountToCents(b.amount);
   if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-  const dv = await claimDateViolation([String(b.expense_date).trim()]);
+  const dv = await claimDateViolation([String(b.expense_date).trim()], req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
 
   // A resubmit replaces the claim's whole receipt set: the client sends the ids
@@ -1587,7 +1629,7 @@ async function createMealClaim(req, lines, totalCents, approverIds, region) {
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date));
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
@@ -1612,7 +1654,7 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   }
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date));
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   // Bank details + approvers come from the claimant's account.
   const emp = (await q(
@@ -1781,7 +1823,7 @@ const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 // `site`), and `status` (comma-separated; defaults to approved + paid).
 const INSIGHT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 app.get('/api/insights', requireAuth, ah(async (req, res) => {
-  const pos = await loadPositions();
+  const pos = await loadPositions(req.user.region);
   if (!insightsCanView(req.user, pos)) {
     return res.status(403).json({ error: 'You do not have access to insights' });
   }
@@ -2057,7 +2099,7 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   // Superadmins read every account; admins and delegated seniors read only their
   // own department's accounts (to populate Manage-accounts). Everyone else is
   // forbidden.
-  if (!isSuper && !hasDelegation(req.user, await loadPositions())) {
+  if (!isSuper && !hasDelegation(req.user, await loadPositions(req.user.region))) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
   const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active, created_by, created_by_name, created_at';
@@ -2196,10 +2238,10 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
 // manage (see canManageAccount). Deliberately narrower than PUT /api/users/:id
 // so a delegated user cannot change role, department, approvers or active state.
 app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
-  const rows = await q('SELECT id, role, department, position FROM users WHERE id = $1', [req.params.id]);
+  const rows = await q('SELECT id, role, department, position, region FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target, await loadPositions())) {
+  if (!canManageAccount(req.user, target, await loadPositions(target.region))) {
     return res.status(403).json({ error: 'You do not have permission to reset this account\'s password' });
   }
   const password = (req.body && req.body.password) || '';
@@ -2213,10 +2255,10 @@ app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
 // is the current approver on open claims can't be deactivated (it would strand
 // those claims), so an admin must resolve or reassign them first.
 app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
-  const rows = await q('SELECT id, role, department, position, active FROM users WHERE id = $1', [req.params.id]);
+  const rows = await q('SELECT id, role, department, position, active, region FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target, await loadPositions())) {
+  if (!canManageAccount(req.user, target, await loadPositions(target.region))) {
     return res.status(403).json({ error: 'You do not have permission to change this account' });
   }
   const next = isActive(req.body && req.body.active);
@@ -2238,25 +2280,52 @@ app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
 // Table names and flag column names are hard-coded (never user input), so
 // interpolation is safe. `flags` lists extra BOOLEAN columns (e.g. the purpose
 // gates allow_claim / allow_meal) that admins can toggle per row.
+// Which region a lookup request targets. Region-scoped users are pinned to their
+// own region; super admins / All-regions accounts may name any region (query for
+// reads, body for writes). Returns a concrete region name, '' (no region named —
+// on a read, means "every region"), or null when `requested` names an unknown
+// region. '*' is never a lookup region of its own.
+async function resolveLookupRegion(user, requested) {
+  if (!seesAllRegions(user)) return String(user.region || '');
+  const raw = requested == null ? '' : String(requested).trim();
+  if (!raw) return '';
+  const r = await normRegion(raw);
+  return r === ALL_REGIONS ? '' : r;
+}
+// May this user edit a lookup row that belongs to `region`? Super admins / All
+// -regions accounts may edit any; everyone else only their own region's rows.
+function canEditLookupRegion(user, region) {
+  if (seesAllRegions(user)) return true;
+  return String(region || '') === String(user.region || '');
+}
+
 function lookupRoutes(pathName, table, flags = [], opts = {}) {
   // `opts.ranked` adds a `rank` column (a reorderable seniority ladder) — it is
   // selected, ordered by, and gets its own POST /reorder endpoint below.
+  // `opts.regional` scopes the lookup to a region (see resolveLookupRegion).
   const ranked = !!opts.ranked;
+  const regional = !!opts.regional;
   const orderBy = ranked ? 'rank, name' : 'name';
-  const extraCols = ranked ? ['rank'] : [];
+  const extraCols = [...(ranked ? ['rank'] : []), ...(regional ? ['region'] : [])];
   // List — any signed-in user may read (the claim form needs departments and
-  // expense types). Non-admins receive only the active entries.
+  // expense types). Non-admins receive only the active entries. Regional lookups
+  // are filtered to the resolved region (a super admin with no ?region sees all).
   app.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
     const onlyActive = req.user.role !== 'superadmin';
     const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
-    const items = await q(
-      `SELECT ${cols} FROM ${table}
-       ${onlyActive ? 'WHERE active = TRUE' : ''} ORDER BY ${orderBy}`);
+    const region = regional ? await resolveLookupRegion(req.user, req.query.region) : null;
+    if (region === null) return res.status(400).json({ error: 'Invalid region' });
+    const wheres = [];
+    const params = [];
+    if (onlyActive) wheres.push('active = TRUE');
+    if (regional && region) { params.push(region); wheres.push(`region = $${params.length}`); }
+    const whereSql = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
+    const items = await q(`SELECT ${cols} FROM ${table} ${whereSql} ORDER BY ${orderBy}`, params);
     res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at) })) });
   }));
 
-  // Reorder the whole ladder: body { order: [id, …] } sets rank = position + 1
-  // for the listed ids, atomically. Only defined for ranked lookups.
+  // Reorder one region's ladder: body { region, order: [id, …] } sets rank =
+  // position + 1 for the listed ids, atomically. Only defined for ranked lookups.
   if (ranked) {
     app.post(`/api/${pathName}/reorder`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
       const order = (req.body && req.body.order) || [];
@@ -2264,7 +2333,14 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
       const ids = [];
       for (const v of order) { const n = Number(v); if (Number.isInteger(n) && n > 0) ids.push(n); }
       if (!ids.length) return res.status(400).json({ error: 'order must contain valid ids' });
-      await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2`, [i + 1, id])));
+      if (regional) {
+        const region = await resolveLookupRegion(req.user, (req.body || {}).region);
+        if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+        // Scope every update to the region so a stray cross-region id is a no-op.
+        await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2 AND region = $3`, [i + 1, id, region])));
+      } else {
+        await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2`, [i + 1, id])));
+      }
       res.json({ ok: true });
     }));
   }
@@ -2272,9 +2348,28 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
   app.post(`/api/${pathName}`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
     const name = String((req.body && req.body.name) || '').trim();
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const exists = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1)`, [name]);
+    let region = '';
+    if (regional) {
+      region = await resolveLookupRegion(req.user, (req.body || {}).region);
+      if (region === null) return res.status(400).json({ error: 'Invalid region' });
+      if (!region) return res.status(400).json({ error: 'Choose a region' });
+    }
+    const exists = await q(
+      `SELECT 1 FROM ${table} WHERE lower(name) = lower($1)${regional ? ' AND region = $2' : ''}`,
+      regional ? [name, region] : [name]);
     if (exists[0]) return res.status(409).json({ error: 'That name already exists' });
-    const rows = await q(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id`, [name]);
+    let rows;
+    if (regional && ranked) {
+      // New ranked rows drop to the bottom of that region's ladder.
+      rows = await q(
+        `INSERT INTO ${table} (name, region, rank)
+           VALUES ($1, $2, (SELECT COALESCE(MAX(rank), 0) + 1 FROM ${table} WHERE region = $2)) RETURNING id`,
+        [name, region]);
+    } else if (regional) {
+      rows = await q(`INSERT INTO ${table} (name, region) VALUES ($1, $2) RETURNING id`, [name, region]);
+    } else {
+      rows = await q(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id`, [name]);
+    }
     res.status(201).json({ id: rows[0].id });
   }));
 
@@ -2282,11 +2377,16 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     const rows = await q(`SELECT * FROM ${table} WHERE id = $1`, [req.params.id]);
     const item = rows[0];
     if (!item) return res.status(404).json({ error: 'Not found' });
+    if (regional && !canEditLookupRegion(req.user, item.region)) {
+      return res.status(403).json({ error: 'You do not have permission for this action' });
+    }
     const { name, active } = req.body || {};
     const newName = name != null ? String(name).trim() : item.name;
     if (!newName) return res.status(400).json({ error: 'Name is required' });
     if (newName.toLowerCase() !== item.name.toLowerCase()) {
-      const dupe = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1) AND id <> $2`, [newName, item.id]);
+      const dupe = await q(
+        `SELECT 1 FROM ${table} WHERE lower(name) = lower($1) AND id <> $2${regional ? ' AND region = $3' : ''}`,
+        regional ? [newName, item.id, item.region] : [newName, item.id]);
       if (dupe[0]) return res.status(409).json({ error: 'That name already exists' });
     }
     // Build the SET clause dynamically so a caller can update just a flag.
@@ -2304,14 +2404,21 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
   }));
 
   app.delete(`/api/${pathName}/:id`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+    if (regional) {
+      const rows = await q(`SELECT region FROM ${table} WHERE id = $1`, [req.params.id]);
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      if (!canEditLookupRegion(req.user, rows[0].region)) {
+        return res.status(403).json({ error: 'You do not have permission for this action' });
+      }
+    }
     const rows = await q(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
   }));
 }
-lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal']);
-lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true });
-lookupRoutes('expense-types', 'expense_types');
+lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true });
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true });
+lookupRoutes('expense-types', 'expense_types', [], { regional: true });
 lookupRoutes('regions', 'regions');
 
 // --- Role permissions matrix (region-scoped) --------------------------------
