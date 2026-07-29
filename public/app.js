@@ -258,8 +258,10 @@ function showApp() {
   $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
   // Deleting claims (used to clear out test data) follows the matrix.
   $('#deleteSelBtn').hidden = !uCan('delete_claims');
-  // Bulk "Mark as paid" is shown to anyone who may record payments.
+  // Bulk "Mark as paid" / "Revert payment" — both shown to anyone who may
+  // record payments.
   $('#markPaidSelBtn').hidden = !canPay(u);
+  $('#revertPaidSelBtn').hidden = !canPay(u);
   // Land on the clean menu; a tile opens the corresponding list. Reset the
   // Insights view and its state too — this runs on every login, and in the SPA a
   // logout→login in the same tab must never leave the previous user's Insights
@@ -1060,6 +1062,38 @@ $('#clearSelBtn').addEventListener('click', () => {
 $('#genPdfBtn').addEventListener('click', generatePdf);
 $('#deleteSelBtn').addEventListener('click', deleteSelected);
 $('#markPaidSelBtn').addEventListener('click', markPaidSelected);
+$('#revertPaidSelBtn').addEventListener('click', revertPaidSelected);
+
+// Bulk revert payment — only paid claims are eligible; each goes back to
+// Approved. Confirm once, then revert them all (no date needed).
+async function revertPaidSelected() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  const paid = chosen.filter(c => c.status === 'paid');
+  if (!paid.length) {
+    toast(t('Only paid claims can have their payment reverted — none of the selected are paid.'), true);
+    return;
+  }
+  const n = paid.length;
+  const skipped = chosen.length - n;
+  let msg = n === 1 ? t('Revert payment on 1 claim? It will go back to Approved.')
+                    : t('Revert payment on {n} claims? They will go back to Approved.', { n });
+  if (skipped) msg += '\n' + t('{n} selected not paid and will be skipped.', { n: skipped });
+  if (!confirm(msg)) return;
+  const btn = $('#revertPaidSelBtn'); const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = t('Reverting…');
+  try {
+    let done = 0;
+    for (const c of paid) {
+      const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
+      done++;
+    }
+    state.selected.clear();
+    toast(done === 1 ? t('Reverted 1 payment') : t('Reverted {n} payments', { n: done }));
+    loadAll();
+  } catch (ex) { toast(ex.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
 
 // Bulk mark-paid — only approved claims are eligible; a payment date must be
 // chosen (in the modal) before any claim is marked paid.
