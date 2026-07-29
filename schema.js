@@ -47,6 +47,10 @@ const SCHEMA = [
   `UPDATE users SET role = 'employee' WHERE role = 'user'`,
   `UPDATE users SET role = 'employee' WHERE role NOT IN ('superadmin','admin','manager','lowmgmt','finance','employee')`,
   `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','admin','manager','lowmgmt','finance','employee'))`,
+  // Per-account approval limit: the largest claim amount (in cents, matching
+  // claims.amount_cents / meal_claims.total_cents) this account may approve. NULL
+  // means unlimited — the default, so existing accounts keep approving any amount.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_limit_cents BIGINT`,
   `CREATE TABLE IF NOT EXISTS claims (
     id              SERIAL PRIMARY KEY,
     claim_no        TEXT NOT NULL UNIQUE,

@@ -341,7 +341,7 @@ function claimWindowView(settings, region) {
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, language, region, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, language, region, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -376,6 +376,36 @@ function parseAmountToCents(input) {
   const num = Number(cleaned);
   if (!Number.isFinite(num) || num < 0) return null;
   return Math.round(num * 100);
+}
+// Format a cents amount for a human-readable message, optionally prefixed with a
+// currency code. Whole numbers show no decimals; others up to two.
+function fmtMoney(cents, currency) {
+  const s = (Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return currency ? `${currency} ${s}` : s;
+}
+// Resolve an account's approval limit from a request body into cents, where null
+// means unlimited. `approval_unlimited` truthy — or a blank/absent amount —
+// means unlimited (so callers that omit the fields keep the any-amount default);
+// otherwise the `approval_limit` amount must be a valid non-negative number.
+// Returns { cents } (cents may be null) or { error }.
+function parseApprovalLimit(body) {
+  if (isActive(body.approval_unlimited)) return { cents: null };
+  if (body.approval_limit == null || String(body.approval_limit).trim() === '') return { cents: null };
+  const cents = parseAmountToCents(body.approval_limit);
+  if (cents === null) return { error: 'Approval limit must be a non-negative amount' };
+  return { cents };
+}
+// Block an approver from acting on a claim above their approval limit. Super
+// admins are exempt (they override the chain anyway); a null limit is unlimited.
+// Returns an error string, or null when the approval is allowed.
+function approvalLimitError(user, amountCents, currency) {
+  if (!user || user.role === 'superadmin') return null;
+  const limit = user.approval_limit_cents;
+  if (limit == null) return null;
+  if (Number(amountCents) > Number(limit)) {
+    return `This claim (${fmtMoney(amountCents, currency)}) is above your approval limit of ${fmtMoney(limit, currency)}.`;
+  }
+  return null;
 }
 async function nextClaimNo() {
   const year = new Date().getFullYear();
@@ -1285,6 +1315,8 @@ app.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (!userCanApprove(req.user, row)) {
     return res.status(403).json({ error: 'You are not the approver for this step' });
   }
+  const le = approvalLimitError(req.user, row.amount_cents, row.currency);
+  if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -1689,6 +1721,8 @@ app.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (!row) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a meal claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
+  const le = approvalLimitError(req.user, row.total_cents, row.currency);
+  if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -2102,7 +2136,7 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   if (!isSuper && !hasDelegation(req.user, await loadPositions(req.user.region))) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active, created_by, created_by_name, created_at';
+  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, active, created_by, created_by_name, created_at';
   let users;
   if (isSuper) {
     users = await q(`SELECT ${cols} FROM users ORDER BY id`);
@@ -2150,14 +2184,18 @@ app.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req
   if (are) return res.status(400).json({ error: are });
   // Only a super admin may grant the mark-paid permission.
   const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
+  // Approval limit (cents; null = unlimited). Defaults to unlimited when the
+  // caller omits both fields, preserving the historical any-amount behaviour.
+  const limit = parseApprovalLimit(req.body || {});
+  if (limit.error) return res.status(400).json({ error: limit.error });
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, created_by, created_by_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, created_by, created_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16,$17) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
      String(department || '').trim(), String(position || '').trim(), region, nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
      String(bank_account_no || '').trim(), intArrayLiteral(apprIds),
-     intArrayLiteral(appr1Ids), canMarkPaidFlag,
+     intArrayLiteral(appr1Ids), canMarkPaidFlag, limit.cents,
      req.user.id, req.user.full_name || req.user.username || '']);
   res.status(201).json({ id: rows[0].id });
 }));
@@ -2207,9 +2245,19 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
       });
     }
   }
+  // Approval limit: only change it when the caller actually sends the fields;
+  // otherwise keep the account's existing limit.
+  let nextLimit = u.approval_limit_cents;
+  const b = req.body || {};
+  if (Object.prototype.hasOwnProperty.call(b, 'approval_unlimited') ||
+      Object.prototype.hasOwnProperty.call(b, 'approval_limit')) {
+    const lim = parseApprovalLimit(b);
+    if (lim.error) return res.status(400).json({ error: lim.error });
+    nextLimit = lim.cents;
+  }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
-             can_mark_paid=$12, approver1_options=$14::int[], region=$15 WHERE id=$13`, [
+             can_mark_paid=$12, approver1_options=$14::int[], region=$15, approval_limit_cents=$16 WHERE id=$13`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -2224,7 +2272,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     can_mark_paid !== undefined ? isActive(can_mark_paid) : u.can_mark_paid,
     u.id,
     intArrayLiteral(nextApprover1Options),
-    nextRegion
+    nextRegion,
+    nextLimit
   ]);
   if (password) {
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });

@@ -3124,7 +3124,7 @@ function paintAccounts() {
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}</td>
+            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${u.approval_limit_cents == null ? esc(t('Approves any amount')) : esc(t('Approves ≤ {amount}', { amount: money(u.approval_limit_cents / 100) }))}</div></td>
             <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
@@ -3325,7 +3325,12 @@ function renderUserForm(u) {
       </div>
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">${esc(t('Permissions'))}</div>
-      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>` : ''}
+      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>
+      <div class="section-label" style="margin-top:8px">${esc(t('Approval limit'))}</div>
+      <label class="perm-check"><input type="checkbox" name="approval_unlimited" ${(isEdit ? u.approval_limit_cents == null : true) ? 'checked' : ''} /> <span>${esc(t('Unlimited — can approve a claim of any amount'))}</span></label>
+      <label id="apprLimitWrap" style="margin-top:8px">${esc(t('Maximum claim amount this account can approve'))}
+        <input name="approval_limit" inputmode="decimal" placeholder="${esc(t('e.g. 5,000,000'))}" value="${(isEdit && u.approval_limit_cents != null) ? esc(String(u.approval_limit_cents / 100)) : ''}" />
+      </label>` : ''}
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">${esc(t('Approver 1 — let the submitter choose from'))}</div>
       <p class="muted" style="font-size:.82rem;margin:0 0 6px">${esc(t('Add two or more accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With one, it\'s used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.'))}</p>
@@ -3355,6 +3360,14 @@ function renderUserForm(u) {
   if (state.user.role === 'superadmin') {
     renderApprover1Options(excludeId);
     $('#addApprover1OptBtn').addEventListener('click', () => { syncApprover1Options(); acctApprover1Options.push(''); renderApprover1Options(excludeId); });
+    // Approval limit: the amount field is only relevant when "Unlimited" is off.
+    const unl = $('#uForm [name="approval_unlimited"]');
+    const amt = $('#uForm [name="approval_limit"]');
+    const wrap = $('#apprLimitWrap');
+    if (unl && amt && wrap) {
+      const syncLimit = () => { const on = unl.checked; amt.disabled = on; wrap.style.opacity = on ? '.5' : '1'; if (on) amt.value = ''; };
+      unl.addEventListener('change', syncLimit); syncLimit();
+    }
     // Departments and job positions are per-region now, so when the Region
     // changes reload its lists and rebuild those two pickers. The current pick is
     // preserved (optionSelect keeps a value even if it's not in the new region).
@@ -3392,6 +3405,11 @@ function renderUserForm(u) {
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
       payload.region = fd.get('region') || '';
+      const unlimited = fd.get('approval_unlimited') === 'on';
+      const limitAmt = String(fd.get('approval_limit') || '').trim();
+      if (!unlimited && !limitAmt) { const el = $('#uErr'); el.textContent = t('Enter an approval limit or choose Unlimited.'); el.hidden = false; return; }
+      payload.approval_unlimited = unlimited;
+      payload.approval_limit = limitAmt;
     }
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;
