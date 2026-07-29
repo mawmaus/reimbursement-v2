@@ -1994,7 +1994,7 @@ let claimRows = [];
 let claimEditId = null;   // claim being edited, for the kept-receipt view links
 const rcAmt = (s) => { const n = parseFloat(String(s == null ? '' : s).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : 0; };
 function claimTotal() { return claimRows.reduce((sum, r) => sum + rcAmt(r.amount), 0); }
-const blankClaimRow = (date = '') => ({ line_date: date, db_no: '', expense_type: '', amount: '', description: '', files: [], kept: [] });
+const blankClaimRow = (date = '') => ({ line_date: date, db_no: '', expense_type: '', expense_type_other: '', amount: '', description: '', files: [], kept: [] });
 
 function rcChips(r, i) {
   const kept = (r.kept || []).map((a, k) =>
@@ -2005,22 +2005,26 @@ function rcChips(r, i) {
   return kept.concat(files).join('');
 }
 // Expense-type picker for a row: a native <select> (clean, and its dropdown is
-// never clipped by the scrolling table), preserving any legacy custom value.
-function rcTypeSelect(val) {
-  const cur = val || '';
+// never clipped by the scrolling table). "Others" is always offered and reveals
+// a free-text field. A legacy custom value is preserved as its own option.
+function rcTypeSelect(r) {
+  const cur = r.expense_type || '';
   const opts = [...(state.lookups.expense_types || [])];
-  if (cur && !opts.includes(cur)) opts.unshift(cur);
+  if (!opts.some(o => o.toLowerCase() === 'others')) opts.push('Others');
+  const extra = (cur && cur !== 'Others' && !opts.includes(cur)) ? cur : null;
   return `<select name="expense_type">
-    <option value="" ${cur ? '' : 'selected'}>${esc(t('Select…'))}</option>
-    ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-  </select>`;
+      <option value="" ${cur ? '' : 'selected'}>${esc(t('Select…'))}</option>
+      ${extra ? `<option value="${esc(extra)}" selected>${esc(extra)}</option>` : ''}
+      ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o === 'Others' ? t('Others (specify)') : o)}</option>`).join('')}
+    </select>
+    <input name="expense_type_other" class="rc-other" value="${esc(r.expense_type_other || '')}" placeholder="${esc(t('Specify the expense…'))}" ${cur === 'Others' ? '' : 'hidden'} />`;
 }
 function claimRowHtml(r, i) {
   const min = claimEarliest() ? `min="${esc(claimEarliest())}"` : '';
   return `<tr data-i="${i}">
     <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
     <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
-    <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r.expense_type)}</td>
+    <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
     <td data-label="${esc(t('Amount'))}"><input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : String(r.amount))}" placeholder="0" /></td>
     <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
     <td class="rc-receipts" data-label="${esc(t('Receipts'))}">
@@ -2038,7 +2042,7 @@ function readClaimRows() {
     const i = +tr.dataset.i, r = claimRows[i]; if (!r) return;
     const g = (n) => { const el = tr.querySelector(`[name="${n}"]`); return el ? el.value : ''; };
     r.line_date = g('line_date'); r.db_no = g('db_no'); r.expense_type = g('expense_type');
-    r.amount = g('amount'); r.description = g('description');
+    r.expense_type_other = g('expense_type_other'); r.amount = g('amount'); r.description = g('description');
   });
 }
 function renderClaimRows() {
@@ -2066,6 +2070,11 @@ function renderClaimRows() {
   }));
   $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
     readClaimRows(); $('#rcTotal').textContent = idr(claimTotal());
+  }));
+  // Reveal the "specify" field when the type is set to Others.
+  $$('#rcRows select[name="expense_type"]').forEach(sel => sel.addEventListener('change', () => {
+    const other = sel.closest('td').querySelector('.rc-other');
+    if (other) { other.hidden = sel.value !== 'Others'; if (!other.hidden) other.focus(); }
   }));
 }
 
@@ -2352,9 +2361,14 @@ async function submitClaim(e, existing) {
     r.line_date || r.db_no || String(r.expense_type || '').trim() || r.description
     || rcAmt(r.amount) || (r.files || []).length || (r.kept || []).length);
   if (!rows.length) { err.textContent = t('Add at least one expense line with a date, type and amount.'); err.hidden = false; return; }
+  // Resolve each row's expense type ("Others" uses its specify field).
+  const rowType = (r) => r.expense_type === 'Others' ? String(r.expense_type_other || '').trim() : String(r.expense_type || '').trim();
   for (const r of rows) {
     if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
-    if (!String(r.expense_type || '').trim()) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
+    if (r.expense_type === 'Others' && !String(r.expense_type_other || '').trim()) {
+      err.textContent = t('Please specify the expense type for the "Others" row.'); err.hidden = false; return;
+    }
+    if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
     if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
   // Claim-date policy: block any row dated before the allowed floor.
@@ -2378,7 +2392,7 @@ async function submitClaim(e, existing) {
     for (const r of rows) {
       const uploaded = (r.files || []).length ? await uploadReceipts(r.files) : [];
       lines.push({
-        line_date: r.line_date, db_no: r.db_no, expense_type: String(r.expense_type).trim(),
+        line_date: r.line_date, db_no: r.db_no, expense_type: rowType(r),
         amount: r.amount, description: r.description,
         attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
       });
