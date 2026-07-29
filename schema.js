@@ -334,6 +334,88 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_meal_history_claim ON meal_claim_history(meal_claim_id)`,
   `CREATE INDEX IF NOT EXISTS idx_meal_claims_employee ON meal_claims(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_meal_claims_status   ON meal_claims(status)`,
+  // --- Cash advances ---------------------------------------------------------
+  // A cash advance is a two-phase document that reuses the same approver-chain
+  // workflow as claims, run twice:
+  //   Phase 1 (request):  the employee states a purpose + the amount they need,
+  //     it runs their approver chain (submitted → approved), and finance
+  //     disburses it (→ paid).
+  //   Phase 2 (realization): once paid, the employee submits the actual
+  //     transactions as an itemised line table with per-line receipts (mirrors
+  //     claim_lines), which runs the SAME chain again (realize_submitted →
+  //     realize_approved). Finance then records the settlement — a top-up owed to
+  //     the employee (actual > advance) or a balance the employee returns (actual
+  //     < advance) — closing the document (→ settled).
+  // `amount_cents` is the requested/disbursed advance; `realized_total_cents` is
+  // the sum of the realization lines; `settlement_cents`/`settlement_direction`
+  // capture the difference recorded at settle time.
+  `CREATE TABLE IF NOT EXISTS cash_advances (
+    id                   SERIAL PRIMARY KEY,
+    advance_no           TEXT NOT NULL UNIQUE,
+    employee_id          INTEGER NOT NULL REFERENCES users(id),
+    claimant_name        TEXT NOT NULL,
+    department           TEXT NOT NULL DEFAULT '',
+    region               TEXT NOT NULL DEFAULT '',
+    bank_name            TEXT NOT NULL DEFAULT '',
+    recipient_name       TEXT NOT NULL DEFAULT '',
+    bank_account_no      TEXT NOT NULL DEFAULT '',
+    purpose              TEXT NOT NULL DEFAULT '',
+    amount_cents         BIGINT NOT NULL DEFAULT 0 CHECK (amount_cents >= 0),
+    currency             TEXT NOT NULL DEFAULT 'IDR',
+    status               TEXT NOT NULL DEFAULT 'submitted'
+                         CHECK (status IN ('submitted','approved','rejected','paid',
+                           'realize_submitted','realize_approved','rejected_realize','settled')),
+    manager_id           INTEGER REFERENCES users(id),
+    manager_comment      TEXT NOT NULL DEFAULT '',
+    decided_at           TIMESTAMPTZ,
+    paid_by              INTEGER REFERENCES users(id),
+    paid_at              TIMESTAMPTZ,
+    realized_total_cents BIGINT NOT NULL DEFAULT 0 CHECK (realized_total_cents >= 0),
+    settlement_cents     BIGINT NOT NULL DEFAULT 0,
+    settlement_direction TEXT NOT NULL DEFAULT '' CHECK (settlement_direction IN ('','even','topup','return')),
+    settlement_note      TEXT NOT NULL DEFAULT '',
+    settled_by           INTEGER REFERENCES users(id),
+    settled_at           TIMESTAMPTZ,
+    approver_ids         INTEGER[] NOT NULL DEFAULT '{}',
+    current_step         INTEGER NOT NULL DEFAULT 0,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  // Realization lines — the actual transactions, mirroring claim_lines. Empty
+  // until the employee submits the realization.
+  `CREATE TABLE IF NOT EXISTS cash_advance_lines (
+    id           SERIAL PRIMARY KEY,
+    advance_id   INTEGER NOT NULL REFERENCES cash_advances(id) ON DELETE CASCADE,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    line_date    TEXT NOT NULL DEFAULT '',
+    db_no        TEXT NOT NULL DEFAULT '',
+    expense_type TEXT NOT NULL DEFAULT '',
+    amount_cents BIGINT NOT NULL DEFAULT 0 CHECK (amount_cents >= 0),
+    description  TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE TABLE IF NOT EXISTS cash_advance_history (
+    id          SERIAL PRIMARY KEY,
+    advance_id  INTEGER NOT NULL REFERENCES cash_advances(id) ON DELETE CASCADE,
+    actor_id    INTEGER NOT NULL REFERENCES users(id),
+    actor_name  TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    from_status TEXT,
+    to_status   TEXT,
+    comment     TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  // Realization receipts attach to a cash-advance line (reusing the attachments
+  // table + upload pipeline). Nullable so it coexists with claim/line receipts.
+  `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS advance_line_id INTEGER REFERENCES cash_advance_lines(id) ON DELETE CASCADE`,
+  // Cash advance is a third front-page purpose, gated per department AND job
+  // position like New Claim / New Meal Allowance.
+  `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS allow_advance BOOLEAN NOT NULL DEFAULT FALSE`,
+  `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS allow_advance BOOLEAN NOT NULL DEFAULT FALSE`,
+  `CREATE INDEX IF NOT EXISTS idx_adv_lines_advance   ON cash_advance_lines(advance_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_adv_history_advance ON cash_advance_history(advance_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_adv_employee        ON cash_advances(employee_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_adv_status          ON cash_advances(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_attach_adv_line     ON attachments(advance_line_id)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_employee ON claims(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_status   ON claims(status)`,
   `CREATE INDEX IF NOT EXISTS idx_attach_claim    ON attachments(claim_id)`,

@@ -197,7 +197,7 @@ const CAPABILITIES = [
   { key: 'view_all_claims',   label: 'View all claims',            desc: 'See every claim in the system, not only their own or ones they approve.' },
   { key: 'mark_paid',         label: 'Mark claims as paid',        desc: 'Record and revert payments on approved claims.' },
   { key: 'delete_claims',     label: 'Delete claims',              desc: 'Permanently delete reimbursement or meal allowance claims.' },
-  { key: 'export_csv',        label: 'Export claims to CSV',       desc: 'Download reimbursement and meal claims as a CSV file.' },
+  { key: 'export_csv',        label: 'Export claims to CSV',       desc: 'Download reimbursement, meal and realized cash-advance claims as a CSV file.' },
   { key: 'create_accounts',   label: 'Create accounts',            desc: 'Add new user accounts.' },
   { key: 'manage_accounts',   label: 'Manage accounts',            desc: 'Reset passwords and enable or disable accounts.' },
   { key: 'manage_settings',   label: 'Manage settings',            desc: 'Edit departments, job positions, expense types and the claim date limit.' },
@@ -643,13 +643,15 @@ async function resolveSubmitApprovers(optionsRaw, baseRaw, chosenRaw) {
 // as the approver whose turn it currently is. Postgres arrays are 1-based, and
 // current_step is 1-based, so approver_ids[current_step] is the pending approver.
 async function openClaimsAwaitingApprover(userId) {
-  const [reimb, meal] = await Promise.all([
+  const [reimb, meal, adv] = await Promise.all([
     q(`SELECT COUNT(*)::int AS n FROM claims
        WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId]),
     q(`SELECT COUNT(*)::int AS n FROM meal_claims
-       WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId])
+       WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId]),
+    q(`SELECT COUNT(*)::int AS n FROM cash_advances
+       WHERE status IN ('submitted','realize_submitted') AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId])
   ]);
-  return Number(reimb[0].n) + Number(meal[0].n);
+  return Number(reimb[0].n) + Number(meal[0].n) + Number(adv[0].n);
 }
 
 // --- Front-page purposes ----------------------------------------------------
@@ -657,7 +659,7 @@ async function openClaimsAwaitingApprover(userId) {
 // purpose is visible only when it is enabled on BOTH the user's department and
 // their job position (AND). Unknown/blank department or position => nothing.
 async function computePurposes(user) {
-  const empty = { claim: false, meal: false };
+  const empty = { claim: false, meal: false, advance: false };
   const dept = String(user.department || '').trim();
   const pos = String(user.position || '').trim();
   if (!dept || !pos) return empty;
@@ -667,17 +669,18 @@ async function computePurposes(user) {
   const concrete = region && region !== ALL_REGIONS;
   const [drows, prows] = await Promise.all([
     concrete
-      ? q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [dept, region])
-      : q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
+      ? q('SELECT allow_claim, allow_meal, allow_advance FROM departments   WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [dept, region])
+      : q('SELECT allow_claim, allow_meal, allow_advance FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
     concrete
-      ? q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [pos, region])
-      : q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
+      ? q('SELECT allow_claim, allow_meal, allow_advance FROM job_positions WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [pos, region])
+      : q('SELECT allow_claim, allow_meal, allow_advance FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
   ]);
   const d = drows[0], p = prows[0];
   if (!d || !p) return empty;
   return {
     claim: !!(d.allow_claim && p.allow_claim),
-    meal: !!(d.allow_meal && p.allow_meal)
+    meal: !!(d.allow_meal && p.allow_meal),
+    advance: !!(d.allow_advance && p.allow_advance)
   };
 }
 
@@ -1862,6 +1865,502 @@ app.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
 }));
 
 // ---------------------------------------------------------------------------
+// Cash advances
+// A two-phase document (see schema.js). Phase 1 (request: purpose + amount) and
+// phase 2 (realization: itemised actual transactions with receipts) each run the
+// submitter's approver chain, reusing userCanApprove / currentApproverId. The
+// approve/reject endpoints are phase-aware (they branch on the current status).
+// ---------------------------------------------------------------------------
+const ADV_SEQ = "pg_get_serial_sequence('cash_advances','id')";
+const ADV_LINE_SEQ = "pg_get_serial_sequence('cash_advance_lines','id')";
+
+async function nextAdvanceNo() {
+  const year = new Date().getFullYear();
+  const rows = await q(
+    `SELECT COALESCE(MAX(SUBSTRING(advance_no FROM '[0-9]+$')::int), 0) AS n
+       FROM cash_advances WHERE advance_no LIKE $1`,
+    [`CA-${year}-%`]);
+  return `CA-${year}-${String(Number(rows[0].n) + 1).padStart(4, '0')}`;
+}
+async function logAdvanceHistory(advanceId, actor, action, fromStatus, toStatus, comment = '') {
+  await q(
+    `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [advanceId, actor.id, actor.full_name, action, fromStatus, toStatus, comment]);
+}
+function advanceNotify(row) {
+  return { claimNo: row.advance_no, claimantName: row.claimant_name,
+    typeLabel: 'cash advance', amount: Number(row.amount_cents) / 100, currency: row.currency };
+}
+function baseAdvance(row, lines, attByLine, history, nameMap) {
+  const attView = (a) => ({
+    id: a.id, original_name: a.original_name, mime_type: a.mime_type,
+    size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
+  });
+  return {
+    id: row.id, type: 'advance',
+    claim_no: row.advance_no, advance_no: row.advance_no,
+    employee_id: row.employee_id, claimant_name: row.claimant_name,
+    department: row.department, region: row.region || '',
+    bank_name: row.bank_name, recipient_name: row.recipient_name, bank_account_no: row.bank_account_no,
+    purpose: row.purpose,
+    amount: Number(row.amount_cents) / 100,
+    realized_total: Number(row.realized_total_cents) / 100,
+    settlement: Number(row.settlement_cents) / 100,
+    settlement_direction: row.settlement_direction || '',
+    settlement_note: row.settlement_note || '',
+    settled_by: row.settled_by == null ? null : Number(row.settled_by),
+    settled_at: iso(row.settled_at),
+    currency: row.currency, status: row.status,
+    manager_comment: row.manager_comment,
+    manager_id: row.manager_id == null ? null : Number(row.manager_id),
+    paid_by: row.paid_by == null ? null : Number(row.paid_by),
+    approvers: asIntArray(row.approver_ids).map(id => ({ id, name: (nameMap && nameMap[id]) || `User #${id}` })),
+    current_step: row.current_step || 0,
+    decided_at: iso(row.decided_at), paid_at: iso(row.paid_at),
+    created_at: iso(row.created_at), updated_at: iso(row.updated_at),
+    lines: (lines || []).map(l => ({
+      id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: Number(l.amount_cents) / 100, description: l.description,
+      attachments: ((attByLine && attByLine[l.id]) || []).map(attView)
+    })),
+    history: (history || []).map(h => ({
+      actor_id: h.actor_id == null ? null : Number(h.actor_id),
+      actor_name: h.actor_name, action: h.action, from_status: h.from_status,
+      to_status: h.to_status, comment: h.comment, created_at: iso(h.created_at)
+    }))
+  };
+}
+async function serializeManyAdvance(rows) {
+  if (!rows.length) return [];
+  const ids = rows.map(r => r.id);
+  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
+  const lines = await q(
+    `SELECT id, advance_id, sort_order, line_date, db_no, expense_type, amount_cents, description
+     FROM cash_advance_lines WHERE advance_id IN (${ph}) ORDER BY sort_order, id`, ids);
+  const lineIds = lines.map(l => l.id);
+  let atts = [];
+  if (lineIds.length) {
+    const aph = lineIds.map((_, i) => `$${i + 1}`).join(',');
+    atts = await q(
+      `SELECT id, advance_line_id, original_name, mime_type, size_bytes, uploaded_at
+       FROM attachments WHERE advance_line_id IN (${aph}) ORDER BY id`, lineIds);
+  }
+  const hist = await q(
+    `SELECT advance_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+     FROM cash_advance_history WHERE advance_id IN (${ph}) ORDER BY id`, ids);
+  const l = groupBy(lines, 'advance_id');
+  const attByLine = groupBy(atts, 'advance_line_id');
+  const h = groupBy(hist, 'advance_id');
+  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
+  const nameMap = {};
+  if (approverIds.length) {
+    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
+    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
+    for (const u of us) nameMap[u.id] = u.full_name;
+  }
+  return rows.map(r => baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap));
+}
+async function serializeOneAdvance(row) { return (await serializeManyAdvance([row]))[0]; }
+async function loadAdvanceOr404(req, res) {
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [req.params.id]);
+  if (!rows[0]) { res.status(404).json({ error: 'Cash advance not found' }); return null; }
+  return rows[0];
+}
+
+// Validate a cash-advance request: a non-empty purpose and a positive amount.
+function normaliseAdvanceRequest(body) {
+  const b = body || {};
+  const purpose = String(b.purpose || '').trim();
+  if (!purpose) return { error: 'A purpose for the cash advance is required' };
+  const cents = parseAmountToCents(b.amount);
+  if (cents === null || cents <= 0) return { error: 'Enter the advance amount' };
+  return { purpose, amountCents: cents, currency: String(b.currency || 'IDR').trim().slice(0, 8) || 'IDR' };
+}
+
+// Create a cash-advance request (phase 1). No lines yet; those arrive at
+// realization. Retries on an advance_no collision (see createClaim).
+async function createCashAdvance(req, purpose, amountCents, currency, approverIds, region) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const advanceNo = await nextAdvanceNo();
+    const queries = [qq(
+      `INSERT INTO cash_advances
+        (advance_no, employee_id, claimant_name, department, region, bank_name, recipient_name,
+         bank_account_no, purpose, amount_cents, currency, status, approver_ids, current_step)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'submitted',$12::int[],$13)`,
+      [advanceNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
+       String(region || ''), String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
+       String(req.user.bank_account_no || '').trim(), purpose, amountCents, currency,
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+    queries.push(qq(
+      `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES (currval(${ADV_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
+      [req.user.id, String(req.user.full_name || '').trim()]));
+    queries.push(qq(`SELECT currval(${ADV_SEQ})::int AS id`));
+    try {
+      const results = await transaction(queries);
+      return results[results.length - 1][0].id;
+    } catch (e) {
+      const msg = String(e.message || '');
+      if (e.code === '23505' || msg.includes('advance_no') || msg.includes('duplicate')) continue;
+      throw e;
+    }
+  }
+  throw new Error('Could not allocate an advance number — please try again');
+}
+
+app.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
+  const parsed = normaliseAdvanceRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  const region = String(req.user.region || '');
+  const id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, parsed.currency, built.ids, region);
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [id]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+  res.status(201).json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Edit + resubmit a rejected cash-advance request (phase 1 only).
+app.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'You can only edit your own cash advances' });
+  }
+  if (row.status !== 'rejected') {
+    return res.status(409).json({ error: 'Only rejected cash-advance requests can be edited and resubmitted' });
+  }
+  const parsed = normaliseAdvanceRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const emp = (await q(
+    'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
+    [row.employee_id]))[0] || {};
+  const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, (req.body || {}).approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  await q(
+    `UPDATE cash_advances SET claimant_name=$1, department=$2, bank_name=$3, recipient_name=$4,
+       bank_account_no=$5, purpose=$6, amount_cents=$7, currency=$8, status='submitted',
+       manager_comment='', manager_id=NULL, decided_at=NULL, approver_ids=$9::int[], current_step=$10, updated_at=now()
+     WHERE id=$11`,
+    [String(emp.full_name || '').trim(), String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
+     String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
+     parsed.purpose, parsed.amountCents, parsed.currency, intArrayLiteral(built.ids),
+     built.ids.length ? 1 : 0, row.id]);
+  await logAdvanceHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body || {}).resubmit_note || '').trim());
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [row.id]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Approve — phase-aware: advances the request chain (submitted → approved) or the
+// realization chain (realize_submitted → realize_approved).
+app.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const realizing = row.status === 'realize_submitted';
+  if (row.status !== 'submitted' && !realizing) {
+    return res.status(409).json({ error: `Cannot approve a cash advance that is "${row.status}"` });
+  }
+  if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
+  const amountForLimit = realizing ? row.realized_total_cents : row.amount_cents;
+  const le = approvalLimitError(req.user, amountForLimit, row.currency);
+  if (le) return res.status(403).json({ error: le });
+  const comment = String((req.body && req.body.comment) || '').trim();
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const finalStatus = realizing ? 'realize_approved' : 'approved';
+  const phase = realizing ? 'realization ' : '';
+  if (finalise) {
+    await q(`UPDATE cash_advances SET status=$1, manager_id=$2, manager_comment=$3, decided_at=now(), updated_at=now() WHERE id=$4`,
+      [finalStatus, req.user.id, comment, row.id]);
+    await logAdvanceHistory(row.id, req.user, ids.length ? `${phase}approved — step ${step} of ${ids.length}` : `${phase}approved`, row.status, finalStatus, comment);
+  } else {
+    await q(`UPDATE cash_advances SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
+    await logAdvanceHistory(row.id, req.user, `${phase}approved — step ${step} of ${ids.length}`, row.status, row.status, comment);
+  }
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  if (finalise) await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'approved');
+  else { const next = currentApproverId(rows[0]); if (next) await notifyPendingApprover(next, advanceNotify(rows[0])); }
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Reject — phase-aware: submitted → rejected, realize_submitted → rejected_realize.
+app.post('/api/cash-advances/:id/reject', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const comment = String((req.body && req.body.comment) || '').trim();
+  if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a cash advance' });
+  const realizing = row.status === 'realize_submitted';
+  if (row.status !== 'submitted' && !realizing) {
+    return res.status(409).json({ error: `Cannot reject a cash advance that is "${row.status}"` });
+  }
+  if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this cash advance' });
+  const toStatus = realizing ? 'rejected_realize' : 'rejected';
+  await q(`UPDATE cash_advances SET status=$1, manager_id=$2, manager_comment=$3, decided_at=now(), updated_at=now() WHERE id=$4`,
+    [toStatus, req.user.id, comment, row.id]);
+  await logAdvanceHistory(row.id, req.user, realizing ? 'realization rejected' : 'rejected', row.status, toStatus, comment);
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  await notifyClaimantRejected(rows[0].employee_id, { ...advanceNotify(rows[0]), reason: comment });
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Disburse the approved advance (phase 1 → paid). Unlocks realization.
+app.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark cash advances as paid' });
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved cash advances can be marked as paid' });
+  const paymentDate = String((req.body && req.body.payment_date) || '').trim();
+  if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a cash advance as paid' });
+  await q(`UPDATE cash_advances SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  await logAdvanceHistory(row.id, req.user, `advance paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'paid');
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Submit or resubmit the realization (phase 2): the itemised actual transactions
+// with per-line receipts. Allowed from 'paid' (first realization) or
+// 'rejected_realize' (edit after a rejected realization). Rebuilds the lines +
+// receipts and re-enters the approver chain at step 1.
+async function submitRealization(req, res, row) {
+  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'You can only realize your own cash advances' });
+  }
+  const b = req.body || {};
+  const parsed = normaliseClaimLines(b.lines);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region);
+  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  // Approver chain is re-resolved from the claimant's account, like a fresh submit.
+  const emp = (await q(
+    'SELECT approver_ids, approver1_options FROM users WHERE id = $1', [row.employee_id]))[0] || {};
+  const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, b.approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  // Existing realization receipts (keyed by id) so kept ones survive an edit.
+  const existingAtts = await q(
+    `SELECT a.id, a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes
+       FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id WHERE l.advance_id = $1`, [row.id]);
+  const byId = new Map(existingAtts.map(a => [Number(a.id), a]));
+  const keptSet = new Set();
+  const verifiedByLine = [];
+  const allUploaded = [];
+  for (const line of parsed.lines) {
+    const checked = await verifyAttachments(line.rawAttachments);
+    if (checked.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: checked.error }); }
+    verifiedByLine.push(checked.items);
+    allUploaded.push(...checked.items);
+    for (const id of line.keepIds) if (byId.has(id)) keptSet.add(id);
+  }
+  const dropped = existingAtts.filter(a => !keptSet.has(Number(a.id)));
+  const advanceId = Number(row.id);
+  const resubmit = row.status === 'rejected_realize';
+  try {
+    const queries = [
+      qq(`UPDATE cash_advances SET status='realize_submitted', realized_total_cents=$1,
+            manager_comment='', manager_id=NULL, decided_at=NULL,
+            approver_ids=$2::int[], current_step=$3, updated_at=now() WHERE id=$4`,
+        [parsed.totalCents, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, advanceId]),
+      qq(`DELETE FROM attachments WHERE advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
+      qq('DELETE FROM cash_advance_lines WHERE advance_id = $1', [advanceId])
+    ];
+    parsed.lines.forEach((l, i) => {
+      queries.push(qq(
+        `INSERT INTO cash_advance_lines (advance_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [advanceId, i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      const insertAtt = (url, pathname, name, mime, size) => queries.push(qq(
+        `INSERT INTO attachments (advance_line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES (currval(${ADV_LINE_SEQ}),$1,$2,$3,$4,$5)`, [url, pathname, name, mime, size]));
+      for (const id of l.keepIds) {
+        const a = byId.get(id);
+        if (a && keptSet.has(id)) insertAtt(a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes);
+      }
+      for (const u of verifiedByLine[i]) insertAtt(u.url, u.pathname, u.original_name, u.mime, u.size);
+    });
+    queries.push(qq(
+      `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES ($1,$2,$3,$4,$5,'realize_submitted',$6)`,
+      [advanceId, req.user.id, String(req.user.full_name || '').trim(),
+       resubmit ? 'realization resubmitted' : 'realization submitted', row.status,
+       String(b.resubmit_note || '').trim()]));
+    await transaction(queries);
+    for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+    const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [advanceId]);
+    const first = currentApproverId(rows[0]);
+    if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+    res.json({ claim: await serializeOneAdvance(rows[0]) });
+  } catch (e) {
+    for (const u of allUploaded) await deleteReceipt(u.url);
+    throw e;
+  }
+}
+
+app.post('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'paid') return res.status(409).json({ error: 'The advance must be paid before it can be realized' });
+  return submitRealization(req, res, row);
+}));
+
+app.put('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'rejected_realize') return res.status(409).json({ error: 'Only a rejected realization can be edited and resubmitted' });
+  return submitRealization(req, res, row);
+}));
+
+// Settle a fully-approved realization (phase 2 → settled). Records the direction:
+// actual > advance → top-up owed to the employee; actual < advance → balance the
+// employee returns; equal → even. Same permission as marking paid.
+app.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to settle cash advances' });
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'realize_approved') return res.status(409).json({ error: 'Only an approved realization can be settled' });
+  const diff = Number(row.realized_total_cents) - Number(row.amount_cents);
+  const direction = diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even';
+  const note = String((req.body && req.body.note) || '').trim();
+  await q(`UPDATE cash_advances SET status='settled', settlement_cents=$1, settlement_direction=$2,
+            settlement_note=$3, settled_by=$4, settled_at=now(), updated_at=now() WHERE id=$5`,
+    [Math.abs(diff), direction, note, req.user.id, row.id]);
+  const label = direction === 'topup' ? `settled — top-up ${fmtMoney(Math.abs(diff), row.currency)} to employee`
+    : direction === 'return' ? `settled — ${fmtMoney(Math.abs(diff), row.currency)} returned by employee`
+    : 'settled — balanced';
+  await logAdvanceHistory(row.id, req.user, label, 'realize_approved', 'settled', note);
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'paid');
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Revert one step of a cash advance's lifecycle (mirrors planRevert, doubled for
+// the realization phase). Only the actor who owns a node may undo it.
+app.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const isSuper = req.user.role === 'superadmin';
+  const u = req.user;
+  let plan = null;
+  if (row.status === 'settled') {
+    if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a settlement' });
+    plan = { sql: `status='realize_approved', settlement_cents=0, settlement_direction='', settlement_note='', settled_by=NULL, settled_at=NULL`,
+      action: 'reverted settlement', from: 'settled', to: 'realize_approved' };
+  } else if (row.status === 'realize_approved') {
+    if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this realization can revert it' });
+    plan = { sql: `status='realize_submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted realization approval', from: 'realize_approved', to: 'realize_submitted' };
+  } else if (row.status === 'realize_submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
+      plan = { sql: `current_step=${step - 1}`, action: 'reverted realization approval', from: 'realize_submitted', to: 'realize_submitted' };
+    } else {
+      if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this realization' });
+      plan = { sql: `status='rejected_realize', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled realization to edit', from: 'realize_submitted', to: 'rejected_realize', comment: 'Reverted by the claimant to make changes' };
+    }
+  } else if (row.status === 'paid') {
+    if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a payment' });
+    plan = { sql: `status='approved', paid_by=NULL, paid_at=NULL`, action: 'reverted payment', from: 'paid', to: 'approved' };
+  } else if (row.status === 'approved') {
+    if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this advance can revert the approval' });
+    plan = { sql: `status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted approval', from: 'approved', to: 'submitted' };
+  } else if (row.status === 'submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
+      plan = { sql: `current_step=${step - 1}`, action: 'reverted approval', from: 'submitted', to: 'submitted' };
+    } else {
+      if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this submission' });
+      plan = { sql: `status='rejected', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected', comment: 'Reverted by the claimant to make changes' };
+    }
+  } else {
+    return res.status(409).json({ error: `A ${row.status} cash advance cannot be reverted` });
+  }
+  await q(`UPDATE cash_advances SET ${plan.sql}, updated_at=now() WHERE id=$1`, [row.id]);
+  await logAdvanceHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
+  const { status, department, q: search } = req.query;
+  const where = [];
+  const params = [];
+  const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
+  if (!userCan(req.user, 'view_all_claims')) {
+    params.push(req.user.id);
+    const p = `$${params.length}`;
+    where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
+  if (status) add('status = $$', status);
+  if (department) add('department = $$', department);
+  if (search) {
+    params.push(`%${search}%`);
+    const p = `$${params.length}`;
+    where.push(`(advance_no ILIKE ${p} OR claimant_name ILIKE ${p} OR purpose ILIKE ${p})`);
+  }
+  const rows = await q(
+    `SELECT * FROM cash_advances ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     ORDER BY created_at DESC`, params);
+  res.json({ claims: await serializeManyAdvance(rows) });
+}));
+
+app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (req.user.role !== 'superadmin' && !userCan(req.user, 'view_all_claims')
+      && row.employee_id !== req.user.id && !asIntArray(row.approver_ids).includes(req.user.id)) {
+    return res.status(403).json({ error: 'You can only view your own cash advances' });
+  }
+  res.json({ claim: await serializeOneAdvance(row) });
+}));
+
+// Download a realization receipt — auth-scoped, streamed from Blob.
+app.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+      && !asIntArray(row.approver_ids).includes(req.user.id)) {
+    return res.status(403).json({ error: 'You can only view your own attachments' });
+  }
+  const rows = await q(
+    `SELECT a.* FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id
+      WHERE a.id = $1 AND l.advance_id = $2`, [req.params.attId, row.id]);
+  const att = rows[0];
+  if (!att) return res.status(404).json({ error: 'Attachment not found' });
+  const r = await fetch(att.blob_url);
+  if (!r.ok) return res.status(502).json({ error: 'Could not fetch file from storage' });
+  const inlineOk = att.mime_type === 'application/pdf' || att.mime_type.startsWith('image/');
+  res.setHeader('Content-Type', att.mime_type);
+  res.setHeader('Content-Disposition', `${inlineOk ? 'inline' : 'attachment'}; filename="${encodeURIComponent(att.original_name)}"`);
+  res.send(Buffer.from(await r.arrayBuffer()));
+}));
+
+// Delete a cash advance outright (super admin only) — clears its realization
+// receipts (blobs), lines and history first.
+app.delete('/api/cash-advances/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const atts = await q(
+    `SELECT a.blob_url FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id WHERE l.advance_id = $1`, [row.id]);
+  const advanceId = Number(row.id);
+  await transaction([
+    qq(`DELETE FROM attachments WHERE advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
+    qq('DELETE FROM cash_advance_lines WHERE advance_id = $1', [advanceId]),
+    qq('DELETE FROM cash_advance_history WHERE advance_id = $1', [advanceId]),
+    qq('DELETE FROM cash_advances WHERE id = $1', [advanceId])
+  ]);
+  for (const a of atts) await deleteReceipt(a.blob_url);
+  res.json({ ok: true });
+}));
+
+// ---------------------------------------------------------------------------
 // Daily reminder (Vercel Cron)
 // ---------------------------------------------------------------------------
 // Vercel Cron calls this once a day (see vercel.json). It emails every approver
@@ -1886,6 +2385,10 @@ app.get('/api/cron/reminders', ah(async (req, res) => {
     `SELECT claim_no, claimant_name, total_cents, currency, approver_ids, current_step
      FROM meal_claims WHERE status = 'submitted'`);
   for (const r of meal) push(currentApproverId(r), mealNotify(r));
+  const adv = await q(
+    `SELECT advance_no, claimant_name, amount_cents, currency, approver_ids, current_step
+     FROM cash_advances WHERE status IN ('submitted','realize_submitted')`);
+  for (const r of adv) push(currentApproverId(r), advanceNotify(r));
 
   let sent = 0;
   for (const [approverId, claims] of byApprover) {
@@ -1963,6 +2466,21 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
                 l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
                 m.approver_ids AS appr, m.region AS region
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
+         UNION ALL
+         -- Cash advances contribute their realization lines (actual transactions),
+         -- which only exist once the advance is realized. The realization approval
+         -- phase is mapped onto the base statuses so the status filter treats them
+         -- like any other claim (realize_approved -> approved, settled -> paid, …).
+         SELECT COALESCE(l.expense_type,'') AS category, a.department, l.line_date AS d,
+                l.amount_cents AS cents,
+                CASE a.status WHEN 'realize_submitted' THEN 'submitted'
+                              WHEN 'realize_approved'  THEN 'approved'
+                              WHEN 'settled'           THEN 'paid'
+                              WHEN 'rejected_realize'  THEN 'rejected'
+                              ELSE a.status END AS status,
+                COALESCE(l.db_no,'') AS db, 'a' || a.id AS cid,
+                a.approver_ids AS appr, a.region AS region
+           FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id
        ) ev
       WHERE ${where.join(' AND ')}`, params);
 
@@ -2008,13 +2526,17 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const drows = seeAll
     ? await q(
         `SELECT DISTINCT department FROM (
-           SELECT department FROM claims UNION SELECT department FROM meal_claims
+           SELECT department FROM claims
+           UNION SELECT department FROM meal_claims
+           UNION SELECT department FROM cash_advances
          ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`)
     : await q(
         `SELECT DISTINCT department FROM (
-           SELECT department FROM claims      WHERE $1 = ANY(approver_ids)
+           SELECT department FROM claims        WHERE $1 = ANY(approver_ids)
            UNION
-           SELECT department FROM meal_claims WHERE $1 = ANY(approver_ids)
+           SELECT department FROM meal_claims   WHERE $1 = ANY(approver_ids)
+           UNION
+           SELECT department FROM cash_advances WHERE $1 = ANY(approver_ids)
          ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`, [req.user.id]);
   const departments = drows.map(r => r.department);
 
@@ -2036,12 +2558,16 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   const { from, to } = req.query;
   const statuses = String(req.query.status || '').split(',').map(s => s.trim())
     .filter(s => EXPORT_STATUSES.includes(s));
-  const types = String(req.query.types || 'reimbursement,meal').split(',').map(s => s.trim());
+  const types = String(req.query.types || 'reimbursement,meal,advance').split(',').map(s => s.trim());
   const wantReimb = types.includes('reimbursement');
   const wantMeal = types.includes('meal');
-  // Optional whitelist of submitter (employee) ids to include.
+  const wantAdvance = types.includes('advance');
+  // Optional whitelist of submitter (employee) ids to include. Filter to positive
+  // ids: an absent/empty param must yield [] (no filter), not [0] — Number('') is
+  // 0 and passes Number.isInteger, which would otherwise filter every row to
+  // employee_id IN (0) and export nothing when "all users" is selected.
   const employees = String(req.query.employees || '').split(',')
-    .map(s => Number(s.trim())).filter(Number.isInteger);
+    .map(s => Number(s.trim())).filter(n => Number.isInteger(n) && n > 0);
 
   const out = []; // { key: sortKey, cells: [...] }
 
@@ -2105,6 +2631,48 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
         r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+    }
+  }
+
+  // Cash advances export one row per realization line — so only realized advances
+  // appear (a request-stage advance has no lines). The status filter is applied to
+  // the realization phase mapped onto the base statuses (see the CASE below); the
+  // Status column shows the advance's real status.
+  if (wantAdvance) {
+    const where = [];
+    const params = [];
+    const mappedStatus = `CASE a.status WHEN 'realize_submitted' THEN 'submitted'
+      WHEN 'realize_approved' THEN 'approved' WHEN 'settled' THEN 'paid'
+      WHEN 'rejected_realize' THEN 'rejected' ELSE a.status END`;
+    if (statuses.length) {
+      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
+      statuses.forEach(s => params.push(s));
+      where.push(`${mappedStatus} IN (${ph})`);
+    }
+    if (employees.length) {
+      const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
+      employees.forEach(e => params.push(e));
+      where.push(`a.employee_id IN (${ph})`);
+    }
+    if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
+    const rows = await q(
+      `SELECT a.advance_no, a.claimant_name, a.department, a.bank_name, a.recipient_name,
+              a.bank_account_no, a.currency, a.status, a.purpose, a.manager_comment,
+              a.decided_at, a.paid_at, a.created_at, u.username AS employee_username,
+              l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description, l.sort_order
+       FROM cash_advance_lines l
+       JOIN cash_advances a ON a.id = l.advance_id
+       JOIN users u ON u.id = a.employee_id
+       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+       ORDER BY a.created_at, l.sort_order`, params);
+    for (const r of rows) {
+      out.push({ key: iso(r.created_at) || '', cells: [
+        'Cash advance', r.advance_no, r.employee_username, r.claimant_name, r.department,
+        r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
+        (Number(r.amount_cents) / 100).toFixed(2), r.currency,
+        r.description, r.status, r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
 
@@ -2530,8 +3098,8 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     res.json({ ok: true });
   }));
 }
-lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true });
-lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true });
+lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal', 'allow_advance'], { regional: true });
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'allow_advance', 'can_manage'], { ranked: true, regional: true });
 lookupRoutes('expense-types', 'expense_types', [], { regional: true });
 lookupRoutes('regions', 'regions');
 

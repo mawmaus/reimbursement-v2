@@ -99,7 +99,22 @@ function todayWIB() {
 // (whose font can't render non-Latin scripts). The UI uses statusLabel() so it
 // shows the active language instead.
 const STATUS_LABEL = { submitted: 'Pending review', approved: 'Approved', rejected: 'Rejected', paid: 'Paid' };
+// Cash-advance statuses reuse the four pill colours (base status) but read
+// differently. 'paid' on an advance means "disbursed — awaiting realization".
+const ADV_STATUS_LABEL = {
+  paid: 'Advance paid', realize_submitted: 'Realization pending',
+  realize_approved: 'Realization approved', rejected_realize: 'Realization returned',
+  settled: 'Settled'
+};
+const ADV_PILL_BASE = { realize_submitted: 'submitted', realize_approved: 'approved', rejected_realize: 'rejected', settled: 'paid' };
 const statusLabel = (s) => t(STATUS_LABEL[s] || s || '');
+// Status label that knows the row type (advances relabel some shared statuses).
+function statusLabelFor(c) {
+  if (c && c.type === 'advance' && ADV_STATUS_LABEL[c.status]) return t(ADV_STATUS_LABEL[c.status]);
+  return statusLabel(c ? c.status : '');
+}
+// CSS pill class for a status — maps advance-only statuses onto a base colour.
+const pillClass = (c) => (c && c.type === 'advance' && ADV_PILL_BASE[c.status]) || (c ? c.status : '');
 
 // Group an amount's integer part with thousands separators for readability as
 // the user types, e.g. "1000000" → "1,000,000". Commas are stripped again by
@@ -242,9 +257,10 @@ function showApp() {
   // Role is intentionally not shown in the UI after login.
   $('#userBadge').innerHTML = `${esc(u.full_name)}`;
   // "Purpose" buttons are gated per department + job position (see Settings).
-  const purposes = u.purposes || { claim: false, meal: false };
+  const purposes = u.purposes || { claim: false, meal: false, advance: false };
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
+  $('#newAdvanceBtn').hidden = !purposes.advance;
   const isSuper = u.role === 'superadmin';
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');
@@ -422,10 +438,11 @@ async function loadClaims() {
   const qs = p.toString();
   // Reimbursement + meal allowance claims share one ledger. Tag each with a
   // type so rows, the drawer, and actions can branch to the right endpoints.
-  const [r, m] = await Promise.all([api('/claims?' + qs), api('/meal-claims?' + qs)]);
+  const [r, m, a] = await Promise.all([api('/claims?' + qs), api('/meal-claims?' + qs), api('/cash-advances?' + qs)]);
   const reimb = (r.claims || []).map(c => ({ ...c, type: 'reimbursement' }));
   const meal = (m.claims || []).map(c => ({ ...c, type: 'meal' }));
-  state.claims = [...reimb, ...meal].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+  const adv = (a.claims || []).map(c => ({ ...c, type: 'advance' }));
+  state.claims = [...reimb, ...meal, ...adv].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
   // Drop selections for claims no longer in the current view.
   const avail = new Set(state.claims.map(c => claimKey(c.type, c.id)));
   [...state.selected].forEach(k => { if (!avail.has(k)) state.selected.delete(k); });
@@ -443,6 +460,11 @@ function rowView(c) {
     // Meal claims carry a "DB number site" per line; surface the first one.
     const site = (c.lines && c.lines[0] && c.lines[0].site) || '';
     return { typeLabel: t('Meal allowance'), date: first, amount: c.total_amount, db: site };
+  }
+  if (c.type === 'advance') {
+    // The ledger amount is the requested/disbursed advance; the date is when it
+    // was requested (an advance has no single expense date).
+    return { typeLabel: t('Cash advance'), date: (c.created_at || '').slice(0, 10), amount: c.amount, db: '' };
   }
   return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount, db: c.db_no || '' };
 }
@@ -556,7 +578,10 @@ function enhanceSelect(sel) {
 // the current step.) Role-agnostic: a super admin only matches claims where
 // they are explicitly the current approver, not every claim.
 function isMyTurn(c) {
-  if (!state.user || c.status !== 'submitted') return false;
+  // A cash advance awaits an approver in either the request ('submitted') or the
+  // realization ('realize_submitted') cycle.
+  const awaiting = c.status === 'submitted' || (c.type === 'advance' && c.status === 'realize_submitted');
+  if (!state.user || !awaiting) return false;
   const ids = (c.approvers || []).map(a => a.id);
   if (!ids.length) return false;
   return ids[(c.current_step || 1) - 1] === state.user.id;
@@ -577,6 +602,9 @@ function approvedByMe(c) {
   const step = c.current_step || 0;
   if (c.status === 'submitted' && step > 1) return ids[step - 2] === uid;
   if (c.status === 'approved') return c.manager_id === uid;
+  // Cash-advance realization cycle mirrors the same two "I approved this" cases.
+  if (c.type === 'advance' && c.status === 'realize_submitted' && step > 1) return ids[step - 2] === uid;
+  if (c.type === 'advance' && c.status === 'realize_approved') return c.manager_id === uid;
   return false;
 }
 const approvedByMeQueue = () => state.claims.filter(approvedByMe);
@@ -591,7 +619,7 @@ function reviewedByMe(c) {
   if (!state.user) return false;
   const uid = state.user.id;
   return (c.history || []).some(h =>
-    h.actor_id === uid && (h.action === 'rejected' || String(h.action).startsWith('approved')));
+    h.actor_id === uid && /\b(approved|rejected)\b/.test(String(h.action)));
 }
 const reviewedByMeQueue = () => state.claims.filter(reviewedByMe);
 
@@ -989,7 +1017,7 @@ function renderClaims() {
     const checked = state.selected.has(claimKey(c.type, c.id)) ? 'checked' : '';
     return `
     <div class="ledger-row" data-id="${c.id}" data-type="${c.type}" tabindex="0" role="button">
-      <span class="row-spine ${c.status}"></span>
+      <span class="row-spine ${pillClass(c)}"></span>
       <span class="col-check"><input type="checkbox" class="row-check" data-id="${c.id}" data-type="${c.type}" ${checked} aria-label="Select ${esc(c.claim_no)}" /></span>
       <span class="col-no">${esc(c.claim_no)}</span>
       <span class="col-name">${esc(c.claimant_name)}</span>
@@ -997,7 +1025,7 @@ function renderClaims() {
       <span class="col-type">${esc(v.typeLabel)}</span>
       <span class="col-date mono">${esc(v.date)}</span>
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
-      <span class="col-status"><span class="pill ${c.status}">${esc(statusLabel(c.status))}</span></span>
+      <span class="col-status"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></span>
     </div>`; }).join('');
   $$('.ledger-row', wrap).forEach(el => {
     const open = () => openDrawer(el.dataset.id, el.dataset.type);
@@ -1084,7 +1112,7 @@ async function revertPaidSelected() {
   try {
     let done = 0;
     for (const c of paid) {
-      const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
       await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
       done++;
     }
@@ -1142,7 +1170,7 @@ function openBulkPaidModal(claims, totalSelected) {
     try {
       let done = 0;
       for (const c of claims) {
-        const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+        const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
         await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
         done++;
       }
@@ -1167,7 +1195,7 @@ async function deleteSelected() {
   btn.disabled = true; btn.textContent = t('Deleting…');
   try {
     for (const c of chosen) {
-      const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      const path = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
       await api(path + c.id, { method: 'DELETE' });
     }
     state.selected.clear();
@@ -1186,7 +1214,7 @@ async function generatePdf() {
     // Pull full details (approvers, history, attachment list) for each claim.
     const detailed = [];
     for (const c of chosen) {
-      const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      const path = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
       const { claim } = await api(path + c.id);
       claim.type = c.type;
       detailed.push(claim);
@@ -1365,7 +1393,7 @@ async function buildClaimsPdf(claims) {
 
   const claimHeader = (c) => {
     newPage();
-    const title = c.type === 'meal' ? 'Meal Allowance Claim' : 'Reimbursement Claim';
+    const title = c.type === 'meal' ? 'Meal Allowance Claim' : c.type === 'advance' ? 'Cash Advance' : 'Reimbursement Claim';
     if (logo) { const lw = 104, lh = lw * 213 / 631; page.drawImage(logo, { x: M, y: H - M - lh, width: lw, height: lh }); }
     else page.drawText('Cibes', { x: M, y: H - M - 20, size: 22, font: bold, color: orange });
     const rx = M + 128;
@@ -1581,10 +1609,23 @@ function renderHistory(c) {
 // the server's planRevert: the payer can unpay, the final approver can unapprove,
 // the previous-step approver can undo their approval, and the claimant can cancel
 // a still-pending submission back to an editable state.
+// The set of statuses in which a document is awaiting an approver's decision. For
+// cash advances this covers both the request and the realization approval cycle.
+const inApprovalStage = (c) => c.status === 'submitted' || (c.type === 'advance' && c.status === 'realize_submitted');
+
 function canRevert(c, u, isOwner) {
   const ids = (c.approvers || []).map(a => a.id);
   const step = c.current_step || 0;
   const isSuper = u.role === 'superadmin';
+  // Cash-advance realization phase mirrors the request phase one status set up.
+  if (c.type === 'advance') {
+    if (c.status === 'settled') return canPay(u);
+    if (c.status === 'realize_approved') return isSuper || c.manager_id === u.id;
+    if (c.status === 'realize_submitted') {
+      if (step > 1) return isSuper || ids[step - 2] === u.id;
+      return isOwner || isSuper;
+    }
+  }
   if (c.status === 'paid') return canPay(u);
   if (c.status === 'approved') return isSuper || c.manager_id === u.id;
   if (c.status === 'submitted') {
@@ -1596,6 +1637,12 @@ function canRevert(c, u, isOwner) {
 // Contextual label + confirmation copy for the revert button.
 function revertInfo(c) {
   const step = c.current_step || 0;
+  if (c.type === 'advance' && c.status === 'settled') return { label: t('Revert settlement'), confirm: t('Revert this settlement? The realization will go back to Approved.') };
+  if (c.type === 'advance' && c.status === 'realize_approved') return { label: t('Revert approval'), confirm: t('Revert your approval? The realization will go back to pending review.') };
+  if (c.type === 'advance' && c.status === 'realize_submitted') {
+    if (step > 1) return { label: t('Revert approval'), confirm: t('Revert your approval? The realization will return to the previous approver.') };
+    return { label: t('Cancel to edit'), confirm: t('Cancel this realization so you can edit it? It will move back to editable.') };
+  }
   if (c.status === 'paid') return { label: t('Revert payment'), confirm: t('Revert this payment? The claim will go back to Approved.') };
   if (c.status === 'approved') return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will go back to pending review.') };
   if (c.status === 'submitted' && step > 1) return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will return to the previous approver.') };
@@ -1603,12 +1650,21 @@ function revertInfo(c) {
 }
 function buildActions(c, u, isOwner) {
   const btns = [];
-  if (c.status === 'submitted' && canApprove(u, c)) {
+  if (inApprovalStage(c) && canApprove(u, c)) {
     btns.push(`<button class="btn btn-approve" data-act="approve">${esc(t('Approve'))}</button>`);
     btns.push(`<button class="btn btn-danger" data-act="reject">${esc(t('Reject & return'))}</button>`);
   }
   if (canPay(u) && c.status === 'approved') {
     btns.push(`<button class="btn btn-primary" data-act="paid">${esc(t('Mark as paid'))}</button>`);
+  }
+  // Cash-advance-only actions.
+  if (c.type === 'advance') {
+    if (isOwner && (c.status === 'paid' || c.status === 'rejected_realize')) {
+      btns.push(`<button class="btn btn-primary" data-act="realize">${esc(c.status === 'paid' ? t('Realize advance') : t('Edit & resubmit realization'))}</button>`);
+    }
+    if (canPay(u) && c.status === 'realize_approved') {
+      btns.push(`<button class="btn btn-primary" data-act="settle">${esc(t('Settle'))}</button>`);
+    }
   }
   if (isOwner && c.status === 'rejected') {
     btns.push(`<button class="btn btn-primary" data-act="edit">${esc(t('Edit & resubmit'))}</button>`);
@@ -1693,8 +1749,65 @@ function mealBody(c) {
     </div>`;
 }
 
+// Body for a cash advance: account/bank details, the purpose + requested amount,
+// and — once realized — the itemised transactions with a settlement summary.
+function advanceBody(c) {
+  const receiptLinks = (atts) => (atts && atts.length)
+    ? atts.map(a => `<a class="line-receipt" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    : `<span class="muted">${esc(t('—'))}</span>`;
+  const hasLines = (c.lines || []).length > 0;
+  const linesTable = hasLines ? `
+    <div class="section-label">${esc(t('Realization — actual transactions'))}</div>
+    <div class="meal-table-wrap">
+      <table class="meal-table rc-table">
+        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th><th>${esc(t('Receipts'))}</th></tr></thead>
+        <tbody>${c.lines.map(l => `
+          <tr>
+            <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
+            <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
+            <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
+            <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
+          </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td colspan="3" class="meal-total-label">${esc(t('TOTAL SPENT'))}</td>
+          <td class="meal-total">${esc(money(c.realized_total, c.currency))}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>` : `<p class="muted" style="margin:10px 0">${esc(t('Realization not submitted yet.'))}</p>`;
+  // Settlement summary: the recorded outcome once settled, otherwise a live preview.
+  let settleBox = '';
+  if (hasLines) {
+    const diff = (c.realized_total || 0) - (c.amount || 0);
+    const dir = c.status === 'settled' ? c.settlement_direction : (diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even');
+    const amt = c.status === 'settled' ? c.settlement : Math.abs(diff);
+    const msg = dir === 'topup' ? t('Top-up owed to employee: {amt}', { amt: money(amt, c.currency) })
+      : dir === 'return' ? t('Balance to be returned by employee: {amt}', { amt: money(amt, c.currency) })
+      : t('Advance and actual spend match exactly.');
+    settleBox = `<div class="note-box adv-settle adv-diff-${dir}">
+      <div class="nb-label">${esc(c.status === 'settled' ? t('Settlement') : t('Settlement (pending)'))}</div>
+      <div>${esc(msg)}</div>
+      ${c.status === 'settled' && c.settlement_note ? `<div class="muted" style="margin-top:4px">${esc(c.settlement_note)}</div>` : ''}
+    </div>`;
+  }
+  return `
+    <dl class="kv">
+      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
+      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
+      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
+      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
+      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      <dt>${esc(t('Purpose'))}</dt><dd>${esc(c.purpose)}</dd>
+      <dt>${esc(t('Advance requested'))}</dt><dd><strong>${esc(money(c.amount, c.currency))}</strong></dd>
+    </dl>
+    ${linesTable}
+    ${settleBox}`;
+}
+
 async function openDrawer(id, type = 'reimbursement') {
-  const path = type === 'meal' ? '/meal-claims/' : '/claims/';
+  const path = type === 'meal' ? '/meal-claims/' : type === 'advance' ? '/cash-advances/' : '/claims/';
   const { claim: c } = await api(path + id);
   c.type = type;
   const u = state.user;
@@ -1703,12 +1816,12 @@ async function openDrawer(id, type = 'reimbursement') {
   const rejectedNote = (c.status === 'rejected' && c.manager_comment) ? `
     <div class="note-box"><div class="nb-label">${esc(t('Returned by manager'))}</div>
       <div>${esc(c.manager_comment)}</div></div>` : '';
-  const body = type === 'meal' ? mealBody(c) : reimbursementBody(c);
+  const body = type === 'meal' ? mealBody(c) : type === 'advance' ? advanceBody(c) : reimbursementBody(c);
   const actions = buildActions(c, u, isOwner);
 
   $('#drawer').innerHTML = `
     <div class="drawer-head">
-      <div><h2>${esc(c.claim_no)} <span class="pill ${c.status}">${esc(statusLabel(c.status))}</span></h2>
+      <div><h2>${esc(c.claim_no)} <span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></h2>
         <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('Submitted {time}', { time: fmtDateTime(c.created_at) }))}</p></div>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
@@ -1729,13 +1842,17 @@ async function openDrawer(id, type = 'reimbursement') {
 }
 
 async function handleAction(act, c) {
-  const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+  const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
   try {
     if (act === 'approve') {
       await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
       toast(t('Claim approved'));
     } else if (act === 'paid') {
       return openPaidModal(c);
+    } else if (act === 'realize') {
+      return openRealizeModal(c);
+    } else if (act === 'settle') {
+      return openSettleModal(c);
     } else if (act === 'revert') {
       const info = revertInfo(c);
       if (!confirm(info.confirm)) return;
@@ -1744,7 +1861,7 @@ async function handleAction(act, c) {
     } else if (act === 'reject') {
       return openRejectModal(c);
     } else if (act === 'edit') {
-      return c.type === 'meal' ? openMealAllowanceModal(c) : openClaimModal(c);
+      return c.type === 'meal' ? openMealAllowanceModal(c) : c.type === 'advance' ? openAdvanceRequestModal(c) : openClaimModal(c);
     }
     closeDrawer(); loadAll();
   } catch (ex) { toast(ex.message, true); }
@@ -1992,13 +2109,20 @@ function approver1PickerHtml(existing) {
 // table preserves them.
 let claimRows = [];
 let claimEditId = null;   // claim being edited, for the kept-receipt view links
+// Base API path for kept-receipt links in the shared line editor. Reimbursement
+// claims use /api/claims; the cash-advance realization form flips it to
+// /api/cash-advances so kept receipts open from the right endpoint.
+let rcAttachBase = '/api/claims';
+// Optional callback fired whenever the shared line editor's total changes, so the
+// realization form can refresh its "advance vs spent" difference banner.
+let rcTotalHook = null;
 const rcAmt = (s) => { const n = parseFloat(String(s == null ? '' : s).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : 0; };
 function claimTotal() { return claimRows.reduce((sum, r) => sum + rcAmt(r.amount), 0); }
 const blankClaimRow = (date = '') => ({ line_date: date, db_no: '', expense_type: '', expense_type_other: '', amount: '', description: '', files: [], kept: [] });
 
 function rcChips(r, i) {
   const kept = (r.kept || []).map((a, k) =>
-    `<span class="file-chip file-chip-saved"><a href="/api/claims/${claimEditId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>` +
+    `<span class="file-chip file-chip-saved"><a href="${rcAttachBase}/${claimEditId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>` +
     `<button type="button" data-chip="kept" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
   const files = (r.files || []).map((f, k) =>
     `<span class="file-chip">${esc(f.name)}<button type="button" data-chip="new" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
@@ -2054,6 +2178,7 @@ function renderClaimRows() {
     ? claimRows.map(claimRowHtml).join('')
     : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
   $('#rcTotal').textContent = idr(claimTotal());
+  if (rcTotalHook) rcTotalHook();
   $$('#rcRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readClaimRows(); claimRows.splice(+b.dataset.rm, 1); renderClaimRows();
   }));
@@ -2072,7 +2197,7 @@ function renderClaimRows() {
     readClaimRows(); renderClaimRows();
   }));
   $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
-    readClaimRows(); $('#rcTotal').textContent = idr(claimTotal());
+    readClaimRows(); $('#rcTotal').textContent = idr(claimTotal()); if (rcTotalHook) rcTotalHook();
   }));
   // Reveal the "specify" field when the type is set to Others.
   $$('#rcRows select[name="expense_type"]').forEach(sel => sel.addEventListener('change', () => {
@@ -2138,6 +2263,7 @@ function openCalcModal(rowIndex) {
 function openClaimModal(existing = null) {
   const isEdit = !!existing;
   claimEditId = isEdit ? existing.id : null;
+  rcAttachBase = '/api/claims';
   if (isEdit) {
     claimRows = (existing.lines || []).map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
@@ -2640,6 +2766,251 @@ async function submitMealClaim(e, existing) {
 $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 
 // ---------------------------------------------------------------------------
+// Cash advance — a two-stage document. Stage 1: request the advance (purpose +
+// amount), which runs the approver chain and is disbursed by finance. Stage 2
+// (once paid): realize it by submitting the actual transactions as an itemised
+// line table with receipts — the same editor as a reimbursement claim.
+// ---------------------------------------------------------------------------
+// Stage 1 request form: purpose + amount (+ Approver 1 when chooseable). Reused
+// for editing a rejected request.
+function openAdvanceRequestModal(existing = null) {
+  const isEdit = !!existing;
+  openModal(`
+    <div class="modal-head">
+      <h2>${isEdit ? esc(t('Edit & resubmit cash advance')) : esc(t('New cash advance'))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="advForm" class="form">
+        <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Ask for a cash advance up front. Once it is approved and paid, you will settle it by submitting your actual transactions.'))}</p>
+        <label class="full">${esc(t('Purpose of the cash advance'))} <span style="color:var(--danger,#d33)">*</span>
+          <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(existing ? existing.purpose || '' : '')}</textarea></label>
+        <label class="full">${esc(t('Amount needed'))} <span style="color:var(--danger,#d33)">*</span>
+          <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(existing && existing.amount != null ? groupAmount(String(Math.round(existing.amount))) : '')}" /></label>
+        ${approver1PickerHtml(existing)}
+        ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
+          <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+        <p class="form-error" id="advError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="advCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit request')) : esc(t('Submit request'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#advCancel').addEventListener('click', closeModal);
+  const amt = $('#advForm [name="amount"]');
+  amt.addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
+  $('#advForm').addEventListener('submit', e => submitAdvanceRequest(e, existing));
+}
+
+async function submitAdvanceRequest(e, existing) {
+  e.preventDefault();
+  const err = $('#advError'); err.hidden = true;
+  const fd = new FormData(e.target);
+  const purpose = String(fd.get('purpose') || '').trim();
+  const amount = Number(String(fd.get('amount') || '').replace(/[^0-9.]/g, ''));
+  if (!purpose) { err.textContent = t('Please describe the purpose of the cash advance.'); err.hidden = false; return; }
+  if (!(amount > 0)) { err.textContent = t('Enter the advance amount.'); err.hidden = false; return; }
+  const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
+  const approver1 = String(fd.get('approver1') || '').trim();
+  if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  const payload = { purpose, amount, currency: 'IDR' };
+  if (needsApprover1) payload.approver1 = Number(approver1);
+  try {
+    if (existing) {
+      payload.resubmit_note = String(fd.get('resubmit_note') || '').trim();
+      await api('/cash-advances/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
+      toast(t('Cash advance resubmitted'));
+    } else {
+      await api('/cash-advances', { method: 'POST', body: JSON.stringify(payload) });
+      toast(t('Cash advance requested'));
+    }
+    closeModal(); closeDrawer(); loadAll();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+}
+$('#newAdvanceBtn').addEventListener('click', () => openAdvanceRequestModal());
+
+// Stage 2 realization form: the actual transactions as an itemised line table
+// (the reimbursement-claim editor), with a live "advance vs spent" banner.
+function realizeDiffBanner(advanceAmount) {
+  const spent = claimTotal();
+  const diff = spent - advanceAmount;
+  const cls = diff > 0 ? 'adv-diff-topup' : diff < 0 ? 'adv-diff-return' : 'adv-diff-even';
+  const msg = diff > 0 ? t('Over the advance by {amt} — a top-up will be owed to you.', { amt: idr(diff) })
+    : diff < 0 ? t('Under the advance by {amt} — you will return this balance.', { amt: idr(-diff) })
+    : t('Exactly matches the advance.');
+  return `<div class="adv-diff ${cls}">
+      <div class="adv-diff-row"><span>${esc(t('Advance received'))}</span><strong>${esc(idr(advanceAmount))}</strong></div>
+      <div class="adv-diff-row"><span>${esc(t('Total spent'))}</span><strong id="advSpent">${esc(idr(spent))}</strong></div>
+      <div class="adv-diff-msg" id="advDiffMsg">${esc(msg)}</div>
+    </div>`;
+}
+function openRealizeModal(advance) {
+  const isEdit = advance.status === 'rejected_realize';
+  claimEditId = advance.id;
+  rcAttachBase = '/api/cash-advances';
+  if (isEdit && (advance.lines || []).length) {
+    claimRows = advance.lines.map(l => ({
+      line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
+      files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
+    }));
+    if (!claimRows.length) claimRows = [blankClaimRow(todayWIB())];
+  } else {
+    claimRows = [blankClaimRow(todayWIB())];
+  }
+  openModal(`
+    <div class="modal-head">
+      <h2>${esc(t('Realize cash advance {no}', { no: advance.advance_no }))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="realizeForm" class="form">
+        <div class="meal-topbar">
+          <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
+        </div>
+        <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('Account for the advance: one row per expense, with that expense\'s receipts attached (PDF or images, up to 8 per row).'))}</p>
+        <div id="advDiffWrap">${realizeDiffBanner(advance.amount)}</div>
+        <p class="form-error" id="claimError" hidden></p>
+        <div class="meal-scroll">
+          <div class="meal-table-wrap">
+            <table class="meal-table rc-table">
+              <colgroup>
+                <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
+              </colgroup>
+              <thead><tr>
+                <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
+                <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
+                <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+              </tr></thead>
+              <tbody id="rcRows"></tbody>
+              <tfoot><tr>
+                <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
+                <td class="meal-total" id="rcTotal">Rp 0</td>
+                <td colspan="3"></td>
+              </tr></tfoot>
+            </table>
+          </div>
+          ${approver1PickerHtml(isEdit ? advance : null)}
+          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
+            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+        </div>
+        <div class="modal-actions meal-foot">
+          <button type="button" class="btn btn-ghost" id="cancelRealize">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Submit realization'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#cancelRealize').addEventListener('click', closeModal);
+  $('#rcAddRow').addEventListener('click', () => { readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows(); });
+  // Refresh the difference banner whenever the line total changes.
+  rcTotalHook = () => {
+    const spent = claimTotal();
+    const sp = $('#advSpent'); if (sp) sp.textContent = idr(spent);
+    const wrap = $('#advDiffWrap'); if (wrap) wrap.innerHTML = realizeDiffBanner(advance.amount);
+  };
+  $('#realizeForm').addEventListener('submit', e => submitRealization(e, advance));
+  renderClaimRows();
+}
+
+async function submitRealization(e, advance) {
+  e.preventDefault();
+  readClaimRows();
+  const err = $('#claimError'); err.hidden = true;
+  const rows = claimRows.filter(r =>
+    r.line_date || r.db_no || String(r.expense_type || '').trim() || r.description
+    || rcAmt(r.amount) || (r.files || []).length || (r.kept || []).length);
+  if (!rows.length) { err.textContent = t('Add at least one expense line with a date, type and amount.'); err.hidden = false; return; }
+  const rowType = (r) => r.expense_type === 'Others' ? String(r.expense_type_other || '').trim() : String(r.expense_type || '').trim();
+  for (const r of rows) {
+    if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
+    if (r.expense_type === 'Others' && !String(r.expense_type_other || '').trim()) {
+      err.textContent = t('Please specify the expense type for the "Others" row.'); err.hidden = false; return;
+    }
+    if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
+    if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
+  }
+  const earliest = claimEarliest();
+  if (earliest && rows.some(r => String(r.line_date || '') < earliest)) {
+    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest }); err.hidden = false; return;
+  }
+  const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
+  const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
+  if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
+  const isEdit = advance.status === 'rejected_realize';
+  const btn = e.target.querySelector('button[type="submit"]');
+  const label = btn.textContent;
+  btn.disabled = true;
+  try {
+    if (rows.some(r => (r.files || []).length)) btn.textContent = t('Uploading receipts…');
+    const lines = [];
+    for (const r of rows) {
+      const uploaded = (r.files || []).length ? await uploadReceipts(r.files) : [];
+      lines.push({
+        line_date: r.line_date, db_no: r.db_no, expense_type: rowType(r),
+        amount: r.amount, description: r.description,
+        attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
+      });
+    }
+    const payload = { lines };
+    if (needsApprover1) payload.approver1 = Number(approver1);
+    btn.textContent = t('Submitting…');
+    if (isEdit) {
+      payload.resubmit_note = String((new FormData(e.target).get('resubmit_note') || '')).trim();
+      await api('/cash-advances/' + advance.id + '/realize', { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await api('/cash-advances/' + advance.id + '/realize', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    toast(t('Realization submitted'));
+    closeModal(); closeDrawer(); loadAll();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; btn.textContent = label; }
+}
+
+// Settle a fully-approved realization (finance records the top-up / return).
+function openSettleModal(c) {
+  const diff = (c.realized_total || 0) - (c.amount || 0);
+  const line = diff > 0 ? t('A top-up of {amt} is owed to the employee.', { amt: money(diff, c.currency) })
+    : diff < 0 ? t('The employee returns {amt}.', { amt: money(-diff, c.currency) })
+    : t('The advance and the actual spend match exactly.');
+  openModal(`
+    <div class="modal-head"><h2>${esc(t('Settle {no}', { no: c.advance_no }))}</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="settleForm" class="form">
+        <dl class="kv">
+          <dt>${esc(t('Advance paid'))}</dt><dd>${esc(money(c.amount, c.currency))}</dd>
+          <dt>${esc(t('Total realized'))}</dt><dd>${esc(money(c.realized_total, c.currency))}</dd>
+          <dt>${esc(t('Difference'))}</dt><dd>${esc(money(Math.abs(diff), c.currency))}</dd>
+        </dl>
+        <p class="muted" style="margin:6px 0">${esc(line)}</p>
+        <label class="full">${esc(t('Settlement note (optional)'))}
+          <input name="note" placeholder="${esc(t('e.g. top-up paid / balance received on…'))}" /></label>
+        <p class="form-error" id="settleErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="settleCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Confirm settlement'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#settleCancel').addEventListener('click', closeModal);
+  $('#settleForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const note = String((new FormData(e.target).get('note') || '')).trim();
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      await api('/cash-advances/' + c.id + '/settle', { method: 'POST', body: JSON.stringify({ note }) });
+      toast(t('Cash advance settled'));
+      closeModal(); closeDrawer(); loadAll();
+    } catch (ex) { const el = $('#settleErr'); el.textContent = ex.message; el.hidden = false; btn.disabled = false; }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Reject modal
 // ---------------------------------------------------------------------------
 // Mark as paid — a payment date must be chosen before the claim can be recorded
@@ -2671,7 +3042,7 @@ function openPaidModal(c) {
     e.preventDefault();
     const payment_date = dateEl.value;
     if (!payment_date) return;
-    const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+    const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
     try {
       await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
       toast(t('Marked as paid'));
@@ -2700,7 +3071,7 @@ function openRejectModal(c) {
   $('#rejectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const comment = new FormData(e.target).get('comment').trim();
-    const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+    const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
     try {
       await api(`${base}${c.id}/reject`, { method: 'POST', body: JSON.stringify({ comment }) });
       toast(t('Claim returned to claimant'));
@@ -2747,6 +3118,7 @@ async function openExportModal() {
             <div class="check-group">
               <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> ${esc(t('Reimbursement claims'))}</label>
               <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> ${esc(t('Meal allowances'))}</label>
+              <label class="check-item"><input type="checkbox" name="types" value="advance" checked /> ${esc(t('Cash advances (realized)'))}</label>
             </div>
           </div>
         </div>
@@ -2802,7 +3174,7 @@ async function openExportModal() {
     if (from && to && from > to) { err.textContent = t('The “from” date is after the “to” date.'); err.hidden = false; return; }
     const p = new URLSearchParams();
     if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
-    if (types.length < 2) p.set('types', types.join(','));
+    if (types.length < 3) p.set('types', types.join(','));
     if (emps.length < users.length) p.set('employees', emps.join(','));
     if (from) p.set('from', from);
     if (to) p.set('to', to);
@@ -3217,10 +3589,10 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
       </div></td>`;
   const headCols = (ranked ? `<th style="width:64px">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th><th>${esc(t('Active'))}</th>`
-    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th>` : '')
+    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th><th>${esc(t('New cash advance'))}</th>` : '')
     + (manage ? `<th>${esc(t('Manage accounts'))}</th>` : '')
     + '<th style="width:220px"></th>';
-  const colspan = 2 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
+  const colspan = 2 + (ranked ? 1 : 0) + (p ? 3 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
@@ -3242,7 +3614,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
             ${ranked ? orderCell(it, i) : ''}
             <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
             <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
-            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) : ''}
+            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) + flagCell(it, 'allow_advance', t('New cash advance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
             <td class="act-cell" data-label="${esc(t('Actions'))}">
               <div class="u-actions">

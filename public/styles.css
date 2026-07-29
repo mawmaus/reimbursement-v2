@@ -1060,3 +1060,21 @@ body.no-scroll { overflow: hidden; }
   margin-top: 2px; font-size: .68rem; font-weight: 600; letter-spacing: .04em;
   text-transform: uppercase; color: var(--muted);
 }
+
+/* Cash-advance realization: the live "advance vs spent" difference banner and
+   the drawer settlement box. Colours reuse the palette — amber = a top-up is
+   owed, green = a balance comes back, neutral = balanced. */
+.adv-diff {
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 8px 0 4px;
+  background: var(--surface);
+}
+.adv-diff-row { display: flex; justify-content: space-between; gap: 12px; font-size: .9rem; padding: 2px 0; }
+.adv-diff-row strong { font-variant-numeric: tabular-nums; }
+.adv-diff-msg { margin-top: 6px; font-size: .85rem; font-weight: 600; }
+.adv-diff-topup  { border-color: var(--amber); background: var(--amber-tint); }
+.adv-diff-topup  .adv-diff-msg { color: var(--amber); }
+.adv-diff-return { border-color: var(--green); background: var(--green-tint); }
+.adv-diff-return .adv-diff-msg { color: var(--green); }
+.adv-diff-even   .adv-diff-msg { color: var(--muted); }
+.adv-settle.note-box.adv-diff-topup  { border-color: var(--amber); background: var(--amber-tint); }
+.adv-settle.note-box.adv-diff-return { border-color: var(--green); background: var(--green-tint); }
