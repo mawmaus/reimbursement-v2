@@ -1340,6 +1340,14 @@ async function buildClaimsPdf(claims) {
     }
     if (cur) out.push(cur); return out.length ? out : [''];
   };
+  // Truncate a single-line cell to fit maxW, adding an ellipsis — keeps long
+  // expense types / descriptions from overflowing into the next table column.
+  const fit = (s, f, size, maxW) => {
+    let v = pdfSafe(s);
+    if (!v || f.widthOfTextAtSize(v, size) <= maxW) return v;
+    while (v.length > 1 && f.widthOfTextAtSize(v + '...', size) > maxW) v = v.slice(0, -1);
+    return v + '...';
+  };
   const line = (s, { x = M, size = 10, f = font, color = ink, gap = 5 } = {}) => {
     need(size + gap); y -= size; page.drawText(pdfSafe(s), { x, y, size, font: f, color }); y -= gap;
   };
@@ -1378,9 +1386,10 @@ async function buildClaimsPdf(claims) {
       let cx = M;
       cols.forEach((col, i) => {
         const cell = cells[i] == null ? '' : cells[i];
-        const val = pdfSafe(typeof cell === 'object' ? (cell.text != null ? cell.text : '') : cell);
         const f = (typeof cell === 'object' && cell.bold) ? bold : font;
         const color = (typeof cell === 'object' && cell.color) || ink;
+        const raw = typeof cell === 'object' ? (cell.text != null ? cell.text : '') : cell;
+        const val = fit(raw, f, 9, col.w - 10);
         const tx = col.align === 'right' ? cx + col.w - 5 - f.widthOfTextAtSize(val, 9) : cx + 5;
         page.drawText(val, { x: tx, y: y + 5, size: 9, font: f, color });
         cx += col.w;
@@ -1398,8 +1407,10 @@ async function buildClaimsPdf(claims) {
     else page.drawText('Cibes', { x: M, y: H - M - 20, size: 22, font: bold, color: orange });
     const rx = M + 128;
     page.drawText(title, { x: rx, y: H - M - 8, size: 16, font: bold, color: ink });
-    page.drawText(`${pdfSafe(c.claim_no)}   ${(STATUS_LABEL[c.status] || c.status).toUpperCase()}`,
-      { x: rx, y: H - M - 26, size: 9.5, font: bold, color: stColor[c.status] || muted });
+    const stText = (c.type === 'advance' && ADV_STATUS_LABEL[c.status]) || STATUS_LABEL[c.status] || c.status;
+    const stKey = (c.type === 'advance' && ADV_PILL_BASE[c.status]) || c.status;
+    page.drawText(`${pdfSafe(c.claim_no)}   ${String(stText).toUpperCase()}`,
+      { x: rx, y: H - M - 26, size: 9.5, font: bold, color: stColor[stKey] || muted });
     page.drawText(`Submitted ${fmtDateTime(c.created_at)}`, { x: rx, y: H - M - 40, size: 8.5, font, color: muted });
     y = H - M - 58;
     page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.5, color: orange });
@@ -1407,7 +1418,34 @@ async function buildClaimsPdf(claims) {
   };
 
   const drawDetails = (c) => {
-    if (c.type === 'meal') {
+    if (c.type === 'advance') {
+      kvRow('Claimant', c.claimant_name, 'Department', c.department);
+      kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
+      kvRow('Account no.', c.bank_account_no);
+      kvWide('Purpose', c.purpose);
+      kvRow('Advance requested', money(c.amount, c.currency));
+      section('Realization - actual transactions');
+      const cols = [
+        { title: 'Date', w: 70 }, { title: 'DB No.', w: 90 }, { title: 'Type of expense', w: 110 },
+        { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
+      ];
+      const lines = c.lines || [];
+      const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
+      table(cols, rows.length ? rows : [['', '', 'No realization yet', '', '']],
+        [{ text: 'TOTAL SPENT', bold: true }, '', '', { text: money(c.realized_total, c.currency), bold: true, align: 'right' }, '']);
+      // Settlement summary: advance vs actual spend, and which way the balance goes.
+      if (lines.length) {
+        const diff = (c.realized_total || 0) - (c.amount || 0);
+        const dir = c.status === 'settled' ? c.settlement_direction : (diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even');
+        const amt = c.status === 'settled' ? c.settlement : Math.abs(diff);
+        const msg = dir === 'topup' ? 'Top-up owed to employee: ' + money(amt, c.currency)
+          : dir === 'return' ? 'Balance to be returned by employee: ' + money(amt, c.currency)
+          : 'Advance and actual spend match exactly.';
+        section(c.status === 'settled' ? 'Settlement' : 'Settlement (pending)');
+        line(msg, { size: 10 });
+        if (c.status === 'settled' && c.settlement_note) line(c.settlement_note, { size: 9, color: muted });
+      }
+    } else if (c.type === 'meal') {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
       kvRow('Account no.', c.bank_account_no);

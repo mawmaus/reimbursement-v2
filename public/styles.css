@@ -1027,13 +1027,22 @@ input[type="search"] { min-width: 220px; }
 /* --- Reimbursement line table (per-row receipts) -------------------------- */
 /* Wider than the meal table (it has a Type + Receipts column), so it scrolls
    horizontally on small screens and gets room on desktop. */
-.rc-table { min-width: 860px; }
+.rc-table { min-width: 960px; }
 .rc-table th, .rc-table td { padding: 2px; }
 .rc-table thead th { padding: 8px 6px; }
-/* Comfortable column widths; description takes the slack. */
-.rc-table col.c-date { width: 140px; } .rc-table col.c-db { width: 120px; }
-.rc-table col.c-type { width: 150px; } .rc-table col.c-amt { width: 120px; }
-.rc-table col.c-recv { width: 170px; } .rc-table col.c-x { width: 34px; }
+/* Comfortable column widths; type + description get the most room so long
+   expense types and descriptions are readable. Description takes the slack. */
+.rc-table col.c-date { width: 120px; } .rc-table col.c-db { width: 100px; }
+.rc-table col.c-type { width: 230px; } .rc-table col.c-amt { width: 120px; }
+.rc-table col.c-recv { width: 150px; } .rc-table col.c-x { width: 34px; }
+/* Detail-view line tables (reimbursement + cash advance) fit the drawer with no
+   horizontal scroll: drop the edit-form min-width and let cells wrap. These
+   tables are read-only text (no inputs), so wrapping is fine. */
+.drawer-body .meal-table,
+.drawer-body .rc-table { min-width: 0; }
+.drawer-body .meal-table-wrap { overflow-x: visible; }
+.drawer-body .rc-table th,
+.drawer-body .rc-table td { padding: 6px 8px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 /* Receipts cell in the claim form: chips stack above a small Add button. */
 .rc-table .rc-receipts { vertical-align: middle; padding: 6px; }
 .rc-table .rc-receipts .file-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
