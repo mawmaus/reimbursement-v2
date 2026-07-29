@@ -2025,7 +2025,10 @@ function claimRowHtml(r, i) {
     <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
     <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
     <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
-    <td data-label="${esc(t('Amount'))}"><input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : String(r.amount))}" placeholder="0" /></td>
+    <td data-label="${esc(t('Amount'))}"><div class="rc-amt-wrap">
+      <input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : String(r.amount))}" placeholder="0" />
+      <button type="button" class="rc-calc" data-calc="${i}" title="${esc(t('Add up amounts'))}" aria-label="${esc(t('Add up amounts'))}">🧮</button>
+    </div></td>
     <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
     <td class="rc-receipts" data-label="${esc(t('Receipts'))}">
       <div class="file-chips">${rcChips(r, i)}</div>
@@ -2076,6 +2079,60 @@ function renderClaimRows() {
     const other = sel.closest('td').querySelector('.rc-other');
     if (other) { other.hidden = sel.value !== 'Others'; if (!other.hidden) other.focus(); }
   }));
+  // Per-row calculator: tally amounts and drop the sum into this row's Amount.
+  $$('#rcRows .rc-calc').forEach(b => b.addEventListener('click', () => openCalcModal(+b.dataset.calc)));
+}
+
+// A small calculator (over the claim form) that adds up several amounts and
+// writes the total into row `rowIndex`'s Amount field.
+function openCalcModal(rowIndex) {
+  let entries = [];
+  const sum = () => entries.reduce((a, b) => a + b, 0);
+  openModal2(`
+    <div class="modal-head"><h2>${esc(t('Add up amounts'))}</h2><button class="x-btn" id="calcClose">×</button></div>
+    <div class="modal-body">
+      <div class="calc-input-row">
+        <input id="calcInput" inputmode="decimal" placeholder="${esc(t('Add an amount…'))}" />
+        <button type="button" class="btn btn-ghost btn-sm" id="calcAdd">${esc(t('Add'))}</button>
+      </div>
+      <ul class="calc-list" id="calcList"></ul>
+      <div class="calc-foot">
+        <div class="calc-total-wrap"><span>${esc(t('Total'))}</span><strong id="calcTotal">0</strong></div>
+        <div class="calc-foot-btns">
+          <button type="button" class="btn btn-ghost btn-sm" id="calcClear">${esc(t('Clear'))}</button>
+          <button type="button" class="btn btn-primary btn-sm" id="calcApply">${esc(t('Use total'))}</button>
+        </div>
+      </div>
+    </div>`);
+  const render = () => {
+    $('#calcList').innerHTML = entries.length
+      ? entries.map((n, i) =>
+          `<li><span class="mono">${groupAmount(String(n))}</span>
+             <button type="button" data-i="${i}" aria-label="${esc(t('Remove'))}">×</button></li>`).join('')
+      : `<li class="calc-empty">${esc(t('No amounts added yet.'))}</li>`;
+    $('#calcTotal').textContent = groupAmount(String(sum())) || '0';
+    $$('#calcList button[data-i]').forEach(b =>
+      b.addEventListener('click', () => { entries.splice(+b.dataset.i, 1); render(); }));
+  };
+  const add = () => {
+    const inp = $('#calcInput');
+    const n = Number(String(inp.value).replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(n) && n > 0) entries.push(n);
+    inp.value = ''; inp.focus(); render();
+  };
+  $('#calcClose').addEventListener('click', closeModal2);
+  $('#calcAdd').addEventListener('click', add);
+  $('#calcInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  $('#calcInput').addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
+  $('#calcClear').addEventListener('click', () => { entries = []; render(); });
+  $('#calcApply').addEventListener('click', () => {
+    readClaimRows();
+    if (claimRows[rowIndex]) claimRows[rowIndex].amount = String(sum());
+    closeModal2();
+    renderClaimRows();
+  });
+  render();
+  setTimeout(() => { const inp = $('#calcInput'); if (inp) inp.focus(); }, 0);
 }
 
 function openClaimModal(existing = null) {

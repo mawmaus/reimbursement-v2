@@ -1039,6 +1039,12 @@ input[type="search"] { min-width: 220px; }
 .rc-table .rc-receipts .file-chips:empty { display: none; }   /* no gap when no files yet */
 .rc-table .rc-receipts .rc-add { padding: 3px 8px; font-size: .8rem; white-space: nowrap; }
 .rc-table td .rc-amt { text-align: right; }
+/* Amount cell: number input + a small calculator button. */
+.rc-table .rc-amt-wrap { display: flex; align-items: stretch; width: 100%; }
+.rc-table .rc-amt-wrap .rc-amt { flex: 1 1 auto; min-width: 0; }
+.rc-table .rc-calc { flex: none; border: none; background: transparent; cursor: pointer;
+  padding: 0 7px; font-size: 1rem; line-height: 1; border-radius: 6px; }
+.rc-table .rc-calc:hover { background: var(--pine-tint); }
 /* "Others → specify" free-text field, shown under the type select for a row. */
 .rc-table .rc-other { margin-top: 4px; width: 100%; }
 
