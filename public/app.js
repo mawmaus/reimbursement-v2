@@ -2150,7 +2150,7 @@ function claimRowHtml(r, i) {
     <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
     <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
     <td data-label="${esc(t('Amount'))}"><div class="rc-amt-wrap">
-      <input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : String(r.amount))}" placeholder="0" />
+      <input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : groupAmount(String(r.amount)))}" placeholder="0" />
       <button type="button" class="rc-calc" data-calc="${i}" title="${esc(t('Add up amounts'))}" aria-label="${esc(t('Add up amounts'))}">🧮</button>
     </div></td>
     <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
@@ -2197,6 +2197,7 @@ function renderClaimRows() {
     readClaimRows(); renderClaimRows();
   }));
   $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
+    el.value = groupAmount(el.value); // thousands separators as they type
     readClaimRows(); $('#rcTotal').textContent = idr(claimTotal()); if (rcTotalHook) rcTotalHook();
   }));
   // Reveal the "specify" field when the type is set to Others.
