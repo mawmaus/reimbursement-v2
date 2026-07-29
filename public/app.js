@@ -1530,7 +1530,7 @@ function approvalActionDate(c, name, action) {
 // ---------------------------------------------------------------------------
 // Drawer (claim detail + actions)
 // ---------------------------------------------------------------------------
-function closeDrawer() { $('#drawer').hidden = true; $('#drawerScrim').hidden = true; }
+function closeDrawer() { $('#drawer').hidden = true; $('#drawerScrim').hidden = true; syncScrollLock(); }
 $('#drawerScrim').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); closeModal(); } });
 
@@ -1725,6 +1725,7 @@ async function openDrawer(id, type = 'reimbursement') {
 
   $('#drawerScrim').hidden = false;
   $('#drawer').hidden = false;
+  syncScrollLock();
 }
 
 async function handleAction(act, c) {
@@ -1752,12 +1753,19 @@ async function handleAction(act, c) {
 // ---------------------------------------------------------------------------
 // Modal helpers
 // ---------------------------------------------------------------------------
+// Freeze the page behind any open modal / drawer so the background can't scroll.
+function syncScrollLock() {
+  const m2 = $('#modal2');
+  const open = !$('#modal').hidden || (m2 && !m2.hidden) || !$('#drawer').hidden;
+  document.body.classList.toggle('no-scroll', !!open);
+}
 function openModal(html) {
   $('#modal').innerHTML = html;
   $('#modalScrim').hidden = false;
   $('#modal').hidden = false;
+  syncScrollLock();
 }
-function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); }
+function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); syncScrollLock(); }
 $('#modalScrim').addEventListener('click', closeModal);
 
 // Client-side filter for a settings table: hides rows that don't match the
@@ -1777,8 +1785,9 @@ function openModal2(html) {
   $('#modal2').innerHTML = html;
   $('#modal2Scrim').hidden = false;
   $('#modal2').hidden = false;
+  syncScrollLock();
 }
-function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); }
+function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
@@ -1995,12 +2004,23 @@ function rcChips(r, i) {
     `<span class="file-chip">${esc(f.name)}<button type="button" data-chip="new" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
   return kept.concat(files).join('');
 }
+// Expense-type picker for a row: a native <select> (clean, and its dropdown is
+// never clipped by the scrolling table), preserving any legacy custom value.
+function rcTypeSelect(val) {
+  const cur = val || '';
+  const opts = [...(state.lookups.expense_types || [])];
+  if (cur && !opts.includes(cur)) opts.unshift(cur);
+  return `<select name="expense_type">
+    <option value="" ${cur ? '' : 'selected'}>${esc(t('Select…'))}</option>
+    ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+  </select>`;
+}
 function claimRowHtml(r, i) {
   const min = claimEarliest() ? `min="${esc(claimEarliest())}"` : '';
   return `<tr data-i="${i}">
     <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
     <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
-    <td data-label="${esc(t('Type of expense'))}"><input name="expense_type" list="rcTypeList" value="${esc(r.expense_type || '')}" placeholder="${esc(t('Search or type…'))}" /></td>
+    <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r.expense_type)}</td>
     <td data-label="${esc(t('Amount'))}"><input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : String(r.amount))}" placeholder="0" /></td>
     <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
     <td class="rc-receipts" data-label="${esc(t('Receipts'))}">
@@ -2062,7 +2082,6 @@ function openClaimModal(existing = null) {
   } else {
     claimRows = [blankClaimRow(todayWIB())];
   }
-  const typeList = `<datalist id="rcTypeList">${(state.lookups.expense_types || []).map(o => `<option value="${esc(o)}"></option>`).join('')}</datalist>`;
   openModal(`
     <div class="modal-head">
       <h2>${isEdit ? esc(t('Edit & resubmit claim')) : esc(t('New reimbursement claim'))}</h2>
@@ -2079,6 +2098,9 @@ function openClaimModal(existing = null) {
         <div class="meal-scroll">
           <div class="meal-table-wrap">
             <table class="meal-table rc-table">
+              <colgroup>
+                <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
+              </colgroup>
               <thead><tr>
                 <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
                 <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
@@ -2101,9 +2123,8 @@ function openClaimModal(existing = null) {
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
-      ${typeList}
     </div>`);
-  $('#modal').classList.add('modal-wide', 'modal-flex');
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#cancelClaim').addEventListener('click', closeModal);
   $('#rcAddRow').addEventListener('click', () => {

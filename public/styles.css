@@ -700,8 +700,9 @@ input[type="search"] { min-width: 220px; }
 }
 .meal-note strong { display: block; color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
 
-/* Meal form: frozen action bar on top, scrolling table below. */
-.modal-flex #mealForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Meal + reimbursement forms: frozen action bar on top, scrolling table below. */
+.modal-flex #mealForm,
+.modal-flex #claimForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .meal-topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
@@ -1015,11 +1016,23 @@ input[type="search"] { min-width: 220px; }
 }
 
 /* --- Reimbursement line table (per-row receipts) -------------------------- */
+/* Wider than the meal table (it has a Type + Receipts column), so it scrolls
+   horizontally on small screens and gets room on desktop. */
+.rc-table { min-width: 860px; }
+.rc-table th, .rc-table td { padding: 2px; }
+.rc-table thead th { padding: 8px 6px; }
+/* Comfortable column widths; description takes the slack. */
+.rc-table col.c-date { width: 140px; } .rc-table col.c-db { width: 120px; }
+.rc-table col.c-type { width: 150px; } .rc-table col.c-amt { width: 120px; }
+.rc-table col.c-recv { width: 170px; } .rc-table col.c-x { width: 34px; }
 /* Receipts cell in the claim form: chips stack above a small Add button. */
-.rc-table .rc-receipts { min-width: 150px; vertical-align: top; }
+.rc-table .rc-receipts { vertical-align: top; padding: 6px; }
 .rc-table .rc-receipts .file-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
-.rc-table .rc-receipts .rc-add { padding: 3px 8px; font-size: .8rem; }
+.rc-table .rc-receipts .rc-add { padding: 3px 8px; font-size: .8rem; white-space: nowrap; }
 .rc-table td .rc-amt { text-align: right; }
+
+/* Freeze the page behind an open modal / drawer (no background scrolling). */
+body.no-scroll { overflow: hidden; }
 /* Receipts shown per line in the detail drawer. */
 .line-receipts { font-size: .82rem; }
 .line-receipt { display: inline-block; margin: 0 6px 2px 0; color: var(--pine-deep); white-space: nowrap; }
