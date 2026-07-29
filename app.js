@@ -430,7 +430,11 @@ function groupBy(rows, key) {
   for (const r of rows) (m[r[key]] = m[r[key]] || []).push(r);
   return m;
 }
-function baseClaim(row, attachments, history, nameMap) {
+function baseClaim(row, attachments, lines, attByLine, history, nameMap) {
+  const attView = (a) => ({
+    id: a.id, original_name: a.original_name, mime_type: a.mime_type,
+    size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
+  });
   return {
     id: row.id,
     claim_no: row.claim_no,
@@ -457,9 +461,13 @@ function baseClaim(row, attachments, history, nameMap) {
     paid_at: iso(row.paid_at),
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
-    attachments: (attachments || []).map(a => ({
-      id: a.id, original_name: a.original_name, mime_type: a.mime_type,
-      size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
+    // Flat list of every receipt on the claim (kept for anything reading the
+    // whole set, e.g. counts); per-line receipts live under `lines`.
+    attachments: (attachments || []).map(attView),
+    lines: (lines || []).map(l => ({
+      id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: Number(l.amount_cents) / 100, description: l.description,
+      attachments: ((attByLine && attByLine[l.id]) || []).map(attView)
     })),
     history: (history || []).map(h => ({
       actor_id: h.actor_id == null ? null : Number(h.actor_id),
@@ -468,18 +476,23 @@ function baseClaim(row, attachments, history, nameMap) {
     }))
   };
 }
-// Batch-load attachments + history for many claims in two queries.
+// Batch-load lines, attachments + history for many claims.
 async function serializeMany(rows) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
   const atts = await q(
-    `SELECT id, claim_id, original_name, mime_type, size_bytes, uploaded_at
+    `SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
      FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids);
+  const lines = await q(
+    `SELECT id, claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description
+     FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
   const hist = await q(
     `SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
      FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids);
   const a = groupBy(atts, 'claim_id');
+  const attByLine = groupBy(atts, 'line_id');
+  const l = groupBy(lines, 'claim_id');
   const h = groupBy(hist, 'claim_id');
 
   // Batch-load the names for every distinct approver referenced across claims.
@@ -490,7 +503,7 @@ async function serializeMany(rows) {
     const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
     for (const u of us) nameMap[u.id] = u.full_name;
   }
-  return rows.map(r => baseClaim(r, a[r.id], h[r.id], nameMap));
+  return rows.map(r => baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap));
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -1103,13 +1116,59 @@ app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   res.json({ claim: await serializeOne(row) });
 }));
 
-// Sequence backing claims.id, so later inserts in the same transaction can
-// reference the just-created claim via currval() without a JS round-trip.
+// Sequences backing claims.id / claim_lines.id, so later inserts in the same
+// transaction can reference the just-created rows via currval().
 const CLAIM_SEQ = "pg_get_serial_sequence('claims','id')";
+const LINE_SEQ = "pg_get_serial_sequence('claim_lines','id')";
 
-// Create a claim together with its attachments and initial history row as one
-// atomic transaction — all commit or none. Retries on a claim_no collision.
-async function createClaim(req, b, cents, approverIds, uploaded, region) {
+// Validate the itemised lines of a reimbursement claim. Each filled row needs a
+// date, an expense type and a positive amount; DB no + description are optional.
+// Blank rows are skipped. Attachment references (new uploads + kept ids) ride
+// along untouched for the caller to verify. Returns { lines, totalCents } or
+// { error }.
+function normaliseClaimLines(input) {
+  if (!Array.isArray(input)) return { error: 'Add at least one expense line' };
+  const lines = [];
+  let totalCents = 0;
+  for (const raw of input) {
+    const r = raw || {};
+    const date = String(r.line_date || r.expense_date || r.date || '').trim();
+    const db_no = String(r.db_no || '').trim();
+    const expense_type = String(r.expense_type || '').trim();
+    const description = String(r.description || r.desc || '').trim();
+    const cents = parseAmountToCents(r.amount);
+    const rawAttachments = Array.isArray(r.attachments) ? r.attachments : [];
+    const keepIds = asIntArray(r.keep_attachment_ids);
+    const blank = !date && !db_no && !expense_type && !description
+      && (cents === null || cents === 0) && !rawAttachments.length && !keepIds.length;
+    if (blank) continue;
+    if (!date) return { error: 'Every filled row needs a date' };
+    if (!expense_type) return { error: 'Every filled row needs an expense type' };
+    if (cents === null || cents <= 0) return { error: 'Every filled row needs a positive amount' };
+    totalCents += cents;
+    lines.push({ line_date: date, db_no, expense_type, amount_cents: cents, description, rawAttachments, keepIds });
+  }
+  if (!lines.length) return { error: 'Add at least one expense line with a date, type and amount' };
+  return { lines, totalCents };
+}
+// Aggregate header fields kept on the claims row so the list, CSV and search
+// keep working off the header: earliest date, the type ("Multiple" for >1 line),
+// the first DB no, and — only for a single-line claim — its description.
+function claimHeaderFromLines(lines) {
+  const dates = lines.map(l => l.line_date).filter(Boolean).sort();
+  return {
+    expense_date: dates[0] || '',
+    expense_type: lines.length === 1 ? lines[0].expense_type : 'Multiple',
+    db_no: lines[0].db_no || '',
+    description: lines.length === 1 ? lines[0].description : ''
+  };
+}
+
+// Create an itemised claim — header, its lines, each line's receipts and the
+// initial history row — as one atomic transaction. `verifiedByLine[i]` is the
+// verified upload list for line i. Retries on a claim_no collision.
+async function createClaim(req, header, lines, verifiedByLine, totalCents, approverIds, region) {
+  const h = claimHeaderFromLines(lines);
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextClaimNo();
     const queries = [qq(
@@ -1118,19 +1177,25 @@ async function createClaim(req, b, cents, approverIds, uploaded, region) {
          recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
          status, approver_ids, current_step, region)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15,$16)`,
-      [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(b.expense_date).trim(),
-       String(req.user.department || '').trim(), String(b.db_no || '').trim(),
+      [claimNo, req.user.id, String(req.user.full_name || '').trim(), h.expense_date,
+       String(req.user.department || '').trim(), h.db_no,
        String(req.user.bank_name || '').trim(),
        String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
-       String(b.expense_type).trim(), cents,
-       String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
+       h.expense_type, totalCents,
+       String(header.currency || 'IDR').trim().slice(0, 8), h.description,
        intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
-    for (const u of uploaded) {
+    lines.forEach((l, i) => {
       queries.push(qq(
-        `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
-         VALUES (currval(${CLAIM_SEQ}),$1,$2,$3,$4,$5)`,
-        [u.url, u.pathname, u.original_name, u.mime, u.size]));
-    }
+        `INSERT INTO claim_lines (claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+         VALUES (currval(${CLAIM_SEQ}),$1,$2,$3,$4,$5,$6)`,
+        [i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      for (const u of (verifiedByLine[i] || [])) {
+        queries.push(qq(
+          `INSERT INTO attachments (claim_id, line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+           VALUES (currval(${CLAIM_SEQ}), currval(${LINE_SEQ}),$1,$2,$3,$4,$5)`,
+          [u.url, u.pathname, u.original_name, u.mime, u.size]));
+      }
+    });
     queries.push(qq(
       `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
        VALUES (currval(${CLAIM_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
@@ -1186,35 +1251,36 @@ app.post('/api/uploads/direct', requireAuth,
 
 app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const b = req.body || {};
-    for (const f of REQUIRED_FIELDS) {
-      if (!b[f] || !String(b[f]).trim()) return res.status(400).json({ error: `Missing required field: ${f}` });
-    }
-    const cents = parseAmountToCents(b.amount);
-    if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-    // Enforce the claim-date policy (rolling window + absolute cutoff).
-    const dv = await claimDateViolation([String(b.expense_date).trim()], req.user.region);
+    const parsed = normaliseClaimLines(b.lines);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    // Enforce the claim-date policy across every line's date.
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
     // Resolve the approver chain (validating the chosen Approver 1) before we
     // link any receipts, so a bad/missing choice fails cleanly.
     const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
     if (built.error) return res.status(400).json({ error: built.error });
 
-    // Receipts were uploaded straight to Blob by the browser; verify each one
-    // exists in our store, then roll them back if the claim insert fails.
-    const checked = await verifyAttachments(b.attachments);
-    if (checked.error) return res.status(400).json({ error: checked.error });
-    const uploaded = checked.items;
+    // Receipts were uploaded straight to Blob by the browser; verify each line's
+    // set, then roll them all back if the claim insert fails.
+    const verifiedByLine = [];
+    const allUploaded = [];
+    for (const line of parsed.lines) {
+      const checked = await verifyAttachments(line.rawAttachments);
+      if (checked.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: checked.error }); }
+      verifiedByLine.push(checked.items);
+      allUploaded.push(...checked.items);
+    }
     // Region is glued to the account — every claim inherits the submitter's.
     const claimRegion = String(req.user.region || '');
     try {
-      const approverIds = built.ids;
-      const claimId = await createClaim(req, b, cents, approverIds, uploaded, claimRegion);
+      const claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       const first = currentApproverId(rows[0]);
       if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
       res.status(201).json({ claim: await serializeOne(rows[0]) });
     } catch (e) {
-      for (const u of uploaded) await deleteReceipt(u.url);
+      for (const u of allUploaded) await deleteReceipt(u.url);
       throw e;
     }
   }));
@@ -1229,81 +1295,80 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
     return res.status(409).json({ error: 'Only rejected claims can be edited and resubmitted' });
   }
   const b = req.body || {};
-  for (const f of REQUIRED_FIELDS) {
-    if (!b[f] || !String(b[f]).trim()) return res.status(400).json({ error: `Missing required field: ${f}` });
-  }
-  const cents = parseAmountToCents(b.amount);
-  if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-  const dv = await claimDateViolation([String(b.expense_date).trim()], req.user.region);
+  const parsed = normaliseClaimLines(b.lines);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
 
-  // A resubmit replaces the claim's whole receipt set: the client sends the ids
-  // of the existing attachments it kept, plus any newly uploaded ones. Anything
-  // the claimant removed in the form is dropped here. An older client that sends
-  // no keep list keeps everything it already had (it can't remove receipts).
-  const existingAtts = await q('SELECT id, blob_url FROM attachments WHERE claim_id = $1', [row.id]);
-  const keepIds = b.keep_attachment_ids == null
-    ? existingAtts.map(a => Number(a.id))
-    : asIntArray(b.keep_attachment_ids);
-  const keepSet = new Set(keepIds);
-  const dropped = existingAtts.filter(a => !keepSet.has(Number(a.id)));
-  const keptCount = existingAtts.length - dropped.length;
-
-  // Receipts were uploaded straight to Blob by the browser; verify them first.
-  const checked = await verifyAttachments(b.attachments);
-  if (checked.error) return res.status(400).json({ error: checked.error });
-  const uploaded = checked.items;
-  if (keptCount + uploaded.length > MAX_FILES) {
-    for (const u of uploaded) await deleteReceipt(u.url);
-    return res.status(400).json({ error: `Maximum ${MAX_FILES} files` });
+  // Existing receipts, keyed by id, so kept ones can be re-linked (to the same
+  // blob) onto the new lines. Each line carries keep_attachment_ids + new uploads.
+  const existingAtts = await q(
+    'SELECT id, blob_url, blob_pathname, original_name, mime_type, size_bytes FROM attachments WHERE claim_id = $1', [row.id]);
+  const byId = new Map(existingAtts.map(a => [Number(a.id), a]));
+  const keptSet = new Set();
+  const verifiedByLine = [];
+  const allUploaded = [];
+  for (const line of parsed.lines) {
+    const checked = await verifyAttachments(line.rawAttachments);
+    if (checked.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: checked.error }); }
+    verifiedByLine.push(checked.items);
+    allUploaded.push(...checked.items);
+    for (const id of line.keepIds) if (byId.has(id)) keptSet.add(id);
   }
+  const dropped = existingAtts.filter(a => !keptSet.has(Number(a.id)));
   try {
     // Claimant name, department, bank details + approvers come from the account.
     const emp = (await q(
       'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
       [row.employee_id]))[0] || {};
     const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, b.approver1);
-    if (built.error) { for (const u of uploaded) await deleteReceipt(u.url); return res.status(400).json({ error: built.error }); }
-    const approverIds = built.ids;
+    if (built.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: built.error }); }
     const claimId = Number(row.id);
-    const queries = [qq(
-      `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
-         recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
-         description=$11, status='submitted', manager_comment='', manager_id=NULL,
-         decided_at=NULL, approver_ids=$12::int[], current_step=$13, updated_at=now() WHERE id=$14`,
-      [String(emp.full_name || '').trim(), String(b.expense_date).trim(), String(emp.department || '').trim(),
-       String(b.db_no || '').trim(), String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
-       String(emp.bank_account_no || '').trim(),
-       String(b.expense_type).trim(), cents, String(b.currency || row.currency).trim().slice(0, 8),
-       String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, claimId])];
-    if (dropped.length) {
-      queries.push(qq('DELETE FROM attachments WHERE claim_id = $1 AND id = ANY($2::int[])',
-        [claimId, intArrayLiteral(dropped.map(a => Number(a.id)))]));
-    }
-    for (const u of uploaded) {
+    const h = claimHeaderFromLines(parsed.lines);
+    // Wipe the old lines + receipt rows, then rebuild both. Kept receipts are
+    // re-inserted pointing at the SAME blob (only dropped blobs are deleted, after
+    // commit). Attachments are cleared first so the claim_lines delete can't
+    // cascade them away.
+    const queries = [
+      qq(`UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
+            recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
+            description=$11, status='submitted', manager_comment='', manager_id=NULL,
+            decided_at=NULL, approver_ids=$12::int[], current_step=$13, updated_at=now() WHERE id=$14`,
+        [String(emp.full_name || '').trim(), h.expense_date, String(emp.department || '').trim(),
+         h.db_no, String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
+         String(emp.bank_account_no || '').trim(),
+         h.expense_type, parsed.totalCents, String(b.currency || row.currency).trim().slice(0, 8),
+         h.description, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, claimId]),
+      qq('DELETE FROM attachments WHERE claim_id = $1', [claimId]),
+      qq('DELETE FROM claim_lines WHERE claim_id = $1', [claimId])
+    ];
+    parsed.lines.forEach((l, i) => {
       queries.push(qq(
-        `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
-         VALUES ($1,$2,$3,$4,$5,$6)`, [claimId, u.url, u.pathname, u.original_name, u.mime, u.size]));
-    }
+        `INSERT INTO claim_lines (claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [claimId, i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      const insertAtt = (url, pathname, name, mime, size) => queries.push(qq(
+        `INSERT INTO attachments (claim_id, line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES ($1, currval(${LINE_SEQ}),$2,$3,$4,$5,$6)`, [claimId, url, pathname, name, mime, size]));
+      for (const id of l.keepIds) {
+        const a = byId.get(id);
+        if (a && keptSet.has(id)) insertAtt(a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes);
+      }
+      for (const u of verifiedByLine[i]) insertAtt(u.url, u.pathname, u.original_name, u.mime, u.size);
+    });
     queries.push(qq(
       `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
        VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
       [claimId, req.user.id, String(req.user.full_name || '').trim(), String(b.resubmit_note || '').trim()]));
     await transaction(queries);
-    // Only once the rows are committed do we bin the blobs of the removed
-    // receipts — a blob delete can't be rolled back, so doing it earlier would
-    // orphan the claim's rows if the transaction failed. A failure here must not
-    // reach the catch below (which would delete the blobs of a now-committed
-    // claim); a leftover blob nothing points at is harmless.
-    for (const a of dropped) {
-      try { await deleteReceipt(a.blob_url); } catch { /* ignore */ }
-    }
+    // Only once committed do we bin the blobs of the removed receipts (a blob
+    // delete can't be rolled back). A failure here must not reach the catch.
+    for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
     const first = currentApproverId(rows[0]);
     if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
     res.json({ claim: await serializeOne(rows[0]) });
   } catch (e) {
-    for (const u of uploaded) await deleteReceipt(u.url);
+    for (const u of allUploaded) await deleteReceipt(u.url);
     throw e;
   }
 }));

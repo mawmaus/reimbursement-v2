@@ -1014,6 +1014,17 @@ input[type="search"] { min-width: 220px; }
   border-radius: 999px; vertical-align: middle;
 }
 
+/* --- Reimbursement line table (per-row receipts) -------------------------- */
+/* Receipts cell in the claim form: chips stack above a small Add button. */
+.rc-table .rc-receipts { min-width: 150px; vertical-align: top; }
+.rc-table .rc-receipts .file-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.rc-table .rc-receipts .rc-add { padding: 3px 8px; font-size: .8rem; }
+.rc-table td .rc-amt { text-align: right; }
+/* Receipts shown per line in the detail drawer. */
+.line-receipts { font-size: .82rem; }
+.line-receipt { display: inline-block; margin: 0 6px 2px 0; color: var(--pine-deep); white-space: nowrap; }
+.line-receipt:hover { text-decoration: underline; }
+
 /* "Locked" hint under a non-editable column header in the Roles matrix. */
 .role-locked {
   margin-top: 2px; font-size: .68rem; font-weight: 600; letter-spacing: .04em;

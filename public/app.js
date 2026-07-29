@@ -1393,15 +1393,21 @@ async function buildClaimsPdf(claims) {
         [{ text: 'TOTAL', bold: true }, '', '', { text: money(c.total_amount, c.currency), bold: true, align: 'right' }, '']);
     } else {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
-      kvRow('Expense type', c.expense_type, 'Expense date', c.expense_date);
-      if (c.db_no) kvRow('DB No.', c.db_no);
-      need(20); y -= 13;
-      page.drawText('Amount', { x: M, y, size: 8, font, color: muted });
-      page.drawText(pdfSafe(money(c.amount, c.currency)), { x: M + 84, y, size: 13, font: bold, color: ink });
-      y -= 8;
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
       kvRow('Account no.', c.bank_account_no);
-      if (c.description) kvWide('Description', c.description);
+      section('Expense lines');
+      const cols = [
+        { title: 'Date', w: 70 }, { title: 'DB No.', w: 90 }, { title: 'Type of expense', w: 110 },
+        { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
+      ];
+      // Fall back to a single synthetic line for any legacy claim without lines.
+      const lines = (c.lines && c.lines.length) ? c.lines : [{
+        line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
+        amount: c.amount, description: c.description
+      }];
+      const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
+      table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
+        [{ text: 'TOTAL', bold: true }, '', '', { text: money(c.amount, c.currency), bold: true, align: 'right' }, '']);
     }
   };
 
@@ -1613,29 +1619,46 @@ function buildActions(c, u, isOwner) {
   return btns.join('\n            ');
 }
 
-// Body for a reimbursement claim: key/value details + attachments.
+// Body for a reimbursement claim: account/bank details + the itemised line table,
+// each line showing its own receipts.
 function reimbursementBody(c) {
-  const attachments = c.attachments.length ? `
-    <div class="section-label">${esc(t('Attachments'))}</div>
-    <ul class="attach-list">
-      ${c.attachments.map(a => `
-        <li><a href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">
-          📎 <span>${esc(a.original_name)}</span><span class="fsize">${fmtBytes(a.size_bytes)}</span></a></li>`).join('')}
-    </ul>` : `<div class="section-label">${esc(t('Attachments'))}</div><p class="muted">${esc(t('None uploaded.'))}</p>`;
+  const receiptLinks = (atts) => (atts && atts.length)
+    ? atts.map(a => `<a class="line-receipt" href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    : `<span class="muted">${esc(t('—'))}</span>`;
+  // Fall back to a single synthetic line for any legacy claim without lines.
+  const lines = (c.lines && c.lines.length) ? c.lines : [{
+    line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
+    amount: c.amount, description: c.description, attachments: c.attachments || []
+  }];
+  const rows = lines.map(l => `
+    <tr>
+      <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
+      <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
+      <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
+      <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
+      <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
+      <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
+    </tr>`).join('');
   return `
     <dl class="kv">
       <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
-      <dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>
-      ${c.db_no ? `<dt>${esc(t('DB No.'))}</dt><dd>${esc(c.db_no)}</dd>` : ''}
-      <dt>${esc(t('Expense type'))}</dt><dd>${esc(c.expense_type)}</dd>
-      <dt>${esc(t('Expense date'))}</dt><dd>${esc(c.expense_date)}</dd>
-      <dt>${esc(t('Amount'))}</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
+      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
       <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
       <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
       <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-      ${c.description ? `<dt>${esc(t('Description'))}</dt><dd>${esc(c.description)}</dd>` : ''}
     </dl>
-    ${attachments}`;
+    <div class="section-label">${esc(t('Expense lines'))}</div>
+    <div class="meal-table-wrap">
+      <table class="meal-table rc-table">
+        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th><th>${esc(t('Receipts'))}</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
+          <td class="meal-total">${esc(money(c.amount, c.currency))}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
 }
 
 // Body for a meal allowance claim: account/bank details + the line-item table.
@@ -1954,22 +1977,92 @@ function approver1PickerHtml(existing) {
     <select name="approver1" required>${opts.join('')}</select></label>`;
 }
 
+// A reimbursement claim is an editable table: one row per expense (date, DB no,
+// type, amount, description) with that expense's own receipts. Files/kept
+// attachments live on the row objects (never in the DOM) so re-rendering the
+// table preserves them.
+let claimRows = [];
+let claimEditId = null;   // claim being edited, for the kept-receipt view links
+const rcAmt = (s) => { const n = parseFloat(String(s == null ? '' : s).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : 0; };
+function claimTotal() { return claimRows.reduce((sum, r) => sum + rcAmt(r.amount), 0); }
+const blankClaimRow = (date = '') => ({ line_date: date, db_no: '', expense_type: '', amount: '', description: '', files: [], kept: [] });
+
+function rcChips(r, i) {
+  const kept = (r.kept || []).map((a, k) =>
+    `<span class="file-chip file-chip-saved"><a href="/api/claims/${claimEditId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>` +
+    `<button type="button" data-chip="kept" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
+  const files = (r.files || []).map((f, k) =>
+    `<span class="file-chip">${esc(f.name)}<button type="button" data-chip="new" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
+  return kept.concat(files).join('');
+}
+function claimRowHtml(r, i) {
+  const min = claimEarliest() ? `min="${esc(claimEarliest())}"` : '';
+  return `<tr data-i="${i}">
+    <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
+    <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
+    <td data-label="${esc(t('Type of expense'))}"><input name="expense_type" list="rcTypeList" value="${esc(r.expense_type || '')}" placeholder="${esc(t('Search or type…'))}" /></td>
+    <td data-label="${esc(t('Amount'))}"><input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : String(r.amount))}" placeholder="0" /></td>
+    <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
+    <td class="rc-receipts" data-label="${esc(t('Receipts'))}">
+      <div class="file-chips">${rcChips(r, i)}</div>
+      <button type="button" class="btn btn-ghost btn-sm rc-add" data-add="${i}">📎 ${esc(t('Add'))}</button>
+      <input type="file" class="rc-input" data-input="${i}" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
+    </td>
+    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
+  </tr>`;
+}
+// Copy scalar fields from the DOM back into claimRows before any re-render, so
+// files/kept (not in the DOM) survive.
+function readClaimRows() {
+  $$('#rcRows tr[data-i]').forEach(tr => {
+    const i = +tr.dataset.i, r = claimRows[i]; if (!r) return;
+    const g = (n) => { const el = tr.querySelector(`[name="${n}"]`); return el ? el.value : ''; };
+    r.line_date = g('line_date'); r.db_no = g('db_no'); r.expense_type = g('expense_type');
+    r.amount = g('amount'); r.description = g('description');
+  });
+}
+function renderClaimRows() {
+  const body = $('#rcRows');
+  body.innerHTML = claimRows.length
+    ? claimRows.map(claimRowHtml).join('')
+    : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
+  $('#rcTotal').textContent = idr(claimTotal());
+  $$('#rcRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    readClaimRows(); claimRows.splice(+b.dataset.rm, 1); renderClaimRows();
+  }));
+  $$('#rcRows .rc-add').forEach(b => b.addEventListener('click', () => {
+    const inp = $(`#rcRows .rc-input[data-input="${b.dataset.add}"]`); if (inp) inp.click();
+  }));
+  $$('#rcRows .rc-input').forEach(inp => inp.addEventListener('change', async () => {
+    const i = +inp.dataset.input, r = claimRows[i]; if (!r) return;
+    const accepted = await processFiles(inp.files, (r.files || []).length + (r.kept || []).length);
+    r.files = (r.files || []).concat(accepted);
+    readClaimRows(); renderClaimRows();
+  }));
+  $$('#rcRows [data-chip]').forEach(b => b.addEventListener('click', () => {
+    const r = claimRows[+b.dataset.row]; if (!r) return;
+    (b.dataset.chip === 'kept' ? r.kept : r.files).splice(+b.dataset.k, 1);
+    readClaimRows(); renderClaimRows();
+  }));
+  $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
+    readClaimRows(); $('#rcTotal').textContent = idr(claimTotal());
+  }));
+}
+
 function openClaimModal(existing = null) {
-  const u = state.user;
   const isEdit = !!existing;
-  pendingFiles = [];
-  keptAttachments = existing
-    ? (existing.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
-    : [];
-  keptClaimId = existing ? existing.id : null;
-  const v = existing || {
-    claimant_name: u.full_name,
-    // Only prefill the department if it is a registered one; otherwise leave it
-    // for the user to pick from the list.
-    department: state.lookups.departments.includes(u.department) ? u.department : '',
-    currency: 'IDR',
-    expense_date: todayWIB()
-  };
+  claimEditId = isEdit ? existing.id : null;
+  if (isEdit) {
+    claimRows = (existing.lines || []).map(l => ({
+      line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
+      files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
+    }));
+    if (!claimRows.length) claimRows = [blankClaimRow()];
+  } else {
+    claimRows = [blankClaimRow(todayWIB())];
+  }
+  const typeList = `<datalist id="rcTypeList">${(state.lookups.expense_types || []).map(o => `<option value="${esc(o)}"></option>`).join('')}</datalist>`;
   openModal(`
     <div class="modal-head">
       <h2>${isEdit ? esc(t('Edit & resubmit claim')) : esc(t('New reimbursement claim'))}</h2>
@@ -1977,61 +2070,47 @@ function openClaimModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="claimForm" class="form">
-        <div class="grid2">
-          <label>${esc(t('Date'))}<input name="expense_date" type="date" required ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(v.expense_date || '')}" />${claimLimitNote()}</label>
-          <label>${esc(t('DB No.'))}<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
-          ${expenseTypeField(v.expense_type)}
-          <label>${esc(t('Amount'))}
-            <div class="amount-field">
-              <span class="amount-cur">${esc(v.currency || 'IDR')}</span>
-              <input type="hidden" name="currency" value="${esc(v.currency || 'IDR')}" />
-              <input name="amount" required inputmode="decimal" placeholder="0" value="${existing ? existing.amount : ''}" />
-              <button type="button" class="amount-calc-btn" id="calcToggle" aria-expanded="false"
-                aria-controls="calcPanel" title="${esc(t('Add up amounts'))}">🧮</button>
-            </div>
-            ${calcPanelHtml()}
-          </label>
-          ${approver1PickerHtml(existing)}
-          <label class="full">${esc(t('Description / purpose'))}
-            <textarea name="description" placeholder="${esc(t('What was this purchase for?'))}">${esc(v.description || '')}</textarea>
-          </label>
-          ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
-            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
-          <div class="full">
-            <div class="section-label" style="margin-top:4px">${esc(t('Receipts / files'))}</div>
-            ${isEdit ? `<p class="form-note drop-note">${esc(t('The receipts already on this claim are kept. Remove any you want to replace — only attach a file again if you removed it first.'))}</p>` : ''}
-            <div class="drop" id="dropZone">
-              <strong>${esc(t('Click to choose files'))}</strong>${esc(t(' or drag & drop'))}<br>
-              <span style="font-size:.8rem">${esc(t('PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)'))}</span>
-              <input id="fileInput" type="file" multiple hidden
-                accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
-            </div>
-            <div class="file-chips" id="fileChips"></div>
-          </div>
+        <div class="meal-topbar">
+          <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
         </div>
+        ${claimLimitNote()}
+        <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).'))}</p>
         <p class="form-error" id="claimError" hidden></p>
-        <div class="modal-actions sticky-foot">
+        <div class="meal-scroll">
+          <div class="meal-table-wrap">
+            <table class="meal-table rc-table">
+              <thead><tr>
+                <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
+                <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
+                <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+              </tr></thead>
+              <tbody id="rcRows"></tbody>
+              <tfoot><tr>
+                <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
+                <td class="meal-total" id="rcTotal">Rp 0</td>
+                <td colspan="3"></td>
+              </tr></tfoot>
+            </table>
+          </div>
+          ${approver1PickerHtml(existing)}
+          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
+            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+        </div>
+        <div class="modal-actions meal-foot">
           <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
+      ${typeList}
     </div>`);
-
+  $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#cancelClaim').addEventListener('click', closeModal);
-
-  const fileInput = $('#fileInput'), drop = $('#dropZone');
-  drop.addEventListener('click', () => fileInput.click());
-  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
-  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
-  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); addFiles(e.dataTransfer.files); });
-  fileInput.addEventListener('change', () => addFiles(fileInput.files));
-  renderChips();
-
-  attachAmountGrouping($('#claimForm [name="amount"]'));
-  wireExpenseTypeField();
-  wireClaimCalculator();
+  $('#rcAddRow').addEventListener('click', () => {
+    readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows();
+  });
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
+  renderClaimRows();
 }
 
 // Only PDFs and images are accepted. The <input accept> covers the file picker,
@@ -2100,9 +2179,12 @@ async function compressImage(file, maxBytes) {
   return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
 }
 
-async function addFiles(list) {
+// Validate, HEIC-convert and compress a picked file list into accepted File[].
+// `alreadyCount` is the row's current file count, so it can't exceed 8.
+async function processFiles(list, alreadyCount = 0) {
+  const out = [];
   for (const f of Array.from(list)) {
-    if (keptAttachments.length + pendingFiles.length >= 8) { toast(t('Maximum 8 files'), true); break; }
+    if (alreadyCount + out.length >= 8) { toast(t('Maximum 8 files'), true); break; }
     if (!isAllowedUpload(f)) { toast(t('{name}: only PDF or image files are allowed', { name: f.name }), true); continue; }
     let file = f;
     // iPhone HEIC/HEIF photos aren't viewable in browsers, so convert them to
@@ -2123,9 +2205,9 @@ async function addFiles(list) {
       catch { toast(t("{name}: couldn't compress — please shrink it and retry", { name: f.name }), true); continue; }
     }
     if (file.size > MAX_UPLOAD) { toast(t('{name} exceeds 10 MB', { name: f.name }), true); continue; }
-    pendingFiles.push(file);
+    out.push(file);
   }
-  renderChips();
+  return out;
 }
 // Chips for the claim's receipts: the ones already saved (openable, so the
 // claimant can check what is there before replacing it) followed by the files
@@ -2242,45 +2324,49 @@ async function uploadReceipts(files, onProgress) {
 
 async function submitClaim(e, existing) {
   e.preventDefault();
+  readClaimRows();
   const err = $('#claimError'); err.hidden = true;
-  const payload = Object.fromEntries(new FormData(e.target).entries());
-  // Resolve the expense type. "Others" uses the free-text value; the combobox has
-  // no native `required`, so an empty pick is caught here.
-  let type = String(payload.expense_type || '').trim();
-  if (type === 'Others') {
-    const other = String(payload.expense_type_other || '').trim();
-    if (!other) { err.textContent = t('Please specify the expense type.'); err.hidden = false; return; }
-    type = other;
-  } else if (!type) {
-    err.textContent = t('Please choose the type of expense.'); err.hidden = false; return;
+  // Keep only rows the claimant actually filled in (any field or receipt).
+  const rows = claimRows.filter(r =>
+    r.line_date || r.db_no || String(r.expense_type || '').trim() || r.description
+    || rcAmt(r.amount) || (r.files || []).length || (r.kept || []).length);
+  if (!rows.length) { err.textContent = t('Add at least one expense line with a date, type and amount.'); err.hidden = false; return; }
+  for (const r of rows) {
+    if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
+    if (!String(r.expense_type || '').trim()) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
+    if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
-  payload.expense_type = type;
-  delete payload.expense_type_other;
-  // Approver 1 is required only when this account has 2+ candidates to choose from.
-  if ((state.user.approver1_choices || []).length >= 2 && !String(payload.approver1 || '').trim()) {
-    err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
-  }
-  // Claim-date policy: block an expense dated before the allowed floor.
+  // Claim-date policy: block any row dated before the allowed floor.
   const earliest = claimEarliest();
-  if (earliest && String(payload.expense_date || '') < earliest) {
+  if (earliest && rows.some(r => String(r.line_date || '') < earliest)) {
     err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest });
     err.hidden = false; return;
+  }
+  const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
+  if ((state.user.approver1_choices || []).length >= 2 && !approver1) {
+    err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
   }
   const btn = e.target.querySelector('button[type="submit"]');
   const label = btn.textContent;
   btn.disabled = true;
   try {
-    // Upload receipts to Blob first, then send the claim as JSON carrying only
-    // their metadata — keeping large files off the size-limited API route.
-    if (pendingFiles.length) btn.textContent = t('Uploading receipts…');
-    payload.attachments = await uploadReceipts(pendingFiles, (idx, total, frac) => {
-      const pct = Math.round(((idx + frac) / total) * 100);
-      btn.textContent = total > 1 ? t('Uploading {i}/{total}… {pct}%', { i: idx + 1, total, pct }) : t('Uploading… {pct}%', { pct });
-    });
+    // Upload each row's receipts to Blob, then send the claim as JSON carrying
+    // only their metadata (keeping large files off the size-limited API route).
+    if (rows.some(r => (r.files || []).length)) btn.textContent = t('Uploading receipts…');
+    const lines = [];
+    for (const r of rows) {
+      const uploaded = (r.files || []).length ? await uploadReceipts(r.files) : [];
+      lines.push({
+        line_date: r.line_date, db_no: r.db_no, expense_type: String(r.expense_type).trim(),
+        amount: r.amount, description: r.description,
+        attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
+      });
+    }
+    const payload = { lines, currency: 'IDR' };
+    if (approver1) payload.approver1 = Number(approver1);
     btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
     if (existing) {
-      // Receipts the claimant left in place; the server drops the rest.
-      payload.keep_attachment_ids = keptAttachments.map(a => a.id);
+      payload.resubmit_note = String((new FormData(e.target).get('resubmit_note') || '')).trim();
       await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
       toast(t('Claim resubmitted'));
     } else {

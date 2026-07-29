@@ -85,6 +85,37 @@ const SCHEMA = [
     size_bytes    INTEGER NOT NULL,
     uploaded_at   TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Reimbursement claims are itemised: one header row (claims) plus one or more
+  // lines, each an independent expense (its own date, DB no, type, amount,
+  // description) with its own receipts. Mirrors meal_claim_lines. The claims
+  // header keeps aggregate fields (amount_cents = sum of lines; expense_date /
+  // expense_type / db_no summarise the lines) so the list, CSV and search keep
+  // working off the header.
+  `CREATE TABLE IF NOT EXISTS claim_lines (
+    id           SERIAL PRIMARY KEY,
+    claim_id     INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+    sort_order   INTEGER NOT NULL DEFAULT 0,
+    line_date    TEXT NOT NULL DEFAULT '',
+    db_no        TEXT NOT NULL DEFAULT '',
+    expense_type TEXT NOT NULL DEFAULT '',
+    amount_cents BIGINT NOT NULL DEFAULT 0 CHECK (amount_cents >= 0),
+    description  TEXT NOT NULL DEFAULT ''
+  )`,
+  // Receipts attach to a specific line now (nullable for legacy rows until the
+  // backfill below moves them onto each claim's migrated single line).
+  `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS line_id INTEGER REFERENCES claim_lines(id) ON DELETE CASCADE`,
+  // One-time backfill: give every existing claim a single line built from its
+  // header fields, then move that claim's receipts onto it. Guarded so re-running
+  // never duplicates lines or re-moves attachments.
+  `INSERT INTO claim_lines (claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+     SELECT c.id, 0, c.expense_date, c.db_no, c.expense_type, c.amount_cents, c.description
+       FROM claims c
+      WHERE NOT EXISTS (SELECT 1 FROM claim_lines l WHERE l.claim_id = c.id)`,
+  `UPDATE attachments a SET line_id = l.id
+     FROM claim_lines l
+    WHERE a.line_id IS NULL AND l.claim_id = a.claim_id`,
+  `CREATE INDEX IF NOT EXISTS idx_claim_lines_claim ON claim_lines(claim_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_attach_line ON attachments(line_id)`,
   `CREATE TABLE IF NOT EXISTS claim_history (
     id          SERIAL PRIMARY KEY,
     claim_id    INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
