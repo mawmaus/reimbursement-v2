@@ -258,6 +258,8 @@ function showApp() {
   $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
   // Deleting claims (used to clear out test data) follows the matrix.
   $('#deleteSelBtn').hidden = !uCan('delete_claims');
+  // Bulk "Mark as paid" is shown to anyone who may record payments.
+  $('#markPaidSelBtn').hidden = !canPay(u);
   // Land on the clean menu; a tile opens the corresponding list. Reset the
   // Insights view and its state too — this runs on every login, and in the SPA a
   // logout→login in the same tab must never leave the previous user's Insights
@@ -1057,6 +1059,68 @@ $('#clearSelBtn').addEventListener('click', () => {
 });
 $('#genPdfBtn').addEventListener('click', generatePdf);
 $('#deleteSelBtn').addEventListener('click', deleteSelected);
+$('#markPaidSelBtn').addEventListener('click', markPaidSelected);
+
+// Bulk mark-paid — only approved claims are eligible; a payment date must be
+// chosen (in the modal) before any claim is marked paid.
+function markPaidSelected() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  const approved = chosen.filter(c => c.status === 'approved');
+  if (!approved.length) {
+    toast(t('Only approved claims can be marked as paid — none of the selected are approved.'), true);
+    return;
+  }
+  openBulkPaidModal(approved, chosen.length);
+}
+
+// Choose one payment date, then mark every eligible (approved) selected claim
+// paid with it. The confirm button stays disabled until a date is present.
+function openBulkPaidModal(claims, totalSelected) {
+  const today = todayWIB();
+  const n = claims.length;
+  const skipped = totalSelected - n;
+  openModal(`
+    <div class="modal-head"><h2>${esc(n === 1 ? t('Mark 1 claim as paid') : t('Mark {n} claims as paid', { n }))}</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="bulkPaidForm" class="form">
+        <label>${esc(t('Payment date'))}
+          <input type="date" name="payment_date" value="${today}" max="${today}" required /></label>
+        <p class="muted" style="margin:2px 0 0;font-size:.85rem">${esc(t('The date the payment was actually made. Applied to all selected claims.'))}</p>
+        ${skipped ? `<p class="muted" style="margin:8px 0 0;font-size:.85rem">${esc(t('{n} selected not approved and will be skipped.', { n: skipped }))}</p>` : ''}
+        <p class="form-error" id="bulkPaidErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="bulkPaidCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary" id="bulkPaidConfirm">${esc(t('Mark as paid'))}</button>
+        </div>
+      </form>
+    </div>`);
+  const dateEl = $('#bulkPaidForm [name="payment_date"]');
+  const confirmBtn = $('#bulkPaidConfirm');
+  const sync = () => { confirmBtn.disabled = !dateEl.value; };
+  dateEl.addEventListener('input', sync); sync();
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#bulkPaidCancel').addEventListener('click', closeModal);
+  $('#bulkPaidForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payment_date = dateEl.value;
+    if (!payment_date) return;
+    confirmBtn.disabled = true; confirmBtn.textContent = t('Marking…');
+    try {
+      let done = 0;
+      for (const c of claims) {
+        const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+        await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
+        done++;
+      }
+      state.selected.clear();
+      toast(done === 1 ? t('Marked 1 claim as paid') : t('Marked {n} claims as paid', { n: done }));
+      closeModal(); loadAll();
+    } catch (ex) {
+      const el = $('#bulkPaidErr'); el.textContent = ex.message; el.hidden = false;
+      confirmBtn.disabled = false; confirmBtn.textContent = t('Mark as paid');
+    }
+  });
+}
 
 // Super-admin bulk delete — permanently removes the ticked claims (both types).
 async function deleteSelected() {
