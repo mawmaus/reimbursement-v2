@@ -923,6 +923,16 @@ function updateSelectionUI() {
     all.checked = boxes.length > 0 && checkedCount === boxes.length;
     all.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
   }
+  // Payment bulk actions surface only for users who may record payments, and
+  // only when the selection actually contains claims those actions can act on:
+  // approved → payable, paid → revertable.
+  const u = state.user || {};
+  const canPay = u.role === 'superadmin' || !!u.can_mark_paid;
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  const payable = chosen.filter(c => c.status === 'approved').length;
+  const revertable = chosen.filter(c => c.status === 'paid').length;
+  $('#bulkPaidBtn').hidden = !(canPay && payable > 0);
+  $('#bulkRevertBtn').hidden = !(canPay && revertable > 0);
 }
 
 // filters
@@ -955,6 +965,78 @@ $('#clearSelBtn').addEventListener('click', () => {
 });
 $('#genPdfBtn').addEventListener('click', generatePdf);
 $('#deleteSelBtn').addEventListener('click', deleteSelected);
+$('#bulkPaidBtn').addEventListener('click', bulkMarkPaid);
+$('#bulkRevertBtn').addEventListener('click', bulkRevertPaid);
+
+// Bulk "Mark as paid" — records payment for every selected *approved* claim
+// against a single payment date. Anything not currently approved is skipped
+// (the button only shows when at least one approved claim is selected).
+function bulkMarkPaid() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)) && c.status === 'approved');
+  if (!chosen.length) return;
+  const today = todayWIB();
+  openModal(`
+    <div class="modal-head"><h2>${esc(chosen.length === 1
+      ? t('Mark {n} claim as paid', { n: chosen.length })
+      : t('Mark {n} claims as paid', { n: chosen.length }))}</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="bulkPaidForm" class="form">
+        <label>${esc(t('Payment date'))}
+          <input type="date" name="payment_date" value="${today}" max="${today}" required /></label>
+        <p class="muted" style="margin:2px 0 0;font-size:.85rem">${esc(t('The date the payment was actually made.'))}</p>
+        <p class="form-error" id="bulkPaidErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="bulkPaidCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary" id="bulkPaidConfirm">${esc(t('Mark as paid'))}</button>
+        </div>
+      </form>
+    </div>`);
+  const dateEl = $('#bulkPaidForm [name="payment_date"]');
+  const confirmBtn = $('#bulkPaidConfirm');
+  const sync = () => { confirmBtn.disabled = !dateEl.value; };
+  dateEl.addEventListener('input', sync); sync();
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#bulkPaidCancel').addEventListener('click', closeModal);
+  $('#bulkPaidForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payment_date = dateEl.value;
+    if (!payment_date) return;
+    confirmBtn.disabled = true; confirmBtn.textContent = t('Saving…');
+    try {
+      for (const c of chosen) {
+        const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+        await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
+      }
+      state.selected.clear();
+      toast(chosen.length === 1 ? t('Marked {n} claim as paid', { n: chosen.length }) : t('Marked {n} claims as paid', { n: chosen.length }));
+      closeModal(); loadAll();
+    } catch (ex) { const el = $('#bulkPaidErr'); el.textContent = ex.message; el.hidden = false; confirmBtn.disabled = false; confirmBtn.textContent = t('Mark as paid'); }
+  });
+}
+
+// Bulk "Revert payment" — sends every selected *paid* claim back to Approved.
+function bulkRevertPaid() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)) && c.status === 'paid');
+  if (!chosen.length) return;
+  const n = chosen.length;
+  if (!confirm(n === 1
+    ? t('Revert payment on {n} claim? It will go back to Approved.', { n })
+    : t('Revert payment on {n} claims? They will go back to Approved.', { n }))) return;
+  const btn = $('#bulkRevertBtn'); const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = t('Reverting…');
+  (async () => {
+    try {
+      for (const c of chosen) {
+        const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+        await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
+      }
+      state.selected.clear();
+      toast(n === 1 ? t('Reverted {n} payment', { n }) : t('Reverted {n} payments', { n }));
+      loadAll();
+    } catch (ex) { toast(ex.message, true); }
+    finally { btn.disabled = false; btn.textContent = orig; }
+  })();
+}
 
 // Super-admin bulk delete — permanently removes the ticked claims (both types).
 async function deleteSelected() {
@@ -2563,7 +2645,7 @@ $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
 // Human-readable role labels used across the account tables.
-const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', user: 'User' };
+const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', employee: 'Employee' };
 const roleLabel = (r) => t(ROLE_LABELS[r] || r);
 // Creation-audit sub-line for the account tables: who created this account, or
 // "—" for accounts made directly (seed scripts) or before creator tracking.
@@ -2831,7 +2913,7 @@ async function renderAccountsTab() {
             <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}</td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
-            <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'user')
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'employee')
               ? `<div class="u-actions">
                 <button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">${esc(t('Edit'))}</button>
                 ${u.id != state.user.id ? `<button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-green-soft'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>` : ''}
@@ -3001,7 +3083,7 @@ function renderUserForm(u) {
           <select name="role">
             <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>${esc(t('Super Admin'))}</option>
             <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>${esc(t('Admin'))}</option>
-            <option value="user" ${!isEdit || u.role === 'user' ? 'selected' : ''}>${esc(t('User'))}</option>
+            <option value="employee" ${!isEdit || u.role === 'employee' ? 'selected' : ''}>${esc(t('Employee'))}</option>
           </select></label>` : ''}
         <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
