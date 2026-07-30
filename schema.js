@@ -407,6 +407,9 @@ const SCHEMA = [
   // Realization receipts attach to a cash-advance line (reusing the attachments
   // table + upload pipeline). Nullable so it coexists with claim/line receipts.
   `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS advance_line_id INTEGER REFERENCES cash_advance_lines(id) ON DELETE CASCADE`,
+  // A receipt now belongs to EITHER a claim or a cash-advance line, so claim_id
+  // can no longer be mandatory — realization receipts have advance_line_id only.
+  `ALTER TABLE attachments ALTER COLUMN claim_id DROP NOT NULL`,
   // Cash advance is a third front-page purpose, gated per department AND job
   // position like New Claim / New Meal Allowance.
   `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS allow_advance BOOLEAN NOT NULL DEFAULT FALSE`,
