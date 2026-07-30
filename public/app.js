@@ -1546,7 +1546,8 @@ async function buildClaimsPdf(claims) {
     for (const att of atts) {
       let bytes, mime = att.mime_type || '';
       try {
-        const res = await fetch(`/api/claims/${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
+        const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
+        const res = await fetch(`/api${base}${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('http');
         bytes = new Uint8Array(await res.arrayBuffer());
         if (!mime) mime = res.headers.get('Content-Type') || '';
@@ -1573,7 +1574,11 @@ async function buildClaimsPdf(claims) {
     drawDetails(c);
     drawApprovals(c);
     drawHistory(c);
-    const atts = c.attachments || [];
+    // Claims expose a flat top-level list; cash advances keep receipts per line,
+    // so fall back to flattening the lines when there's no top-level list.
+    const atts = (c.attachments && c.attachments.length)
+      ? c.attachments
+      : (c.lines || []).flatMap(l => l.attachments || []);
     if (atts.length) {
       section(`Attachments (${atts.length})`);
       atts.forEach(a => line(`- ${a.original_name}  (${fmtBytes(a.size_bytes)})`, { size: 9, gap: 3 }));
