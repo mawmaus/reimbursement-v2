@@ -1042,7 +1042,17 @@ input[type="search"] { min-width: 220px; }
 .drawer-body .rc-table { min-width: 0; }
 .drawer-body .meal-table-wrap { overflow-x: visible; }
 .drawer-body .rc-table th,
-.drawer-body .rc-table td { padding: 6px 8px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.drawer-body .rc-table td { padding: 6px 8px; white-space: normal; overflow-wrap: break-word; }
+/* Headers stay on one line; only Type of expense / Description wrap. Date,
+   amount and the total keep their value on a single line (no vertical breaks). */
+.drawer-body .rc-table thead th { white-space: nowrap; }
+.drawer-body .rc-table td.mono,
+.drawer-body .rc-table td.meal-amt,
+.drawer-body .rc-table td.meal-total { white-space: nowrap; }
+/* The detail table's last column is Receipts, not the edit form's delete-button
+   column, so undo the 34px-wide / centred td:last-child rule here (it otherwise
+   squeezes receipts to a sliver once the table stacks on mobile). */
+.drawer-body .rc-table tbody td.line-receipts { width: auto; text-align: left; }
 /* Receipts cell in the claim form: chips stack above a small Add button. */
 .rc-table .rc-receipts { vertical-align: middle; padding: 6px; }
 .rc-table .rc-receipts .file-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
@@ -1060,12 +1070,12 @@ input[type="search"] { min-width: 220px; }
 
 /* Freeze the page behind an open modal / drawer (no background scrolling). */
 body.no-scroll { overflow: hidden; }
-/* Receipts shown per line in the detail drawer. */
+/* Receipts shown per line in the detail drawer. Each filename is a single
+   ellipsised line (full name on hover via title=) so a long auto-generated
+   name can't stretch the column or break one character per line. */
 .line-receipts { font-size: .82rem; }
-/* Let long auto-generated filenames wrap at spaces instead of forcing the
-   Receipts column wide (which used to squeeze every other column). */
-.line-receipt { display: inline-block; max-width: 100%; margin: 0 6px 2px 0; color: var(--pine-deep);
-  white-space: normal; overflow-wrap: break-word; word-break: break-word; vertical-align: top; }
+.line-receipt { display: block; max-width: 240px; margin: 0 0 2px; color: var(--pine-deep);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .line-receipt:hover { text-decoration: underline; }
 
 /* "Locked" hint under a non-editable column header in the Roles matrix. */

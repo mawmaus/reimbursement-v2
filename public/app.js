@@ -1727,7 +1727,7 @@ function buildActions(c, u, isOwner) {
 // each line showing its own receipts.
 function reimbursementBody(c) {
   const receiptLinks = (atts) => (atts && atts.length)
-    ? atts.map(a => `<a class="line-receipt" href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
     : `<span class="muted">${esc(t('—'))}</span>`;
   // Fall back to a single synthetic line for any legacy claim without lines.
   const lines = (c.lines && c.lines.length) ? c.lines : [{
@@ -1801,7 +1801,7 @@ function mealBody(c) {
 // and — once realized — the itemised transactions with a settlement summary.
 function advanceBody(c) {
   const receiptLinks = (atts) => (atts && atts.length)
-    ? atts.map(a => `<a class="line-receipt" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
     : `<span class="muted">${esc(t('—'))}</span>`;
   const hasLines = (c.lines || []).length > 0;
   const linesTable = hasLines ? `
