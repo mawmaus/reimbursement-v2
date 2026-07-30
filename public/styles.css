@@ -363,7 +363,7 @@ input[type="search"] { min-width: 220px; }
 .scrim { position: fixed; inset: 0; background: rgba(23,38,32,.42); z-index: 40; animation: fade .16s; }
 @keyframes fade { from { opacity: 0; } }
 .drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); z-index: 50;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(900px, 100%); z-index: 50;
   background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow);
   overflow-y: auto; animation: slidein .2s ease;
 }
@@ -1062,7 +1062,10 @@ input[type="search"] { min-width: 220px; }
 body.no-scroll { overflow: hidden; }
 /* Receipts shown per line in the detail drawer. */
 .line-receipts { font-size: .82rem; }
-.line-receipt { display: inline-block; margin: 0 6px 2px 0; color: var(--pine-deep); white-space: nowrap; }
+/* Let long auto-generated filenames wrap at spaces instead of forcing the
+   Receipts column wide (which used to squeeze every other column). */
+.line-receipt { display: inline-block; max-width: 100%; margin: 0 6px 2px 0; color: var(--pine-deep);
+  white-space: normal; overflow-wrap: break-word; word-break: break-word; vertical-align: top; }
 .line-receipt:hover { text-decoration: underline; }
 
 /* "Locked" hint under a non-editable column header in the Roles matrix. */

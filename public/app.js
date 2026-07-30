@@ -1340,14 +1340,6 @@ async function buildClaimsPdf(claims) {
     }
     if (cur) out.push(cur); return out.length ? out : [''];
   };
-  // Truncate a single-line cell to fit maxW, adding an ellipsis — keeps long
-  // expense types / descriptions from overflowing into the next table column.
-  const fit = (s, f, size, maxW) => {
-    let v = pdfSafe(s);
-    if (!v || f.widthOfTextAtSize(v, size) <= maxW) return v;
-    while (v.length > 1 && f.widthOfTextAtSize(v + '...', size) > maxW) v = v.slice(0, -1);
-    return v + '...';
-  };
   const line = (s, { x = M, size = 10, f = font, color = ink, gap = 5 } = {}) => {
     need(size + gap); y -= size; page.drawText(pdfSafe(s), { x, y, size, font: f, color }); y -= gap;
   };
@@ -1374,25 +1366,38 @@ async function buildClaimsPdf(claims) {
   // Simple bordered table. cols: [{title,w,align}]. rows: array of cell arrays
   // where a cell is a string or {text,color,bold}. footer optional (same shape).
   const table = (cols, rows, footer) => {
-    const hh = 19, rh = 18;
-    need(hh + rh);
+    const hh = 19, lineH = 11;
+    need(hh + lineH + 6);
     y -= hh;
     page.drawRectangle({ x: M, y, width: CW, height: hh, color: rgb(0.96, 0.96, 0.94) });
     let x = M;
     cols.forEach(c => { page.drawText(pdfSafe(c.title), { x: x + 5, y: y + 6, size: 7.5, font: bold, color: muted }); x += c.w; });
     const drawRow = (cells, bg) => {
-      need(rh); y -= rh;
-      if (bg) page.drawRectangle({ x: M, y, width: CW, height: rh, color: bg });
-      let cx = M;
-      cols.forEach((col, i) => {
+      // Lay out each cell, wrapping its text to the column width so long expense
+      // types / descriptions stack onto extra lines instead of being truncated.
+      // A cell may set `span` to merge that many columns (used by total rows).
+      const laid = [];
+      for (let i = 0; i < cols.length;) {
         const cell = cells[i] == null ? '' : cells[i];
+        const span = (typeof cell === 'object' && cell.span) ? cell.span : 1;
+        let w = 0; for (let k = 0; k < span && cols[i + k]; k++) w += cols[i + k].w;
         const f = (typeof cell === 'object' && cell.bold) ? bold : font;
         const color = (typeof cell === 'object' && cell.color) || ink;
         const raw = typeof cell === 'object' ? (cell.text != null ? cell.text : '') : cell;
-        const val = fit(raw, f, 9, col.w - 10);
-        const tx = col.align === 'right' ? cx + col.w - 5 - f.widthOfTextAtSize(val, 9) : cx + 5;
-        page.drawText(val, { x: tx, y: y + 5, size: 9, font: f, color });
-        cx += col.w;
+        laid.push({ w, align: cols[i].align, f, color, lines: wrap(String(raw), 9, f, w - 10) });
+        i += span;
+      }
+      const nLines = laid.reduce((m, c) => Math.max(m, c.lines.length), 1);
+      const rh = nLines * lineH + 6;
+      need(rh); y -= rh;
+      if (bg) page.drawRectangle({ x: M, y, width: CW, height: rh, color: bg });
+      let cx = M;
+      laid.forEach(({ w, align, f, color, lines }) => {
+        lines.forEach((ln, li) => {
+          const tx = align === 'right' ? cx + w - 5 - f.widthOfTextAtSize(ln, 9) : cx + 5;
+          page.drawText(ln, { x: tx, y: y + rh - 11 - li * lineH, size: 9, font: f, color });
+        });
+        cx += w;
       });
       page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
     };
@@ -1426,13 +1431,13 @@ async function buildClaimsPdf(claims) {
       kvRow('Advance requested', money(c.amount, c.currency));
       section('Realization - actual transactions');
       const cols = [
-        { title: 'Date', w: 70 }, { title: 'DB No.', w: 90 }, { title: 'Type of expense', w: 110 },
+        { title: 'Date', w: 66 }, { title: 'DB No.', w: 74 }, { title: 'Type of expense', w: 130 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
       ];
       const lines = c.lines || [];
       const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
       table(cols, rows.length ? rows : [['', '', 'No realization yet', '', '']],
-        [{ text: 'TOTAL SPENT', bold: true }, '', '', { text: money(c.realized_total, c.currency), bold: true, align: 'right' }, '']);
+        [{ text: 'TOTAL SPENT', bold: true, span: 3 }, '', '', { text: money(c.realized_total, c.currency), bold: true }, '']);
       // Settlement summary: advance vs actual spend, and which way the balance goes.
       if (lines.length) {
         const diff = (c.realized_total || 0) - (c.amount || 0);
@@ -1451,19 +1456,19 @@ async function buildClaimsPdf(claims) {
       kvRow('Account no.', c.bank_account_no);
       section('Meal allowance lines');
       const cols = [
-        { title: 'Date', w: 70 }, { title: 'DB Number Site', w: 120 }, { title: 'Job Category', w: 90 },
+        { title: 'Date', w: 66 }, { title: 'DB Number Site', w: 124 }, { title: 'Job Category', w: 90 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 360 }
       ];
       const rows = (c.lines || []).map(l => [l.line_date, l.site, l.job_category, money(l.amount, c.currency), l.description]);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
-        [{ text: 'TOTAL', bold: true }, '', '', { text: money(c.total_amount, c.currency), bold: true, align: 'right' }, '']);
+        [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.total_amount, c.currency), bold: true }, '']);
     } else {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
       kvRow('Account no.', c.bank_account_no);
       section('Expense lines');
       const cols = [
-        { title: 'Date', w: 70 }, { title: 'DB No.', w: 90 }, { title: 'Type of expense', w: 110 },
+        { title: 'Date', w: 66 }, { title: 'DB No.', w: 74 }, { title: 'Type of expense', w: 130 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
       ];
       // Fall back to a single synthetic line for any legacy claim without lines.
@@ -1473,7 +1478,7 @@ async function buildClaimsPdf(claims) {
       }];
       const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
-        [{ text: 'TOTAL', bold: true }, '', '', { text: money(c.amount, c.currency), bold: true, align: 'right' }, '']);
+        [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.amount, c.currency), bold: true }, '']);
     }
   };
 
