@@ -207,12 +207,10 @@ const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
 // Editable roles shown as rows in the region matrix (superadmin is implicit/all
 // -on and never shown). Ordered senior → junior to match the workspace UI.
 const EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance', 'employee'];
-// Roles a Country Manager / Managing Director may toggle within their own
-// region: Mid Management, Low Management, Finance. Their own row (admin) and the
-// Employee baseline stay locked, so a CM/MD cannot escalate themselves or
-// silently widen the employee baseline. Super admins are held to the same set
-// in a region workspace — the global defaults are the place for broad changes.
-const REGION_EDITABLE_ROLES = ['manager', 'lowmgmt', 'finance'];
+// Super Admins may configure Country Manager / Managing Director, Mid
+// Management, Low Management, and Finance permissions for each region. The
+// Employee baseline stays locked.
+const REGION_EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance'];
 // Only capabilities set true here are granted by default; everything else false.
 // New roles start with nothing — configure them per region in the matrix.
 const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, lowmgmt: {}, finance: {}, employee: {} };

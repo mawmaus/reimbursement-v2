@@ -3559,11 +3559,11 @@ async function renderClaimWindowTab() {
 
 // --- Roles: region-scoped capability matrix ----------------------------------
 // Rows are capabilities; columns are the region's roles (Super Admin is never
-// shown — it always holds every permission). The Country Manager / MD and
-// Employee columns are shown locked for reference; Mid Management, Low
-// Management and Finance are editable and persist immediately via PUT. Grants
-// are additive on top of job-position / department / flag permissions, and
-// apply only within the selected region.
+// shown — it always holds every permission). The Employee column is shown
+// locked for reference; Country Manager / MD, Mid Management, Low Management,
+// and Finance are editable by a Super Admin and persist immediately via PUT.
+// Grants are additive on top of job-position / department / flag permissions,
+// and apply only within the selected region.
 async function renderRolesTab() {
   const panel = $('#settingsPanel');
   const region = settingsState.region;
@@ -3584,7 +3584,7 @@ async function renderRolesTab() {
   };
   panel.innerHTML = `
     <div class="settings-controls">
-      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Country Manager / Managing Director and Employee rows are shown for reference. These grants are added on top of what a user already gets from their job position and department.', { region: region || t('this region') }))}</p>
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Employee row is shown for reference. These grants are added on top of what a user already gets from their job position and department.', { region: region || t('this region') }))}</p>
     </div>
     <div class="settings-list">
       <table class="utable">
