@@ -3104,12 +3104,11 @@ lookupRoutes('expense-types', 'expense_types', [], { regional: true });
 lookupRoutes('regions', 'regions');
 
 // --- Role permissions matrix (region-scoped) --------------------------------
-// The capability matrix is configured per region. Who may open it: super admins
-// (any region) and a region's Country Manager / Managing Director (role 'admin',
-// their own region only). Super Admin is implicitly all-true and omitted from
-// `matrix`; only Mid Management / Low Management / Finance rows are editable.
+// The capability matrix is configured per region by Super Admins only. Super
+// Admin is implicitly all-true and omitted from `matrix`; only Mid Management /
+// Low Management / Finance rows are editable.
 function canAccessRoleMatrix(user) {
-  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+  return !!user && user.role === 'superadmin';
 }
 // Which region a request may act on. Non-superadmins are pinned to their own
 // region whatever they ask for; super admins / All-regions accounts may target
