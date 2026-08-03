@@ -3317,8 +3317,10 @@ async function openExportModal() {
           <label>${esc(t('To date'))}<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
         </div>
         <div class="date-presets">
-          <button type="button" class="btn btn-ghost btn-sm" data-range="this">${esc(t('This month'))}</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-range="last">${esc(t('Last month'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="month" data-off="0">${esc(t('This month'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="month" data-off="1">${esc(t('Last month'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="0">${esc(t('This year'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="1">${esc(t('Last year'))}</button>
         </div>
         <div class="grid2 export-groups">
           <div class="export-group">
@@ -3364,14 +3366,19 @@ async function openExportModal() {
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#exportCancel').addEventListener('click', closeModal);
 
-  // Quick date presets: fill From/To with this or last calendar month. Dates are
-  // formatted from local components (not toISOString) so the day never shifts.
+  // Quick date presets: fill From/To with this or last calendar month / year.
+  // Dates are formatted from local components (not toISOString) so the day never
+  // shifts. `off` steps back one period; a 0 day rolls to the period's last day.
   const ymd = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
   $$('.date-presets button').forEach(b => b.addEventListener('click', () => {
     const now = new Date();
-    const off = b.dataset.range === 'last' ? 1 : 0;
-    const first = new Date(now.getFullYear(), now.getMonth() - off, 1);
-    const last = new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
+    const off = Number(b.dataset.off) || 0;
+    const first = b.dataset.unit === 'year'
+      ? new Date(now.getFullYear() - off, 0, 1)
+      : new Date(now.getFullYear(), now.getMonth() - off, 1);
+    const last = b.dataset.unit === 'year'
+      ? new Date(now.getFullYear() - off, 11, 31)
+      : new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
     $('#exportForm [name="from"]').value = ymd(first);
     $('#exportForm [name="to"]').value = ymd(last);
   }));
