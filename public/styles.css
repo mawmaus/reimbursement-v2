@@ -523,8 +523,11 @@ input[type="search"] { min-width: 220px; }
   pointer-events: none; transition: transform .15s;
 }
 .msel.open::after { transform: translateY(-30%) rotate(225deg); border-color: var(--pine); }
+/* Portaled to <body> and fixed-positioned by JS, so the menu escapes any
+   scrolling table or transformed modal and is never clipped. left/top/width are
+   set inline against the trigger's rect. */
 .msel-menu {
-  position: absolute; left: 0; right: 0; top: calc(100% + 5px); z-index: 45; padding: 5px;
+  position: fixed; z-index: 200; padding: 5px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
   max-height: 300px; overflow-y: auto; animation: mselpop .12s ease;
 }

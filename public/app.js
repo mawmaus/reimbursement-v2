@@ -534,7 +534,10 @@ function enhanceSelect(sel) {
   trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false');
   const menu = document.createElement('div');
   menu.className = 'msel-menu'; menu.setAttribute('role', 'listbox'); menu.hidden = true;
-  wrap.appendChild(trigger); wrap.appendChild(menu);
+  // The menu is portaled onto <body> only while open (see open/close) so no
+  // scrolling table or transformed modal can clip it; it's fixed-positioned
+  // against the trigger and removed on close to avoid orphaned nodes.
+  wrap.appendChild(trigger);
 
   let activeIdx = -1;
   const searchable = () => sel.options.length > 8;
@@ -558,7 +561,27 @@ function enhanceSelect(sel) {
     els.forEach((e, idx) => e.classList.toggle('active', idx === activeIdx));
     els[activeIdx].scrollIntoView({ block: 'nearest' });
   };
-  const onDocDown = (e) => { if (!wrap.contains(e.target)) close(); };
+  const onDocDown = (e) => { if (!wrap.contains(e.target) && !menu.contains(e.target)) close(); };
+  // Anchor the fixed menu under (or above, if short on space) the trigger,
+  // matching its width. Re-run on scroll/resize while open.
+  const place = () => {
+    const r = trigger.getBoundingClientRect();
+    menu.style.width = r.width + 'px';
+    menu.style.left = Math.round(r.left) + 'px';
+    menu.style.top = Math.round(r.bottom + 5) + 'px';
+    menu.style.maxHeight = '';
+    const mh = menu.offsetHeight;
+    const below = window.innerHeight - r.bottom - 10;
+    const above = r.top - 10;
+    if (mh > below && above > below) {
+      const h = Math.min(mh, above);
+      menu.style.maxHeight = h + 'px';
+      menu.style.top = Math.round(r.top - h - 5) + 'px';
+    } else if (mh > below) {
+      menu.style.maxHeight = below + 'px';
+    }
+  };
+  const onScroll = () => { if (!trigger.isConnected) { close(); return; } place(); };
   const onKey = (e) => {
     if (menu.hidden) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
@@ -570,17 +593,24 @@ function enhanceSelect(sel) {
     if (!menu.hidden) return;
     menu.innerHTML = (searchable() ? `<div class="msel-search"><input type="text" class="msel-input" placeholder="${esc(t('Search…'))}" aria-label="${esc(t('Search…'))}"></div>` : '') + `<div class="msel-opts"></div>`;
     renderOpts('');
+    document.body.appendChild(menu);
     menu.hidden = false; wrap.classList.add('open'); trigger.setAttribute('aria-expanded', 'true');
+    place();
     const inp = menu.querySelector('.msel-input');
     if (inp) { inp.addEventListener('input', () => renderOpts(inp.value)); setTimeout(() => inp.focus(), 0); }
     document.addEventListener('mousedown', onDocDown, true);
     document.addEventListener('keydown', onKey, true);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
   }
   function close() {
     if (menu.hidden) return;
     menu.hidden = true; wrap.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false');
+    menu.remove();
     document.removeEventListener('mousedown', onDocDown, true);
     document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('scroll', onScroll, true);
+    window.removeEventListener('resize', onScroll);
   }
   function choose(val) {
     if (sel.value !== val) { sel.value = val; sel.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -1089,8 +1119,23 @@ $('#statusFilter').addEventListener('change', e => { state.filters.status = e.ta
 $('#deptFilter').addEventListener('change', e => { state.filters.department = e.target.value; loadClaims(); });
 // Claimant filter is client-side, so just re-render (no server round-trip).
 $('#claimantFilter').addEventListener('change', e => { state.filters.claimant = e.target.value; renderClaims(); });
-// Upgrade the three filter <select>s to modern custom dropdowns.
-['#statusFilter', '#deptFilter', '#claimantFilter'].forEach(id => enhanceSelect($(id)));
+// Upgrade every native <select> in the app to the modern custom dropdown —
+// including ones added later by dynamic renders (modals, table rows). Opt out
+// with [data-no-msel] or by living in the globe language switcher, which keeps
+// its own compact UI.
+function enhanceSelectsIn(root) {
+  if (!root || root.nodeType !== 1) return;
+  const list = root.matches && root.matches('select') ? [root]
+    : (root.querySelectorAll ? [...root.querySelectorAll('select')] : []);
+  list.forEach(sel => {
+    if (sel.dataset.msel || sel.closest('.lang-select') || sel.hasAttribute('data-no-msel')) return;
+    enhanceSelect(sel);
+  });
+}
+enhanceSelectsIn(document.body);
+new MutationObserver(muts => {
+  for (const m of muts) for (const node of m.addedNodes) enhanceSelectsIn(node);
+}).observe(document.body, { childList: true, subtree: true });
 
 // ---------------------------------------------------------------------------
 // Selection + PDF export
@@ -4163,7 +4208,17 @@ function renderUserForm(u) {
         const uniq = (items) => [...new Set((items || []).filter(i => i.active).map(i => i.name))];
         depts = uniq(d.items); positions = uniq(p.items);
       } catch (ex) { toast(ex.message, true); return; }
-      const rebuild = (sel, options) => { if (sel) sel.outerHTML = optionSelect(sel.name, sel.value, options); };
+      // These selects are now wrapped in a .msel; swap the whole wrapper for a
+      // fresh native select and re-enhance it (keeping the current value).
+      const rebuild = (sel, options) => {
+        if (!sel) return;
+        const target = sel.closest('.msel') || sel;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = optionSelect(sel.name, sel.value, options);
+        const fresh = tmp.firstElementChild;
+        target.replaceWith(fresh);
+        enhanceSelect(fresh);
+      };
       rebuild($('#uForm select[name="department"]'), depts);
       rebuild($('#uForm select[name="position"]'), positions);
     });
