@@ -236,14 +236,11 @@ async function regionPrefsFor(region) {
 // --- Meal allowance rates (per-region dropdown amounts) ---------------------
 // The Meal Allowance form's Amount field is a dropdown of preset amounts an
 // admin configures per region (Settings → Meal allowance). Stored as JSON in
-// app_settings under `meal_rates_by_region`: { [region]: [{ label, amount }] }
-// where `amount` is a whole currency unit (e.g. 75000, later ×100 into cents on
+// app_settings under `meal_rates_by_region`: { [region]: [amount, ...] } where
+// each amount is a whole currency unit (e.g. 75000, later ×100 into cents on
 // submit). A region without an entry falls back to DEFAULT_MEAL_RATES — the two
 // legacy Indonesian rates so existing installs keep working unchanged.
-const DEFAULT_MEAL_RATES = [
-  { label: 'Bodetabek area', amount: 75000 },
-  { label: 'Exclude Bodetabek area', amount: 120000 }
-];
+const DEFAULT_MEAL_RATES = [75000, 120000];
 // A generous cap so the editor and stored JSON stay small.
 const MAX_MEAL_RATES = 20;
 const MAX_MEAL_AMOUNT = 1e12; // sanity ceiling on a single amount
@@ -251,18 +248,21 @@ function mealRatesMap(settings) {
   try { return settings.meal_rates_by_region ? JSON.parse(settings.meal_rates_by_region) : {}; }
   catch { return {}; }
 }
-// The configured rate list for a region, normalised to [{ label, amount }] with
-// positive integer amounts. Falls back to the defaults when a region has no
-// saved list (blank/All-regions accounts always get the defaults).
+// Normalise one stored entry to a positive integer amount, or null when invalid.
+// Tolerates a bare number, a numeric string, or a legacy { amount } object from
+// the earlier label+amount shape.
+function toMealAmount(item) {
+  const n = Math.round(Number(item && typeof item === 'object' ? item.amount : item));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+// The configured amount list for a region, normalised to positive integers.
+// Falls back to the defaults when a region has no saved list (blank/All-regions
+// accounts always get the defaults).
 function mealRatesFor(settings, region) {
   const raw = region && region !== ALL_REGIONS ? mealRatesMap(settings)[region] : null;
-  if (!Array.isArray(raw)) return DEFAULT_MEAL_RATES.map(r => ({ ...r }));
+  if (!Array.isArray(raw)) return [...DEFAULT_MEAL_RATES];
   const out = [];
-  for (const item of raw) {
-    const amount = Math.round(Number(item && item.amount));
-    if (!Number.isFinite(amount) || amount <= 0) continue;
-    out.push({ label: String((item && item.label) || '').trim(), amount });
-  }
+  for (const item of raw) { const n = toMealAmount(item); if (n !== null) out.push(n); }
   return out;
 }
 
@@ -1126,11 +1126,11 @@ app.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(async 
   if (b.rates.length > MAX_MEAL_RATES) return res.status(400).json({ error: `Add at most ${MAX_MEAL_RATES} amounts` });
   const rates = [];
   for (const item of b.rates) {
-    const amount = Math.round(Number(item && item.amount));
-    if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MEAL_AMOUNT) {
+    const amount = toMealAmount(item);
+    if (amount === null || amount > MAX_MEAL_AMOUNT) {
       return res.status(400).json({ error: 'Every amount must be a positive whole number' });
     }
-    rates.push({ label: String((item && item.label) || '').trim().slice(0, 60), amount });
+    rates.push(amount);
   }
   const settings = await loadAppSettings();
   const byRegion = mealRatesMap(settings);

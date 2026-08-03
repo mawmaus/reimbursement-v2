@@ -2977,28 +2977,22 @@ function idr(n) {
 }
 const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
 
-// The preset meal-allowance amounts (labels + amounts) are configured per region
-// in Settings → Meal allowance and loaded into state.mealRates. The Amount field
-// is a dropdown of those presets.
+// The preset meal-allowance amounts are configured per region in Settings → Meal
+// allowance and loaded into state.mealRates. The Amount field is a dropdown of
+// those amounts.
 const mealRateList = () => (state.mealRates && state.mealRates.length ? state.mealRates : []);
-// Display text for one preset option: "Label — 75.000", or just the amount when
-// the preset has no label.
-function mealRateOptionLabel(rate) {
-  const amt = groupAmount(String(rate.amount));
-  return rate.label ? `${rate.label} — ${amt}` : amt;
-}
 function mealAmountSelect(val) {
   const cur = mealAmount(val);
   const rates = mealRateList();
   // Preserve any legacy/custom amount from an older claim so editing never
   // silently drops it — show it as an extra selected option when it isn't one
   // of the configured presets.
-  const known = new Set(rates.map(r => r.amount));
+  const known = new Set(rates);
   const extra = cur && !known.has(cur) ? `<option value="${cur}" selected>${groupAmount(String(cur))}</option>` : '';
   return `<select name="amount" class="meal-amt">
     <option value="" ${cur ? '' : 'selected'}>${esc(t('— select —'))}</option>
     ${extra}
-    ${rates.map(r => `<option value="${r.amount}" ${cur === r.amount ? 'selected' : ''}>${esc(mealRateOptionLabel(r))}</option>`).join('')}
+    ${rates.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${esc(groupAmount(String(n)))}</option>`).join('')}
   </select>`;
 }
 
@@ -3918,23 +3912,19 @@ async function renderClaimWindowTab() {
 // scoped to the workspace region. Each preset is an optional label + an amount.
 // Saved via PUT /api/meal-rates; open to anyone with manage_settings.
 let mealRatesEdit = [];
-function mealRateEditRowHtml(r, i) {
+function mealRateEditRowHtml(n, i) {
   return `<tr data-i="${i}">
-    <td data-label="${esc(t('Label'))}"><input name="label" value="${esc(r.label || '')}" maxlength="60" placeholder="${esc(t('e.g. Bodetabek area'))}" /></td>
-    <td data-label="${esc(t('Amount'))}"><input name="amount" class="mr-amt" inputmode="numeric" value="${esc(r.amount ? groupAmount(String(r.amount)) : '')}" placeholder="0" /></td>
+    <td data-label="${esc(t('Amount'))}"><input name="amount" class="mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" /></td>
     <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
   </tr>`;
 }
 function readMealRateEdit() {
-  mealRatesEdit = $$('#mrRows tr[data-i]').map(tr => ({
-    label: tr.querySelector('[name="label"]').value,
-    amount: mealAmount(tr.querySelector('[name="amount"]').value)
-  }));
+  mealRatesEdit = $$('#mrRows tr[data-i]').map(tr => mealAmount(tr.querySelector('[name="amount"]').value));
 }
 function renderMealRateRows() {
   $('#mrRows').innerHTML = mealRatesEdit.length
     ? mealRatesEdit.map(mealRateEditRowHtml).join('')
-    : `<tr><td colspan="3" class="muted" style="padding:14px;text-align:center">${esc(t('No amounts yet — add one below.'))}</td></tr>`;
+    : `<tr><td colspan="2" class="muted" style="padding:14px;text-align:center">${esc(t('No amounts yet — add one below.'))}</td></tr>`;
   $$('#mrRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRateEdit(); mealRatesEdit.splice(+b.dataset.rm, 1); renderMealRateRows();
   }));
@@ -3951,15 +3941,15 @@ async function renderMealRatesTab() {
   let data;
   try { data = await api('/meal-rates' + regionQS); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  mealRatesEdit = (data.rates || []).map(r => ({ label: r.label || '', amount: r.amount }));
-  if (!mealRatesEdit.length) mealRatesEdit = [{ label: '', amount: '' }];
+  mealRatesEdit = (data.rates || []).slice();
+  if (!mealRatesEdit.length) mealRatesEdit = [0];
   panel.innerHTML = `
-    <div class="settings-controls" style="max-width:560px">
-      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the preset amounts the Meal Allowance form offers in its Amount dropdown. The optional label is shown next to each amount.'))}</p>
+    <div class="settings-controls" style="max-width:420px">
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the preset amounts the Meal Allowance form offers in its Amount dropdown.'))}</p>
       <div class="meal-table-wrap">
         <table class="meal-table">
           <thead><tr>
-            <th>${esc(t('Label'))}</th><th>${esc(t('Amount'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+            <th>${esc(t('Amount'))}</th><th aria-label="${esc(t('Remove'))}"></th>
           </tr></thead>
           <tbody id="mrRows"></tbody>
         </table>
@@ -3974,13 +3964,13 @@ async function renderMealRatesTab() {
     </div>`;
   renderMealRateRows();
   $('#mrAddRow').addEventListener('click', () => {
-    readMealRateEdit(); mealRatesEdit.push({ label: '', amount: '' }); renderMealRateRows();
+    readMealRateEdit(); mealRatesEdit.push(0); renderMealRateRows();
   });
   $('#mrSave').addEventListener('click', async () => {
     const err = $('#mrErr'); err.hidden = true;
     readMealRateEdit();
     // Keep only rows with a positive amount; a blank row is simply dropped.
-    const rates = mealRatesEdit.filter(r => r.amount > 0).map(r => ({ label: String(r.label || '').trim(), amount: r.amount }));
+    const rates = mealRatesEdit.filter(n => n > 0);
     try {
       const saved = await api('/meal-rates', { method: 'PUT', body: JSON.stringify({
         rates, ...(settingsState.region ? { region: settingsState.region } : {})
