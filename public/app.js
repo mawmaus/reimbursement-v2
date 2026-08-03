@@ -264,9 +264,9 @@ function showApp() {
   const isSuper = u.role === 'superadmin';
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');
-  // Settings opens for super admins or anyone who can manage settings. The
-  // Roles matrix itself remains Super Admin-only.
-  $('#settingsBtn').hidden = !(isSuper || uCan('manage_settings'));
+  // Settings opens for super admins, CM/MD (who always get the Roles tab), or
+  // anyone who can manage settings.
+  $('#settingsBtn').hidden = !(isSuper || u.role === 'admin' || uCan('manage_settings'));
   // "Manage accounts": shown to non-superadmins whose position/role may manage
   // their team's accounts (reset password / enable-disable). Superadmins use
   // full Settings instead.
@@ -3358,13 +3358,15 @@ const SETTINGS_TABS = [
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
-// Tabs visible to the current user. Accounts and the Roles matrix are Super
-// Admin-only; the rest need the matching capability.
+// Tabs visible to the current user. Accounts is Super Admin-only; the Roles
+// matrix is open to Super Admins and CM/MD (admins), who may edit the rows below
+// their own; the rest need the matching capability.
 function visibleSettingsTabs() {
   const u = state.user;
   const isSuper = u && u.role === 'superadmin';
+  const isCmMd = u && u.role === 'admin';
   return SETTINGS_TABS.filter(tab => {
-    if (tab.roleMatrix) return isSuper;
+    if (tab.roleMatrix) return isSuper || isCmMd;
     if (tab.super) return isSuper;
     return tab.cap ? uCan(tab.cap) : true;
   });

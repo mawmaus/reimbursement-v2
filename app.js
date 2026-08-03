@@ -211,6 +211,16 @@ const EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Management, Low Management, and Finance permissions for each region. The
 // Employee baseline stays locked.
 const REGION_EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance'];
+// A CM/MD (admin) may also open the region matrix, but only for the rows below
+// their own — Mid/Low/Finance — never the admin row (self-escalation) or the
+// locked Employee baseline. Which rows an actor may toggle depends on their role.
+const CMMD_EDITABLE_ROLES = ['manager', 'lowmgmt', 'finance'];
+function editableRolesFor(user) {
+  if (!user) return [];
+  if (user.role === 'superadmin') return REGION_EDITABLE_ROLES;
+  if (user.role === 'admin') return CMMD_EDITABLE_ROLES;
+  return [];
+}
 // Only capabilities set true here are granted by default; everything else false.
 // New roles start with nothing — configure them per region in the matrix.
 const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, lowmgmt: {}, finance: {}, employee: {} };
@@ -3106,7 +3116,7 @@ lookupRoutes('regions', 'regions');
 // Admin is implicitly all-true and omitted from `matrix`; only Mid Management /
 // Low Management / Finance rows are editable.
 function canAccessRoleMatrix(user) {
-  return !!user && user.role === 'superadmin';
+  return !!user && (user.role === 'superadmin' || user.role === 'admin');
 }
 // Which region a request may act on. Non-superadmins are pinned to their own
 // region whatever they ask for; super admins / All-regions accounts may target
@@ -3124,7 +3134,7 @@ app.get('/api/role-permissions', requireAuth, ah(async (req, res) => {
   res.json({
     capabilities: CAPABILITIES,
     roles: EDITABLE_ROLES,
-    editableRoles: REGION_EDITABLE_ROLES,
+    editableRoles: editableRolesFor(req.user),
     region,
     matrix: await loadRolePermsForRegion(region),
     superadminLocked: true
@@ -3139,7 +3149,7 @@ app.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
   const { role, cap, value } = req.body || {};
   const region = await resolveMatrixRegion(req.user, (req.body || {}).region);
   if (!region || region === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region' });
-  if (!REGION_EDITABLE_ROLES.includes(role)) return res.status(400).json({ error: 'This role is not editable' });
+  if (!editableRolesFor(req.user).includes(role)) return res.status(400).json({ error: 'This role is not editable' });
   if (!CAPABILITY_KEYS.has(cap)) return res.status(400).json({ error: 'Invalid capability' });
 
   const settings = await loadAppSettings();
