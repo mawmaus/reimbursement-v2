@@ -674,6 +674,7 @@ input[type="search"] { min-width: 220px; }
 /* checkbox groups (export dialog) — pill toggles that highlight when checked.
    flex-direction:row is explicit to override the generic ".form label" column
    layout, which otherwise stacks the tickbox above its label. */
+.date-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .export-groups { align-items: stretch; margin-top: 6px; }
 .export-group { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 14px; }
 .export-group .section-label { margin: 0 0 10px; }

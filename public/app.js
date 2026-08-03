@@ -3316,6 +3316,10 @@ async function openExportModal() {
           <label>${esc(t('From date'))}<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
           <label>${esc(t('To date'))}<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
         </div>
+        <div class="date-presets">
+          <button type="button" class="btn btn-ghost btn-sm" data-range="this">${esc(t('This month'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-range="last">${esc(t('Last month'))}</button>
+        </div>
         <div class="grid2 export-groups">
           <div class="export-group">
             <div class="section-label">${esc(t('Statuses to include'))}</div>
@@ -3359,6 +3363,18 @@ async function openExportModal() {
   $('#modal').classList.add('modal-wide');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#exportCancel').addEventListener('click', closeModal);
+
+  // Quick date presets: fill From/To with this or last calendar month. Dates are
+  // formatted from local components (not toISOString) so the day never shifts.
+  const ymd = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  $$('.date-presets button').forEach(b => b.addEventListener('click', () => {
+    const now = new Date();
+    const off = b.dataset.range === 'last' ? 1 : 0;
+    const first = new Date(now.getFullYear(), now.getMonth() - off, 1);
+    const last = new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
+    $('#exportForm [name="from"]').value = ymd(first);
+    $('#exportForm [name="to"]').value = ymd(last);
+  }));
 
   // Excel-style user filter: search narrows the list; Select all / Clear act on
   // whatever rows are currently visible.
