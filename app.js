@@ -201,9 +201,11 @@ const CURRENCY_SET = new Set(AVAILABLE_CURRENCIES);
 // The time zones an admin may choose from. Kept to the regions the portal serves
 // (plus USD/global) so the list stays short and every option is a valid IANA id.
 const AVAILABLE_TIMEZONES = [
-  'Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura', 'Asia/Bangkok',
-  'Asia/Ho_Chi_Minh', 'Asia/Manila', 'Asia/Phnom_Penh', 'Asia/Kuala_Lumpur',
-  'Asia/Seoul', 'UTC'
+  // Ordered by UTC offset (ascending), Jakarta first as the default.
+  'Asia/Jakarta', 'Asia/Bangkok', 'Asia/Ho_Chi_Minh', 'Asia/Phnom_Penh', // GMT+7
+  'Asia/Makassar', 'Asia/Kuala_Lumpur', 'Asia/Manila',                    // GMT+8
+  'Asia/Jayapura', 'Asia/Seoul',                                          // GMT+9
+  'UTC'                                                                    // GMT+0
 ];
 const TIMEZONE_SET = new Set(AVAILABLE_TIMEZONES);
 // Is `tz` a time zone the runtime accepts? (Defence in depth beyond the fixed
