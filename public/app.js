@@ -3606,7 +3606,7 @@ async function openProfileModal() {
 // Tabs inside a region workspace. Regions themselves live one level up (the
 // Regions landing), so there is no Regions tab here.
 const SETTINGS_TABS = [
-  { key: 'accounts', label: 'Accounts', super: true },
+  { key: 'accounts', label: 'Accounts', accounts: true },
   { key: 'departments', label: 'Departments', cap: 'manage_settings' },
   { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
@@ -3614,9 +3614,9 @@ const SETTINGS_TABS = [
   { key: 'region-prefs', label: 'Currency & time zone', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
-// Tabs visible to the current user. Accounts is Super Admin-only; the Roles
-// matrix is open to Super Admins and CM/MD (admins), who may edit the rows below
-// their own; the rest need the matching capability.
+// Tabs visible to the current user. The Roles matrix is open to Super Admins and
+// CM/MD (admins), who may edit the rows below their own; the rest need the
+// matching capability.
 function visibleSettingsTabs() {
   const u = state.user;
   const isSuper = u && u.role === 'superadmin';
@@ -3625,6 +3625,9 @@ function visibleSettingsTabs() {
     if (tab.roleMatrix) return isSuper || isCmMd;
     // Currency & time zone: Super Admins (any region) and CM/MD (their own).
     if (tab.regionPrefs) return isSuper || isCmMd;
+    // Accounts: Super Admins get the full editor; anyone who can create or manage
+    // accounts (CM/MD, delegated seniors) gets the delegated view of the tab.
+    if (tab.accounts) return isSuper || uCan('create_accounts') || !!(u && u.can_manage_accounts);
     if (tab.super) return isSuper;
     return tab.cap ? uCan(tab.cap) : true;
   });
@@ -4109,7 +4112,61 @@ async function renderAccountsTab() {
   // Scope the workspace's account list to this region (All-regions accounts, e.g.
   // super admins, stay visible everywhere).
   settingsState.users = region ? users.filter(u => u.region === region || u.region === '*') : users;
-  paintAccounts();
+  if (state.user.role === 'superadmin') paintAccounts();
+  else paintDelegatedAccounts();
+}
+
+// The Accounts tab for a non-superadmin (CM/MD or a delegated senior): the same
+// department-scoped, rank-limited team screen as the "Manage accounts" modal —
+// reset passwords / enable-disable your team, plus "+ Add user" for anyone who
+// holds create_accounts. Rendered into the Settings workspace panel.
+function paintDelegatedAccounts() {
+  const panel = $('#settingsPanel');
+  const users = settingsState.users || [];
+  const dept = state.user.department || '';
+  const canCreate = uCan('create_accounts');
+  panel.innerHTML = `
+    <div class="settings-controls">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
+        ${canCreate ? `<button class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : ''}
+      </div>
+      <p class="muted" style="margin:0 0 12px;font-size:.85rem">${canCreate
+        ? esc(t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' }))
+        : esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
+    </div>
+    <div class="settings-list">
+      <table class="utable utable-manage">
+        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
+        <tbody>${users.length ? users.map(u => `
+          <tr>
+            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
+            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Active'))}">${u.active
+                ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
+                : `<span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${maCanManage(u) ? `<div class="u-actions">
+              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
+              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
+            </div>` : '<span class="muted">—</span>'}</td>
+          </tr>`).join('') : `<tr><td colspan="5" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
+  const addBtn = $('#addUserBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
+  $$('#settingsPanel [data-reset]').forEach(b => b.addEventListener('click', () =>
+    renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
+  $$('#settingsPanel [data-active]').forEach(b => b.addEventListener('click', async () => {
+    const u = users.find(x => x.id == b.dataset.active);
+    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
+    try {
+      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
+      toast(u.active ? t('Account disabled') : t('Account enabled'));
+      renderAccountsTab();
+    } catch (ex) { toast(ex.message, true); }
+  }));
 }
 
 function paintAccounts() {
