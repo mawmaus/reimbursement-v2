@@ -1014,7 +1014,7 @@ function renderTypeDetail() {
           ${showType ? `<th>${esc(t('Type'))}</th>` : ''}
           <th class="num">${esc(t('Amount'))}</th>
         </tr></thead>
-        <tbody>${rows.map(r => `<tr>
+        <tbody>${rows.map(r => `<tr${r.cid ? ` class="row-open" data-cid="${esc(r.cid)}" tabindex="0" role="button" title="${esc(t('Open claim'))}"` : ''}>
           <td>${esc(r.name || '—')}</td>
           <td>${esc(r.no || '—')}</td>
           <td>${esc(r.date || '—')}</td>
@@ -1032,6 +1032,20 @@ function renderTypeDetail() {
     state.insights.drill = null;
     $$('#typeBars .bar-row').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
     renderTypeDetail();
+  });
+
+  // Each detail row drills one level further: into the source claim itself.
+  // `cid` is prefixed by kind — c=reimbursement, m=meal, a=advance — mirroring
+  // the insights SQL, so we split it back into (type, id) for the drawer.
+  $$('#typeDetail .row-open').forEach(tr => {
+    const open = () => {
+      const cid = tr.dataset.cid || '';
+      const type = cid[0] === 'm' ? 'meal' : cid[0] === 'a' ? 'advance' : 'reimbursement';
+      const id = cid.slice(1);
+      if (id) openDrawer(id, type).catch(ex => toast(ex.message, true));
+    };
+    tr.addEventListener('click', open);
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
 }
 

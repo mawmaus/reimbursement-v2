@@ -2616,7 +2616,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   // Line-level detail for the selected year, biggest first, so the client can
   // drill into any expense type (pivot-style) and show each underlying line.
   const details = inYear
-    .map(r => ({ no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', type: r.category, cents: Number(r.cents) }))
+    .map(r => ({ cid: r.cid || '', no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', type: r.category, cents: Number(r.cents) }))
     .sort((a, b) => b.cents - a.cents);
 
   const monthCents = Array(12).fill(0);
