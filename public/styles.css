@@ -149,6 +149,15 @@ input[type="search"] { min-width: 220px; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 26px 22px 60px; }
 
+/* Fixed-height app shell: the topbar and each list's header/filters stay put
+   while only the claim rows scroll, so a long ledger never pushes the menu,
+   summary cards, or filter row off-screen. */
+#appView:not([hidden]) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+#appView .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 24px; }
+#listView:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#listView .ledger { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#listView #claimRows { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
 /* ---------- Home menu (clean landing) ---------- */
 .home { padding: 8px 0; }
 .home-greeting { color: var(--ink-soft); font-size: 1.05rem; margin: 6px 2px 20px; }
@@ -579,6 +588,10 @@ input[type="search"] { min-width: 220px; }
 .msel-opt.sel .msel-check { opacity: 1; }
 .msel-opt.sel .msel-lab { font-weight: 650; }
 .msel-opt:hover, .msel-opt.active { background: var(--pine-tint); color: var(--pine-deep); }
+/* Hybrid free-text action row: pick the typed text itself as the filter. */
+.msel-opt.msel-free .msel-lab { color: var(--muted); font-style: italic; }
+.msel-opt.msel-free::before { content: "⌕"; margin-right: 2px; font-style: normal; color: var(--muted); }
+.msel-opt.msel-free:hover .msel-lab, .msel-opt.msel-free.active .msel-lab { color: var(--pine-deep); }
 .msel-empty { padding: 12px 10px; color: var(--muted); font-size: .85rem; text-align: center; }
 .toolbar-left .msel { flex: 0 0 auto; min-width: 172px; }
 
