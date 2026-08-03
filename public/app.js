@@ -565,12 +565,18 @@ function enhanceSelect(sel) {
     els[activeIdx].scrollIntoView({ block: 'nearest' });
   };
   const onDocDown = (e) => { if (!wrap.contains(e.target) && !menu.contains(e.target)) close(); };
-  // Anchor the fixed menu under (or above, if short on space) the trigger,
-  // matching its width. Re-run on scroll/resize while open.
+  // Anchor the fixed menu under (or above, if short on space) the trigger.
+  // The menu grows to fit its widest option (so long names / DB numbers show in
+  // full) but never shrinks below the trigger, and stays on-screen. Re-run on
+  // scroll/resize while open.
   const place = () => {
     const r = trigger.getBoundingClientRect();
-    menu.style.width = r.width + 'px';
-    menu.style.left = Math.round(r.left) + 'px';
+    menu.style.width = 'auto';
+    menu.style.minWidth = r.width + 'px';
+    menu.style.maxWidth = Math.min(440, window.innerWidth - 16) + 'px';
+    const mw = menu.offsetWidth;
+    const left = Math.min(Math.round(r.left), window.innerWidth - 8 - mw);
+    menu.style.left = Math.max(8, left) + 'px';
     menu.style.top = Math.round(r.bottom + 5) + 'px';
     menu.style.maxHeight = '';
     const mh = menu.offsetHeight;
@@ -856,6 +862,8 @@ function renderInsights() {
     .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${esc(t(o.l))}</option>`).join('');
   const nameOpts = [`<option value="">${esc(t('All employees'))}</option>`]
     .concat((d.employees || []).map(x => `<option value="${esc(x)}"${x === f.name ? ' selected' : ''}>${esc(x)}</option>`)).join('');
+  const dbOpts = [`<option value="">${esc(t('All DB numbers'))}</option>`]
+    .concat((d.dbNos || []).map(x => `<option value="${esc(x)}"${x === f.db ? ' selected' : ''}>${esc(x)}</option>`)).join('');
 
   const k = d.kpis;
   const kpiCards = [
@@ -869,9 +877,9 @@ function renderInsights() {
     <div class="insights-filters">
       <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
-      <label>${esc(t('DB No'))}<input id="inDb" class="input" type="search" placeholder="${esc(t('Filter by DB…'))}" value="${esc(f.db)}" /></label>
-      <label>${esc(t('Employee'))}<select id="inName" class="input" data-search="always">${nameOpts}</select></label>
+      <label>${esc(t('DB No'))}<select id="inDb" class="input" data-search="always">${dbOpts}</select></label>
       <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
+      <label>${esc(t('Employee'))}<select id="inName" class="input" data-search="always">${nameOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
     <div class="insights-charts">
@@ -901,14 +909,11 @@ function renderInsights() {
   renderTypeBars();
   renderTrend();
 
-  // Filters — Year / Department / Status refetch; DB refetches on change (Enter
-  // or blur) so we don't hit the server on every keystroke.
+  // Filters — every one is a dropdown now, so all refetch on change.
   $('#inYear').addEventListener('change', e => { f.year = e.target.value; loadInsights(); });
   const dept = $('#inDept'); if (dept) dept.addEventListener('change', e => { f.department = e.target.value; loadInsights(); });
   $('#inStatus').addEventListener('change', e => { f.status = e.target.value; loadInsights(); });
-  const db = $('#inDb');
-  db.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
-  db.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
+  $('#inDb').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
   $('#inName').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
 
   $$('#trendSeg button').forEach(b => b.addEventListener('click', () => {

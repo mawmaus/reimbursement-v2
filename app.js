@@ -2672,12 +2672,30 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
      ) t WHERE ${empConds.join(' AND ')} ORDER BY claimant_name`, empParams);
   const employees = erows.map(r => r.claimant_name);
 
+  // DB-number options for the searchable filter — distinct DB numbers in scope.
+  // DB lives per line: claim_lines.db_no, cash_advance_lines.db_no, and (for
+  // meals) meal_claim_lines.site, matching the `db` column in the rows query.
+  const dbConds = [`COALESCE(TRIM(db), '') <> ''`];
+  const dbParams = [];
+  if (mode === 'approver') { dbParams.push(req.user.id); dbConds.push(`$${dbParams.length} = ANY(approver_ids)`); }
+  if (!seesAllRegions(req.user)) { dbParams.push(req.user.region || ''); dbConds.push(`region = $${dbParams.length}`); }
+  const dbrows = await q(
+    `SELECT DISTINCT db FROM (
+       SELECT l.db_no AS db, c.approver_ids, c.region
+         FROM claim_lines l JOIN claims c ON c.id = l.claim_id
+       UNION ALL SELECT l.site AS db, m.approver_ids, m.region
+         FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
+       UNION ALL SELECT l.db_no AS db, a.approver_ids, a.region
+         FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id
+     ) t WHERE ${dbConds.join(' AND ')} ORDER BY db`, dbParams);
+  const dbNos = dbrows.map(r => r.db);
+
   res.json({
     scope: { mode, department: deptFilter || null },
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
     currency: seesAllRegions(req.user) ? DEFAULT_CURRENCY : (await regionPrefsFor(req.user.region)).currency,
-    year, years, status: statuses, db, name: nameFilter, departments, employees,
+    year, years, status: statuses, db, name: nameFilter, departments, employees, dbNos,
     byType, byMonth, byYear, kpis, details
   });
 }));
