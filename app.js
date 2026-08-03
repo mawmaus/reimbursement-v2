@@ -716,6 +716,9 @@ async function openClaimsAwaitingApprover(userId) {
 // their job position (AND). Unknown/blank department or position => nothing.
 async function computePurposes(user) {
   const empty = { claim: false, meal: false, advance: false };
+  // Superadmins can do everything: always show all three purpose buttons,
+  // regardless of their own department/position/region flags.
+  if (user.role === 'superadmin') return { claim: true, meal: true, advance: true };
   const dept = String(user.department || '').trim();
   const pos = String(user.position || '').trim();
   if (!dept || !pos) return empty;
