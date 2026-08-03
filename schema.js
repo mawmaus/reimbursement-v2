@@ -446,6 +446,10 @@ const SCHEMA = [
   //   claim_earliest_date — absolute cutoff (YYYY-MM-DD): no expense dated before
   //                         this can be claimed. '' = off.
   // Both may be set; the effective earliest claimable date is the later of the two.
+  //   meal_rates_by_region — JSON { [region]: [{ label, amount }] }: the preset
+  //                         amounts the Meal Allowance form's Amount dropdown offers,
+  //                         configured per region in Settings. A region without an
+  //                         entry falls back to the built-in defaults.
   `CREATE TABLE IF NOT EXISTS app_settings (
     key        TEXT PRIMARY KEY,
     value      TEXT NOT NULL DEFAULT '',

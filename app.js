@@ -233,6 +233,39 @@ async function regionPrefsFor(region) {
   return regionPrefs(await loadAppSettings(), region);
 }
 
+// --- Meal allowance rates (per-region dropdown amounts) ---------------------
+// The Meal Allowance form's Amount field is a dropdown of preset amounts an
+// admin configures per region (Settings → Meal allowance). Stored as JSON in
+// app_settings under `meal_rates_by_region`: { [region]: [{ label, amount }] }
+// where `amount` is a whole currency unit (e.g. 75000, later ×100 into cents on
+// submit). A region without an entry falls back to DEFAULT_MEAL_RATES — the two
+// legacy Indonesian rates so existing installs keep working unchanged.
+const DEFAULT_MEAL_RATES = [
+  { label: 'Bodetabek area', amount: 75000 },
+  { label: 'Exclude Bodetabek area', amount: 120000 }
+];
+// A generous cap so the editor and stored JSON stay small.
+const MAX_MEAL_RATES = 20;
+const MAX_MEAL_AMOUNT = 1e12; // sanity ceiling on a single amount
+function mealRatesMap(settings) {
+  try { return settings.meal_rates_by_region ? JSON.parse(settings.meal_rates_by_region) : {}; }
+  catch { return {}; }
+}
+// The configured rate list for a region, normalised to [{ label, amount }] with
+// positive integer amounts. Falls back to the defaults when a region has no
+// saved list (blank/All-regions accounts always get the defaults).
+function mealRatesFor(settings, region) {
+  const raw = region && region !== ALL_REGIONS ? mealRatesMap(settings)[region] : null;
+  if (!Array.isArray(raw)) return DEFAULT_MEAL_RATES.map(r => ({ ...r }));
+  const out = [];
+  for (const item of raw) {
+    const amount = Math.round(Number(item && item.amount));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    out.push({ label: String((item && item.label) || '').trim(), amount });
+  }
+  return out;
+}
+
 // --- Role permissions (editable capability matrix) --------------------------
 // Beyond the fixed role (superadmin/admin/user), a super admin can grant each
 // role extra capabilities. These are ADDITIVE: they only widen what a user may
@@ -247,7 +280,7 @@ const CAPABILITIES = [
   { key: 'export_csv',        label: 'Export claims to CSV',       desc: 'Download reimbursement, meal and realized cash-advance claims as a CSV file.' },
   { key: 'create_accounts',   label: 'Create accounts',            desc: 'Add new user accounts.' },
   { key: 'manage_accounts',   label: 'Manage accounts',            desc: 'Reset passwords and enable or disable accounts.' },
-  { key: 'manage_settings',   label: 'Manage settings',            desc: 'Edit departments, job positions, expense types and the claim date limit.' },
+  { key: 'manage_settings',   label: 'Manage settings',            desc: 'Edit departments, job positions, expense types, meal allowance amounts and the claim date limit.' },
   { key: 'view_insights_all', label: 'View company-wide insights', desc: 'Open expense insights across every department.' }
 ];
 const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
@@ -1073,6 +1106,37 @@ app.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
   byRegion[region] = { currency, timezone };
   await setAppSetting('region_prefs_by_region', JSON.stringify(byRegion));
   res.json(regionPrefsView({ ...settings, region_prefs_by_region: JSON.stringify(byRegion) }, region));
+}));
+
+// Per-region meal-allowance rate presets. Read by any signed-in user for their
+// own region (the meal form needs the dropdown options); a super admin may read
+// any region via ?region. Edited by anyone with the manage_settings capability
+// (same audience as departments / expense types / the claim window).
+app.get('/api/meal-rates', requireAuth, ah(async (req, res) => {
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json({ region, rates: mealRatesFor(await loadAppSettings(), region) });
+}));
+
+app.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+  const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+  if (!Array.isArray(b.rates)) return res.status(400).json({ error: 'Rates must be a list' });
+  if (b.rates.length > MAX_MEAL_RATES) return res.status(400).json({ error: `Add at most ${MAX_MEAL_RATES} amounts` });
+  const rates = [];
+  for (const item of b.rates) {
+    const amount = Math.round(Number(item && item.amount));
+    if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_MEAL_AMOUNT) {
+      return res.status(400).json({ error: 'Every amount must be a positive whole number' });
+    }
+    rates.push({ label: String((item && item.label) || '').trim().slice(0, 60), amount });
+  }
+  const settings = await loadAppSettings();
+  const byRegion = mealRatesMap(settings);
+  byRegion[region] = rates;
+  await setAppSetting('meal_rates_by_region', JSON.stringify(byRegion));
+  res.json({ region, rates: mealRatesFor({ ...settings, meal_rates_by_region: JSON.stringify(byRegion) }, region) });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {

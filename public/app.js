@@ -18,6 +18,9 @@ const state = {
   // Claim-date policy (from GET /api/claim-window). `earliest` is the computed
   // earliest expense date a claim may carry, or null when unrestricted.
   claimLimit: { max_age_days: null, earliest_date: null, earliest: null },
+  // Preset meal-allowance amounts for the signed-in user's region (from GET
+  // /api/meal-rates). The Meal Allowance form's Amount dropdown lists these.
+  mealRates: [],
   // Insights view: active filters, the "monthly vs yearly" trend toggle, and the
   // last payload from /api/insights (kept so the trend toggle re-renders without
   // a refetch).
@@ -359,6 +362,8 @@ async function loadLookups() {
   // The claim-date policy gates how old an expense may be; the form uses it to
   // set the date picker's min and to validate before submit.
   try { state.claimLimit = await api('/claim-window'); } catch { /* no limit enforced client-side */ }
+  // Preset meal-allowance amounts for the meal form's Amount dropdown.
+  try { state.mealRates = (await api('/meal-rates')).rates || []; } catch { state.mealRates = []; }
 }
 // The earliest expense date a claim may carry, or '' when unrestricted.
 const claimEarliest = () => (state.claimLimit && state.claimLimit.earliest) || '';
@@ -2972,19 +2977,42 @@ function idr(n) {
 }
 const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
 
-// The two fixed meal-allowance rates (see the note at the bottom of the form):
-// Bodetabek area 75.000, outside Bodetabek 120.000. Amount is chosen from these.
-const MEAL_RATES = [75000, 120000];
+// The preset meal-allowance amounts (labels + amounts) are configured per region
+// in Settings → Meal allowance and loaded into state.mealRates. The Amount field
+// is a dropdown of those presets.
+const mealRateList = () => (state.mealRates && state.mealRates.length ? state.mealRates : []);
+// Display text for one preset option: "Label — 75.000", or just the amount when
+// the preset has no label.
+function mealRateOptionLabel(rate) {
+  const amt = groupAmount(String(rate.amount));
+  return rate.label ? `${rate.label} — ${amt}` : amt;
+}
 function mealAmountSelect(val) {
   const cur = mealAmount(val);
+  const rates = mealRateList();
   // Preserve any legacy/custom amount from an older claim so editing never
-  // silently drops it — show it as an extra selected option.
-  const opts = [...MEAL_RATES];
-  if (cur && !opts.includes(cur)) opts.unshift(cur);
+  // silently drops it — show it as an extra selected option when it isn't one
+  // of the configured presets.
+  const known = new Set(rates.map(r => r.amount));
+  const extra = cur && !known.has(cur) ? `<option value="${cur}" selected>${groupAmount(String(cur))}</option>` : '';
   return `<select name="amount" class="meal-amt">
     <option value="" ${cur ? '' : 'selected'}>${esc(t('— select —'))}</option>
-    ${opts.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${groupAmount(String(n))}</option>`).join('')}
+    ${extra}
+    ${rates.map(r => `<option value="${r.amount}" ${cur === r.amount ? 'selected' : ''}>${esc(mealRateOptionLabel(r))}</option>`).join('')}
   </select>`;
+}
+
+// The rate reference shown under the form — built from the configured presets so
+// it always matches the dropdown. Hidden entirely when no presets are set.
+function mealRatesNoteHtml() {
+  const rates = mealRateList();
+  if (!rates.length) return '';
+  const lines = rates.map(r =>
+    `<div>${r.label ? `${esc(r.label.toUpperCase())} — ` : ''}${esc(groupAmount(String(r.amount)))}</div>`).join('');
+  return `<div class="meal-note">
+    <strong>${esc(t('MEAL ALLOWANCE CLAIM'))}</strong>
+    ${lines}
+  </div>`;
 }
 
 let mealRows = [];
@@ -3068,11 +3096,7 @@ function openMealAllowanceModal(existing = null) {
           ${approver1PickerHtml(existing)}
           ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
             <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
-          <div class="meal-note">
-            <strong>${esc(t('MEAL ALLOWANCE CLAIM'))}</strong>
-            BODETABEK AREA — IDR 75.000,-
-            EXCLUDE BODETABEK AREA — IDR 120.000,-
-          </div>
+          ${mealRatesNoteHtml()}
         </div>
         <div class="modal-actions meal-foot">
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
@@ -3690,6 +3714,7 @@ const SETTINGS_TABS = [
   { key: 'departments', label: 'Departments', cap: 'manage_settings' },
   { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
+  { key: 'meal-rates', label: 'Meal allowance', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
   { key: 'region-prefs', label: 'Currency & time zone', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
@@ -3842,6 +3867,7 @@ function renderSettingsTab() {
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
+  if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
   if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
@@ -3897,6 +3923,89 @@ async function renderClaimWindowTab() {
       }) });
       toast(t('Claim date limit saved'));
       renderClaimWindowTab();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  });
+}
+
+// --- Meal allowance rates (per-region dropdown presets) ----------------------
+// Editor for the preset amounts the Meal Allowance form's Amount dropdown offers,
+// scoped to the workspace region. Each preset is an optional label + an amount.
+// Saved via PUT /api/meal-rates; open to anyone with manage_settings.
+let mealRatesEdit = [];
+function mealRateEditRowHtml(r, i) {
+  return `<tr data-i="${i}">
+    <td data-label="${esc(t('Label'))}"><input name="label" value="${esc(r.label || '')}" maxlength="60" placeholder="${esc(t('e.g. Bodetabek area'))}" /></td>
+    <td data-label="${esc(t('Amount'))}"><input name="amount" class="mr-amt" inputmode="numeric" value="${esc(r.amount ? groupAmount(String(r.amount)) : '')}" placeholder="0" /></td>
+    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
+  </tr>`;
+}
+function readMealRateEdit() {
+  mealRatesEdit = $$('#mrRows tr[data-i]').map(tr => ({
+    label: tr.querySelector('[name="label"]').value,
+    amount: mealAmount(tr.querySelector('[name="amount"]').value)
+  }));
+}
+function renderMealRateRows() {
+  $('#mrRows').innerHTML = mealRatesEdit.length
+    ? mealRatesEdit.map(mealRateEditRowHtml).join('')
+    : `<tr><td colspan="3" class="muted" style="padding:14px;text-align:center">${esc(t('No amounts yet — add one below.'))}</td></tr>`;
+  $$('#mrRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    readMealRateEdit(); mealRatesEdit.splice(+b.dataset.rm, 1); renderMealRateRows();
+  }));
+  // Group digits as the admin types, like the amount fields elsewhere.
+  $$('#mrRows .mr-amt').forEach(inp => inp.addEventListener('input', () => {
+    const pos = inp.value.length; inp.value = groupAmount(inp.value);
+    // Keep the caret at the end (grouping shifts characters); good enough here.
+    void pos;
+  }));
+}
+async function renderMealRatesTab() {
+  const panel = $('#settingsPanel');
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  let data;
+  try { data = await api('/meal-rates' + regionQS); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  mealRatesEdit = (data.rates || []).map(r => ({ label: r.label || '', amount: r.amount }));
+  if (!mealRatesEdit.length) mealRatesEdit = [{ label: '', amount: '' }];
+  panel.innerHTML = `
+    <div class="settings-controls" style="max-width:560px">
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the preset amounts the Meal Allowance form offers in its Amount dropdown. The optional label is shown next to each amount.'))}</p>
+      <div class="meal-table-wrap">
+        <table class="meal-table">
+          <thead><tr>
+            <th>${esc(t('Label'))}</th><th>${esc(t('Amount'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+          </tr></thead>
+          <tbody id="mrRows"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:10px">
+        <button type="button" class="btn btn-brand-soft btn-sm" id="mrAddRow">${esc(t('+ Add amount'))}</button>
+      </div>
+      <p class="form-error" id="mrErr" hidden style="margin-top:12px"></p>
+      <div class="modal-actions" style="justify-content:flex-start;margin-top:14px">
+        <button type="button" class="btn btn-primary btn-sm" id="mrSave">${esc(t('Save'))}</button>
+      </div>
+    </div>`;
+  renderMealRateRows();
+  $('#mrAddRow').addEventListener('click', () => {
+    readMealRateEdit(); mealRatesEdit.push({ label: '', amount: '' }); renderMealRateRows();
+  });
+  $('#mrSave').addEventListener('click', async () => {
+    const err = $('#mrErr'); err.hidden = true;
+    readMealRateEdit();
+    // Keep only rows with a positive amount; a blank row is simply dropped.
+    const rates = mealRatesEdit.filter(r => r.amount > 0).map(r => ({ label: String(r.label || '').trim(), amount: r.amount }));
+    try {
+      const saved = await api('/meal-rates', { method: 'PUT', body: JSON.stringify({
+        rates, ...(settingsState.region ? { region: settingsState.region } : {})
+      }) });
+      // If this is the signed-in user's own region, refresh the presets the meal
+      // form uses so a new claim reflects the change without a reload.
+      if (!settingsState.region || settingsState.region === state.user.region) {
+        state.mealRates = saved.rates || [];
+      }
+      toast(t('Meal allowance amounts saved'));
+      renderMealRatesTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 }
