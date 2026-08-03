@@ -444,11 +444,14 @@ function renderSummaryCards() {
     { k: 'approved', l: t('Approved'), n: count('approved'), status: 'approved' },
     { k: 'rejected', l: t('Rejected'), n: count('rejected'), status: 'rejected' },
     { k: 'paid', l: t('Paid'), n: count('paid'), status: 'paid' },
-    { k: 'total', l: totalCardLabel(), n: money(total, 'IDR') }
+    // Headline reads compact (e.g. IDR 123.3M) so it fits on one line even at
+    // billions; the exact figure sits just below for anyone who needs it.
+    { k: 'total', l: totalCardLabel(), n: moneyShort(total, 'IDR'), sub: money(total, 'IDR') }
   ];
   $('#summaryCards').innerHTML = cards.map(c => {
     if (!c.status) {
-      return `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${esc(c.l)}</div></div>`;
+      const sub = c.sub ? `<div class="card-sub">${esc(c.sub)}</div>` : '';
+      return `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div>${sub}<div class="card-l">${esc(c.l)}</div></div>`;
     }
     const active = state.filters.status === c.status;
     const hint = active ? t('Clear {label} filter', { label: c.l }) : t('Show only {label} claims', { label: c.l });

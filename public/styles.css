@@ -316,8 +316,10 @@ input[type="search"] { min-width: 220px; }
   font-size: 1.95rem; font-weight: 700; font-variant-numeric: tabular-nums;
   line-height: 1; letter-spacing: -.025em; color: var(--ink);
 }
-/* Money totals run long (IDR reaches millions/billions) — size to wrap tidily. */
-.card.total .card-n { font-size: 1.5rem; overflow-wrap: anywhere; }
+/* Total headline is compact (IDR 123.3M) so it reads big like the counts. */
+.card.total .card-n { font-size: 1.95rem; }
+/* Exact figure under the compact headline; muted and tucked close to it. */
+.card .card-sub { font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); margin-top: -4px; overflow-wrap: anywhere; }
 .card.submitted .card-l::before { background: var(--amber); }
 .card.approved  .card-l::before { background: var(--green); }
 .card.rejected  .card-l::before { background: var(--red); }
@@ -920,7 +922,8 @@ input[type="search"] { min-width: 220px; }
   .card .card-n { font-size: 1.3rem; }
   .card .card-l { font-size: .66rem; letter-spacing: .05em; }
   .card.total { grid-column: 1 / -1; }
-  .card.total .card-n { font-size: 1.2rem; }
+  .card.total .card-n { font-size: 1.3rem; }
+  .card .card-sub { font-size: .72rem; }
   .topbar-title { display: none; }
   .btn-sm { padding: 6px 10px; font-size: .82rem; }
   .list-title { font-size: 1.05rem; }
