@@ -451,7 +451,7 @@ function renderSummaryCards() {
     { k: 'paid', l: t('Paid'), n: count('paid'), status: 'paid' },
     // Headline reads compact (e.g. IDR 123.3M) so it fits on one line even at
     // billions; the exact figure sits just below for anyone who needs it.
-    { k: 'total', l: totalCardLabel(), n: moneyShort(total, 'IDR'), sub: money(total, 'IDR') }
+    { k: 'total', l: totalCardLabel(), n: moneyShort(total, regionCurrency()), sub: money(total, regionCurrency()) }
   ];
   $('#summaryCards').innerHTML = cards.map(c => {
     if (!c.status) {
@@ -2541,7 +2541,7 @@ function renderClaimRows() {
   body.innerHTML = claimRows.length
     ? claimRows.map(claimRowHtml).join('')
     : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
-  $('#rcTotal').textContent = idr(claimTotal());
+  $('#rcTotal').textContent = liveAmt(claimTotal());
   if (rcTotalHook) rcTotalHook();
   $$('#rcRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readClaimRows(); claimRows.splice(+b.dataset.rm, 1); renderClaimRows();
@@ -2562,7 +2562,7 @@ function renderClaimRows() {
   }));
   $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
     el.value = groupAmount(el.value); // thousands separators as they type
-    readClaimRows(); $('#rcTotal').textContent = idr(claimTotal()); if (rcTotalHook) rcTotalHook();
+    readClaimRows(); $('#rcTotal').textContent = liveAmt(claimTotal()); if (rcTotalHook) rcTotalHook();
   }));
   // Reveal the "specify" field when the type is set to Others.
   $$('#rcRows select[name="expense_type"]').forEach(sel => sel.addEventListener('change', () => {
@@ -2666,7 +2666,7 @@ function openClaimModal(existing = null) {
               <tbody id="rcRows"></tbody>
               <tfoot><tr>
                 <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
-                <td class="meal-total" id="rcTotal">Rp 0</td>
+                <td class="meal-total" id="rcTotal">0</td>
                 <td colspan="3"></td>
               </tr></tfoot>
             </table>
@@ -2970,11 +2970,11 @@ $('#newClaimBtn').addEventListener('click', () => openClaimModal());
 // "Meal Allowance Claim Form": a title, an editable table (one row per day),
 // a live total, and the rate note at the bottom.
 // ---------------------------------------------------------------------------
-// Indonesian rupiah, no decimals — "Rp 120.000".
-function idr(n) {
-  try { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0); }
-  catch { return 'Rp ' + Math.round(n || 0).toLocaleString('id-ID'); }
-}
+// A running total in the region's default currency (Settings → Currency & time
+// zone). Mirrors money()'s locale/currency convention so the live total in a
+// claim form reads the same as the claim will once submitted — and follows the
+// region when its default currency changes (e.g. IDR → USD).
+function liveAmt(n) { return money(n || 0, regionCurrency()); }
 const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
 
 // The preset meal-allowance amounts are configured per region in Settings → Meal
@@ -3021,16 +3021,21 @@ function renderMealRows() {
   $('#mealRows').innerHTML = mealRows.length
     ? mealRows.map(mealRowHtml).join('')
     : `<tr><td colspan="6" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
-  $('#mealTotal').textContent = idr(mealTotal());
+  $('#mealTotal').textContent = liveAmt(mealTotal());
   $$('#mealRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
   }));
   $$('#mealRows .meal-amt').forEach(sel => sel.addEventListener('change', () => {
-    readMealRows(); $('#mealTotal').textContent = idr(mealTotal());
+    readMealRows(); $('#mealTotal').textContent = liveAmt(mealTotal());
   }));
 }
 
-function openMealAllowanceModal(existing = null) {
+async function openMealAllowanceModal(existing = null) {
+  // Refresh the Amount-dropdown presets for the submitter's region every time the
+  // form opens. state.mealRates is seeded at login but can be stale (e.g. an admin
+  // just changed them in Settings), so re-fetch to keep the form connected to the
+  // saved amounts. A failure keeps whatever presets we already have.
+  try { state.mealRates = (await api('/meal-rates')).rates || state.mealRates; } catch { /* keep current */ }
   const isEdit = !!existing;
   if (isEdit) {
     // Prefill from the claim being resubmitted.
@@ -3068,7 +3073,7 @@ function openMealAllowanceModal(existing = null) {
               <tfoot>
                 <tr>
                   <td colspan="3" class="meal-total-label">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))}</td>
-                  <td class="meal-total" id="mealTotal">Rp 0</td>
+                  <td class="meal-total" id="mealTotal">0</td>
                   <td colspan="2"></td>
                 </tr>
               </tfoot>
@@ -3203,12 +3208,12 @@ function realizeDiffBanner(advanceAmount) {
   const spent = claimTotal();
   const diff = spent - advanceAmount;
   const cls = diff > 0 ? 'adv-diff-topup' : diff < 0 ? 'adv-diff-return' : 'adv-diff-even';
-  const msg = diff > 0 ? t('Over the advance by {amt} — a top-up will be owed to you.', { amt: idr(diff) })
-    : diff < 0 ? t('Under the advance by {amt} — you will return this balance.', { amt: idr(-diff) })
+  const msg = diff > 0 ? t('Over the advance by {amt} — a top-up will be owed to you.', { amt: liveAmt(diff) })
+    : diff < 0 ? t('Under the advance by {amt} — you will return this balance.', { amt: liveAmt(-diff) })
     : t('Exactly matches the advance.');
   return `<div class="adv-diff ${cls}">
-      <div class="adv-diff-row"><span>${esc(t('Advance received'))}</span><strong>${esc(idr(advanceAmount))}</strong></div>
-      <div class="adv-diff-row"><span>${esc(t('Total spent'))}</span><strong id="advSpent">${esc(idr(spent))}</strong></div>
+      <div class="adv-diff-row"><span>${esc(t('Advance received'))}</span><strong>${esc(liveAmt(advanceAmount))}</strong></div>
+      <div class="adv-diff-row"><span>${esc(t('Total spent'))}</span><strong id="advSpent">${esc(liveAmt(spent))}</strong></div>
       <div class="adv-diff-msg" id="advDiffMsg">${esc(msg)}</div>
     </div>`;
 }
@@ -3253,7 +3258,7 @@ function openRealizeModal(advance) {
               <tbody id="rcRows"></tbody>
               <tfoot><tr>
                 <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
-                <td class="meal-total" id="rcTotal">Rp 0</td>
+                <td class="meal-total" id="rcTotal">0</td>
                 <td colspan="3"></td>
               </tr></tfoot>
             </table>
@@ -3275,7 +3280,7 @@ function openRealizeModal(advance) {
   // Refresh the difference banner whenever the line total changes.
   rcTotalHook = () => {
     const spent = claimTotal();
-    const sp = $('#advSpent'); if (sp) sp.textContent = idr(spent);
+    const sp = $('#advSpent'); if (sp) sp.textContent = liveAmt(spent);
     const wrap = $('#advDiffWrap'); if (wrap) wrap.innerHTML = realizeDiffBanner(advance.amount);
   };
   $('#realizeForm').addEventListener('submit', e => submitRealization(e, advance));
@@ -3913,18 +3918,18 @@ async function renderClaimWindowTab() {
 // Saved via PUT /api/meal-rates; open to anyone with manage_settings.
 let mealRatesEdit = [];
 function mealRateEditRowHtml(n, i) {
-  return `<tr data-i="${i}">
-    <td data-label="${esc(t('Amount'))}"><input name="amount" class="mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" /></td>
-    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
-  </tr>`;
+  return `<div class="mr-row" data-i="${i}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <input name="amount" class="mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" style="flex:1;min-width:0;margin:0" />
+    <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button>
+  </div>`;
 }
 function readMealRateEdit() {
-  mealRatesEdit = $$('#mrRows tr[data-i]').map(tr => mealAmount(tr.querySelector('[name="amount"]').value));
+  mealRatesEdit = $$('#mrRows [data-i]').map(el => mealAmount(el.querySelector('[name="amount"]').value));
 }
 function renderMealRateRows() {
   $('#mrRows').innerHTML = mealRatesEdit.length
     ? mealRatesEdit.map(mealRateEditRowHtml).join('')
-    : `<tr><td colspan="2" class="muted" style="padding:14px;text-align:center">${esc(t('No amounts yet — add one below.'))}</td></tr>`;
+    : `<p class="muted" style="margin:4px 0">${esc(t('No amounts yet — add one below.'))}</p>`;
   $$('#mrRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRateEdit(); mealRatesEdit.splice(+b.dataset.rm, 1); renderMealRateRows();
   }));
@@ -3944,17 +3949,10 @@ async function renderMealRatesTab() {
   mealRatesEdit = (data.rates || []).slice();
   if (!mealRatesEdit.length) mealRatesEdit = [0];
   panel.innerHTML = `
-    <div class="settings-controls" style="max-width:420px">
+    <div class="settings-controls" style="max-width:320px">
       <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the preset amounts the Meal Allowance form offers in its Amount dropdown.'))}</p>
-      <div class="meal-table-wrap">
-        <table class="meal-table">
-          <thead><tr>
-            <th>${esc(t('Amount'))}</th><th aria-label="${esc(t('Remove'))}"></th>
-          </tr></thead>
-          <tbody id="mrRows"></tbody>
-        </table>
-      </div>
-      <div style="margin-top:10px">
+      <div id="mrRows"></div>
+      <div style="margin-top:6px">
         <button type="button" class="btn btn-brand-soft btn-sm" id="mrAddRow">${esc(t('+ Add amount'))}</button>
       </div>
       <p class="form-error" id="mrErr" hidden style="margin-top:12px"></p>
