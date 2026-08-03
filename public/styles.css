@@ -880,11 +880,17 @@ input[type="search"] { min-width: 220px; }
   .list-title { order: 3; flex-basis: 100%; font-size: 1.15rem; }
   .refresh-stamp { order: 4; flex-basis: 100%; font-size: .72rem; margin-top: -2px; }
 
-  /* Toolbar: stack search + filters full width, actions on their own row. */
+  /* Toolbar: search gets its own full-width row; the filter dropdowns wrap two
+     to a row below it. Note: the search input carries `flex: 1 1 260px` for the
+     desktop row — in this column/wrap layout that 260px basis would balloon into
+     a 260px-TALL empty box, so every control's flex is reset to auto here. */
   .toolbar { flex-direction: column; align-items: stretch; }
-  .toolbar-left, .toolbar-right { flex-direction: column; align-items: stretch; }
-  .toolbar-left .input, input[type="search"], select.input { min-width: 0; width: 100%; }
-  .toolbar-left .msel { flex-basis: 100%; min-width: 0; width: 100%; }
+  .toolbar-left { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+  .toolbar-right { flex-direction: column; align-items: stretch; }
+  .toolbar-left .input, input[type="search"], select.input { min-width: 0; }
+  .toolbar-left #searchInput { flex: 1 1 100%; width: 100%; }
+  .toolbar-left select.input { flex: 1 1 140px; width: auto; }
+  .toolbar-left .msel { flex: 1 1 140px; min-width: 0; width: auto; }
   .toolbar-right .btn { width: 100%; }
 
   /* Insights filters stack full width; scope chip drops below the title. */
@@ -917,9 +923,10 @@ input[type="search"] { min-width: 220px; }
   .modal-actions.sticky-foot { margin: 14px -16px -18px; padding: 14px 16px; }
 }
 
-/* Small phones — 2×2 status cards with the total on its own full-width row,
-   tighter type, and no oversized controls. */
-@media (max-width: 460px) {
+/* Phones — 2×2 status cards with the total on its own full-width row, tighter
+   type, and no oversized controls. Covers most handsets (the default auto-fit
+   grid would otherwise pack an awkward 3-then-2 layout at ~480–560px). */
+@media (max-width: 600px) {
   .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
   .card { padding: 10px 12px; border-radius: 10px; }
   .card .card-n { font-size: 1.3rem; }
