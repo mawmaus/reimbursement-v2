@@ -2847,6 +2847,16 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
 const ROLES = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Roles a delegated (non-superadmin) creator may assign: every role strictly
+// more junior than their own in the ROLES ladder (index 0 = most senior). This
+// keeps a create_accounts holder from minting peers or seniors — no
+// self-escalation. Super admins are unrestricted and handled at the call site.
+function creatableRolesFor(user) {
+  if (!user) return [];
+  if (user.role === 'superadmin') return ROLES.filter(r => r !== 'superadmin');
+  const i = ROLES.indexOf(user.role);
+  return i < 0 ? [] : ROLES.slice(i + 1);
+}
 
 // Send a test email so an admin can confirm the Resend configuration works.
 // Defaults to the admin's own account email; a recipient can be supplied.
@@ -2944,6 +2954,12 @@ app.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req
   let { role, department, position, approver_ids, approver1_options } = req.body || {};
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  // Delegated creators (non-super) may only create accounts more junior than
+  // themselves; a super admin may assign any role. Guards against self-escalation
+  // regardless of what the client sent.
+  if (!isSuper && !creatableRolesFor(req.user).includes(role)) {
+    return res.status(403).json({ error: 'You cannot create an account with that role' });
+  }
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const nextEmail = normEmail(email);
   if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });

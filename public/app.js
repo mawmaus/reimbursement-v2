@@ -272,6 +272,17 @@ function uCan(cap) {
 function canPay(u) {
   return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
 }
+// Role ladder, most senior → most junior. Mirrors the server's ROLES.
+const ROLES_ORDER = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Roles the signed-in user may assign when creating an account: every role
+// strictly below their own (super admins get all but superadmin here; they use
+// the full list directly in the form). Mirrors the server's creatableRolesFor.
+function creatableRoles() {
+  const u = state.user;
+  if (!u) return [];
+  const i = ROLES_ORDER.indexOf(u.role);
+  return i < 0 ? [] : ROLES_ORDER.slice(i + 1);
+}
 
 function showApp() {
   $('#loginView').hidden = true;
@@ -290,10 +301,11 @@ function showApp() {
   // Settings opens for super admins, CM/MD (who always get the Roles tab), or
   // anyone who can manage settings.
   $('#settingsBtn').hidden = !(isSuper || u.role === 'admin' || uCan('manage_settings'));
-  // "Manage accounts": shown to non-superadmins whose position/role may manage
-  // their team's accounts (reset password / enable-disable). Superadmins use
+  // "Manage accounts": shown to non-superadmins who may manage their team's
+  // accounts (reset password / enable-disable) OR who hold the create_accounts
+  // capability (so the delegated "+ Add user" form is reachable). Superadmins use
   // full Settings instead.
-  $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
+  $('#accountsBtn').hidden = !(!isSuper && (u.can_manage_accounts || uCan('create_accounts')));
   // Deleting claims (used to clear out test data) follows the matrix.
   $('#deleteSelBtn').hidden = !uCan('delete_claims');
   // Bulk "Mark as paid" / "Revert payment" — both shown to anyone who may
@@ -4310,13 +4322,18 @@ function renderUserForm(u) {
           <select name="role">
             ${['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
               `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
-          </select></label>` : ''}
+          </select></label>`
+        : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}
+          <select name="role">
+            ${creatableRoles().map((r, i, arr) =>
+              `<option value="${r}" ${i === arr.length - 1 ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
+          </select></label>` : '')}
         <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
-        ${state.user.role === 'superadmin' ? `<label>${esc(t('Region'))}
+        ${(state.user.role === 'superadmin' || (!isEdit && state.user.region === '*')) ? `<label>${esc(t('Region'))}
           <select name="region">
             ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(isEdit ? u.region === r : r === settingsState.region) ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-            <option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>
+            ${state.user.role === 'superadmin' ? `<option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>` : ''}
           </select></label>` : ''}
         <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
           <div class="pw-wrap">
@@ -4369,9 +4386,12 @@ function renderUserForm(u) {
       const syncLimit = () => { const on = unl.checked; amt.disabled = on; wrap.style.opacity = on ? '.5' : '1'; if (on) amt.value = ''; };
       unl.addEventListener('change', syncLimit); syncLimit();
     }
-    // Departments and job positions are per-region now, so when the Region
-    // changes reload its lists and rebuild those two pickers. The current pick is
-    // preserved (optionSelect keeps a value even if it's not in the new region).
+  }
+  // Departments and job positions are per-region now, so when the Region changes
+  // reload its lists and rebuild those two pickers. The current pick is preserved
+  // (optionSelect keeps a value even if it's not in the new region). Runs for any
+  // creator who has a Region select (super admins and all-regions delegates).
+  {
     const regionSel = $('#uForm select[name="region"]');
     if (regionSel) regionSel.addEventListener('change', async () => {
       const region = regionSel.value;
@@ -4421,22 +4441,32 @@ function renderUserForm(u) {
       if (!unlimited && !limitAmt) { const el = $('#uErr'); el.textContent = t('Enter an approval limit or choose Unlimited.'); el.hidden = false; return; }
       payload.approval_unlimited = unlimited;
       payload.approval_limit = limitAmt;
+    } else if (!isEdit && state.user.region === '*') {
+      // An all-regions delegate picks the new account's region; a region-scoped
+      // one has it pinned server-side to their own, so no field is sent.
+      payload.region = fd.get('region') || '';
     }
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;
     try {
       if (isEdit) await api('/users/' + u.id, { method: 'PUT', body: JSON.stringify(payload) });
       else await api('/users', { method: 'POST', body: JSON.stringify(payload) });
-      closeModal2(); toast(t('User saved')); renderAccountsTab();
+      closeModal2(); toast(t('User saved'));
+      // Refresh whichever account screen is open: the super-admin Settings tab or
+      // the delegated "Manage accounts" modal.
+      if ($('#maBody')) renderManageAccounts(); else renderAccountsTab();
     } catch (ex) { const el = $('#uErr'); el.textContent = ex.message; el.hidden = false; }
   });
 }
 
 // ---------------------------------------------------------------------------
-// Delegated account creation (senior positions — not superadmins)
+// Delegated account management (non-superadmins)
 // ---------------------------------------------------------------------------
-// A user in a senior job position may create accounts for junior positions in
-// their own department. The server enforces the same rules; this is the UI.
+// The team screen non-superadmins get instead of full Settings: reset passwords
+// and enable/disable accounts they may manage (positions ranked below theirs),
+// plus — for anyone granted the create_accounts capability — a "+ Add user" form
+// scoped to their region and to roles below their own. The server enforces the
+// same rules; this is the UI.
 function openManageAccountsModal() {
   openModal(`
     <div class="modal-head">
@@ -4457,11 +4487,18 @@ async function renderManageAccounts() {
   try { ({ users } = await api('/users')); }
   catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const dept = state.user.department || '';
+  const canCreate = uCan('create_accounts');
+  // Keep the approver-combo / creatable-position helpers fed while this modal is
+  // open (they read settingsState); the delegated create form reuses them.
+  settingsState.users = users;
   body.innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
       <input id="maSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
+      ${canCreate ? `<button class="btn btn-primary btn-sm" id="maAddUserBtn">${esc(t('+ Add user'))}</button>` : ''}
     </div>
-    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
+    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${canCreate
+      ? esc(t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' }))
+      : esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
     <div class="settings-list">
       <table class="utable utable-manage">
         <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
@@ -4481,6 +4518,8 @@ async function renderManageAccounts() {
       </table>
     </div>`;
   wireTableSearch($('#maSearch'), '#maBody .settings-list');
+  const addBtn = $('#maAddUserBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
   $$('#maBody [data-reset]').forEach(b => b.addEventListener('click', () =>
     renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
   $$('#maBody [data-active]').forEach(b => b.addEventListener('click', async () => {
@@ -4502,6 +4541,25 @@ function maCanManage(u) {
   if (u.role === 'superadmin') return false;
   const list = (state.user.creatable_positions || []).map(p => p.toLowerCase());
   return list.includes(String(u.position || '').trim().toLowerCase());
+}
+
+// Open the account-creation form for a delegated (non-superadmin) creator who
+// holds the create_accounts capability. Loads their region's department /
+// job-position lists (the form's pickers read settingsState) before opening it.
+// settingsState.users is already populated by the surrounding manage-accounts
+// screen. The server enforces the same region scope and the role-below-self rule.
+async function openDelegatedUserForm() {
+  const region = String(state.user.region || '');
+  settingsState.region = region;
+  const qs = region && region !== '*' ? `?region=${encodeURIComponent(region)}` : '';
+  try {
+    const [{ items: positions }, { items: depts }] = await Promise.all([
+      api('/positions' + qs), api('/departments' + qs)
+    ]);
+    settingsState.positions = positions.map(p => p.name);
+    settingsState.departments = depts.filter(d => d.active).map(d => d.name);
+  } catch (ex) { toast(ex.message, true); return; }
+  renderUserForm(null);
 }
 
 function renderResetPasswordForm(u) {
