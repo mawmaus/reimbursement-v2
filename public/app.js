@@ -272,13 +272,13 @@ function uCan(cap) {
 function canPay(u) {
   return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
 }
-// Advance oversight roles: Finance and CM/MD (admin) — plus super admin, who
-// sits above them and sees everything. These track every cash advance's
-// disbursement vs settlement, so the Realized/Unrealized tiles show them ALL
-// advances and are always visible; everyone else sees only their own, gated on
-// advance access.
+// Advance oversight: Finance and CM/MD (admin) roles, plus super admin (who sits
+// above them) and Finance-AP (anyone who records payments — canPay). These track
+// every cash advance's disbursement vs settlement, so the Realized/Unrealized
+// tiles show them ALL advances and are always visible; everyone else sees only
+// their own, gated on advance access.
 function seesAllAdvances(u) {
-  return !!(u && (u.role === 'superadmin' || u.role === 'admin' || u.role === 'finance'));
+  return !!(u && (u.role === 'admin' || u.role === 'finance' || canPay(u)));
 }
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
 const ROLES_ORDER = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
