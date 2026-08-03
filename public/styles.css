@@ -275,6 +275,9 @@ input[type="search"] { min-width: 220px; }
 .pivot-table td { color: var(--ink-soft); }
 .pivot-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .pivot-table td.num { color: var(--ink); font-weight: 650; }
+.pivot-table th.sortable:hover { color: var(--ink); }
+.pivot-table th.sortable:focus-visible { outline: 2px solid var(--pine); outline-offset: -2px; }
+.pivot-table th .sort-arrow { color: var(--pine); font-size: .82em; }
 .pivot-table tbody tr:last-child td { border-bottom: none; }
 .pivot-table tbody tr.row-open { cursor: pointer; }
 .pivot-table tbody tr.row-open:hover td { background: var(--surface-2, var(--line-soft)); }

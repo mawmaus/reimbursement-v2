@@ -1069,6 +1069,29 @@ function renderTypeBars() {
   renderTypeDetail();
 }
 
+// Active column sort for the drill-down table. Default: amount, largest first,
+// which matches the server's default row ordering. dir 1 = ascending, -1 = desc.
+let typeDetailSort = { key: 'amount', dir: -1 };
+// Sort the drill-down rows in place by the active column, tie-breaking on the
+// largest amount so equal keys stay in a stable, sensible order.
+function sortTypeDetail(rows) {
+  const { key, dir } = typeDetailSort;
+  const val = {
+    name: r => String(r.name || '').toLowerCase(),
+    no:   r => String(r.no || '').toLowerCase(),
+    date: r => String(r.date || ''),
+    db:   r => String(r.db || '').toLowerCase(),
+    type: r => String(r.type || '').toLowerCase(),
+    amount: r => r.cents,
+  }[key] || (r => r.cents);
+  rows.sort((a, b) => {
+    const va = val(a), vb = val(b);
+    if (va < vb) return -dir;
+    if (va > vb) return dir;
+    return b.cents - a.cents;
+  });
+}
+
 // Drill-down table for the currently selected expense type — the individual
 // expense lines behind that bar (employee, date, DB, amount). Mirrors a pivot
 // table's "show the rows behind this cell".
@@ -1082,8 +1105,9 @@ function renderTypeDetail() {
 
   const cur = d.currency || 'IDR';
   const set = new Set(bar.types);
-  const rows = (d.details || []).filter(r => set.has(r.type)); // already sorted desc by amount
+  const rows = (d.details || []).filter(r => set.has(r.type));
   const total = rows.reduce((s, r) => s + r.cents, 0);
+  sortTypeDetail(rows); // apply the active column sort (defaults to amount desc)
 
   const head = `
     <div class="type-detail-head">
@@ -1096,16 +1120,22 @@ function renderTypeDetail() {
 
   // The "Other" bar spans several types, so it gets an extra Type column.
   const showType = bar.types.length > 1;
+  // A clickable header cell that sorts by `key` and shows the active arrow.
+  const th = (key, label, numeric) => {
+    const on = typeDetailSort.key === key;
+    const arrow = on ? (typeDetailSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable${numeric ? ' num' : ''}" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (typeDetailSort.dir === 1 ? 'ascending' : 'descending') : 'none'}" style="cursor:pointer;user-select:none;white-space:nowrap">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
+  };
   const body = rows.length ? `
     <div class="type-detail-scroll">
       <table class="pivot-table">
         <thead><tr>
-          <th>${esc(t('Employee'))}</th>
-          <th>${esc(t('Doc No'))}</th>
-          <th>${esc(t('Date'))}</th>
-          <th>${esc(t('DB No'))}</th>
-          ${showType ? `<th>${esc(t('Type'))}</th>` : ''}
-          <th class="num">${esc(t('Amount'))}</th>
+          ${th('name', t('Employee'))}
+          ${th('no', t('Doc No'))}
+          ${th('date', t('Date'))}
+          ${th('db', t('DB No'))}
+          ${showType ? th('type', t('Type')) : ''}
+          ${th('amount', t('Amount'), true)}
         </tr></thead>
         <tbody>${rows.map(r => `<tr${r.cid ? ` class="row-open" data-cid="${esc(r.cid)}" tabindex="0" role="button" title="${esc(t('Open claim'))}"` : ''}>
           <td>${esc(r.name || '—')}</td>
@@ -1125,6 +1155,18 @@ function renderTypeDetail() {
     state.insights.drill = null;
     $$('#typeBars .bar-row').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
     renderTypeDetail();
+  });
+
+  // Clicking (or pressing Enter/Space on) a header sorts by that column; the same
+  // header again flips the direction. Amount opens largest-first, text A→Z.
+  const applySort = (key) => {
+    if (typeDetailSort.key === key) typeDetailSort.dir *= -1;
+    else typeDetailSort = { key, dir: key === 'amount' ? -1 : 1 };
+    renderTypeDetail();
+  };
+  $$('#typeDetail th[data-sort]').forEach(h => {
+    h.addEventListener('click', () => applySort(h.dataset.sort));
+    h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applySort(h.dataset.sort); } });
   });
 
   // Each detail row drills one level further: into the source claim itself.
