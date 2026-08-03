@@ -3002,19 +3002,6 @@ function mealAmountSelect(val) {
   </select>`;
 }
 
-// The rate reference shown under the form — built from the configured presets so
-// it always matches the dropdown. Hidden entirely when no presets are set.
-function mealRatesNoteHtml() {
-  const rates = mealRateList();
-  if (!rates.length) return '';
-  const lines = rates.map(r =>
-    `<div>${r.label ? `${esc(r.label.toUpperCase())} — ` : ''}${esc(groupAmount(String(r.amount)))}</div>`).join('');
-  return `<div class="meal-note">
-    <strong>${esc(t('MEAL ALLOWANCE CLAIM'))}</strong>
-    ${lines}
-  </div>`;
-}
-
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
@@ -3096,7 +3083,6 @@ function openMealAllowanceModal(existing = null) {
           ${approver1PickerHtml(existing)}
           ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
             <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
-          ${mealRatesNoteHtml()}
         </div>
         <div class="modal-actions meal-foot">
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
