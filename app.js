@@ -2654,12 +2654,27 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
          ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`, [req.user.id]);
   const departments = drows.map(r => r.department);
 
+  // Employee options for the searchable filter — distinct claimant names in the
+  // viewer's scope (region + approver-mode), independent of the year/dept/status
+  // filters so the list stays stable as you narrow. Mirrors the department list.
+  const empConds = [`COALESCE(TRIM(claimant_name), '') <> ''`];
+  const empParams = [];
+  if (mode === 'approver') { empParams.push(req.user.id); empConds.push(`$${empParams.length} = ANY(approver_ids)`); }
+  if (!seesAllRegions(req.user)) { empParams.push(req.user.region || ''); empConds.push(`region = $${empParams.length}`); }
+  const erows = await q(
+    `SELECT DISTINCT claimant_name FROM (
+       SELECT claimant_name, approver_ids, region FROM claims
+       UNION ALL SELECT claimant_name, approver_ids, region FROM meal_claims
+       UNION ALL SELECT claimant_name, approver_ids, region FROM cash_advances
+     ) t WHERE ${empConds.join(' AND ')} ORDER BY claimant_name`, empParams);
+  const employees = erows.map(r => r.claimant_name);
+
   res.json({
     scope: { mode, department: deptFilter || null },
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
     currency: seesAllRegions(req.user) ? DEFAULT_CURRENCY : (await regionPrefsFor(req.user.region)).currency,
-    year, years, status: statuses, db, name: nameFilter, departments,
+    year, years, status: statuses, db, name: nameFilter, departments, employees,
     byType, byMonth, byYear, kpis, details
   });
 }));

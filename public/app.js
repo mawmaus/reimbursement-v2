@@ -540,7 +540,10 @@ function enhanceSelect(sel) {
   wrap.appendChild(trigger);
 
   let activeIdx = -1;
-  const searchable = () => sel.options.length > 8;
+  // A long list gets a search box automatically; `data-search="always"` forces
+  // one even for short lists (e.g. the employee filter, where typing a name is
+  // the point regardless of how many people currently have expenses).
+  const searchable = () => sel.dataset.search === 'always' || sel.options.length > 8;
   const refreshTrigger = () => {
     const o = sel.options[sel.selectedIndex];
     const placeholder = sel.selectedIndex <= 0 && !sel.value;
@@ -851,6 +854,8 @@ function renderInsights() {
     .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
   const statusOpts = INSIGHT_STATUS_PRESETS
     .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${esc(t(o.l))}</option>`).join('');
+  const nameOpts = [`<option value="">${esc(t('All employees'))}</option>`]
+    .concat((d.employees || []).map(x => `<option value="${esc(x)}"${x === f.name ? ' selected' : ''}>${esc(x)}</option>`)).join('');
 
   const k = d.kpis;
   const kpiCards = [
@@ -865,7 +870,7 @@ function renderInsights() {
       <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
       <label>${esc(t('DB No'))}<input id="inDb" class="input" type="search" placeholder="${esc(t('Filter by DB…'))}" value="${esc(f.db)}" /></label>
-      <label>${esc(t('Employee'))}<input id="inName" class="input" type="search" placeholder="${esc(t('Search employee…'))}" value="${esc(f.name)}" /></label>
+      <label>${esc(t('Employee'))}<select id="inName" class="input" data-search="always">${nameOpts}</select></label>
       <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
@@ -904,9 +909,7 @@ function renderInsights() {
   const db = $('#inDb');
   db.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
   db.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
-  const nm = $('#inName');
-  nm.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
-  nm.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
+  $('#inName').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
 
   $$('#trendSeg button').forEach(b => b.addEventListener('click', () => {
     if (f.trend === b.dataset.trend) return;
