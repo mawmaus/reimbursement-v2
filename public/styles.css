@@ -224,13 +224,45 @@ input[type="search"] { min-width: 220px; }
 }
 .seg button.on { background: var(--surface); color: var(--pine-deep); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 
-/* Spend-by-type horizontal bars */
-.type-bars { display: flex; flex-direction: column; gap: 11px; }
-.bar-row { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; }
+/* Spend-by-type horizontal bars (clickable: they drill into the type) */
+.type-bars { display: flex; flex-direction: column; gap: 5px; }
+.bar-row {
+  display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px;
+  width: 100%; text-align: left; border: 1px solid transparent; background: none;
+  font: inherit; color: inherit; cursor: pointer; padding: 6px 8px; border-radius: 9px;
+  transition: background .12s, border-color .12s;
+}
+.bar-row:hover { background: var(--pine-tint); }
+.bar-row:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+.bar-row.on { background: var(--pine-tint); border-color: var(--pine); }
 .bar-label { font-size: .82rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-track { height: 12px; background: var(--line-soft); border-radius: 6px; overflow: hidden; }
 .bar-fill { display: block; height: 100%; background: var(--pine); border-radius: 6px; transition: width .3s ease; }
 .bar-val { font-size: .82rem; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+
+/* Type drill-down (pivot) table */
+.type-detail { margin-top: 16px; }
+.type-detail-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.type-detail-head > div { min-width: 0; }
+.type-detail-close {
+  margin-left: auto; flex: none; border: none; background: var(--line-soft); color: var(--ink-soft);
+  width: 30px; height: 30px; border-radius: 8px; font-size: 1.2rem; line-height: 1; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.type-detail-close:hover { background: var(--line); color: var(--ink); }
+.type-detail-scroll { overflow-x: auto; }
+.pivot-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.pivot-table th, .pivot-table td {
+  text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); white-space: nowrap;
+}
+.pivot-table th {
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+  font-weight: 650; position: sticky; top: 0; background: var(--surface);
+}
+.pivot-table td { color: var(--ink-soft); }
+.pivot-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.pivot-table td.num { color: var(--ink); font-weight: 650; }
+.pivot-table tbody tr:last-child td { border-bottom: none; }
 
 /* Trend line/area chart */
 .trend-chart { position: relative; }

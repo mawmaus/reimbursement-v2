@@ -21,7 +21,7 @@ const state = {
   // Insights view: active filters, the "monthly vs yearly" trend toggle, and the
   // last payload from /api/insights (kept so the trend toggle re-renders without
   // a refetch).
-  insights: { year: '', department: '', db: '', status: 'approved,paid', trend: 'month', data: null },
+  insights: { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
   selected: new Set()
@@ -308,7 +308,7 @@ function showApp() {
   $('#homeView').hidden = false;
   $('#listView').hidden = true;
   $('#insightsView').hidden = true;
-  state.insights = { year: '', department: '', db: '', status: 'approved,paid', trend: 'month', data: null };
+  state.insights = { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
   loadLookups();
   loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
@@ -816,6 +816,7 @@ async function loadInsights() {
   if (f.year) params.set('year', f.year);
   if (f.department) params.set('department', f.department);
   if (f.db) params.set('db', f.db);
+  if (f.name) params.set('name', f.name);
   if (f.status) params.set('status', f.status);
   try {
     const data = await api('/insights?' + params.toString());
@@ -834,6 +835,8 @@ function renderInsights() {
   if (!d) return;
   const f = state.insights;
   const cur = d.currency || 'IDR';
+  // A fresh dataset invalidates any open drill-down.
+  f.drill = null;
 
   // Scope note in the header: a chosen department wins; otherwise it reflects the
   // viewer's remit (whole company vs. the claims they approve).
@@ -862,6 +865,7 @@ function renderInsights() {
       <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
       <label>${esc(t('DB No'))}<input id="inDb" class="input" type="search" placeholder="${esc(t('Filter by DB…'))}" value="${esc(f.db)}" /></label>
+      <label>${esc(t('Employee'))}<input id="inName" class="input" type="search" placeholder="${esc(t('Search employee…'))}" value="${esc(f.name)}" /></label>
       <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
@@ -869,7 +873,7 @@ function renderInsights() {
       <div class="chart-card">
         <div class="chart-head"><div>
           <div class="chart-title">${esc(t('Spend by expense type'))}</div>
-          <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))}</div>
+          <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))} · ${esc(t('Click a type to see its expenses'))}</div>
         </div></div>
         <div id="typeBars" class="type-bars"></div>
       </div>
@@ -886,7 +890,8 @@ function renderInsights() {
         </div>
         <div id="trendChart" class="trend-chart"></div>
       </div>
-    </div>`;
+    </div>
+    <div id="typeDetail" class="type-detail" hidden></div>`;
 
   renderTypeBars();
   renderTrend();
@@ -899,6 +904,9 @@ function renderInsights() {
   const db = $('#inDb');
   db.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
   db.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
+  const nm = $('#inName');
+  nm.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
+  nm.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
 
   $$('#trendSeg button').forEach(b => b.addEventListener('click', () => {
     if (f.trend === b.dataset.trend) return;
@@ -914,30 +922,117 @@ function currentStatusLabel(v) {
 }
 
 // Horizontal bars for spend-by-type. Long tails past 10 rows fold into "Other".
+// Each bar is clickable (pivot-style): it drills into the individual expense
+// lines that make up that type. `typeGroups` maps each visible bar to the real
+// expense type(s) it stands for (the "Other" bar covers the folded tail).
 function renderTypeBars() {
   const d = state.insights.data;
   const cur = d.currency || 'IDR';
   const wrap = $('#typeBars');
-  let items = d.byType.slice();
+  const items = d.byType.slice();
   if (!items.length) {
     wrap.innerHTML = `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
+    renderTypeDetail();
     return;
   }
+  // Build the visible bars and, alongside, the label→real-types grouping used by
+  // the drill-down. Fold everything past the top 9 into a single "Other" bar.
+  let bars;
   if (items.length > 10) {
-    const head = items.slice(0, 9);
-    const rest = items.slice(9).reduce((s, x) => s + x.cents, 0);
-    head.push({ type: t('Other'), cents: rest });
-    items = head;
+    const head = items.slice(0, 9).map(x => ({ label: x.type, cents: x.cents, types: [x.type] }));
+    const tail = items.slice(9);
+    head.push({ label: t('Other'), cents: tail.reduce((s, x) => s + x.cents, 0), types: tail.map(x => x.type) });
+    bars = head;
+  } else {
+    bars = items.map(x => ({ label: x.type, cents: x.cents, types: [x.type] }));
   }
-  const max = Math.max(...items.map(i => i.cents), 1);
-  wrap.innerHTML = items.map(i => {
+  state.insights.typeGroups = bars;
+
+  const max = Math.max(...bars.map(i => i.cents), 1);
+  wrap.innerHTML = bars.map((i, idx) => {
     const pct = Math.max(2, Math.round((i.cents / max) * 100));
-    return `<div class="bar-row">
-      <span class="bar-label" title="${esc(i.type)}">${esc(i.type)}</span>
+    const on = state.insights.drill === i.label;
+    return `<button type="button" class="bar-row${on ? ' on' : ''}" data-bar="${idx}"
+      aria-pressed="${on ? 'true' : 'false'}" title="${esc(t('Show expenses'))}: ${esc(i.label)}">
+      <span class="bar-label">${esc(i.label)}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
       <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}</span>
-    </div>`;
+    </button>`;
   }).join('');
+
+  $$('#typeBars .bar-row').forEach(b => b.addEventListener('click', () => {
+    const bar = state.insights.typeGroups[Number(b.dataset.bar)];
+    if (!bar) return;
+    // Toggle: clicking the open type closes the drill-down.
+    state.insights.drill = state.insights.drill === bar.label ? null : bar.label;
+    $$('#typeBars .bar-row').forEach(x => {
+      const on = state.insights.typeGroups[Number(x.dataset.bar)].label === state.insights.drill;
+      x.classList.toggle('on', on);
+      x.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    renderTypeDetail();
+  }));
+
+  renderTypeDetail();
+}
+
+// Drill-down table for the currently selected expense type — the individual
+// expense lines behind that bar (employee, date, DB, amount). Mirrors a pivot
+// table's "show the rows behind this cell".
+function renderTypeDetail() {
+  const host = $('#typeDetail');
+  if (!host) return;
+  const d = state.insights.data;
+  const label = state.insights.drill;
+  const bar = (state.insights.typeGroups || []).find(g => g.label === label);
+  if (!label || !bar) { host.hidden = true; host.innerHTML = ''; return; }
+
+  const cur = d.currency || 'IDR';
+  const set = new Set(bar.types);
+  const rows = (d.details || []).filter(r => set.has(r.type)); // already sorted desc by amount
+  const total = rows.reduce((s, r) => s + r.cents, 0);
+
+  const head = `
+    <div class="type-detail-head">
+      <div>
+        <div class="chart-title">${esc(label)}</div>
+        <div class="chart-sub">${esc(t('{n} expenses', { n: rows.length }))} · ${esc(money(total / 100, cur))}</div>
+      </div>
+      <button type="button" class="type-detail-close" id="typeDetailClose" aria-label="${esc(t('Close'))}">×</button>
+    </div>`;
+
+  // The "Other" bar spans several types, so it gets an extra Type column.
+  const showType = bar.types.length > 1;
+  const body = rows.length ? `
+    <div class="type-detail-scroll">
+      <table class="pivot-table">
+        <thead><tr>
+          <th>${esc(t('Employee'))}</th>
+          <th>${esc(t('Doc No'))}</th>
+          <th>${esc(t('Date'))}</th>
+          <th>${esc(t('DB No'))}</th>
+          ${showType ? `<th>${esc(t('Type'))}</th>` : ''}
+          <th class="num">${esc(t('Amount'))}</th>
+        </tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td>${esc(r.name || '—')}</td>
+          <td>${esc(r.no || '—')}</td>
+          <td>${esc(r.date || '—')}</td>
+          <td>${esc(r.db || '—')}</td>
+          ${showType ? `<td>${esc(r.type || '—')}</td>` : ''}
+          <td class="num">${esc(money(r.cents / 100, cur))}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>` : `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
+
+  host.innerHTML = `<div class="chart-card">${head}${body}</div>`;
+  host.hidden = false;
+  const close = $('#typeDetailClose');
+  if (close) close.addEventListener('click', () => {
+    state.insights.drill = null;
+    $$('#typeBars .bar-row').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+    renderTypeDetail();
+  });
 }
 
 // A dependency-free SVG line/area chart for the monthly / yearly trend, with a

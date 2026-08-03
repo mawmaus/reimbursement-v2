@@ -2539,6 +2539,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
 
   const deptFilter = String(req.query.department || '').trim();
   const db = String(req.query.db || '').trim();
+  const nameFilter = String(req.query.name || '').trim();
 
   const params = [];
   const where = [];
@@ -2551,21 +2552,27 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   if (mode === 'approver') { params.push(req.user.id); where.push(`$${params.length} = ANY(appr)`); }
   if (deptFilter) { params.push(deptFilter); where.push(`lower(department) = lower($${params.length})`); }
   if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
+  // Employee-name substring filter (matches the claimant on each document).
+  if (nameFilter) { params.push(`%${nameFilter}%`); where.push(`claimant ILIKE $${params.length}`); }
   // Region isolation: unless the viewer sees all regions, restrict to their own.
   if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
 
+  // Reimbursement rows come from each claim's LINES (claim_lines), not the claim
+  // header, so every expense keeps its own real type instead of the header's
+  // "Multiple" summary. `no`/`claimant` carry the source document number and the
+  // claimant name so the client can drill into a type and search by employee.
   const rows = await q(
-    `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo,
-            cents::bigint AS cents, cid
+    `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo, d,
+            cents::bigint AS cents, cid, db, no, claimant
        FROM (
-         SELECT expense_type AS category, department, expense_date AS d,
-                amount_cents AS cents, status, COALESCE(db_no,'') AS db, 'c' || id AS cid,
-                approver_ids AS appr, region
-           FROM claims
+         SELECT l.expense_type AS category, c.department, l.line_date AS d,
+                l.amount_cents AS cents, c.status, COALESCE(l.db_no,'') AS db, 'c' || c.id AS cid,
+                c.approver_ids AS appr, c.region, c.claim_no AS no, c.claimant_name AS claimant
+           FROM claim_lines l JOIN claims c ON c.id = l.claim_id
          UNION ALL
          SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
                 l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
-                m.approver_ids AS appr, m.region AS region
+                m.approver_ids AS appr, m.region AS region, m.claim_no AS no, m.claimant_name AS claimant
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
          UNION ALL
          -- Cash advances contribute their realization lines (actual transactions),
@@ -2580,7 +2587,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
                               WHEN 'rejected_realize'  THEN 'rejected'
                               ELSE a.status END AS status,
                 COALESCE(l.db_no,'') AS db, 'a' || a.id AS cid,
-                a.approver_ids AS appr, a.region AS region
+                a.approver_ids AS appr, a.region AS region, a.advance_no AS no, a.claimant_name AS claimant
            FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id
        ) ev
       WHERE ${where.join(' AND ')}`, params);
@@ -2605,6 +2612,12 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   for (const r of inYear) byTypeMap.set(r.category, (byTypeMap.get(r.category) || 0) + Number(r.cents));
   const byType = [...byTypeMap.entries()].sort((a, b) => b[1] - a[1])
     .map(([type, cents]) => ({ type, cents }));
+
+  // Line-level detail for the selected year, biggest first, so the client can
+  // drill into any expense type (pivot-style) and show each underlying line.
+  const details = inYear
+    .map(r => ({ no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', type: r.category, cents: Number(r.cents) }))
+    .sort((a, b) => b.cents - a.cents);
 
   const monthCents = Array(12).fill(0);
   for (const r of inYear) { const m = Number(r.mo); if (m >= 1 && m <= 12) monthCents[m - 1] += Number(r.cents); }
@@ -2646,8 +2659,8 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
     currency: seesAllRegions(req.user) ? DEFAULT_CURRENCY : (await regionPrefsFor(req.user.region)).currency,
-    year, years, status: statuses, db, departments,
-    byType, byMonth, byYear, kpis
+    year, years, status: statuses, db, name: nameFilter, departments,
+    byType, byMonth, byYear, kpis, details
   });
 }));
 
