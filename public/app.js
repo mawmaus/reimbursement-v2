@@ -272,6 +272,13 @@ function uCan(cap) {
 function canPay(u) {
   return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
 }
+// The finance function: the 'finance' role plus anyone who records payments
+// (Finance AP / super admins). Finance tracks every cash advance's disbursement
+// vs settlement, so the Realized/Unrealized tiles show them ALL advances and are
+// always visible; everyone else sees only their own, gated on advance access.
+function isFinance(u) {
+  return !!(u && (u.role === 'finance' || canPay(u)));
+}
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
 const ROLES_ORDER = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Roles the signed-in user may assign when creating an account: every role
@@ -732,6 +739,22 @@ const reviewedByMeQueue = () => state.claims.filter(reviewedByMe);
 // reverted (canRevert lets the payer unpay any paid claim).
 const paidQueue = () => state.claims.filter(c => c.status === 'paid');
 
+// Cash-advance realization tiles. A disbursed advance ('paid') is UNREALIZED
+// until its realization is approved; once approved (and through settlement) it
+// is REALIZED. A returned realization ('rejected_realize') is still unrealized
+// (the claimant must resubmit). Request-stage advances (submitted/approved/
+// rejected — not yet disbursed) belong to the claim queues, not here.
+const ADV_UNREALIZED = ['paid', 'realize_submitted', 'rejected_realize'];
+const ADV_REALIZED = ['realize_approved', 'settled'];
+// Finance sees every advance; everyone else only their own.
+function advanceScope() {
+  const u = state.user;
+  const fin = isFinance(u);
+  return state.claims.filter(c => c.type === 'advance' && (fin || c.employee_id === (u && u.id)));
+}
+const unrealizedQueue = () => advanceScope().filter(c => ADV_UNREALIZED.includes(c.status));
+const realizedQueue = () => advanceScope().filter(c => ADV_REALIZED.includes(c.status));
+
 // Claims for the open view, before the client-side claimant filter.
 function viewClaims() {
   if (state.view === 'mine') return myClaims();
@@ -739,6 +762,8 @@ function viewClaims() {
   if (state.view === 'approved') return approvedByMeQueue();
   if (state.view === 'reviewed') return reviewedByMeQueue();
   if (state.view === 'paid') return paidQueue();
+  if (state.view === 'unrealized') return unrealizedQueue();
+  if (state.view === 'realized') return realizedQueue();
   return state.claims; // 'all' / 'home'
 }
 
@@ -752,13 +777,15 @@ function visibleClaims() {
 // --- Home menu (clean landing) ----------------------------------------------
 // English source maps; viewLabel()/viewEmpty() translate at render time so a
 // language switch updates them without reloading the constant.
-const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', reviewed: 'Reviewed by me', paid: 'Paid claims', all: 'All activities' };
+const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', reviewed: 'Reviewed by me', paid: 'Paid claims', unrealized: 'Unrealized cash advances', realized: 'Realized cash advances', all: 'All activities' };
 const VIEW_EMPTY = {
   mine: 'You have not submitted any claims yet.',
   approval: 'Nothing is waiting for your approval right now.',
   approved: 'You have not approved any claims that are still open to revert.',
   reviewed: 'No claims have come to you for a decision yet.',
   paid: 'No claims have been marked as paid yet.',
+  unrealized: 'No cash advances are awaiting realization right now.',
+  realized: 'No cash advances have had their realization approved yet.',
   all: 'No claims in the system yet.'
 };
 const viewLabel = (k) => t(VIEW_LABEL[k] || 'Claims');
@@ -793,6 +820,13 @@ function renderHome() {
   // "Mark as paid" / unpay actions.
   if (canPay(u)) {
     tiles.push({ key: 'paid', title: t('Paid claims'), desc: t('Claims marked as paid — revert if needed'), count: paidQueue().length });
+  }
+  // Cash-advance realization tiles: disbursed-but-unrealized vs realized. Finance
+  // (which tracks disbursement vs settlement across everyone) always sees them;
+  // other users only when cash advance is part of their menu, scoped to their own.
+  if (isFinance(u) || (u.purposes && u.purposes.advance)) {
+    tiles.push({ key: 'unrealized', title: t('Unrealized cash advances'), desc: t('Advances paid — awaiting realization'), count: unrealizedQueue().length });
+    tiles.push({ key: 'realized', title: t('Realized cash advances'), desc: t('Advances with realization approved'), count: realizedQueue().length });
   }
   if (uCan('view_all_claims')) tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
   // Insights is gated to Supervisor-and-above plus all of Finance (see
