@@ -543,7 +543,11 @@ function enhanceSelect(sel) {
   // A long list gets a search box automatically; `data-search="always"` forces
   // one even for short lists (e.g. the employee filter, where typing a name is
   // the point regardless of how many people currently have expenses).
-  const searchable = () => sel.dataset.search === 'always' || sel.options.length > 8;
+  // `data-freetext="always"` makes it a hybrid: besides the listed options, the
+  // typed text can be committed as-is (a partial-name filter), and always shows
+  // a search box.
+  const freetext = () => sel.dataset.freetext === 'always';
+  const searchable = () => freetext() || sel.dataset.search === 'always' || sel.options.length > 8;
   const refreshTrigger = () => {
     const o = sel.options[sel.selectedIndex];
     const placeholder = sel.selectedIndex <= 0 && !sel.value;
@@ -551,9 +555,16 @@ function enhanceSelect(sel) {
   };
   const optsBox = () => menu.querySelector('.msel-opts');
   const renderOpts = (filter) => {
-    const f = String(filter || '').trim().toLowerCase();
-    const html = [...sel.options].filter(o => !f || o.textContent.toLowerCase().includes(f)).map(o =>
+    const raw = String(filter || '').trim();
+    const f = raw.toLowerCase();
+    const matches = [...sel.options].filter(o => !f || o.textContent.toLowerCase().includes(f));
+    let html = matches.map(o =>
       `<div class="msel-opt${o.value === sel.value ? ' sel' : ''}" role="option" data-val="${esc(o.value)}" aria-selected="${o.value === sel.value}"><span class="msel-lab">${esc(o.textContent)}</span><span class="msel-check" aria-hidden="true">✓</span></div>`).join('');
+    // Hybrid: offer the typed text itself as a filter value, unless it already
+    // matches a listed option exactly.
+    if (freetext() && raw && !matches.some(o => o.textContent.toLowerCase() === f)) {
+      html = `<div class="msel-opt msel-free" role="option" data-free="1" data-val="${esc(raw)}"><span class="msel-lab">${esc(t('Search for “{q}”', { q: raw }))}</span></div>` + html;
+    }
     optsBox().innerHTML = html || `<div class="msel-empty">${esc(t('No matches'))}</div>`;
     activeIdx = -1;
   };
@@ -596,7 +607,12 @@ function enhanceSelect(sel) {
     if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
-    else if (e.key === 'Enter') { e.preventDefault(); const els = optEls(); if (activeIdx >= 0 && els[activeIdx]) choose(els[activeIdx].dataset.val); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const els = optEls();
+      if (activeIdx >= 0 && els[activeIdx]) commitEl(els[activeIdx]);
+      else if (freetext()) { const inp = menu.querySelector('.msel-input'); const v = inp ? inp.value.trim() : ''; if (v) chooseFree(v); }
+    }
   };
   function open() {
     if (!menu.hidden) return;
@@ -625,11 +641,25 @@ function enhanceSelect(sel) {
     if (sel.value !== val) { sel.value = val; sel.dispatchEvent(new Event('change', { bubbles: true })); }
     refreshTrigger(); close(); trigger.focus();
   }
+  // Commit a free-typed value: back it with a real <option> (a select can only
+  // hold values it owns), pruning any earlier synthetic one, then select it.
+  function chooseFree(text) {
+    const v = String(text).trim();
+    if (!v) return;
+    [...sel.options].forEach(o => { if (o.dataset.free === '1' && o.value !== v) o.remove(); });
+    if (![...sel.options].some(o => o.value === v)) {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v; opt.dataset.free = '1';
+      sel.appendChild(opt);
+    }
+    choose(v);
+  }
+  const commitEl = (o) => (o.dataset.free === '1' ? chooseFree(o.dataset.val) : choose(o.dataset.val));
   trigger.addEventListener('click', () => (menu.hidden ? open() : close()));
   trigger.addEventListener('keydown', (e) => {
     if (menu.hidden && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); setActive(0); }
   });
-  menu.addEventListener('click', (e) => { const o = e.target.closest('.msel-opt'); if (o) choose(o.dataset.val); });
+  menu.addEventListener('click', (e) => { const o = e.target.closest('.msel-opt'); if (o) commitEl(o); });
   sel.addEventListener('change', refreshTrigger);
   sel._mselRefresh = refreshTrigger;
   refreshTrigger();
@@ -860,8 +890,13 @@ function renderInsights() {
     .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
   const statusOpts = INSIGHT_STATUS_PRESETS
     .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${esc(t(o.l))}</option>`).join('');
-  const nameOpts = [`<option value="">${esc(t('All employees'))}</option>`]
-    .concat((d.employees || []).map(x => `<option value="${esc(x)}"${x === f.name ? ' selected' : ''}>${esc(x)}</option>`)).join('');
+  const empList = d.employees || [];
+  // A free-typed employee filter (not one of the listed names) is kept as a
+  // synthetic option so the active filter still shows after a refetch.
+  const nameExtra = (f.name && !empList.includes(f.name))
+    ? `<option value="${esc(f.name)}" data-free="1" selected>${esc(f.name)}</option>` : '';
+  const nameOpts = `<option value="">${esc(t('All employees'))}</option>` + nameExtra
+    + empList.map(x => `<option value="${esc(x)}"${x === f.name ? ' selected' : ''}>${esc(x)}</option>`).join('');
   const dbOpts = [`<option value="">${esc(t('All DB numbers'))}</option>`]
     .concat((d.dbNos || []).map(x => `<option value="${esc(x)}"${x === f.db ? ' selected' : ''}>${esc(x)}</option>`)).join('');
 
@@ -879,7 +914,7 @@ function renderInsights() {
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
       <label>${esc(t('DB No'))}<select id="inDb" class="input" data-search="always">${dbOpts}</select></label>
       <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
-      <label>${esc(t('Employee'))}<select id="inName" class="input" data-search="always">${nameOpts}</select></label>
+      <label>${esc(t('Employee'))}<select id="inName" class="input" data-freetext="always">${nameOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
     <div class="insights-charts">

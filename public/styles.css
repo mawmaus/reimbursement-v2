@@ -149,11 +149,12 @@ input[type="search"] { min-width: 220px; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 26px 22px 60px; }
 
-/* Fixed-height app shell: the topbar and each list's header/filters stay put
-   while only the claim rows scroll, so a long ledger never pushes the menu,
-   summary cards, or filter row off-screen. */
-#appView:not([hidden]) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-#appView .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 24px; }
+/* Fixed-height app shell — ONLY when the claims list is open: the topbar,
+   list header, summary cards, and filter row stay put while only the claim
+   rows scroll, so a long ledger never pushes them off-screen. The home and
+   insights views are untouched and scroll with the page as before. */
+#appView:has(#listView:not([hidden])) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+#appView:has(#listView:not([hidden])) .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 24px; }
 #listView:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #listView .ledger { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #listView #claimRows { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
