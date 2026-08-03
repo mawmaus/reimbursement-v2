@@ -1820,46 +1820,6 @@
     fil: ['Ene', 'Peb', 'Mar', 'Abr', 'May', 'Hun', 'Hul', 'Ago', 'Set', 'Okt', 'Nob', 'Dis']
   };
 
-  // Expense types are stored as their original lookup value so reports and
-  // existing claims remain stable. Standard categories are translated only for
-  // display. The alias index recognises the category in every supported
-  // language; organisation-specific names are returned unchanged rather than
-  // guessed at.
-  const EXPENSE_TYPES = {
-    'Accommodation': { id: 'Akomodasi', th: '\\u0e17\\u0e35\\u0e48\\u0e1e\\u0e31\\u0e01', vi: 'L\\u01b0u tr\\u00fa', km: '\\u179f\\u17d2\\u1793\\u17b6\\u1780\\u17cb\\u1793\\u17c5', fil: 'Akomodasyon' },
-    'Entertainment': { id: 'Hiburan', th: '\\u0e04\\u0e48\\u0e32\\u0e1a\\u0e31\\u0e19\\u0e40\\u0e17\\u0e34\\u0e07', vi: 'Gi\\u1ea3i tr\\u00ed', km: '\\u1780\\u17b6\\u179a\\u1780\\u17c6\\u179f\\u17b6\\u1793\\u17d2\\u178f', fil: 'Libangan' },
-    'Equipment': { id: 'Peralatan', th: '\\u0e2d\\u0e38\\u0e1b\\u0e01\\u0e23\\u0e13\\u0e4c', vi: 'Thi\\u1ebft b\\u1ecb', km: '\\u179f\\u1798\\u17d2\\u1797\\u17b6\\u179a\\u17c8', fil: 'Kagamitan' },
-    'Fuel': { id: 'Bahan bakar', th: '\\u0e04\\u0e48\\u0e32\\u0e19\\u0e49\\u0e33\\u0e21\\u0e31\\u0e19', vi: 'Nhi\\u00ean li\\u1ec7u', km: '\\u1794\\u17d2\\u179a\\u17b6\\u17c6\\u1784\\u17a5\\u1793\\u17d2\\u1792\\u1793\\u17c8', fil: 'Gasolina' },
-    'Internet': { id: 'Internet', th: '\\u0e2d\\u0e34\\u0e19\\u0e40\\u0e17\\u0e2d\\u0e23\\u0e4c\\u0e40\\u0e19\\u0e47\\u0e15', vi: 'Internet', km: '\\u17a2\\u17ca\\u17b8\\u1793\\u1792\\u17ba\\u178e\\u17b7\\u178f', fil: 'Internet' },
-    'Marketing': { id: 'Pemasaran', th: '\\u0e01\\u0e32\\u0e23\\u0e15\\u0e25\\u0e32\\u0e14', vi: 'Ti\\u1ebfp th\\u1ecb', km: '\\u1791\\u17b8\\u1795\\u17d2\\u179f\\u17b6\\u179a', fil: 'Marketing' },
-    'Meals': { id: 'Makan', th: '\\u0e04\\u0e48\\u0e32\\u0e2d\\u0e32\\u0e2b\\u0e32\\u0e23', vi: 'B\\u1eefa \\u0103n', km: '\\u1790\\u17d2\\u179b\\u17c3\\u17a2\\u17b6\\u17a0\\u17b6\\u179a', fil: 'Pagkain' },
-    'Office supplies': { id: 'Perlengkapan kantor', th: '\\u0e40\\u0e04\\u0e23\\u0e37\\u0e48\\u0e2d\\u0e07\\u0e40\\u0e02\\u0e35\\u0e22\\u0e19\\u0e2a\\u0e33\\u0e19\\u0e31\\u0e01\\u0e07\\u0e32\\u0e19', vi: 'V\\u0103n ph\\u00f2ng ph\\u1ea9m', km: '\\u179f\\u1798\\u17d2\\u1797\\u17b6\\u179a\\u17c8\\u1780\\u17b6\\u179a\\u17b7\\u1799\\u17b6\\u179b\\u17d0\\u1799', fil: 'Gamit sa opisina' },
-    'Parking': { id: 'Parkir', th: '\\u0e04\\u0e48\\u0e32\\u0e08\\u0e2d\\u0e14\\u0e23\\u0e16', vi: '\\u0110\\u1ed7 xe', km: '\\u1785\\u17d2\\u179b\\u17c3\\u1785\\u179c\\u178e\\u17b6', fil: 'Paradahan' },
-    'Software': { id: 'Perangkat lunak', th: '\\u0e0b\\u0e2d\\u0e1f\\u0e15\\u0e4c\\u0e41\\u0e27\\u0e23\\u0e4c', vi: 'Ph\\u1ea7n m\\u1ec1m', km: '\\u1795\\u17d2\\u1791\\u17c2\\u1780\\u1791\\u1793\\u17cb', fil: 'Software' },
-    'Toll': { id: 'Tol', th: '\\u0e04\\u0e48\\u0e32\\u0e1c\\u0e48\\u0e32\\u0e19\\u0e17\\u0e32\\u0e07', vi: 'Ph\\u00ed c\\u1ea7u \\u0111\\u01b0\\u1eddng', km: '\\u1790\\u17d2\\u179b\\u17c3\\u1795\\u17d2\\u179b\\u17bc\\u179c', fil: 'Toll' },
-    'Training': { id: 'Pelatihan', th: '\\u0e01\\u0e32\\u0e23\\u0e1d\\u0e36\\u0e01\\u0e2d\\u0e1a\\u0e23\\u0e21', vi: '\\u0110\\u00e0o t\\u1ea1o', km: '\\u1780\\u17b6\\u179a\\u1794\\u178e\\u17d2\\u178f\\u17bb\\u17c7\\u1794\\u178e\\u17d2\\u178f\\u17b6\\u179b', fil: 'Pagsasanay' },
-    'Transportation': { id: 'Transportasi', th: '\\u0e04\\u0e48\\u0e32\\u0e40\\u0e14\\u0e34\\u0e19\\u0e17\\u0e32\\u0e07', vi: 'Di chuy\\u1ec3n', km: '\\u1780\\u17b6\\u179a\\u1792\\u17d2\\u179c\\u17be\\u178a\\u17c6\\u178e\\u17be\\u179a', fil: 'Transportasyon' },
-    'Travel': { id: 'Perjalanan', th: '\\u0e01\\u0e32\\u0e23\\u0e40\\u0e14\\u0e34\\u0e19\\u0e17\\u0e32\\u0e07', vi: 'C\\u00f4ng t\\u00e1c', km: '\\u1780\\u17b6\\u179a\\u1792\\u17d2\\u179c\\u17be\\u178a\\u17c6\\u178e\\u17be\\u179a', fil: 'Paglalakbay' },
-    'Others': { id: 'Lainnya', th: '\\u0e2d\\u0e37\\u0e48\\u0e19 \\u0e46', vi: 'Kh\\u00e1c', km: '\\u1795\\u17d2\\u179f\\u17c1\\u1784\\u17d7', fil: 'Iba pa' }
-  };
-  // The catalog uses ASCII-safe Unicode escape sequences so this file remains
-  // readable in older Windows editors as well.
-  const decodeExpenseUnicode = (value) => String(value).replace(/\\u([0-9a-f]{4})/gi,
-    (_, hex) => String.fromCharCode(parseInt(hex, 16)));
-  const expenseTypeKey = (value) => String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-  const EXPENSE_TYPE_ALIASES = Object.entries(EXPENSE_TYPES).reduce((index, [english, labels]) => {
-    index[expenseTypeKey(english)] = english;
-    Object.values(labels).forEach(label => { index[expenseTypeKey(decodeExpenseUnicode(label))] = english; });
-    return index;
-  }, { other: 'Others' });
-
-  function expenseType(value, lang = current) {
-    const raw = String(value == null ? '' : value).trim();
-    const english = EXPENSE_TYPE_ALIASES[expenseTypeKey(raw)];
-    if (!english) return raw;
-    return normalize(lang) === 'en' ? english : decodeExpenseUnicode(EXPENSE_TYPES[english][normalize(lang)] || english);
-  }
-
   // ------------------------------------------------------------------- runtime
   let current = 'en';
 
@@ -1909,7 +1869,7 @@
   }
 
   window.I18N = {
-    LANGS, NATIVE, t, months, expenseType,
+    LANGS, NATIVE, t, months,
     getLang: () => current,
     setLangLocal, applyStatic, normalize,
     cached: readCached

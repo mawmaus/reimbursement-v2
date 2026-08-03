@@ -4,9 +4,6 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-// The database keeps the configured expense-type value; I18N supplies a
-// translated display label for standard categories without changing that value.
-const expenseLabel = (value) => I18N.expenseType(value);
 
 const state = {
   user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
@@ -491,7 +488,7 @@ function rowView(c) {
     // was requested (an advance has no single expense date).
     return { typeLabel: t('Cash advance'), date: (c.created_at || '').slice(0, 10), amount: c.amount, db: '' };
   }
-  return { typeLabel: expenseLabel(c.expense_type), date: c.expense_date, amount: c.amount, db: c.db_no || '' };
+  return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount, db: c.db_no || '' };
 }
 
 function renderDeptOptions() {
@@ -906,7 +903,7 @@ function renderTypeBars() {
   wrap.innerHTML = items.map(i => {
     const pct = Math.max(2, Math.round((i.cents / max) * 100));
     return `<div class="bar-row">
-      <span class="bar-label" title="${esc(expenseLabel(i.type))}">${esc(expenseLabel(i.type))}</span>
+      <span class="bar-label" title="${esc(i.type)}">${esc(i.type)}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
       <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}</span>
     </div>`;
@@ -1763,7 +1760,7 @@ function reimbursementBody(c) {
     <tr>
       <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
       <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
-      <td data-label="${esc(t('Type of expense'))}">${esc(expenseLabel(l.expense_type))}</td>
+      <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
       <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
       <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
       <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
@@ -1838,7 +1835,7 @@ function advanceBody(c) {
           <tr>
             <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
             <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Type of expense'))}">${esc(expenseLabel(l.expense_type))}</td>
+            <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
             <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
             <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
@@ -2052,19 +2049,19 @@ function wireExpenseTypeField() {
   const render = () => {
     list.innerHTML = filtered.length
       ? filtered.map((o, i) => `<li class="combo-item${i === active ? ' active' : ''}" role="option"
-          data-val="${esc(o)}" aria-selected="${o === hidden.value}">${esc(expenseLabel(o))}</li>`).join('')
+          data-val="${esc(o)}" aria-selected="${o === hidden.value}">${esc(o)}</li>`).join('')
       : `<li class="combo-empty" aria-disabled="true">${esc(t('No matches'))}</li>`;
   };
   const open = () => { list.hidden = false; search.setAttribute('aria-expanded', 'true'); combo.classList.add('open'); };
   const close = () => { list.hidden = true; search.setAttribute('aria-expanded', 'false'); combo.classList.remove('open'); active = -1; };
   const filter = (term) => {
     const t = term.trim().toLowerCase();
-    filtered = t ? OPTIONS.filter(o => o.toLowerCase().includes(t) || expenseLabel(o).toLowerCase().includes(t)) : OPTIONS.slice();
+    filtered = t ? OPTIONS.filter(o => o.toLowerCase().includes(t)) : OPTIONS.slice();
     active = filtered.length ? 0 : -1;
     render();
   };
   const commit = (val) => {
-    hidden.value = val; search.value = expenseLabel(val);
+    hidden.value = val; search.value = val;
     syncOther(); close();
     if (val === 'Others' && other) other.focus();
   };
@@ -2095,7 +2092,7 @@ function wireExpenseTypeField() {
   // On blur, snap the visible text back to the committed value (never leave a
   // half-typed non-selection on screen).
   search.addEventListener('blur', () => setTimeout(() => {
-    if (document.activeElement !== search) { search.value = expenseLabel(hidden.value); close(); }
+    if (document.activeElement !== search) { search.value = hidden.value; close(); }
   }, 0));
 
   syncOther();
@@ -2211,8 +2208,8 @@ function rcTypeSelect(r) {
   const extra = (cur && cur !== 'Others' && !opts.includes(cur)) ? cur : null;
   return `<select name="expense_type">
       <option value="" ${cur ? '' : 'selected'}>${esc(t('Select…'))}</option>
-      ${extra ? `<option value="${esc(extra)}" selected>${esc(expenseLabel(extra))}</option>` : ''}
-      ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o === 'Others' ? t('Others (specify)') : expenseLabel(o))}</option>`).join('')}
+      ${extra ? `<option value="${esc(extra)}" selected>${esc(extra)}</option>` : ''}
+      ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o === 'Others' ? t('Others (specify)') : o)}</option>`).join('')}
     </select>
     <input name="expense_type_other" class="rc-other" value="${esc(r.expense_type_other || '')}" placeholder="${esc(t('Specify the expense…'))}" ${cur === 'Others' ? '' : 'hidden'} />`;
 }
@@ -3748,7 +3745,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         <tbody>${items.length ? items.map((it, i) => `
           <tr data-id="${it.id}">
             ${ranked ? orderCell(it, i) : ''}
-            <td data-label="${esc(t('Name'))}" class="name-cell">${esc(cfg.path === '/expense-types' ? expenseLabel(it.name) : it.name)}</td>
+            <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
             <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
             ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) + flagCell(it, 'allow_advance', t('New cash advance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
