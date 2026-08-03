@@ -186,6 +186,51 @@ async function setAppSetting(key, value) {
     [key, String(value == null ? '' : value)]);
 }
 
+// --- Per-region defaults: currency + time zone ------------------------------
+// Each region has a default currency (stamped onto new claims when the client
+// doesn't specify one) and a default time zone (governs what counts as "today"
+// for a claim's date and the claim-window floor). Stored as JSON in
+// app_settings under `region_prefs_by_region`: { [regionName]: { currency, timezone } }.
+// Regions without an entry — and All-regions/blank accounts — use the globals.
+const DEFAULT_CURRENCY = 'IDR';
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
+// The currencies an admin may choose from (ISO 4217 codes for the countries the
+// portal serves). The order is the display order in the settings dropdown.
+const AVAILABLE_CURRENCIES = ['IDR', 'USD', 'THB', 'VND', 'KHR', 'MYR', 'KRW'];
+const CURRENCY_SET = new Set(AVAILABLE_CURRENCIES);
+// The time zones an admin may choose from. Kept to the regions the portal serves
+// (plus USD/global) so the list stays short and every option is a valid IANA id.
+const AVAILABLE_TIMEZONES = [
+  'Asia/Jakarta', 'Asia/Makassar', 'Asia/Jayapura', 'Asia/Bangkok',
+  'Asia/Ho_Chi_Minh', 'Asia/Manila', 'Asia/Phnom_Penh', 'Asia/Kuala_Lumpur',
+  'Asia/Seoul', 'UTC'
+];
+const TIMEZONE_SET = new Set(AVAILABLE_TIMEZONES);
+// Is `tz` a time zone the runtime accepts? (Defence in depth beyond the fixed
+// list — an unknown id would throw when we format dates with it.)
+function isValidTimezone(tz) {
+  if (!tz || typeof tz !== 'string') return false;
+  try { new Intl.DateTimeFormat('en-CA', { timeZone: tz }); return true; }
+  catch { return false; }
+}
+// Parse the stored region-prefs map (tolerant of malformed JSON).
+function regionPrefsMap(settings) {
+  try { return settings.region_prefs_by_region ? JSON.parse(settings.region_prefs_by_region) : {}; }
+  catch { return {}; }
+}
+// The effective { currency, timezone } for a region, falling back to the global
+// defaults. '*'/blank (All-regions accounts) always use the defaults.
+function regionPrefs(settings, region) {
+  const r = region && region !== ALL_REGIONS ? regionPrefsMap(settings)[region] : null;
+  const currency = r && CURRENCY_SET.has(r.currency) ? r.currency : DEFAULT_CURRENCY;
+  const timezone = r && isValidTimezone(r.timezone) ? r.timezone : DEFAULT_TIMEZONE;
+  return { currency, timezone };
+}
+// Convenience: load settings and resolve a region's prefs in one call.
+async function regionPrefsFor(region) {
+  return regionPrefs(await loadAppSettings(), region);
+}
+
 // --- Role permissions (editable capability matrix) --------------------------
 // Beyond the fixed role (superadmin/admin/user), a super admin can grant each
 // role extra capabilities. These are ADDITIVE: they only widen what a user may
@@ -286,11 +331,12 @@ function userCan(user, cap) {
 
 // --- Claim date policy ------------------------------------------------------
 const isISODate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
-// Today's date (YYYY-MM-DD) in Jakarta time — matches the client's todayWIB() so
-// a late-evening submission doesn't roll to "tomorrow" via UTC.
-function todayJakarta() {
+// Today's date (YYYY-MM-DD) in a given time zone — matches the client's
+// todayWIB() so a late-evening submission doesn't roll to "tomorrow" via UTC.
+// Defaults to the global time zone; a region's own zone is passed in when known.
+function todayInZone(tz) {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+    timeZone: tz || DEFAULT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
 }
 // Subtract n whole days from a YYYY-MM-DD string (date-only arithmetic in UTC).
@@ -310,7 +356,9 @@ function claimWindowSettings(settings, region) {
   const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
   return {
     claim_max_age_days: has(r, 'max_age_days') ? r.max_age_days : settings.claim_max_age_days,
-    claim_earliest_date: has(r, 'earliest_date') ? r.earliest_date : settings.claim_earliest_date
+    claim_earliest_date: has(r, 'earliest_date') ? r.earliest_date : settings.claim_earliest_date,
+    // "Today" for the rolling window is measured in the region's own time zone.
+    timezone: regionPrefs(settings, region).timezone
   };
 }
 // The earliest expense date a claim may carry under a resolved policy, or null
@@ -319,7 +367,7 @@ function claimWindowSettings(settings, region) {
 function claimEarliestFrom(cw) {
   const bounds = [];
   const days = parseInt(cw.claim_max_age_days, 10);
-  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayJakarta(), days));
+  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayInZone(cw.timezone), days));
   if (isISODate(cw.claim_earliest_date)) bounds.push(cw.claim_earliest_date);
   if (!bounds.length) return null;
   return bounds.reduce((a, b) => (a > b ? a : b));
@@ -872,6 +920,7 @@ app.post('/api/login', ah(async (req, res) => {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
     language: normLang(user.language), region: user.region || '',
+    ...(await regionPrefsFor(user.region)),
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
     approver1_choices: await approver1Choices(user.approver1_options),
     can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
@@ -902,7 +951,7 @@ app.get('/api/me', ah(async (req, res) => {
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
   const pos = await loadPositions(u.region);
   await attachCaps(u);
-  res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+  res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
 }));
@@ -918,7 +967,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     const u = await loadUser(req);
     const pos = await loadPositions(u.region);
     await attachCaps(u);
-    return res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u),
+    return res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u),
       creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
       can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
   }
@@ -937,7 +986,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   const u = await loadUser(req);
   const pos = await loadPositions(u.region);
   await attachCaps(u);
-  res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+  res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
 }));
@@ -982,6 +1031,43 @@ app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(asyn
   byRegion[region] = { max_age_days: days, earliest_date: earliest };
   await setAppSetting('claim_window_by_region', JSON.stringify(byRegion));
   res.json(claimWindowView({ ...settings, claim_window_by_region: JSON.stringify(byRegion) }, region));
+}));
+
+// Per-region default currency + time zone. Read by any signed-in user for their
+// own region (the claim form needs the default currency); a super admin may read
+// any region via ?region. Edited by Super Admins (any region) and Country
+// Managers / Managing Directors (their own region only) — the same audience as
+// the region role matrix.
+function canManageRegionPrefs(user) {
+  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+}
+// The response shape shared by GET/PUT: the region's effective prefs plus the
+// option lists the settings dropdowns render from.
+function regionPrefsView(settings, region) {
+  const prefs = regionPrefs(settings, region);
+  return { region, ...prefs, currencies: AVAILABLE_CURRENCIES, timezones: AVAILABLE_TIMEZONES };
+}
+
+app.get('/api/region-prefs', requireAuth, ah(async (req, res) => {
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json(regionPrefsView(await loadAppSettings(), region));
+}));
+
+app.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
+  if (!canManageRegionPrefs(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
+  const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+  const currency = String(b.currency || '').trim();
+  if (!CURRENCY_SET.has(currency)) return res.status(400).json({ error: 'Choose a valid currency' });
+  const timezone = String(b.timezone || '').trim();
+  if (!TIMEZONE_SET.has(timezone) || !isValidTimezone(timezone)) return res.status(400).json({ error: 'Choose a valid time zone' });
+  const settings = await loadAppSettings();
+  const byRegion = regionPrefsMap(settings);
+  byRegion[region] = { currency, timezone };
+  await setAppSetting('region_prefs_by_region', JSON.stringify(byRegion));
+  res.json(regionPrefsView({ ...settings, region_prefs_by_region: JSON.stringify(byRegion) }, region));
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -1180,6 +1266,9 @@ function claimHeaderFromLines(lines) {
 // verified upload list for line i. Retries on a claim_no collision.
 async function createClaim(req, header, lines, verifiedByLine, totalCents, approverIds, region) {
   const h = claimHeaderFromLines(lines);
+  // Default the currency to the region's configured default when the client
+  // doesn't send one.
+  const defaultCurrency = (await regionPrefsFor(region)).currency;
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextClaimNo();
     const queries = [qq(
@@ -1193,7 +1282,7 @@ async function createClaim(req, header, lines, verifiedByLine, totalCents, appro
        String(req.user.bank_name || '').trim(),
        String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
        h.expense_type, totalCents,
-       String(header.currency || 'IDR').trim().slice(0, 8), h.description,
+       String(header.currency || defaultCurrency).trim().slice(0, 8), h.description,
        intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
     lines.forEach((l, i) => {
       queries.push(qq(
@@ -1705,6 +1794,7 @@ function mealLineQuery(claimIdExpr, l, i) {
 // Create a meal claim, its line items and initial history row as one atomic
 // transaction. Retries on a claim_no collision.
 async function createMealClaim(req, lines, totalCents, approverIds, region) {
+  const currency = (await regionPrefsFor(region)).currency;
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextMealClaimNo();
     const queries = [qq(
@@ -1714,7 +1804,7 @@ async function createMealClaim(req, lines, totalCents, approverIds, region) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11,$12)`,
       [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
        String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
-       String(req.user.bank_account_no || '').trim(), totalCents, 'IDR',
+       String(req.user.bank_account_no || '').trim(), totalCents, currency,
        intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
     lines.forEach((l, i) => queries.push(mealLineQuery(`currval(${MEAL_SEQ})`, l, i)));
     queries.push(qq(
@@ -1983,7 +2073,8 @@ function normaliseAdvanceRequest(body) {
   if (!purpose) return { error: 'A purpose for the cash advance is required' };
   const cents = parseAmountToCents(b.amount);
   if (cents === null || cents <= 0) return { error: 'Enter the advance amount' };
-  return { purpose, amountCents: cents, currency: String(b.currency || 'IDR').trim().slice(0, 8) || 'IDR' };
+  // A blank currency means "use the region default"; the caller resolves it.
+  return { purpose, amountCents: cents, currency: String(b.currency || '').trim().slice(0, 8) };
 }
 
 // Create a cash-advance request (phase 1). No lines yet; those arrive at
@@ -2023,7 +2114,8 @@ app.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   const region = String(req.user.region || '');
-  const id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, parsed.currency, built.ids, region);
+  const currency = parsed.currency || (await regionPrefsFor(region)).currency;
+  const id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, currency, built.ids, region);
   const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [id]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
@@ -2054,7 +2146,8 @@ app.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
      WHERE id=$11`,
     [String(emp.full_name || '').trim(), String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
      String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
-     parsed.purpose, parsed.amountCents, parsed.currency, intArrayLiteral(built.ids),
+     parsed.purpose, parsed.amountCents,
+     parsed.currency || row.currency || (await regionPrefsFor(row.region)).currency, intArrayLiteral(built.ids),
      built.ids.length ? 1 : 0, row.id]);
   await logAdvanceHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body || {}).resubmit_note || '').trim());
   const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [row.id]);
@@ -2550,7 +2643,9 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
 
   res.json({
     scope: { mode, department: deptFilter || null },
-    currency: 'IDR',
+    // Region-scoped viewers see their region's currency; all-regions viewers see
+    // the global default (their totals may span multiple currencies).
+    currency: seesAllRegions(req.user) ? DEFAULT_CURRENCY : (await regionPrefsFor(req.user.region)).currency,
     year, years, status: statuses, db, departments,
     byType, byMonth, byYear, kpis
   });

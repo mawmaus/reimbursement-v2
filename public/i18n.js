@@ -394,6 +394,18 @@
       'Only expenses dated {date} or later can be claimed.': 'Hanya pengeluaran bertanggal {date} atau setelahnya yang dapat diklaim.',
       'No date limit is set — expenses of any date can be claimed.': 'Tidak ada batas tanggal — pengeluaran tanggal berapa pun dapat diklaim.',
       'Claim date limit saved': 'Batas tanggal klaim disimpan',
+      'Currency & time zone': 'Mata uang & zona waktu',
+      'Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.': 'Atur mata uang dan zona waktu default untuk {region}. Klaim baru menggunakan mata uang ini, dan zona waktu menentukan tanggal mana yang dihitung sebagai “hari ini” untuk tanggal klaim.',
+      'Default currency': 'Mata uang default',
+      'Default time zone': 'Zona waktu default',
+      'this region': 'wilayah ini',
+      'Indonesian rupiah': 'Rupiah Indonesia',
+      'US dollar': 'Dolar AS',
+      'Thai baht': 'Baht Thailand',
+      'Vietnamese đồng': 'Dong Vietnam',
+      'Cambodian riel': 'Riel Kamboja',
+      'Malaysian ringgit': 'Ringgit Malaysia',
+      'South Korean won': 'Won Korea Selatan',
       'Expenses dated before {date} can no longer be claimed.': 'Pengeluaran bertanggal sebelum {date} tidak dapat lagi diklaim.'
     },
 
@@ -732,6 +744,18 @@
       'Only expenses dated {date} or later can be claimed.': 'เบิกได้เฉพาะค่าใช้จ่ายที่ลงวันที่ {date} หรือหลังจากนั้น',
       'No date limit is set — expenses of any date can be claimed.': 'ไม่มีการกำหนดขีดจำกัดวันที่ — เบิกค่าใช้จ่ายวันที่ใดก็ได้',
       'Claim date limit saved': 'บันทึกขีดจำกัดวันที่เบิกแล้ว',
+      'Currency & time zone': 'สกุลเงินและเขตเวลา',
+      'Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.': 'กำหนดสกุลเงินและเขตเวลาเริ่มต้นสำหรับ {region} การเบิกใหม่จะใช้สกุลเงินนี้ และเขตเวลาจะกำหนดว่าวันใดนับเป็น “วันนี้” สำหรับวันที่เบิก',
+      'Default currency': 'สกุลเงินเริ่มต้น',
+      'Default time zone': 'เขตเวลาเริ่มต้น',
+      'this region': 'ภูมิภาคนี้',
+      'Indonesian rupiah': 'รูเปียห์อินโดนีเซีย',
+      'US dollar': 'ดอลลาร์สหรัฐ',
+      'Thai baht': 'บาทไทย',
+      'Vietnamese đồng': 'ดงเวียดนาม',
+      'Cambodian riel': 'เรียลกัมพูชา',
+      'Malaysian ringgit': 'ริงกิตมาเลเซีย',
+      'South Korean won': 'วอนเกาหลีใต้',
       'Expenses dated before {date} can no longer be claimed.': 'ค่าใช้จ่ายที่ลงวันที่ก่อน {date} ไม่สามารถเบิกได้อีกต่อไป'
     },
 
@@ -1070,6 +1094,18 @@
       'Only expenses dated {date} or later can be claimed.': 'Chỉ những khoản chi có ngày {date} trở về sau mới được yêu cầu.',
       'No date limit is set — expenses of any date can be claimed.': 'Không đặt giới hạn ngày — khoản chi ở bất kỳ ngày nào cũng có thể được yêu cầu.',
       'Claim date limit saved': 'Đã lưu giới hạn ngày yêu cầu',
+      'Currency & time zone': 'Tiền tệ & múi giờ',
+      'Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.': 'Đặt tiền tệ và múi giờ mặc định cho {region}. Yêu cầu mới sẽ dùng tiền tệ này, và múi giờ quyết định ngày nào được tính là “hôm nay” cho ngày yêu cầu.',
+      'Default currency': 'Tiền tệ mặc định',
+      'Default time zone': 'Múi giờ mặc định',
+      'this region': 'khu vực này',
+      'Indonesian rupiah': 'Rupiah Indonesia',
+      'US dollar': 'Đô la Mỹ',
+      'Thai baht': 'Baht Thái',
+      'Vietnamese đồng': 'Đồng Việt Nam',
+      'Cambodian riel': 'Riel Campuchia',
+      'Malaysian ringgit': 'Ringgit Malaysia',
+      'South Korean won': 'Won Hàn Quốc',
       'Expenses dated before {date} can no longer be claimed.': 'Các khoản chi có ngày trước {date} không còn được yêu cầu.'
     },
 
@@ -1408,6 +1444,18 @@
       'Only expenses dated {date} or later can be claimed.': 'អាចស្នើសុំបានតែការចំណាយដែលមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
       'No date limit is set — expenses of any date can be claimed.': 'គ្មានការកំណត់កាលបរិច្ឆេទ — អាចស្នើសុំការចំណាយកាលបរិច្ឆេទណាក៏បាន។',
       'Claim date limit saved': 'បានរក្សាទុកការកំណត់កាលបរិច្ឆេទសំណើ',
+      'Currency & time zone': 'រូបិយប័ណ្ណ និងតំបន់ម៉ោង',
+      'Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.': 'កំណត់រូបិយប័ណ្ណ និងតំបន់ម៉ោងលំនាំដើមសម្រាប់ {region}។ សំណើថ្មីប្រើរូបិយប័ណ្ណនេះ ហើយតំបន់ម៉ោងកំណត់ថ្ងៃណាដែលរាប់ជា “ថ្ងៃនេះ” សម្រាប់កាលបរិច្ឆេទសំណើ។',
+      'Default currency': 'រូបិយប័ណ្ណលំនាំដើម',
+      'Default time zone': 'តំបន់ម៉ោងលំនាំដើម',
+      'this region': 'តំបន់នេះ',
+      'Indonesian rupiah': 'រូពៀឥណ្ឌូនេស៊ី',
+      'US dollar': 'ដុល្លារអាមេរិក',
+      'Thai baht': 'បាតថៃ',
+      'Vietnamese đồng': 'ដុងវៀតណាម',
+      'Cambodian riel': 'រៀលកម្ពុជា',
+      'Malaysian ringgit': 'រីងហ្គីតម៉ាឡេស៊ី',
+      'South Korean won': 'វ៉នកូរ៉េខាងត្បូង',
       'Expenses dated before {date} can no longer be claimed.': 'ការចំណាយដែលមានកាលបរិច្ឆេទមុន {date} មិនអាចស្នើសុំបានទៀតទេ។'
     },
 
@@ -1746,6 +1794,18 @@
       'Only expenses dated {date} or later can be claimed.': 'Ang mga gastos lang na may petsang {date} o mas bago ang maaaring i-claim.',
       'No date limit is set — expenses of any date can be claimed.': 'Walang nakatakdang limitasyon sa petsa — anumang petsa ng gastos ay maaaring i-claim.',
       'Claim date limit saved': 'Na-save ang limitasyon ng petsa ng claim',
+      'Currency & time zone': 'Pera at time zone',
+      'Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.': 'Itakda ang default na pera at time zone para sa {region}. Ginagamit ng mga bagong claim ang perang ito, at tinutukoy ng time zone kung aling araw ang itinuturing na “ngayon” para sa petsa ng claim.',
+      'Default currency': 'Default na pera',
+      'Default time zone': 'Default na time zone',
+      'this region': 'rehiyong ito',
+      'Indonesian rupiah': 'Rupiah ng Indonesia',
+      'US dollar': 'Dolyar ng US',
+      'Thai baht': 'Baht ng Thailand',
+      'Vietnamese đồng': 'Đồng ng Vietnam',
+      'Cambodian riel': 'Riel ng Cambodia',
+      'Malaysian ringgit': 'Ringgit ng Malaysia',
+      'South Korean won': 'Won ng South Korea',
       'Expenses dated before {date} can no longer be claimed.': 'Ang mga gastos na may petsa bago ang {date} ay hindi na maaaring i-claim.'
     }
   };
@@ -1759,6 +1819,46 @@
     km: ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'],
     fil: ['Ene', 'Peb', 'Mar', 'Abr', 'May', 'Hun', 'Hul', 'Ago', 'Set', 'Okt', 'Nob', 'Dis']
   };
+
+  // Expense types are stored as their original lookup value so reports and
+  // existing claims remain stable. Standard categories are translated only for
+  // display. The alias index recognises the category in every supported
+  // language; organisation-specific names are returned unchanged rather than
+  // guessed at.
+  const EXPENSE_TYPES = {
+    'Accommodation': { id: 'Akomodasi', th: '\\u0e17\\u0e35\\u0e48\\u0e1e\\u0e31\\u0e01', vi: 'L\\u01b0u tr\\u00fa', km: '\\u179f\\u17d2\\u1793\\u17b6\\u1780\\u17cb\\u1793\\u17c5', fil: 'Akomodasyon' },
+    'Entertainment': { id: 'Hiburan', th: '\\u0e04\\u0e48\\u0e32\\u0e1a\\u0e31\\u0e19\\u0e40\\u0e17\\u0e34\\u0e07', vi: 'Gi\\u1ea3i tr\\u00ed', km: '\\u1780\\u17b6\\u179a\\u1780\\u17c6\\u179f\\u17b6\\u1793\\u17d2\\u178f', fil: 'Libangan' },
+    'Equipment': { id: 'Peralatan', th: '\\u0e2d\\u0e38\\u0e1b\\u0e01\\u0e23\\u0e13\\u0e4c', vi: 'Thi\\u1ebft b\\u1ecb', km: '\\u179f\\u1798\\u17d2\\u1797\\u17b6\\u179a\\u17c8', fil: 'Kagamitan' },
+    'Fuel': { id: 'Bahan bakar', th: '\\u0e04\\u0e48\\u0e32\\u0e19\\u0e49\\u0e33\\u0e21\\u0e31\\u0e19', vi: 'Nhi\\u00ean li\\u1ec7u', km: '\\u1794\\u17d2\\u179a\\u17b6\\u17c6\\u1784\\u17a5\\u1793\\u17d2\\u1792\\u1793\\u17c8', fil: 'Gasolina' },
+    'Internet': { id: 'Internet', th: '\\u0e2d\\u0e34\\u0e19\\u0e40\\u0e17\\u0e2d\\u0e23\\u0e4c\\u0e40\\u0e19\\u0e47\\u0e15', vi: 'Internet', km: '\\u17a2\\u17ca\\u17b8\\u1793\\u1792\\u17ba\\u178e\\u17b7\\u178f', fil: 'Internet' },
+    'Marketing': { id: 'Pemasaran', th: '\\u0e01\\u0e32\\u0e23\\u0e15\\u0e25\\u0e32\\u0e14', vi: 'Ti\\u1ebfp th\\u1ecb', km: '\\u1791\\u17b8\\u1795\\u17d2\\u179f\\u17b6\\u179a', fil: 'Marketing' },
+    'Meals': { id: 'Makan', th: '\\u0e04\\u0e48\\u0e32\\u0e2d\\u0e32\\u0e2b\\u0e32\\u0e23', vi: 'B\\u1eefa \\u0103n', km: '\\u1790\\u17d2\\u179b\\u17c3\\u17a2\\u17b6\\u17a0\\u17b6\\u179a', fil: 'Pagkain' },
+    'Office supplies': { id: 'Perlengkapan kantor', th: '\\u0e40\\u0e04\\u0e23\\u0e37\\u0e48\\u0e2d\\u0e07\\u0e40\\u0e02\\u0e35\\u0e22\\u0e19\\u0e2a\\u0e33\\u0e19\\u0e31\\u0e01\\u0e07\\u0e32\\u0e19', vi: 'V\\u0103n ph\\u00f2ng ph\\u1ea9m', km: '\\u179f\\u1798\\u17d2\\u1797\\u17b6\\u179a\\u17c8\\u1780\\u17b6\\u179a\\u17b7\\u1799\\u17b6\\u179b\\u17d0\\u1799', fil: 'Gamit sa opisina' },
+    'Parking': { id: 'Parkir', th: '\\u0e04\\u0e48\\u0e32\\u0e08\\u0e2d\\u0e14\\u0e23\\u0e16', vi: '\\u0110\\u1ed7 xe', km: '\\u1785\\u17d2\\u179b\\u17c3\\u1785\\u179c\\u178e\\u17b6', fil: 'Paradahan' },
+    'Software': { id: 'Perangkat lunak', th: '\\u0e0b\\u0e2d\\u0e1f\\u0e15\\u0e4c\\u0e41\\u0e27\\u0e23\\u0e4c', vi: 'Ph\\u1ea7n m\\u1ec1m', km: '\\u1795\\u17d2\\u1791\\u17c2\\u1780\\u1791\\u1793\\u17cb', fil: 'Software' },
+    'Toll': { id: 'Tol', th: '\\u0e04\\u0e48\\u0e32\\u0e1c\\u0e48\\u0e32\\u0e19\\u0e17\\u0e32\\u0e07', vi: 'Ph\\u00ed c\\u1ea7u \\u0111\\u01b0\\u1eddng', km: '\\u1790\\u17d2\\u179b\\u17c3\\u1795\\u17d2\\u179b\\u17bc\\u179c', fil: 'Toll' },
+    'Training': { id: 'Pelatihan', th: '\\u0e01\\u0e32\\u0e23\\u0e1d\\u0e36\\u0e01\\u0e2d\\u0e1a\\u0e23\\u0e21', vi: '\\u0110\\u00e0o t\\u1ea1o', km: '\\u1780\\u17b6\\u179a\\u1794\\u178e\\u17d2\\u178f\\u17bb\\u17c7\\u1794\\u178e\\u17d2\\u178f\\u17b6\\u179b', fil: 'Pagsasanay' },
+    'Transportation': { id: 'Transportasi', th: '\\u0e04\\u0e48\\u0e32\\u0e40\\u0e14\\u0e34\\u0e19\\u0e17\\u0e32\\u0e07', vi: 'Di chuy\\u1ec3n', km: '\\u1780\\u17b6\\u179a\\u1792\\u17d2\\u179c\\u17be\\u178a\\u17c6\\u178e\\u17be\\u179a', fil: 'Transportasyon' },
+    'Travel': { id: 'Perjalanan', th: '\\u0e01\\u0e32\\u0e23\\u0e40\\u0e14\\u0e34\\u0e19\\u0e17\\u0e32\\u0e07', vi: 'C\\u00f4ng t\\u00e1c', km: '\\u1780\\u17b6\\u179a\\u1792\\u17d2\\u179c\\u17be\\u178a\\u17c6\\u178e\\u17be\\u179a', fil: 'Paglalakbay' },
+    'Others': { id: 'Lainnya', th: '\\u0e2d\\u0e37\\u0e48\\u0e19 \\u0e46', vi: 'Kh\\u00e1c', km: '\\u1795\\u17d2\\u179f\\u17c1\\u1784\\u17d7', fil: 'Iba pa' }
+  };
+  // The catalog uses ASCII-safe Unicode escape sequences so this file remains
+  // readable in older Windows editors as well.
+  const decodeExpenseUnicode = (value) => String(value).replace(/\\u([0-9a-f]{4})/gi,
+    (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  const expenseTypeKey = (value) => String(value == null ? '' : value).trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  const EXPENSE_TYPE_ALIASES = Object.entries(EXPENSE_TYPES).reduce((index, [english, labels]) => {
+    index[expenseTypeKey(english)] = english;
+    Object.values(labels).forEach(label => { index[expenseTypeKey(decodeExpenseUnicode(label))] = english; });
+    return index;
+  }, { other: 'Others' });
+
+  function expenseType(value, lang = current) {
+    const raw = String(value == null ? '' : value).trim();
+    const english = EXPENSE_TYPE_ALIASES[expenseTypeKey(raw)];
+    if (!english) return raw;
+    return normalize(lang) === 'en' ? english : decodeExpenseUnicode(EXPENSE_TYPES[english][normalize(lang)] || english);
+  }
 
   // ------------------------------------------------------------------- runtime
   let current = 'en';
@@ -1809,7 +1909,7 @@
   }
 
   window.I18N = {
-    LANGS, NATIVE, t, months,
+    LANGS, NATIVE, t, months, expenseType,
     getLang: () => current,
     setLangLocal, applyStatic, normalize,
     cached: readCached

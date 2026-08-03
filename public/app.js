@@ -4,6 +4,9 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// The database keeps the configured expense-type value; I18N supplies a
+// translated display label for standard categories without changing that value.
+const expenseLabel = (value) => I18N.expenseType(value);
 
 const state = {
   user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
@@ -75,24 +78,47 @@ function fmtBytes(b) {
   if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
   return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
-// Render a timestamp in Jakarta time (WIB, GMT+7) as "YYYY-MM-DD HH:MM WIB".
+// The time zone to render dates in: the signed-in user's region default (set in
+// Settings → Currency & time zone), falling back to Jakarta before login / for
+// All-regions accounts.
+function regionTimezone() {
+  return (state.user && state.user.timezone) || 'Asia/Jakarta';
+}
+// The region's default currency (Settings → Currency & time zone). Used to stamp
+// new claims; falls back to IDR before login / for All-regions accounts.
+function regionCurrency() {
+  return (state.user && state.user.currency) || 'IDR';
+}
+// A time zone's current UTC offset as "GMT+7", for display labels. Returns ''
+// if the runtime can't produce a short offset (older engines) so callers can
+// simply omit the label.
+function tzOffsetLabel(tz) {
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date()).find(p => p.type === 'timeZoneName');
+    return part ? part.value : '';
+  } catch { return ''; }
+}
+// Render a timestamp in the region's time zone as "YYYY-MM-DD HH:MM GMT+7".
 // Server timestamps arrive as UTC ISO strings; anything unparseable falls back
 // to a plain trim so we never render "Invalid Date".
 function fmtDateTime(s) {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return s.replace('T', ' ').slice(0, 16);
+  const tz = regionTimezone();
   const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {});
-  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} WIB`;
+  const zone = tzOffsetLabel(tz);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}${zone ? ' ' + zone : ''}`;
 }
-// Today's date (YYYY-MM-DD) in Jakarta time — used to default date pickers so a
-// late-evening entry doesn't roll to "tomorrow" via UTC.
+// Today's date (YYYY-MM-DD) in the region's time zone — used to default date
+// pickers so a late-evening entry doesn't roll to "tomorrow" via UTC.
 function todayWIB() {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+    timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
 }
 // English status labels — the source of truth for sorting and for the PDF
@@ -465,7 +491,7 @@ function rowView(c) {
     // was requested (an advance has no single expense date).
     return { typeLabel: t('Cash advance'), date: (c.created_at || '').slice(0, 10), amount: c.amount, db: '' };
   }
-  return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount, db: c.db_no || '' };
+  return { typeLabel: expenseLabel(c.expense_type), date: c.expense_date, amount: c.amount, db: c.db_no || '' };
 }
 
 function renderDeptOptions() {
@@ -880,7 +906,7 @@ function renderTypeBars() {
   wrap.innerHTML = items.map(i => {
     const pct = Math.max(2, Math.round((i.cents / max) * 100));
     return `<div class="bar-row">
-      <span class="bar-label" title="${esc(i.type)}">${esc(i.type)}</span>
+      <span class="bar-label" title="${esc(expenseLabel(i.type))}">${esc(expenseLabel(i.type))}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
       <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}</span>
     </div>`;
@@ -1737,7 +1763,7 @@ function reimbursementBody(c) {
     <tr>
       <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
       <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
-      <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
+      <td data-label="${esc(t('Type of expense'))}">${esc(expenseLabel(l.expense_type))}</td>
       <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
       <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
       <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
@@ -1812,7 +1838,7 @@ function advanceBody(c) {
           <tr>
             <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
             <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
+            <td data-label="${esc(t('Type of expense'))}">${esc(expenseLabel(l.expense_type))}</td>
             <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
             <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
@@ -2026,19 +2052,19 @@ function wireExpenseTypeField() {
   const render = () => {
     list.innerHTML = filtered.length
       ? filtered.map((o, i) => `<li class="combo-item${i === active ? ' active' : ''}" role="option"
-          data-val="${esc(o)}" aria-selected="${o === hidden.value}">${esc(o)}</li>`).join('')
+          data-val="${esc(o)}" aria-selected="${o === hidden.value}">${esc(expenseLabel(o))}</li>`).join('')
       : `<li class="combo-empty" aria-disabled="true">${esc(t('No matches'))}</li>`;
   };
   const open = () => { list.hidden = false; search.setAttribute('aria-expanded', 'true'); combo.classList.add('open'); };
   const close = () => { list.hidden = true; search.setAttribute('aria-expanded', 'false'); combo.classList.remove('open'); active = -1; };
   const filter = (term) => {
     const t = term.trim().toLowerCase();
-    filtered = t ? OPTIONS.filter(o => o.toLowerCase().includes(t)) : OPTIONS.slice();
+    filtered = t ? OPTIONS.filter(o => o.toLowerCase().includes(t) || expenseLabel(o).toLowerCase().includes(t)) : OPTIONS.slice();
     active = filtered.length ? 0 : -1;
     render();
   };
   const commit = (val) => {
-    hidden.value = val; search.value = val;
+    hidden.value = val; search.value = expenseLabel(val);
     syncOther(); close();
     if (val === 'Others' && other) other.focus();
   };
@@ -2069,7 +2095,7 @@ function wireExpenseTypeField() {
   // On blur, snap the visible text back to the committed value (never leave a
   // half-typed non-selection on screen).
   search.addEventListener('blur', () => setTimeout(() => {
-    if (document.activeElement !== search) { search.value = hidden.value; close(); }
+    if (document.activeElement !== search) { search.value = expenseLabel(hidden.value); close(); }
   }, 0));
 
   syncOther();
@@ -2185,8 +2211,8 @@ function rcTypeSelect(r) {
   const extra = (cur && cur !== 'Others' && !opts.includes(cur)) ? cur : null;
   return `<select name="expense_type">
       <option value="" ${cur ? '' : 'selected'}>${esc(t('Select…'))}</option>
-      ${extra ? `<option value="${esc(extra)}" selected>${esc(extra)}</option>` : ''}
-      ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o === 'Others' ? t('Others (specify)') : o)}</option>`).join('')}
+      ${extra ? `<option value="${esc(extra)}" selected>${esc(expenseLabel(extra))}</option>` : ''}
+      ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o === 'Others' ? t('Others (specify)') : expenseLabel(o))}</option>`).join('')}
     </select>
     <input name="expense_type_other" class="rc-other" value="${esc(r.expense_type_other || '')}" placeholder="${esc(t('Specify the expense…'))}" ${cur === 'Others' ? '' : 'hidden'} />`;
 }
@@ -2628,7 +2654,7 @@ async function submitClaim(e, existing) {
         attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
       });
     }
-    const payload = { lines, currency: 'IDR' };
+    const payload = { lines, currency: regionCurrency() };
     if (approver1) payload.approver1 = Number(approver1);
     btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
     if (existing) {
@@ -2865,7 +2891,7 @@ async function submitAdvanceRequest(e, existing) {
   if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
-  const payload = { purpose, amount, currency: 'IDR' };
+  const payload = { purpose, amount, currency: regionCurrency() };
   if (needsApprover1) payload.approver1 = Number(approver1);
   try {
     if (existing) {
@@ -3356,6 +3382,7 @@ const SETTINGS_TABS = [
   { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
+  { key: 'region-prefs', label: 'Currency & time zone', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
 // Tabs visible to the current user. Accounts is Super Admin-only; the Roles
@@ -3367,6 +3394,8 @@ function visibleSettingsTabs() {
   const isCmMd = u && u.role === 'admin';
   return SETTINGS_TABS.filter(tab => {
     if (tab.roleMatrix) return isSuper || isCmMd;
+    // Currency & time zone: Super Admins (any region) and CM/MD (their own).
+    if (tab.regionPrefs) return isSuper || isCmMd;
     if (tab.super) return isSuper;
     return tab.cap ? uCan(tab.cap) : true;
   });
@@ -3501,6 +3530,7 @@ function renderSettingsTab() {
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
+  if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
     departments: { path: '/departments', noun: 'department', purposes: true, regional: true },
@@ -3555,6 +3585,63 @@ async function renderClaimWindowTab() {
       }) });
       toast(t('Claim date limit saved'));
       renderClaimWindowTab();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  });
+}
+
+// --- Currency & time zone (per-region defaults) ------------------------------
+// Country Managers / Managing Directors (their own region) and Super Admins (any
+// region) set the region's default currency — stamped onto new claims — and its
+// default time zone, which decides what counts as "today" for claim dates. Both
+// are simple dropdowns saved via PUT /api/region-prefs.
+const CURRENCY_NAMES = {
+  IDR: 'Indonesian rupiah', USD: 'US dollar', THB: 'Thai baht', VND: 'Vietnamese đồng',
+  KHR: 'Cambodian riel', MYR: 'Malaysian ringgit', KRW: 'South Korean won'
+};
+async function renderRegionPrefsTab() {
+  const panel = $('#settingsPanel');
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  let data;
+  try { data = await api('/region-prefs' + regionQS); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const curOpts = (data.currencies || []).map(c =>
+    `<option value="${esc(c)}" ${c === data.currency ? 'selected' : ''}>${esc(c)}${CURRENCY_NAMES[c] ? ` — ${esc(t(CURRENCY_NAMES[c]))}` : ''}</option>`).join('');
+  const tzOpts = (data.timezones || []).map(z => {
+    const off = tzOffsetLabel(z);
+    return `<option value="${esc(z)}" ${z === data.timezone ? 'selected' : ''}>${esc(z)}${off ? ` (${esc(off)})` : ''}</option>`;
+  }).join('');
+  panel.innerHTML = `
+    <div class="settings-controls" style="max-width:560px">
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.', { region: settingsState.region || t('this region') }))}</p>
+      <form id="rpForm" class="form">
+        <label>${esc(t('Default currency'))}
+          <select name="currency">${curOpts}</select>
+        </label>
+        <label>${esc(t('Default time zone'))}
+          <select name="timezone">${tzOpts}</select>
+        </label>
+        <p class="form-error" id="rpErr" hidden></p>
+        <div class="modal-actions" style="justify-content:flex-start">
+          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
+        </div>
+      </form>
+    </div>`;
+  $('#rpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#rpErr'); err.hidden = true;
+    const fd = new FormData(e.target);
+    try {
+      await api('/region-prefs', { method: 'PUT', body: JSON.stringify({
+        currency: fd.get('currency'), timezone: fd.get('timezone'),
+        ...(settingsState.region ? { region: settingsState.region } : {})
+      }) });
+      toast(t('Saved'));
+      // If the actor edited their own region, refresh so new-claim defaults and
+      // date formatting pick up the change without a reload.
+      if (state.user && String(state.user.region || '') === String(settingsState.region || '')) {
+        try { const { user } = await api('/me'); if (user) state.user = { ...state.user, ...user }; } catch { /* keep going */ }
+      }
+      renderRegionPrefsTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 }
@@ -3661,7 +3748,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         <tbody>${items.length ? items.map((it, i) => `
           <tr data-id="${it.id}">
             ${ranked ? orderCell(it, i) : ''}
-            <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
+            <td data-label="${esc(t('Name'))}" class="name-cell">${esc(cfg.path === '/expense-types' ? expenseLabel(it.name) : it.name)}</td>
             <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
             ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) + flagCell(it, 'allow_advance', t('New cash advance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
