@@ -29,6 +29,12 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+/* Default the whole UI to 80% scale — like opening the site already zoomed out
+   to 80%. This shrinks everything uniformly (text, controls, spacing) while
+   leaving the responsive breakpoints untouched (media queries still evaluate
+   against the real viewport width), so each device keeps its own layout, just
+   rendered smaller. Users can still pinch- or Ctrl-zoom from here. */
+:root { zoom: 0.8; }
 body {
   font-family: var(--sans);
   color: var(--ink);
