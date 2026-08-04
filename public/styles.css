@@ -757,11 +757,13 @@ input[type="search"] { min-width: 220px; }
 .meal-table .db-entry { display: flex; align-items: stretch; border-top: 1px solid var(--line-soft); }
 .meal-table .db-entry[hidden] { display: none; }
 .meal-table .db-entry .db-prefix {
-  flex: none; display: flex; align-items: center; padding: 0 9px;
+  flex: none; display: flex; align-items: center; padding: 0 6px;
   background: var(--paper); color: var(--muted); font-weight: 700;
-  font-size: .82rem; letter-spacing: .04em; border-right: 1px solid var(--line-soft);
+  font-size: .8rem; letter-spacing: .02em; border-right: 1px solid var(--line-soft);
 }
-.meal-table .db-entry .db-num { flex: 1 1 auto; min-width: 0; font-variant-numeric: tabular-nums; }
+/* Tighter side padding than a normal cell input so 6+ digits never clip next to
+   the prefix. */
+.meal-table .db-entry .db-num { flex: 1 1 auto; min-width: 0; padding: 7px 6px; font-variant-numeric: tabular-nums; }
 .meal-table tfoot td { padding: 9px; background: var(--paper); font-weight: 650; }
 .meal-total-label { text-align: right; text-transform: uppercase; font-size: .72rem; letter-spacing: .04em; }
 .meal-total { text-align: right; font-variant-numeric: tabular-nums; color: var(--pine-deep); white-space: nowrap; }
@@ -1114,7 +1116,7 @@ input[type="search"] { min-width: 220px; }
 .rc-table thead th { padding: 8px 6px; }
 /* Comfortable column widths; type + description get the most room so long
    expense types and descriptions are readable. Description takes the slack. */
-.rc-table col.c-date { width: 120px; } .rc-table col.c-db { width: 100px; }
+.rc-table col.c-date { width: 120px; } .rc-table col.c-db { width: 132px; }
 .rc-table col.c-type { width: 230px; } .rc-table col.c-amt { width: 120px; }
 .rc-table col.c-recv { width: 150px; } .rc-table col.c-x { width: 34px; }
 /* Detail-view line tables (reimbursement + cash advance) fit the drawer with no
