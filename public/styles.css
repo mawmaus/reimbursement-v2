@@ -636,6 +636,10 @@ input[type="search"] { min-width: 220px; }
 
 /* users table */
 .utable { width: 100%; border-collapse: collapse; font-size: .9rem; }
+/* The Roles capability matrix is a checkbox grid keyed by role columns; it can be
+   wider than its modal, so it scrolls sideways inside its own container instead of
+   being clipped by the (overflow-x:hidden) settings list. */
+.matrix-scroll { overflow-x: auto; }
 .utable th, .utable td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
 .utable th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .tick-cell { text-align: center; }
@@ -1005,6 +1009,25 @@ input[type="search"] { min-width: 220px; }
   .settings-list .utable-users tr > td.act-cell,
   .settings-list .utable-manage tr > td:first-child,
   .settings-list .utable-manage tr > td.act-cell { grid-column: 1 / -1; }
+}
+
+/* The Roles matrix must NOT reflow into cards — its checkbox cells have no
+   per-cell label, so stacked they're meaningless. Keep it a real table (it
+   scrolls sideways in .matrix-scroll). This block overrides the card reflow
+   above for the matrix only. */
+@media (max-width: 900px) {
+  .settings-list .utable-matrix { display: table; width: auto; min-width: max-content; }
+  .settings-list .utable-matrix thead { display: table-header-group; }
+  .settings-list .utable-matrix tbody { display: table-row-group; }
+  .settings-list .utable-matrix tr {
+    display: table-row; border: 0; margin: 0; padding: 0; background: none; border-radius: 0;
+  }
+  .settings-list .utable-matrix th,
+  .settings-list .utable-matrix td {
+    display: table-cell; width: auto !important;
+    border: none; border-bottom: 1px solid var(--line-soft); padding: 9px 10px;
+  }
+  .settings-list .utable-matrix td[data-label]::before { display: none; }
 }
 
 /* Meal + reimbursement line tables reflow to labelled cards below tablet width,

@@ -4249,7 +4249,8 @@ async function renderRolesTab() {
       <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Employee row is shown for reference. These grants are added on top of what a user already gets from their job position and department.', { region: region || t('this region') }))}</p>
     </div>
     <div class="settings-list">
-      <table class="utable">
+      <div class="matrix-scroll">
+      <table class="utable utable-matrix">
         <thead><tr>${head}</tr></thead>
         <tbody>${capabilities.map(c => `
           <tr>
@@ -4260,6 +4261,7 @@ async function renderRolesTab() {
             ${roles.map(r => cell(c.key, r)).join('')}
           </tr>`).join('')}</tbody>
       </table>
+      </div>
     </div>`;
   $$('#settingsPanel input[data-cap]').forEach(cb => cb.addEventListener('change', async () => {
     const role = cb.dataset.role, cap = cb.dataset.cap, value = cb.checked;
