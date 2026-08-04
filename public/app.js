@@ -58,18 +58,21 @@ function toast(msg, isErr = false) {
 // ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------
+// Always show the ISO currency code (IDR, USD, THB, VND, …) rather than a
+// locale symbol like "Rp" or "$", so amounts read the same for every user and
+// currency. currencyDisplay: 'code' forces the code prefix.
 function money(amount, currency) {
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'IDR' }).format(amount);
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'IDR', currencyDisplay: 'code' }).format(amount);
   } catch { return `${currency || ''} ${Number(amount).toLocaleString()}`; }
 }
 // Compact currency for chart axes / KPI headline numbers, e.g. "IDR 84.2M".
-// Matches money()'s locale/currency convention so the Insights view reads the
+// Matches money()'s currency-code convention so the Insights view reads the
 // same as the rest of the app. Amounts are in whole currency units (not cents).
 function moneyShort(amount, currency) {
   try {
     return new Intl.NumberFormat(undefined, {
-      style: 'currency', currency: currency || 'IDR', notation: 'compact', maximumFractionDigits: 1
+      style: 'currency', currency: currency || 'IDR', currencyDisplay: 'code', notation: 'compact', maximumFractionDigits: 1
     }).format(amount || 0);
   } catch { return `${currency || ''} ${Number(amount || 0).toLocaleString()}`; }
 }
