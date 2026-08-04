@@ -3604,39 +3604,51 @@ async function openExportModal() {
 // ---------------------------------------------------------------------------
 $('#profileBtn').addEventListener('click', () => openProfileModal());
 
-// Bank name is picked from a short list (BCA / Others). "Others" reveals a free
-// text field for the actual bank name and shows a red fee note, since any
-// non-BCA payout is charged IDR 2,500. Returns the markup; wiring is done by
-// wireBankNameField after the modal is in the DOM.
-function bankNameField(current) {
+// Bank name is picked from a short list (the region's preferred bank / Others).
+// "Others" reveals a free text field for the actual bank name and shows a red
+// fee note, since payouts to any non-preferred bank are charged the region's
+// configured fee. The preferred bank and fee come from the account's region
+// (Settings → per-region defaults); both fall back to the legacy BCA / IDR 2,500
+// policy. `prefs` is { preferredBank, bankFee, currency }. Returns the markup;
+// wiring is done by wireBankNameField after the modal is in the DOM.
+function bankNameField(current, prefs) {
+  const p = prefs || {};
+  const preferred = String(p.preferredBank || 'BCA').trim() || 'BCA';
+  const fee = Number.isFinite(p.bankFee) ? p.bankFee : 2500;
+  const currency = p.currency || regionCurrency();
   const cur = String(current || '').trim();
-  const isBca = cur.toLowerCase() === 'bca';
-  const isOther = !!cur && !isBca;
-  const choice = isBca ? 'BCA' : (isOther ? 'Others' : 'BCA'); // default to BCA when unset
+  const isPreferred = cur.toLowerCase() === preferred.toLowerCase();
+  const isOther = !!cur && !isPreferred;
+  const choice = isPreferred ? 'PREF' : (isOther ? 'Others' : 'PREF'); // default to preferred when unset
+  const feeNote = fee > 0
+    ? `<p class="fee-note" id="bankFeeNote" ${choice === 'PREF' ? 'hidden' : ''}>${esc(t('⚠ A fee of {fee} is charged for every payment to a non-{bank} bank account.', { fee: money(fee, currency), bank: preferred }))}</p>`
+    : '';
   return `
     <label>${esc(t('Bank name'))}
-      <select name="bank_choice" id="bankChoice">
-        <option value="BCA" ${choice === 'BCA' ? 'selected' : ''}>BCA</option>
+      <select name="bank_choice" id="bankChoice" data-preferred="${esc(preferred)}">
+        <option value="PREF" ${choice === 'PREF' ? 'selected' : ''}>${esc(preferred)}</option>
         <option value="Others" ${choice === 'Others' ? 'selected' : ''}>${esc(t('Others'))}</option>
       </select></label>
     <label id="bankOtherWrap" ${choice === 'Others' ? '' : 'hidden'}>${esc(t('Bank name (please specify)'))}
       <input name="bank_name_custom" id="bankNameCustom" value="${isOther ? esc(cur) : ''}" placeholder="${esc(t('Enter your bank name'))}" /></label>
-    <p class="fee-note" id="bankFeeNote" ${choice === 'BCA' ? 'hidden' : ''}>${esc(t('⚠ A fee of IDR 2,500 is charged for every payment to a non-BCA bank account.'))}</p>`;
+    ${feeNote}`;
 }
 // Toggle the custom field + fee note as the bank choice changes. Returns a
-// getter for the effective bank name to use on submit.
+// getter for the effective bank name to use on submit (the region's preferred
+// bank name when "PREF" is selected, else the typed custom name).
 function wireBankNameField() {
   const choice = $('#bankChoice');
   if (!choice) return () => '';
+  const preferred = choice.getAttribute('data-preferred') || '';
   const wrap = $('#bankOtherWrap'), custom = $('#bankNameCustom'), note = $('#bankFeeNote');
   const sync = () => {
     const other = choice.value === 'Others';
     wrap.hidden = !other;
-    note.hidden = choice.value === 'BCA';
+    if (note) note.hidden = !other;
   };
   choice.addEventListener('change', () => { sync(); if (choice.value === 'Others' && custom) custom.focus(); });
   sync();
-  return () => choice.value === 'BCA' ? 'BCA' : String((custom && custom.value) || '').trim();
+  return () => choice.value === 'Others' ? String((custom && custom.value) || '').trim() : preferred;
 }
 
 async function openProfileModal() {
@@ -3653,7 +3665,7 @@ async function openProfileModal() {
         ${me.region ? `<div class="section-label" style="margin-top:14px">${esc(t('Region'))}</div>
         <p class="muted" style="margin:0">${esc(regionLabel(me.region))} <span style="font-size:.8rem">— ${esc(t('set by your administrator'))}</span></p>` : ''}
         <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
-        ${bankNameField(me.bank_name)}
+        ${bankNameField(me.bank_name, { preferredBank: me.preferredBank, bankFee: me.bankFee, currency: me.currency })}
         <label>${esc(t('Recipient bank account name'))}<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="${esc(t('Name on the account'))}" /></label>
         <label>${esc(t('Bank account number'))}<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="${esc(t('Account number'))}" /></label>
         <p class="form-note caution">${esc(t('The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.'))}</p>
@@ -3723,7 +3735,7 @@ const SETTINGS_TABS = [
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
   { key: 'meal-rates', label: 'Meal allowance', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
-  { key: 'region-prefs', label: 'Currency & time zone', regionPrefs: true },
+  { key: 'region-prefs', label: 'Currency, time zone & bank', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
 // Tabs visible to the current user. The Roles matrix is open to Super Admins and
@@ -4027,6 +4039,7 @@ async function renderRegionPrefsTab() {
     const off = tzOffsetLabel(z);
     return `<option value="${esc(z)}" ${z === data.timezone ? 'selected' : ''}>${esc(z)}${off ? ` (${esc(off)})` : ''}</option>`;
   }).join('');
+  const feeCur = esc(data.currency || 'IDR');
   panel.innerHTML = `
     <div class="settings-controls" style="max-width:560px">
       <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.', { region: settingsState.region || t('this region') }))}</p>
@@ -4036,6 +4049,14 @@ async function renderRegionPrefsTab() {
         </label>
         <label>${esc(t('Default time zone'))}
           <select name="timezone">${tzOpts}</select>
+        </label>
+        <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
+        <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Payments to the preferred bank are free; all other banks are charged this fee. This shows on each employee’s profile.'))}</p>
+        <label>${esc(t('Preferred bank (no transfer fee)'))}
+          <input name="bank" value="${esc(data.preferredBank || '')}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" />
+        </label>
+        <label>${esc(t('Fee for payments to other banks'))} (${feeCur})
+          <input name="bankFee" type="number" min="0" step="1" inputmode="numeric" value="${esc(String(data.bankFee != null ? data.bankFee : ''))}" />
         </label>
         <p class="form-error" id="rpErr" hidden></p>
         <div class="modal-actions" style="justify-content:flex-start">
@@ -4050,6 +4071,7 @@ async function renderRegionPrefsTab() {
     try {
       await api('/region-prefs', { method: 'PUT', body: JSON.stringify({
         currency: fd.get('currency'), timezone: fd.get('timezone'),
+        bank: fd.get('bank'), bankFee: Number(fd.get('bankFee')),
         ...(settingsState.region ? { region: settingsState.region } : {})
       }) });
       toast(t('Saved'));

@@ -215,18 +215,32 @@ function isValidTimezone(tz) {
   try { new Intl.DateTimeFormat('en-CA', { timeZone: tz }); return true; }
   catch { return false; }
 }
+// Each region also configures its bank/payout policy: a "preferred" bank whose
+// payouts carry no transfer fee, and a flat fee (in whole units of the region's
+// currency) charged on payouts to any other bank. Shown on the profile bank
+// picker. Regions without an entry fall back to these — the legacy Indonesian
+// policy (BCA free, IDR 2,500 to others) — so existing installs are unchanged.
+const DEFAULT_PREFERRED_BANK = 'BCA';
+const DEFAULT_BANK_FEE = 2500;
+const MAX_BANK_FEE = 1e9;      // sanity ceiling on the fee amount
+const MAX_BANK_NAME_LEN = 60;  // keep the stored preferred-bank name short
 // Parse the stored region-prefs map (tolerant of malformed JSON).
 function regionPrefsMap(settings) {
   try { return settings.region_prefs_by_region ? JSON.parse(settings.region_prefs_by_region) : {}; }
   catch { return {}; }
 }
-// The effective { currency, timezone } for a region, falling back to the global
-// defaults. '*'/blank (All-regions accounts) always use the defaults.
+// The effective { currency, timezone, preferredBank, bankFee } for a region,
+// falling back to the global defaults. '*'/blank (All-regions accounts) always
+// use the defaults.
 function regionPrefs(settings, region) {
   const r = region && region !== ALL_REGIONS ? regionPrefsMap(settings)[region] : null;
   const currency = r && CURRENCY_SET.has(r.currency) ? r.currency : DEFAULT_CURRENCY;
   const timezone = r && isValidTimezone(r.timezone) ? r.timezone : DEFAULT_TIMEZONE;
-  return { currency, timezone };
+  const preferredBank = r && typeof r.bank === 'string' && r.bank.trim()
+    ? r.bank.trim() : DEFAULT_PREFERRED_BANK;
+  const feeRaw = r ? Math.round(Number(r.bankFee)) : NaN;
+  const bankFee = Number.isFinite(feeRaw) && feeRaw >= 0 ? feeRaw : DEFAULT_BANK_FEE;
+  return { currency, timezone, preferredBank, bankFee };
 }
 // Convenience: load settings and resolve a region's prefs in one call.
 async function regionPrefsFor(region) {
@@ -1101,9 +1115,15 @@ app.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
   if (!CURRENCY_SET.has(currency)) return res.status(400).json({ error: 'Choose a valid currency' });
   const timezone = String(b.timezone || '').trim();
   if (!TIMEZONE_SET.has(timezone) || !isValidTimezone(timezone)) return res.status(400).json({ error: 'Choose a valid time zone' });
+  const bank = String(b.bank || '').trim().slice(0, MAX_BANK_NAME_LEN);
+  if (!bank) return res.status(400).json({ error: 'Enter the preferred (no-fee) bank name' });
+  const bankFee = Math.round(Number(b.bankFee));
+  if (!Number.isFinite(bankFee) || bankFee < 0 || bankFee > MAX_BANK_FEE) {
+    return res.status(400).json({ error: 'Enter a valid bank fee (0 or more)' });
+  }
   const settings = await loadAppSettings();
   const byRegion = regionPrefsMap(settings);
-  byRegion[region] = { currency, timezone };
+  byRegion[region] = { currency, timezone, bank, bankFee };
   await setAppSetting('region_prefs_by_region', JSON.stringify(byRegion));
   res.json(regionPrefsView({ ...settings, region_prefs_by_region: JSON.stringify(byRegion) }, region));
 }));
