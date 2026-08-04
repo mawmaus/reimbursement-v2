@@ -2599,11 +2599,65 @@ function rcTypeSelect(r) {
     </select>
     <input name="expense_type_other" class="rc-other" value="${esc(r.expense_type_other || '')}" placeholder="${esc(t('Specify the expense…'))}" ${cur === 'Others' ? '' : 'hidden'} />`;
 }
+// A "DB number" field. The user first chooses No DB or With DB; picking With DB
+// reveals a numbers-only box with a fixed grey "DB" prefix (no spaces). The
+// combined value is stored back as "DB <digits>" (or "" for No DB) so every
+// downstream reader — the line tables, the PDF export and the DB filter — keeps
+// working unchanged. Shared by the meal, reimbursement and realization editors.
+function dbParse(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return { on: false, digits: '' };
+  return { on: true, digits: s.replace(/\D/g, '') };
+}
+function dbCombine(on, digits) {
+  const d = String(digits || '').replace(/\D/g, '');
+  return on ? (d ? 'DB ' + d : 'DB') : '';
+}
+function dbCellHtml(value) {
+  const { on, digits } = dbParse(value);
+  return `<div class="db-cell">
+    <select class="db-mode">
+      <option value="no" ${on ? '' : 'selected'}>${esc(t('No DB'))}</option>
+      <option value="yes" ${on ? 'selected' : ''}>${esc(t('With DB'))}</option>
+    </select>
+    <div class="db-entry" ${on ? '' : 'hidden'}>
+      <span class="db-prefix" aria-hidden="true">DB</span>
+      <input class="db-num" inputmode="numeric" autocomplete="off" value="${esc(digits)}"
+        aria-label="${esc(t('DB number'))}" placeholder="500309" />
+    </div>
+  </div>`;
+}
+// Read a DB cell (identified by its .db-mode/.db-num children) back into the
+// combined stored string.
+function dbCellRead(tr) {
+  const sel = tr.querySelector('.db-mode'), num = tr.querySelector('.db-num');
+  return dbCombine(sel ? sel.value === 'yes' : false, num ? num.value : '');
+}
+// Wire every DB cell inside `scope`: the select toggles the numbers box, and the
+// box strips anything that isn't a digit (so spaces are impossible).
+function wireDbCells(scope) {
+  $$(scope + ' .db-cell').forEach(cell => {
+    const sel = cell.querySelector('.db-mode');
+    const entry = cell.querySelector('.db-entry');
+    const num = cell.querySelector('.db-num');
+    if (!sel || !entry || !num) return;
+    sel.addEventListener('change', () => {
+      const on = sel.value === 'yes';
+      entry.hidden = !on;
+      if (on) num.focus();
+    });
+    num.addEventListener('input', () => {
+      const clean = num.value.replace(/[^0-9]/g, '');
+      if (clean !== num.value) num.value = clean;
+    });
+  });
+}
+
 function claimRowHtml(r, i) {
   const min = claimEarliest() ? `min="${esc(claimEarliest())}"` : '';
   return `<tr data-i="${i}">
     <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
-    <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
+    <td data-label="${esc(t('DB No.'))}">${dbCellHtml(r.db_no)}</td>
     <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
     <td data-label="${esc(t('Amount'))}"><div class="rc-amt-wrap">
       <input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : groupAmount(String(r.amount)))}" placeholder="0" />
@@ -2624,7 +2678,7 @@ function readClaimRows() {
   $$('#rcRows tr[data-i]').forEach(tr => {
     const i = +tr.dataset.i, r = claimRows[i]; if (!r) return;
     const g = (n) => { const el = tr.querySelector(`[name="${n}"]`); return el ? el.value : ''; };
-    r.line_date = g('line_date'); r.db_no = g('db_no'); r.expense_type = g('expense_type');
+    r.line_date = g('line_date'); r.db_no = dbCellRead(tr); r.expense_type = g('expense_type');
     r.expense_type_other = g('expense_type_other'); r.amount = g('amount'); r.description = g('description');
   });
 }
@@ -2663,6 +2717,7 @@ function renderClaimRows() {
   }));
   // Per-row calculator: tally amounts and drop the sum into this row's Amount.
   $$('#rcRows .rc-calc').forEach(b => b.addEventListener('click', () => openCalcModal(+b.dataset.calc)));
+  wireDbCells('#rcRows');
 }
 
 // A small calculator (over the claim form) that adds up several amounts and
@@ -3092,7 +3147,7 @@ let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
     <td data-label="${esc(t('Date'))}"><input name="date" type="date" ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(r.date || '')}" /></td>
-    <td data-label="${esc(t('DB Number Site'))}"><input name="site" value="${esc(r.site || '')}" placeholder="DB 500 309" /></td>
+    <td data-label="${esc(t('DB Number Site'))}">${dbCellHtml(r.site)}</td>
     <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${esc(t('Install / Repair / Service…'))}" /></td>
     <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
     <td data-label="${esc(t('Additional Description'))}"><input name="desc" value="${esc(r.desc || '')}" placeholder="${esc(t('Surabaya'))}" /></td>
@@ -3100,9 +3155,9 @@ function mealRowHtml(r, i) {
   </tr>`;
 }
 function readMealRows() {
-  mealRows = $$('#mealRows tr').map(tr => ({
+  mealRows = $$('#mealRows tr[data-i]').map(tr => ({
     date: tr.querySelector('[name="date"]').value,
-    site: tr.querySelector('[name="site"]').value,
+    site: dbCellRead(tr),
     category: tr.querySelector('[name="category"]').value,
     amount: tr.querySelector('[name="amount"]').value,
     desc: tr.querySelector('[name="desc"]').value
@@ -3120,6 +3175,7 @@ function renderMealRows() {
   $$('#mealRows .meal-amt').forEach(sel => sel.addEventListener('change', () => {
     readMealRows(); $('#mealTotal').textContent = liveAmt(mealTotal());
   }));
+  wireDbCells('#mealRows');
 }
 
 async function openMealAllowanceModal(existing = null) {
