@@ -1962,12 +1962,31 @@ function renderChainProgress(c) {
       }).join('')}
     </ol>`;
 }
+// History action verbs are stored as lowercase server enums. Map them to
+// translatable Title-Case labels for the on-screen timeline. (The PDF keeps the
+// raw English — its embedded font is Latin-only; see pdfSafe.) Unknown verbs
+// fall back to a capitalised form so nothing renders blank.
+const ACTION_LABEL = {
+  submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected',
+  resubmitted: 'Resubmitted', paid: 'Paid', settled: 'Settled',
+  'realization submitted': 'Realization submitted',
+  'realization rejected': 'Realization rejected',
+  'realization resubmitted': 'Realization resubmitted',
+  'reverted approval': 'Reverted approval',
+  'reverted payment': 'Reverted payment',
+  'reverted realization approval': 'Reverted realization approval',
+  'reverted settlement': 'Reverted settlement'
+};
+const actionLabel = (a) => {
+  const s = String(a || '');
+  return t(ACTION_LABEL[s] || (s.charAt(0).toUpperCase() + s.slice(1)));
+};
 function renderHistory(c) {
   return `
     <div class="section-label">${esc(t('History'))}</div>
     <ul class="timeline">
       ${c.history.map(h => `
-        <li><span class="t-action">${esc(h.action)}</span>
+        <li><span class="t-action">${esc(actionLabel(h.action))}</span>
           <div class="t-meta">${esc(h.actor_name)} · ${fmtDateTime(h.created_at)}</div>
           ${h.comment ? `<div class="t-comment">${esc(h.comment)}</div>` : ''}</li>`).join('')}
     </ul>`;
