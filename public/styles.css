@@ -160,10 +160,14 @@ input[type="search"] { min-width: 220px; }
    rows scroll, so a long ledger never pushes them off-screen. The home and
    insights views are untouched and scroll with the page as before. */
 #appView:has(#listView:not([hidden])) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
-#appView:has(#listView:not([hidden])) .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 24px; }
+/* overflow-x is pinned to hidden on the scroll containers: setting only
+   overflow-y:auto makes CSS compute overflow-x to `auto` too, so the tiniest
+   horizontal overflow (a long name, or the vertical scrollbar shaving a few px
+   off the row width) would surface a stray sideways scrollbar. */
+#appView:has(#listView:not([hidden])) .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding-bottom: 24px; }
 #listView:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #listView .ledger { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-#listView #claimRows { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+#listView #claimRows { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
 /* ---------- Home menu (clean landing) ---------- */
 .home { padding: 8px 0; }
@@ -924,17 +928,23 @@ input[type="search"] { min-width: 220px; }
   .insights-filters .msel-trigger { min-width: 0; }
   .insights-scope { margin-left: 0; }
 
+  /* Phone claim card: two facing columns — identity on the left (claim no,
+     name, type), figures on the right (status, amount, date). The middle track
+     is minmax(0,1fr) so it can shrink and truncate rather than shoving the row
+     wider than the screen; every text cell carries min-width:0 for the same
+     reason. */
   .ledger-head { display: none; }
-  .ledger-row { grid-template-columns: 4px 30px 1fr auto; grid-template-areas:
-      "spine check no status" "spine check name amt" "spine check type date"; padding: 12px 16px 12px 0; gap: 2px 10px; min-height: 0; }
+  .ledger-row { grid-template-columns: 4px 30px minmax(0, 1fr) auto; grid-template-areas:
+      "spine check no status" "spine check name amt" "spine check type date";
+      padding: 13px 16px 13px 0; gap: 4px 12px; min-height: 0; align-content: center; }
   .row-spine { grid-area: spine; height: 100%; }
   .col-check { grid-area: check; }
-  .col-no { grid-area: no; }
-  .col-name { grid-area: name; }
+  .col-no { grid-area: no; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-name { grid-area: name; min-width: 0; overflow-wrap: anywhere; font-size: .98rem; }
   .col-db { display: none; }
-  .col-type { grid-area: type; }
-  .col-date { grid-area: date; font-size: .8rem; }
-  .col-amt { grid-area: amt; text-align: left; }
+  .col-type { grid-area: type; min-width: 0; }
+  .col-date { grid-area: date; font-size: .8rem; white-space: nowrap; }
+  .col-amt { grid-area: amt; text-align: right; white-space: nowrap; font-size: .95rem; }
   .col-status { grid-area: status; text-align: right; }
   .grid2 { grid-template-columns: 1fr; }
   .kv { grid-template-columns: 1fr; gap: 2px; }
