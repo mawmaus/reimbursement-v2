@@ -3763,9 +3763,13 @@ $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 // "Manage accounts" screen; superadmins use full Settings instead.
 $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
-// Human-readable role labels used across the account tables.
+// Human-readable role labels used across the account tables. These are the
+// system's formal role/position titles and are intentionally shown in English
+// in every language (like "Super Admin" and "Managing Director"), so roleLabel
+// deliberately does NOT run them through t(). Other uses of words like
+// "Employee"/"Finance" (e.g. the Insights filter) still localise normally.
 const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Country Manager / Managing Director', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
-const roleLabel = (r) => t(ROLE_LABELS[r] || r);
+const roleLabel = (r) => ROLE_LABELS[r] || r;
 // Display label for an account/claim region: '*' -> All regions, '' -> em dash.
 const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');
 // Creation-audit sub-line for the account tables: who created this account, or
@@ -4055,7 +4059,7 @@ async function renderRegionPrefsTab() {
         <label>${esc(t('Preferred bank (no transfer fee)'))}
           <input name="bank" value="${esc(data.preferredBank || '')}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" />
         </label>
-        <label>${esc(t('Fee for payments to other banks'))} (${feeCur})
+        <label>${esc(t('Fee for payments to other banks'))} (<span id="rpFeeCur">${feeCur}</span>)
           <input name="bankFee" type="number" min="0" step="1" inputmode="numeric" value="${esc(String(data.bankFee != null ? data.bankFee : ''))}" />
         </label>
         <p class="form-error" id="rpErr" hidden></p>
@@ -4064,6 +4068,10 @@ async function renderRegionPrefsTab() {
         </div>
       </form>
     </div>`;
+  // Keep the fee's currency hint in sync with the chosen default currency, so it
+  // reflects the pending selection before the form is even saved.
+  const rpCur = $('#rpForm [name="currency"]'), rpFeeCur = $('#rpFeeCur');
+  if (rpCur && rpFeeCur) rpCur.addEventListener('change', () => { rpFeeCur.textContent = rpCur.value; });
   $('#rpForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#rpErr'); err.hidden = true;
