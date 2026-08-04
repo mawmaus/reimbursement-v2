@@ -3621,7 +3621,7 @@ function bankNameField(current, prefs) {
   const isOther = !!cur && !isPreferred;
   const choice = isPreferred ? 'PREF' : (isOther ? 'Others' : 'PREF'); // default to preferred when unset
   const feeNote = fee > 0
-    ? `<p class="fee-note" id="bankFeeNote" ${choice === 'PREF' ? 'hidden' : ''}>${esc(t('⚠ A fee of {fee} is charged for every payment to a non-{bank} bank account.', { fee: money(fee, currency), bank: preferred }))}</p>`
+    ? `<p class="fee-note" id="bankFeeNote" ${choice === 'PREF' ? 'hidden' : ''}>${esc(t('⚠ A fee of {fee} is charged for every payment to a non-preferred bank account.', { fee: money(fee, currency) }))}</p>`
     : '';
   return `
     <label>${esc(t('Bank name'))}
