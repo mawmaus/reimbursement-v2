@@ -3413,7 +3413,16 @@ app.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
 // ---------------------------------------------------------------------------
 // Static frontend + error handling
 // ---------------------------------------------------------------------------
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  // The client bundles (app.js / i18n.js) and the app shell change on every
+  // deploy but keep the same filenames. `no-cache` lets the browser keep a copy
+  // but forces it to revalidate against the server (a cheap 304 when unchanged)
+  // before using it, so a stale i18n.js can't linger after a release and show
+  // yesterday's strings. Other assets (logo, fonts) keep the default caching.
+  setHeaders(res, filePath) {
+    if (/\.(?:html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 app.use((err, req, res, next) => {
   if (err) {
