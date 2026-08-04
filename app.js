@@ -152,6 +152,26 @@ const intArrayLiteral = (ids) => `{${ids.join(',')}}`;
 const SUPPORTED_LANGS = ['en', 'id', 'th', 'vi', 'km', 'fil'];
 const normLang = (v) => SUPPORTED_LANGS.includes(String(v || '')) ? String(v) : 'en';
 
+// --- Regions (data-access scoping) ------------------------------------------
+// An account belongs to one region (a regions.name value) or the sentinel '*'
+// = All regions. Data is hidden outside the account's region; super admins and
+// '*' accounts see everything. Regions are a managed lookup (Settings).
+const ALL_REGIONS = '*';
+function seesAllRegions(user) {
+  return !!user && (user.role === 'superadmin' || user.region === ALL_REGIONS);
+}
+// Resolve a requested region to its canonical stored value: '*' stays '*'; a
+// known active region name is returned with the lookup's casing; '' stays '';
+// anything else -> null (invalid). Used when assigning a region to an account
+// or an All-regions submitter's claim.
+async function normRegion(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (s === ALL_REGIONS) return ALL_REGIONS;
+  if (!s) return '';
+  const rows = await q('SELECT name FROM regions WHERE lower(name) = lower($1) AND active = TRUE', [s]);
+  return rows[0] ? rows[0].name : null;
+}
+
 // --- App-wide settings (key/value store) -----------------------------------
 async function loadAppSettings() {
   const rows = await q('SELECT key, value FROM app_settings');
@@ -166,13 +186,206 @@ async function setAppSetting(key, value) {
     [key, String(value == null ? '' : value)]);
 }
 
+// --- Per-region defaults: currency + time zone ------------------------------
+// Each region has a default currency (stamped onto new claims when the client
+// doesn't specify one) and a default time zone (governs what counts as "today"
+// for a claim's date and the claim-window floor). Stored as JSON in
+// app_settings under `region_prefs_by_region`: { [regionName]: { currency, timezone } }.
+// Regions without an entry — and All-regions/blank accounts — use the globals.
+const DEFAULT_CURRENCY = 'IDR';
+const DEFAULT_TIMEZONE = 'Asia/Jakarta';
+// The currencies an admin may choose from (ISO 4217 codes for the countries the
+// portal serves). The order is the display order in the settings dropdown.
+const AVAILABLE_CURRENCIES = ['IDR', 'USD', 'THB', 'VND', 'KHR', 'MYR', 'KRW'];
+const CURRENCY_SET = new Set(AVAILABLE_CURRENCIES);
+// The time zones an admin may choose from. Kept to the regions the portal serves
+// (plus USD/global) so the list stays short and every option is a valid IANA id.
+const AVAILABLE_TIMEZONES = [
+  // Ordered by UTC offset (ascending), Jakarta first as the default.
+  'Asia/Jakarta', 'Asia/Bangkok', 'Asia/Ho_Chi_Minh', 'Asia/Phnom_Penh', // GMT+7
+  'Asia/Makassar', 'Asia/Kuala_Lumpur', 'Asia/Manila',                    // GMT+8
+  'Asia/Jayapura', 'Asia/Seoul',                                          // GMT+9
+  'UTC'                                                                    // GMT+0
+];
+const TIMEZONE_SET = new Set(AVAILABLE_TIMEZONES);
+// Is `tz` a time zone the runtime accepts? (Defence in depth beyond the fixed
+// list — an unknown id would throw when we format dates with it.)
+function isValidTimezone(tz) {
+  if (!tz || typeof tz !== 'string') return false;
+  try { new Intl.DateTimeFormat('en-CA', { timeZone: tz }); return true; }
+  catch { return false; }
+}
+// Each region also configures its bank/payout policy: a "preferred" bank whose
+// payouts carry no transfer fee, and a flat fee (in whole units of the region's
+// currency) charged on payouts to any other bank. Shown on the profile bank
+// picker. Regions without an entry fall back to these — the legacy Indonesian
+// policy (BCA free, IDR 2,500 to others) — so existing installs are unchanged.
+const DEFAULT_PREFERRED_BANK = 'BCA';
+const DEFAULT_BANK_FEE = 2500;
+const MAX_BANK_FEE = 1e9;      // sanity ceiling on the fee amount
+const MAX_BANK_NAME_LEN = 60;  // keep the stored preferred-bank name short
+// Parse the stored region-prefs map (tolerant of malformed JSON).
+function regionPrefsMap(settings) {
+  try { return settings.region_prefs_by_region ? JSON.parse(settings.region_prefs_by_region) : {}; }
+  catch { return {}; }
+}
+// The effective { currency, timezone, preferredBank, bankFee } for a region,
+// falling back to the global defaults. '*'/blank (All-regions accounts) always
+// use the defaults.
+function regionPrefs(settings, region) {
+  const r = region && region !== ALL_REGIONS ? regionPrefsMap(settings)[region] : null;
+  const currency = r && CURRENCY_SET.has(r.currency) ? r.currency : DEFAULT_CURRENCY;
+  const timezone = r && isValidTimezone(r.timezone) ? r.timezone : DEFAULT_TIMEZONE;
+  const preferredBank = r && typeof r.bank === 'string' && r.bank.trim()
+    ? r.bank.trim() : DEFAULT_PREFERRED_BANK;
+  const feeRaw = r ? Math.round(Number(r.bankFee)) : NaN;
+  const bankFee = Number.isFinite(feeRaw) && feeRaw >= 0 ? feeRaw : DEFAULT_BANK_FEE;
+  return { currency, timezone, preferredBank, bankFee };
+}
+// Convenience: load settings and resolve a region's prefs in one call.
+async function regionPrefsFor(region) {
+  return regionPrefs(await loadAppSettings(), region);
+}
+
+// --- Meal allowance rates (per-region dropdown amounts) ---------------------
+// The Meal Allowance form's Amount field is a dropdown of preset amounts an
+// admin configures per region (Settings → Meal allowance). Stored as JSON in
+// app_settings under `meal_rates_by_region`: { [region]: [amount, ...] } where
+// each amount is a whole currency unit (e.g. 75000, later ×100 into cents on
+// submit). A region without an entry falls back to DEFAULT_MEAL_RATES — the two
+// legacy Indonesian rates so existing installs keep working unchanged.
+const DEFAULT_MEAL_RATES = [75000, 120000];
+// A generous cap so the editor and stored JSON stay small.
+const MAX_MEAL_RATES = 20;
+const MAX_MEAL_AMOUNT = 1e12; // sanity ceiling on a single amount
+function mealRatesMap(settings) {
+  try { return settings.meal_rates_by_region ? JSON.parse(settings.meal_rates_by_region) : {}; }
+  catch { return {}; }
+}
+// Normalise one stored entry to a positive integer amount, or null when invalid.
+// Tolerates a bare number, a numeric string, or a legacy { amount } object from
+// the earlier label+amount shape.
+function toMealAmount(item) {
+  const n = Math.round(Number(item && typeof item === 'object' ? item.amount : item));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+// The configured amount list for a region, normalised to positive integers.
+// Falls back to the defaults when a region has no saved list (blank/All-regions
+// accounts always get the defaults).
+function mealRatesFor(settings, region) {
+  const raw = region && region !== ALL_REGIONS ? mealRatesMap(settings)[region] : null;
+  if (!Array.isArray(raw)) return [...DEFAULT_MEAL_RATES];
+  const out = [];
+  for (const item of raw) { const n = toMealAmount(item); if (n !== null) out.push(n); }
+  return out;
+}
+
+// --- Role permissions (editable capability matrix) --------------------------
+// Beyond the fixed role (superadmin/admin/user), a super admin can grant each
+// role extra capabilities. These are ADDITIVE: they only widen what a user may
+// do on top of what their job position / department / flags already allow. The
+// matrix is stored as JSON in app_settings under `role_permissions`; superadmin
+// is always all-true and never stored. Defaults reproduce the pre-matrix
+// behaviour (admins could export CSV; everyone else nothing extra).
+const CAPABILITIES = [
+  { key: 'view_all_claims',   label: 'View all claims',            desc: 'See every claim in the system, not only their own or ones they approve.' },
+  { key: 'mark_paid',         label: 'Mark claims as paid',        desc: 'Record and revert payments on approved claims.' },
+  { key: 'delete_claims',     label: 'Delete claims',              desc: 'Permanently delete reimbursement or meal allowance claims.' },
+  { key: 'export_csv',        label: 'Export claims to CSV',       desc: 'Download reimbursement, meal and realized cash-advance claims as a CSV file.' },
+  { key: 'create_accounts',   label: 'Create accounts',            desc: 'Add new user accounts.' },
+  { key: 'manage_accounts',   label: 'Manage accounts',            desc: 'Reset passwords and enable or disable accounts.' },
+  { key: 'manage_settings',   label: 'Manage settings',            desc: 'Edit departments, job positions, expense types, meal allowance amounts and the claim date limit.' },
+  { key: 'view_insights_all', label: 'View company-wide insights', desc: 'Open expense insights across every department.' }
+];
+const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
+// Editable roles shown as rows in the region matrix (superadmin is implicit/all
+// -on and never shown). Ordered senior → junior to match the workspace UI.
+const EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Super Admins may configure Country Manager / Managing Director, Mid
+// Management, Low Management, and Finance permissions for each region. The
+// Employee baseline stays locked.
+const REGION_EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance'];
+// A CM/MD (admin) may also open the region matrix, but only for the rows below
+// their own — Mid/Low/Finance — never the admin row (self-escalation) or the
+// locked Employee baseline. Which rows an actor may toggle depends on their role.
+const CMMD_EDITABLE_ROLES = ['manager', 'lowmgmt', 'finance'];
+function editableRolesFor(user) {
+  if (!user) return [];
+  if (user.role === 'superadmin') return REGION_EDITABLE_ROLES;
+  if (user.role === 'admin') return CMMD_EDITABLE_ROLES;
+  return [];
+}
+// Only capabilities set true here are granted by default; everything else false.
+// New roles start with nothing — configure them per region in the matrix.
+const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, lowmgmt: {}, finance: {}, employee: {} };
+
+// Fill a raw stored matrix into a complete { role: { cap: bool } }, taking each
+// missing entry from `fallback` (another filled matrix) or, failing that, from
+// ROLE_DEFAULTS. Lets a region matrix inherit from the global defaults.
+function fillMatrix(stored, fallback) {
+  const out = {};
+  for (const role of EDITABLE_ROLES) {
+    out[role] = {};
+    const s = (stored && stored[role]) || {};
+    const fb = (fallback && fallback[role]) || null;
+    for (const c of CAPABILITIES) {
+      out[role][c.key] = Object.prototype.hasOwnProperty.call(s, c.key) ? !!s[c.key]
+        : fb ? !!fb[c.key]
+        : !!ROLE_DEFAULTS[role][c.key];
+    }
+  }
+  return out;
+}
+// The global default matrix (app_settings.role_permissions), normalised. Serves
+// as the fallback for any region without its own overrides.
+function loadGlobalRolePerms(settings) {
+  let stored = {};
+  try { stored = settings.role_permissions ? JSON.parse(settings.role_permissions) : {}; }
+  catch { stored = {}; }
+  return fillMatrix(stored, null);
+}
+// The effective matrix for one region: that region's stored overrides layered on
+// top of the global defaults. '*'/blank (All-regions accounts) use the globals.
+async function loadRolePermsForRegion(region, settings) {
+  settings = settings || await loadAppSettings();
+  const global = loadGlobalRolePerms(settings);
+  if (!region || region === ALL_REGIONS) return global;
+  let byRegion = {};
+  try { byRegion = settings.role_permissions_by_region ? JSON.parse(settings.role_permissions_by_region) : {}; }
+  catch { byRegion = {}; }
+  return fillMatrix(byRegion[region], global);
+}
+// Flatten the matrix into this user's own capability map. Superadmins get all.
+function capsFor(user, perms) {
+  const isSuper = user && user.role === 'superadmin';
+  const out = {};
+  for (const c of CAPABILITIES) out[c.key] = isSuper ? true : !!(perms[user.role] && perms[user.role][c.key]);
+  return out;
+}
+// Attach the computed capability map to a user object so the sync helpers below
+// and the client payload can read it; returns the map. Caps come from the
+// account's own region matrix (falling back to the global defaults).
+async function attachCaps(user) {
+  if (!user) return {};
+  user.caps = capsFor(user, await loadRolePermsForRegion(user.region));
+  return user.caps;
+}
+// Does this user hold a capability? Relies on caps being attached (attachCaps /
+// requireAuth). Superadmin always passes even if caps were not attached.
+function userCan(user, cap) {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  return !!(user.caps && user.caps[cap]);
+}
+
 // --- Claim date policy ------------------------------------------------------
 const isISODate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
-// Today's date (YYYY-MM-DD) in Jakarta time — matches the client's todayWIB() so
-// a late-evening submission doesn't roll to "tomorrow" via UTC.
-function todayJakarta() {
+// Today's date (YYYY-MM-DD) in a given time zone — matches the client's
+// todayWIB() so a late-evening submission doesn't roll to "tomorrow" via UTC.
+// Defaults to the global time zone; a region's own zone is passed in when known.
+function todayInZone(tz) {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+    timeZone: tz || DEFAULT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
 }
 // Subtract n whole days from a YYYY-MM-DD string (date-only arithmetic in UTC).
@@ -181,50 +394,81 @@ function subDaysISO(dateStr, n) {
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 }
-// The earliest expense date a claim may carry under the current policy, or null
+// The claim-date policy for a region: its saved window if any, else the global
+// claim_max_age_days / claim_earliest_date defaults. Returns the two raw setting
+// values so the helpers below can treat region and global policy identically.
+function claimWindowSettings(settings, region) {
+  let byRegion = {};
+  try { byRegion = settings.claim_window_by_region ? JSON.parse(settings.claim_window_by_region) : {}; }
+  catch { byRegion = {}; }
+  const r = region && region !== ALL_REGIONS ? byRegion[region] : null;
+  const has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
+  return {
+    claim_max_age_days: has(r, 'max_age_days') ? r.max_age_days : settings.claim_max_age_days,
+    claim_earliest_date: has(r, 'earliest_date') ? r.earliest_date : settings.claim_earliest_date,
+    // "Today" for the rolling window is measured in the region's own time zone.
+    timezone: regionPrefs(settings, region).timezone
+  };
+}
+// The earliest expense date a claim may carry under a resolved policy, or null
 // when unrestricted. A rolling window (N days back from today) and an absolute
 // cutoff can both be set; the effective floor is the later (max) of the two.
-function claimEarliestFrom(settings) {
+function claimEarliestFrom(cw) {
   const bounds = [];
-  const days = parseInt(settings.claim_max_age_days, 10);
-  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayJakarta(), days));
-  if (isISODate(settings.claim_earliest_date)) bounds.push(settings.claim_earliest_date);
+  const days = parseInt(cw.claim_max_age_days, 10);
+  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayInZone(cw.timezone), days));
+  if (isISODate(cw.claim_earliest_date)) bounds.push(cw.claim_earliest_date);
   if (!bounds.length) return null;
   return bounds.reduce((a, b) => (a > b ? a : b));
 }
-// Reject a set of expense/line dates if any falls before the policy floor.
-// Returns { earliest, error } on violation, or null when all dates are allowed.
-async function claimDateViolation(dates) {
-  const earliest = claimEarliestFrom(await loadAppSettings());
+// Reject a set of expense/line dates if any falls before the policy floor for the
+// submitter's `region`. Returns { earliest, error } on violation, or null when
+// all dates are allowed.
+async function claimDateViolation(dates, region) {
+  const cw = claimWindowSettings(await loadAppSettings(), region);
+  const earliest = claimEarliestFrom(cw);
   if (!earliest) return null;
   const bad = dates.some(d => isISODate(d) && d < earliest);
   return bad ? { earliest, error: `Expenses dated before ${earliest} can no longer be claimed.` } : null;
 }
-// Response shape for the claim-date policy (shared by GET/PUT /api/claim-window).
-function claimWindowView(settings) {
-  const days = parseInt(settings.claim_max_age_days, 10);
+// Response shape for the claim-date policy (shared by GET/PUT /api/claim-window),
+// for a given region.
+function claimWindowView(settings, region) {
+  const cw = claimWindowSettings(settings, region);
+  const days = parseInt(cw.claim_max_age_days, 10);
   return {
     max_age_days: Number.isFinite(days) && days > 0 ? days : null,
-    earliest_date: isISODate(settings.claim_earliest_date) ? settings.claim_earliest_date : null,
-    earliest: claimEarliestFrom(settings)
+    earliest_date: isISODate(cw.claim_earliest_date) ? cw.claim_earliest_date : null,
+    earliest: claimEarliestFrom(cw)
   };
 }
 
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, language, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, language, region, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
+  await attachCaps(u);
   req.user = u;
   next();
 });
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'You do not have permission for this action' });
+    }
+    next();
+  };
+}
+// Like requireRole, but gates on an editable capability from the role matrix.
+// Must run after requireAuth (which attaches req.user.caps).
+function requireCap(cap) {
+  return (req, res, next) => {
+    if (!userCan(req.user, cap)) {
       return res.status(403).json({ error: 'You do not have permission for this action' });
     }
     next();
@@ -237,6 +481,36 @@ function parseAmountToCents(input) {
   const num = Number(cleaned);
   if (!Number.isFinite(num) || num < 0) return null;
   return Math.round(num * 100);
+}
+// Format a cents amount for a human-readable message, optionally prefixed with a
+// currency code. Whole numbers show no decimals; others up to two.
+function fmtMoney(cents, currency) {
+  const s = (Number(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return currency ? `${currency} ${s}` : s;
+}
+// Resolve an account's approval limit from a request body into cents, where null
+// means unlimited. `approval_unlimited` truthy — or a blank/absent amount —
+// means unlimited (so callers that omit the fields keep the any-amount default);
+// otherwise the `approval_limit` amount must be a valid non-negative number.
+// Returns { cents } (cents may be null) or { error }.
+function parseApprovalLimit(body) {
+  if (isActive(body.approval_unlimited)) return { cents: null };
+  if (body.approval_limit == null || String(body.approval_limit).trim() === '') return { cents: null };
+  const cents = parseAmountToCents(body.approval_limit);
+  if (cents === null) return { error: 'Approval limit must be a non-negative amount' };
+  return { cents };
+}
+// Block an approver from acting on a claim above their approval limit. Super
+// admins are exempt (they override the chain anyway); a null limit is unlimited.
+// Returns an error string, or null when the approval is allowed.
+function approvalLimitError(user, amountCents, currency) {
+  if (!user || user.role === 'superadmin') return null;
+  const limit = user.approval_limit_cents;
+  if (limit == null) return null;
+  if (Number(amountCents) > Number(limit)) {
+    return `This claim (${fmtMoney(amountCents, currency)}) is above your approval limit of ${fmtMoney(limit, currency)}.`;
+  }
+  return null;
 }
 async function nextClaimNo() {
   const year = new Date().getFullYear();
@@ -261,7 +535,11 @@ function groupBy(rows, key) {
   for (const r of rows) (m[r[key]] = m[r[key]] || []).push(r);
   return m;
 }
-function baseClaim(row, attachments, history, nameMap) {
+function baseClaim(row, attachments, lines, attByLine, history, nameMap) {
+  const attView = (a) => ({
+    id: a.id, original_name: a.original_name, mime_type: a.mime_type,
+    size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
+  });
   return {
     id: row.id,
     claim_no: row.claim_no,
@@ -269,6 +547,7 @@ function baseClaim(row, attachments, history, nameMap) {
     claimant_name: row.claimant_name,
     expense_date: row.expense_date,
     department: row.department,
+    region: row.region || '',
     bank_name: row.bank_name,
     recipient_name: row.recipient_name,
     bank_account_no: row.bank_account_no,
@@ -287,9 +566,13 @@ function baseClaim(row, attachments, history, nameMap) {
     paid_at: iso(row.paid_at),
     created_at: iso(row.created_at),
     updated_at: iso(row.updated_at),
-    attachments: (attachments || []).map(a => ({
-      id: a.id, original_name: a.original_name, mime_type: a.mime_type,
-      size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
+    // Flat list of every receipt on the claim (kept for anything reading the
+    // whole set, e.g. counts); per-line receipts live under `lines`.
+    attachments: (attachments || []).map(attView),
+    lines: (lines || []).map(l => ({
+      id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: Number(l.amount_cents) / 100, description: l.description,
+      attachments: ((attByLine && attByLine[l.id]) || []).map(attView)
     })),
     history: (history || []).map(h => ({
       actor_id: h.actor_id == null ? null : Number(h.actor_id),
@@ -298,18 +581,23 @@ function baseClaim(row, attachments, history, nameMap) {
     }))
   };
 }
-// Batch-load attachments + history for many claims in two queries.
+// Batch-load lines, attachments + history for many claims.
 async function serializeMany(rows) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
   const atts = await q(
-    `SELECT id, claim_id, original_name, mime_type, size_bytes, uploaded_at
+    `SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
      FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids);
+  const lines = await q(
+    `SELECT id, claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description
+     FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
   const hist = await q(
     `SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
      FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids);
   const a = groupBy(atts, 'claim_id');
+  const attByLine = groupBy(atts, 'line_id');
+  const l = groupBy(lines, 'claim_id');
   const h = groupBy(hist, 'claim_id');
 
   // Batch-load the names for every distinct approver referenced across claims.
@@ -320,7 +608,7 @@ async function serializeMany(rows) {
     const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
     for (const u of us) nameMap[u.id] = u.full_name;
   }
-  return rows.map(r => baseClaim(r, a[r.id], h[r.id], nameMap));
+  return rows.map(r => baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap));
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -369,7 +657,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Who may record a payment (mark paid / revert a payment): super admins always,
 // plus any account a super admin has granted the can_mark_paid permission.
 function canMarkPaid(user) {
-  return user.role === 'superadmin' || user.can_mark_paid === true;
+  return user.role === 'superadmin' || user.can_mark_paid === true || userCan(user, 'mark_paid');
 }
 
 // --- Revert (undo one step) -------------------------------------------------
@@ -460,13 +748,15 @@ async function resolveSubmitApprovers(optionsRaw, baseRaw, chosenRaw) {
 // as the approver whose turn it currently is. Postgres arrays are 1-based, and
 // current_step is 1-based, so approver_ids[current_step] is the pending approver.
 async function openClaimsAwaitingApprover(userId) {
-  const [reimb, meal] = await Promise.all([
+  const [reimb, meal, adv] = await Promise.all([
     q(`SELECT COUNT(*)::int AS n FROM claims
        WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId]),
     q(`SELECT COUNT(*)::int AS n FROM meal_claims
-       WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId])
+       WHERE status = 'submitted' AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId]),
+    q(`SELECT COUNT(*)::int AS n FROM cash_advances
+       WHERE status IN ('submitted','realize_submitted') AND current_step >= 1 AND approver_ids[current_step] = $1`, [userId])
   ]);
-  return Number(reimb[0].n) + Number(meal[0].n);
+  return Number(reimb[0].n) + Number(meal[0].n) + Number(adv[0].n);
 }
 
 // --- Front-page purposes ----------------------------------------------------
@@ -474,19 +764,31 @@ async function openClaimsAwaitingApprover(userId) {
 // purpose is visible only when it is enabled on BOTH the user's department and
 // their job position (AND). Unknown/blank department or position => nothing.
 async function computePurposes(user) {
-  const empty = { claim: false, meal: false };
+  const empty = { claim: false, meal: false, advance: false };
+  // Superadmins can do everything: always show all three purpose buttons,
+  // regardless of their own department/position/region flags.
+  if (user.role === 'superadmin') return { claim: true, meal: true, advance: true };
   const dept = String(user.department || '').trim();
   const pos = String(user.position || '').trim();
   if (!dept || !pos) return empty;
+  // Match the lookups in the user's own region; All-regions/blank accounts fall
+  // back to matching any region's row.
+  const region = String(user.region || '');
+  const concrete = region && region !== ALL_REGIONS;
   const [drows, prows] = await Promise.all([
-    q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
-    q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
+    concrete
+      ? q('SELECT allow_claim, allow_meal, allow_advance FROM departments   WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [dept, region])
+      : q('SELECT allow_claim, allow_meal, allow_advance FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
+    concrete
+      ? q('SELECT allow_claim, allow_meal, allow_advance FROM job_positions WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [pos, region])
+      : q('SELECT allow_claim, allow_meal, allow_advance FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
   ]);
   const d = drows[0], p = prows[0];
   if (!d || !p) return empty;
   return {
     claim: !!(d.allow_claim && p.allow_claim),
-    meal: !!(d.allow_meal && p.allow_meal)
+    meal: !!(d.allow_meal && p.allow_meal),
+    advance: !!(d.allow_advance && p.allow_advance)
   };
 }
 
@@ -501,8 +803,13 @@ async function computePurposes(user) {
 // The ladder helpers below are PURE: each takes a `pos` map (from loadPositions)
 // so a request loads the ranking once and threads it through. `pos` maps
 // lower(name) → { rank, can_manage }.
-async function loadPositions() {
-  const rows = await q('SELECT name, rank, can_manage FROM job_positions');
+async function loadPositions(region) {
+  // Ranks are per region now: load the ladder for a concrete region, or every
+  // row (All-regions / unspecified — names collide, last wins) otherwise.
+  const concrete = region && region !== ALL_REGIONS;
+  const rows = concrete
+    ? await q('SELECT name, rank, can_manage FROM job_positions WHERE region = $1', [region])
+    : await q('SELECT name, rank, can_manage FROM job_positions');
   const byName = new Map();
   for (const r of rows) {
     byName.set(String(r.name).trim().toLowerCase(),
@@ -525,6 +832,7 @@ function positionRank(name, pos) {
 function hasDelegation(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
+  if (userCan(user, 'manage_accounts')) return true;
   const rec = pos.get(String(user.position || '').trim().toLowerCase());
   return !!(rec && rec.can_manage);
 }
@@ -547,13 +855,15 @@ function creatablePositions(user, pos) {
 // seniors) may manage any NON-superadmin in their OWN department whose position
 // ranks strictly below their own — regardless of the target's role. This keeps
 // management purely rank + department based (a Manager can reset/disable a more
-// junior Supervisor whether that Supervisor is a plain user or an admin), while
+// junior Supervisor whether that Supervisor is an employee or an admin), while
 // still protecting superadmins and anyone at or above the actor's own rank.
-// (Account *creation* is separately restricted to role 'user' — see POST.)
+// (Account *creation* is gated by the create_accounts capability — see POST.)
 function canManageAccount(actor, target, pos) {
   if (actor.role === 'superadmin') return true;
   if (!hasDelegation(actor, pos)) return false;
   if (target.role === 'superadmin') return false;
+  // Region isolation: a region-scoped actor manages only same-region accounts.
+  if (!seesAllRegions(actor) && String(target.region || '') !== String(actor.region || '')) return false;
   const aDept = String(actor.department || '').trim().toLowerCase();
   const tDept = String(target.department || '').trim().toLowerCase();
   if (!aDept || aDept !== tDept) return false;
@@ -586,6 +896,7 @@ function rankAtLeast(user, pos, posName, fallbackRank) {
 function insightsCanView(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
+  if (userCan(user, 'view_insights_all')) return true;
   if (isFinanceDept(user.department)) return true;
   return rankAtLeast(user, pos, 'supervisor', SUPERVISOR_FALLBACK_RANK);
 }
@@ -595,6 +906,7 @@ function insightsCanView(user, pos) {
 function insightsSeeAll(user, pos) {
   if (!user) return false;
   if (user.role === 'superadmin') return true;
+  if (userCan(user, 'view_insights_all')) return true;
   if (isFinanceDept(user.department)) return true;
   return rankAtLeast(user, pos, 'general manager', GM_FALLBACK_RANK);
 }
@@ -654,14 +966,17 @@ app.post('/api/login', ah(async (req, res) => {
   }
   await clearLoginFails(req);
   req.session.userId = user.id;
-  const pos = await loadPositions();
+  const pos = await loadPositions(user.region);
+  await attachCaps(user);
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
-    language: normLang(user.language),
+    language: normLang(user.language), region: user.region || '',
+    ...(await regionPrefsFor(user.region)),
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
     approver1_choices: await approver1Choices(user.approver1_options),
-    can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos)
+    can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
+    caps: user.caps
   } });
 }));
 
@@ -686,10 +1001,11 @@ async function approver1Choices(optionsRaw) {
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  const pos = await loadPositions();
-  res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+  const pos = await loadPositions(u.region);
+  await attachCaps(u);
+  res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -701,10 +1017,11 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   if (Object.prototype.hasOwnProperty.call(body, 'language') && Object.keys(body).length === 1) {
     await q('UPDATE users SET language = $1 WHERE id = $2', [normLang(body.language), req.user.id]);
     const u = await loadUser(req);
-    const pos = await loadPositions();
-    return res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u),
+    const pos = await loadPositions(u.region);
+    await attachCaps(u);
+    return res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u),
       creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
-      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
   }
   const { bank_name, recipient_name, bank_account_no, email } = body;
   const nextEmail = normEmail(email);
@@ -719,21 +1036,28 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
     String(bank_account_no || '').trim(), nextEmail, nextLang, req.user.id]);
   const u = await loadUser(req);
-  const pos = await loadPositions();
-  res.json({ user: { ...u, language: normLang(u.language), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+  const pos = await loadPositions(u.region);
+  await attachCaps(u);
+  res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos) } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
 }));
 
 // Claim-date policy: how far back an expense may be dated and still be claimable.
-// Any signed-in user reads it (the claim form needs it to validate); only a super
-// admin changes it (from Settings).
+// Scoped per region: a submitter reads their own region's policy (the claim form
+// needs it to validate); a super admin reads/edits any region via ?region /
+// body.region. Only accounts that can manage settings change it, and region
+// -scoped managers only for their own region.
 app.get('/api/claim-window', requireAuth, ah(async (req, res) => {
-  res.json(claimWindowView(await loadAppSettings()));
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json(claimWindowView(await loadAppSettings(), region));
 }));
 
-app.put('/api/claim-window', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   // Rolling window in days: a positive integer, or blank/0 to disable.
   let days = '';
   if (b.max_age_days != null && String(b.max_age_days).trim() !== '') {
@@ -751,9 +1075,88 @@ app.put('/api/claim-window', requireAuth, requireRole('superadmin'), ah(async (r
     }
     earliest = String(b.earliest_date).trim();
   }
-  await setAppSetting('claim_max_age_days', days);
-  await setAppSetting('claim_earliest_date', earliest);
-  res.json(claimWindowView(await loadAppSettings()));
+  // Persist under the region's key, layered over the global defaults.
+  const settings = await loadAppSettings();
+  let byRegion = {};
+  try { byRegion = settings.claim_window_by_region ? JSON.parse(settings.claim_window_by_region) : {}; }
+  catch { byRegion = {}; }
+  byRegion[region] = { max_age_days: days, earliest_date: earliest };
+  await setAppSetting('claim_window_by_region', JSON.stringify(byRegion));
+  res.json(claimWindowView({ ...settings, claim_window_by_region: JSON.stringify(byRegion) }, region));
+}));
+
+// Per-region default currency + time zone. Read by any signed-in user for their
+// own region (the claim form needs the default currency); a super admin may read
+// any region via ?region. Edited by Super Admins (any region) and Country
+// Managers / Managing Directors (their own region only) — the same audience as
+// the region role matrix.
+function canManageRegionPrefs(user) {
+  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+}
+// The response shape shared by GET/PUT: the region's effective prefs plus the
+// option lists the settings dropdowns render from.
+function regionPrefsView(settings, region) {
+  const prefs = regionPrefs(settings, region);
+  return { region, ...prefs, currencies: AVAILABLE_CURRENCIES, timezones: AVAILABLE_TIMEZONES };
+}
+
+app.get('/api/region-prefs', requireAuth, ah(async (req, res) => {
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json(regionPrefsView(await loadAppSettings(), region));
+}));
+
+app.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
+  if (!canManageRegionPrefs(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
+  const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+  const currency = String(b.currency || '').trim();
+  if (!CURRENCY_SET.has(currency)) return res.status(400).json({ error: 'Choose a valid currency' });
+  const timezone = String(b.timezone || '').trim();
+  if (!TIMEZONE_SET.has(timezone) || !isValidTimezone(timezone)) return res.status(400).json({ error: 'Choose a valid time zone' });
+  const bank = String(b.bank || '').trim().slice(0, MAX_BANK_NAME_LEN);
+  if (!bank) return res.status(400).json({ error: 'Enter the preferred (no-fee) bank name' });
+  const bankFee = Math.round(Number(b.bankFee));
+  if (!Number.isFinite(bankFee) || bankFee < 0 || bankFee > MAX_BANK_FEE) {
+    return res.status(400).json({ error: 'Enter a valid bank fee (0 or more)' });
+  }
+  const settings = await loadAppSettings();
+  const byRegion = regionPrefsMap(settings);
+  byRegion[region] = { currency, timezone, bank, bankFee };
+  await setAppSetting('region_prefs_by_region', JSON.stringify(byRegion));
+  res.json(regionPrefsView({ ...settings, region_prefs_by_region: JSON.stringify(byRegion) }, region));
+}));
+
+// Per-region meal-allowance rate presets. Read by any signed-in user for their
+// own region (the meal form needs the dropdown options); a super admin may read
+// any region via ?region. Edited by anyone with the manage_settings capability
+// (same audience as departments / expense types / the claim window).
+app.get('/api/meal-rates', requireAuth, ah(async (req, res) => {
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json({ region, rates: mealRatesFor(await loadAppSettings(), region) });
+}));
+
+app.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+  const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+  if (!Array.isArray(b.rates)) return res.status(400).json({ error: 'Rates must be a list' });
+  if (b.rates.length > MAX_MEAL_RATES) return res.status(400).json({ error: `Add at most ${MAX_MEAL_RATES} amounts` });
+  const rates = [];
+  for (const item of b.rates) {
+    const amount = toMealAmount(item);
+    if (amount === null || amount > MAX_MEAL_AMOUNT) {
+      return res.status(400).json({ error: 'Every amount must be a positive whole number' });
+    }
+    rates.push(amount);
+  }
+  const settings = await loadAppSettings();
+  const byRegion = mealRatesMap(settings);
+  byRegion[region] = rates;
+  await setAppSetting('meal_rates_by_region', JSON.stringify(byRegion));
+  res.json({ region, rates: mealRatesFor({ ...settings, meal_rates_by_region: JSON.stringify(byRegion) }, region) });
 }));
 
 app.post('/api/me/password', requireAuth, ah(async (req, res) => {
@@ -840,10 +1243,14 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
   const params = [];
   const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
 
-  if (req.user.role !== 'superadmin') {
+  if (!userCan(req.user, 'view_all_claims')) {
     params.push(req.user.id);
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
   }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
@@ -860,8 +1267,17 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
-  const scope = req.user.role === 'superadmin' ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
-  const params = req.user.role === 'superadmin' ? [] : [req.user.id];
+  const where = [];
+  const params = [];
+  if (!userCan(req.user, 'view_all_claims')) {
+    params.push(req.user.id);
+    where.push(`(employee_id = $${params.length} OR $${params.length} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
+  const scope = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(amount_cents),0)::bigint AS total
      FROM claims ${scope} GROUP BY status`, params);
@@ -876,41 +1292,99 @@ app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own claims' });
+  }
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own claims' });
   }
   res.json({ claim: await serializeOne(row) });
 }));
 
-// Sequence backing claims.id, so later inserts in the same transaction can
-// reference the just-created claim via currval() without a JS round-trip.
+// Sequences backing claims.id / claim_lines.id, so later inserts in the same
+// transaction can reference the just-created rows via currval().
 const CLAIM_SEQ = "pg_get_serial_sequence('claims','id')";
+const LINE_SEQ = "pg_get_serial_sequence('claim_lines','id')";
 
-// Create a claim together with its attachments and initial history row as one
-// atomic transaction — all commit or none. Retries on a claim_no collision.
-async function createClaim(req, b, cents, approverIds, uploaded) {
+// Validate the itemised lines of a reimbursement claim. Each filled row needs a
+// date, an expense type and a positive amount; DB no + description are optional.
+// Blank rows are skipped. Attachment references (new uploads + kept ids) ride
+// along untouched for the caller to verify. Returns { lines, totalCents } or
+// { error }.
+function normaliseClaimLines(input) {
+  if (!Array.isArray(input)) return { error: 'Add at least one expense line' };
+  const lines = [];
+  let totalCents = 0;
+  for (const raw of input) {
+    const r = raw || {};
+    const date = String(r.line_date || r.expense_date || r.date || '').trim();
+    const db_no = String(r.db_no || '').trim();
+    const expense_type = String(r.expense_type || '').trim();
+    const description = String(r.description || r.desc || '').trim();
+    const cents = parseAmountToCents(r.amount);
+    const rawAttachments = Array.isArray(r.attachments) ? r.attachments : [];
+    const keepIds = asIntArray(r.keep_attachment_ids);
+    const blank = !date && !db_no && !expense_type && !description
+      && (cents === null || cents === 0) && !rawAttachments.length && !keepIds.length;
+    if (blank) continue;
+    if (!date) return { error: 'Every filled row needs a date' };
+    if (!expense_type) return { error: 'Every filled row needs an expense type' };
+    if (cents === null || cents <= 0) return { error: 'Every filled row needs a positive amount' };
+    totalCents += cents;
+    lines.push({ line_date: date, db_no, expense_type, amount_cents: cents, description, rawAttachments, keepIds });
+  }
+  if (!lines.length) return { error: 'Add at least one expense line with a date, type and amount' };
+  return { lines, totalCents };
+}
+// Aggregate header fields kept on the claims row so the list, CSV and search
+// keep working off the header: earliest date, the type ("Multiple" for >1 line),
+// the first DB no, and — only for a single-line claim — its description.
+function claimHeaderFromLines(lines) {
+  const dates = lines.map(l => l.line_date).filter(Boolean).sort();
+  return {
+    expense_date: dates[0] || '',
+    expense_type: lines.length === 1 ? lines[0].expense_type : 'Multiple',
+    db_no: lines[0].db_no || '',
+    description: lines.length === 1 ? lines[0].description : ''
+  };
+}
+
+// Create an itemised claim — header, its lines, each line's receipts and the
+// initial history row — as one atomic transaction. `verifiedByLine[i]` is the
+// verified upload list for line i. Retries on a claim_no collision.
+async function createClaim(req, header, lines, verifiedByLine, totalCents, approverIds, region) {
+  const h = claimHeaderFromLines(lines);
+  // Default the currency to the region's configured default when the client
+  // doesn't send one.
+  const defaultCurrency = (await regionPrefsFor(region)).currency;
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextClaimNo();
     const queries = [qq(
       `INSERT INTO claims
         (claim_no, employee_id, claimant_name, expense_date, department, db_no, bank_name,
          recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
-         status, approver_ids, current_step)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15)`,
-      [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(b.expense_date).trim(),
-       String(req.user.department || '').trim(), String(b.db_no || '').trim(),
+         status, approver_ids, current_step, region)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15,$16)`,
+      [claimNo, req.user.id, String(req.user.full_name || '').trim(), h.expense_date,
+       String(req.user.department || '').trim(), h.db_no,
        String(req.user.bank_name || '').trim(),
        String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
-       String(b.expense_type).trim(), cents,
-       String(b.currency || 'IDR').trim().slice(0, 8), String(b.description || '').trim(),
-       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
-    for (const u of uploaded) {
+       h.expense_type, totalCents,
+       String(header.currency || defaultCurrency).trim().slice(0, 8), h.description,
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
+    lines.forEach((l, i) => {
       queries.push(qq(
-        `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
-         VALUES (currval(${CLAIM_SEQ}),$1,$2,$3,$4,$5)`,
-        [u.url, u.pathname, u.original_name, u.mime, u.size]));
-    }
+        `INSERT INTO claim_lines (claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+         VALUES (currval(${CLAIM_SEQ}),$1,$2,$3,$4,$5,$6)`,
+        [i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      for (const u of (verifiedByLine[i] || [])) {
+        queries.push(qq(
+          `INSERT INTO attachments (claim_id, line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+           VALUES (currval(${CLAIM_SEQ}), currval(${LINE_SEQ}),$1,$2,$3,$4,$5)`,
+          [u.url, u.pathname, u.original_name, u.mime, u.size]));
+      }
+    });
     queries.push(qq(
       `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
        VALUES (currval(${CLAIM_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
@@ -966,33 +1440,36 @@ app.post('/api/uploads/direct', requireAuth,
 
 app.post('/api/claims', requireAuth, ah(async (req, res) => {
     const b = req.body || {};
-    for (const f of REQUIRED_FIELDS) {
-      if (!b[f] || !String(b[f]).trim()) return res.status(400).json({ error: `Missing required field: ${f}` });
-    }
-    const cents = parseAmountToCents(b.amount);
-    if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-    // Enforce the claim-date policy (rolling window + absolute cutoff).
-    const dv = await claimDateViolation([String(b.expense_date).trim()]);
+    const parsed = normaliseClaimLines(b.lines);
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    // Enforce the claim-date policy across every line's date.
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
     // Resolve the approver chain (validating the chosen Approver 1) before we
     // link any receipts, so a bad/missing choice fails cleanly.
     const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
     if (built.error) return res.status(400).json({ error: built.error });
 
-    // Receipts were uploaded straight to Blob by the browser; verify each one
-    // exists in our store, then roll them back if the claim insert fails.
-    const checked = await verifyAttachments(b.attachments);
-    if (checked.error) return res.status(400).json({ error: checked.error });
-    const uploaded = checked.items;
+    // Receipts were uploaded straight to Blob by the browser; verify each line's
+    // set, then roll them all back if the claim insert fails.
+    const verifiedByLine = [];
+    const allUploaded = [];
+    for (const line of parsed.lines) {
+      const checked = await verifyAttachments(line.rawAttachments);
+      if (checked.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: checked.error }); }
+      verifiedByLine.push(checked.items);
+      allUploaded.push(...checked.items);
+    }
+    // Region is glued to the account — every claim inherits the submitter's.
+    const claimRegion = String(req.user.region || '');
     try {
-      const approverIds = built.ids;
-      const claimId = await createClaim(req, b, cents, approverIds, uploaded);
+      const claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       const first = currentApproverId(rows[0]);
       if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
       res.status(201).json({ claim: await serializeOne(rows[0]) });
     } catch (e) {
-      for (const u of uploaded) await deleteReceipt(u.url);
+      for (const u of allUploaded) await deleteReceipt(u.url);
       throw e;
     }
   }));
@@ -1007,81 +1484,80 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
     return res.status(409).json({ error: 'Only rejected claims can be edited and resubmitted' });
   }
   const b = req.body || {};
-  for (const f of REQUIRED_FIELDS) {
-    if (!b[f] || !String(b[f]).trim()) return res.status(400).json({ error: `Missing required field: ${f}` });
-  }
-  const cents = parseAmountToCents(b.amount);
-  if (cents === null || cents <= 0) return res.status(400).json({ error: 'Amount must be a positive number' });
-  const dv = await claimDateViolation([String(b.expense_date).trim()]);
+  const parsed = normaliseClaimLines(b.lines);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
 
-  // A resubmit replaces the claim's whole receipt set: the client sends the ids
-  // of the existing attachments it kept, plus any newly uploaded ones. Anything
-  // the claimant removed in the form is dropped here. An older client that sends
-  // no keep list keeps everything it already had (it can't remove receipts).
-  const existingAtts = await q('SELECT id, blob_url FROM attachments WHERE claim_id = $1', [row.id]);
-  const keepIds = b.keep_attachment_ids == null
-    ? existingAtts.map(a => Number(a.id))
-    : asIntArray(b.keep_attachment_ids);
-  const keepSet = new Set(keepIds);
-  const dropped = existingAtts.filter(a => !keepSet.has(Number(a.id)));
-  const keptCount = existingAtts.length - dropped.length;
-
-  // Receipts were uploaded straight to Blob by the browser; verify them first.
-  const checked = await verifyAttachments(b.attachments);
-  if (checked.error) return res.status(400).json({ error: checked.error });
-  const uploaded = checked.items;
-  if (keptCount + uploaded.length > MAX_FILES) {
-    for (const u of uploaded) await deleteReceipt(u.url);
-    return res.status(400).json({ error: `Maximum ${MAX_FILES} files` });
+  // Existing receipts, keyed by id, so kept ones can be re-linked (to the same
+  // blob) onto the new lines. Each line carries keep_attachment_ids + new uploads.
+  const existingAtts = await q(
+    'SELECT id, blob_url, blob_pathname, original_name, mime_type, size_bytes FROM attachments WHERE claim_id = $1', [row.id]);
+  const byId = new Map(existingAtts.map(a => [Number(a.id), a]));
+  const keptSet = new Set();
+  const verifiedByLine = [];
+  const allUploaded = [];
+  for (const line of parsed.lines) {
+    const checked = await verifyAttachments(line.rawAttachments);
+    if (checked.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: checked.error }); }
+    verifiedByLine.push(checked.items);
+    allUploaded.push(...checked.items);
+    for (const id of line.keepIds) if (byId.has(id)) keptSet.add(id);
   }
+  const dropped = existingAtts.filter(a => !keptSet.has(Number(a.id)));
   try {
     // Claimant name, department, bank details + approvers come from the account.
     const emp = (await q(
       'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
       [row.employee_id]))[0] || {};
     const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, b.approver1);
-    if (built.error) { for (const u of uploaded) await deleteReceipt(u.url); return res.status(400).json({ error: built.error }); }
-    const approverIds = built.ids;
+    if (built.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: built.error }); }
     const claimId = Number(row.id);
-    const queries = [qq(
-      `UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
-         recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
-         description=$11, status='submitted', manager_comment='', manager_id=NULL,
-         decided_at=NULL, approver_ids=$12::int[], current_step=$13, updated_at=now() WHERE id=$14`,
-      [String(emp.full_name || '').trim(), String(b.expense_date).trim(), String(emp.department || '').trim(),
-       String(b.db_no || '').trim(), String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
-       String(emp.bank_account_no || '').trim(),
-       String(b.expense_type).trim(), cents, String(b.currency || row.currency).trim().slice(0, 8),
-       String(b.description || '').trim(), intArrayLiteral(approverIds), approverIds.length ? 1 : 0, claimId])];
-    if (dropped.length) {
-      queries.push(qq('DELETE FROM attachments WHERE claim_id = $1 AND id = ANY($2::int[])',
-        [claimId, intArrayLiteral(dropped.map(a => Number(a.id)))]));
-    }
-    for (const u of uploaded) {
+    const h = claimHeaderFromLines(parsed.lines);
+    // Wipe the old lines + receipt rows, then rebuild both. Kept receipts are
+    // re-inserted pointing at the SAME blob (only dropped blobs are deleted, after
+    // commit). Attachments are cleared first so the claim_lines delete can't
+    // cascade them away.
+    const queries = [
+      qq(`UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
+            recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
+            description=$11, status='submitted', manager_comment='', manager_id=NULL,
+            decided_at=NULL, approver_ids=$12::int[], current_step=$13, updated_at=now() WHERE id=$14`,
+        [String(emp.full_name || '').trim(), h.expense_date, String(emp.department || '').trim(),
+         h.db_no, String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
+         String(emp.bank_account_no || '').trim(),
+         h.expense_type, parsed.totalCents, String(b.currency || row.currency).trim().slice(0, 8),
+         h.description, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, claimId]),
+      qq('DELETE FROM attachments WHERE claim_id = $1', [claimId]),
+      qq('DELETE FROM claim_lines WHERE claim_id = $1', [claimId])
+    ];
+    parsed.lines.forEach((l, i) => {
       queries.push(qq(
-        `INSERT INTO attachments (claim_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
-         VALUES ($1,$2,$3,$4,$5,$6)`, [claimId, u.url, u.pathname, u.original_name, u.mime, u.size]));
-    }
+        `INSERT INTO claim_lines (claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [claimId, i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      const insertAtt = (url, pathname, name, mime, size) => queries.push(qq(
+        `INSERT INTO attachments (claim_id, line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES ($1, currval(${LINE_SEQ}),$2,$3,$4,$5,$6)`, [claimId, url, pathname, name, mime, size]));
+      for (const id of l.keepIds) {
+        const a = byId.get(id);
+        if (a && keptSet.has(id)) insertAtt(a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes);
+      }
+      for (const u of verifiedByLine[i]) insertAtt(u.url, u.pathname, u.original_name, u.mime, u.size);
+    });
     queries.push(qq(
       `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
        VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
       [claimId, req.user.id, String(req.user.full_name || '').trim(), String(b.resubmit_note || '').trim()]));
     await transaction(queries);
-    // Only once the rows are committed do we bin the blobs of the removed
-    // receipts — a blob delete can't be rolled back, so doing it earlier would
-    // orphan the claim's rows if the transaction failed. A failure here must not
-    // reach the catch below (which would delete the blobs of a now-committed
-    // claim); a leftover blob nothing points at is harmless.
-    for (const a of dropped) {
-      try { await deleteReceipt(a.blob_url); } catch { /* ignore */ }
-    }
+    // Only once committed do we bin the blobs of the removed receipts (a blob
+    // delete can't be rolled back). A failure here must not reach the catch.
+    for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
     const first = currentApproverId(rows[0]);
     if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
     res.json({ claim: await serializeOne(rows[0]) });
   } catch (e) {
-    for (const u of uploaded) await deleteReceipt(u.url);
+    for (const u of allUploaded) await deleteReceipt(u.url);
     throw e;
   }
 }));
@@ -1093,6 +1569,8 @@ app.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (!userCanApprove(req.user, row)) {
     return res.status(403).json({ error: 'You are not the approver for this step' });
   }
+  const le = approvalLimitError(req.user, row.amount_cents, row.currency);
+  if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -1198,7 +1676,7 @@ app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) =
 // Delete a reimbursement claim outright (super admin only) — clears its
 // attachments (and their blobs) and history first. Meant for tidying up test
 // data; there is no undo.
-app.delete('/api/claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.delete('/api/claims/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   const atts = await q('SELECT blob_url FROM attachments WHERE claim_id = $1', [row.id]);
@@ -1263,7 +1741,7 @@ function baseMealClaim(row, lines, history, nameMap) {
   return {
     id: row.id, type: 'meal', claim_no: row.claim_no,
     employee_id: row.employee_id, claimant_name: row.claimant_name,
-    department: row.department, bank_name: row.bank_name,
+    department: row.department, region: row.region || '', bank_name: row.bank_name,
     recipient_name: row.recipient_name, bank_account_no: row.bank_account_no,
     total_amount: Number(row.total_cents) / 100, currency: row.currency,
     status: row.status, manager_comment: row.manager_comment,
@@ -1316,10 +1794,14 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const where = [];
   const params = [];
   const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
-  if (req.user.role !== 'superadmin') {
+  if (!userCan(req.user, 'view_all_claims')) {
     params.push(req.user.id);
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
   }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
@@ -1337,8 +1819,17 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
 }));
 
 app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
-  const scope = req.user.role === 'superadmin' ? '' : 'WHERE (employee_id = $1 OR $1 = ANY(approver_ids))';
-  const params = req.user.role === 'superadmin' ? [] : [req.user.id];
+  const where = [];
+  const params = [];
+  if (!userCan(req.user, 'view_all_claims')) {
+    params.push(req.user.id);
+    where.push(`(employee_id = $${params.length} OR $${params.length} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
+  const scope = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(total_cents),0)::bigint AS total
      FROM meal_claims ${scope} GROUP BY status`, params);
@@ -1353,7 +1844,10 @@ app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
 app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own meal claims' });
+  }
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own meal claims' });
   }
@@ -1362,7 +1856,7 @@ app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
 
 // Delete a meal allowance claim outright (super admin only) — removes its line
 // items and history first. For clearing test data; no undo.
-app.delete('/api/meal-claims/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+app.delete('/api/meal-claims/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
   const claimId = Number(row.id);
@@ -1388,18 +1882,19 @@ function mealLineQuery(claimIdExpr, l, i) {
 
 // Create a meal claim, its line items and initial history row as one atomic
 // transaction. Retries on a claim_no collision.
-async function createMealClaim(req, lines, totalCents, approverIds) {
+async function createMealClaim(req, lines, totalCents, approverIds, region) {
+  const currency = (await regionPrefsFor(region)).currency;
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextMealClaimNo();
     const queries = [qq(
       `INSERT INTO meal_claims
         (claim_no, employee_id, claimant_name, department, bank_name, recipient_name,
-         bank_account_no, total_cents, currency, status, approver_ids, current_step)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11)`,
+         bank_account_no, total_cents, currency, status, approver_ids, current_step, region)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11,$12)`,
       [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
        String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
-       String(req.user.bank_account_no || '').trim(), totalCents, 'IDR',
-       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+       String(req.user.bank_account_no || '').trim(), totalCents, currency,
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
     lines.forEach((l, i) => queries.push(mealLineQuery(`currval(${MEAL_SEQ})`, l, i)));
     queries.push(qq(
       `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
@@ -1421,12 +1916,14 @@ async function createMealClaim(req, lines, totalCents, approverIds) {
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date));
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   const approverIds = built.ids;
-  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds);
+  // Region is glued to the account — every claim inherits the submitter's.
+  const claimRegion = String(req.user.region || '');
+  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds, claimRegion);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
@@ -1444,7 +1941,7 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   }
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date));
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   // Bank details + approvers come from the claimant's account.
   const emp = (await q(
@@ -1479,6 +1976,8 @@ app.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (!row) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a meal claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
+  const le = approvalLimitError(req.user, row.total_cents, row.currency);
+  if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -1553,6 +2052,505 @@ app.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
 }));
 
 // ---------------------------------------------------------------------------
+// Cash advances
+// A two-phase document (see schema.js). Phase 1 (request: purpose + amount) and
+// phase 2 (realization: itemised actual transactions with receipts) each run the
+// submitter's approver chain, reusing userCanApprove / currentApproverId. The
+// approve/reject endpoints are phase-aware (they branch on the current status).
+// ---------------------------------------------------------------------------
+const ADV_SEQ = "pg_get_serial_sequence('cash_advances','id')";
+const ADV_LINE_SEQ = "pg_get_serial_sequence('cash_advance_lines','id')";
+
+async function nextAdvanceNo() {
+  const year = new Date().getFullYear();
+  const rows = await q(
+    `SELECT COALESCE(MAX(SUBSTRING(advance_no FROM '[0-9]+$')::int), 0) AS n
+       FROM cash_advances WHERE advance_no LIKE $1`,
+    [`CA-${year}-%`]);
+  return `CA-${year}-${String(Number(rows[0].n) + 1).padStart(4, '0')}`;
+}
+async function logAdvanceHistory(advanceId, actor, action, fromStatus, toStatus, comment = '') {
+  await q(
+    `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [advanceId, actor.id, actor.full_name, action, fromStatus, toStatus, comment]);
+}
+function advanceNotify(row) {
+  return { claimNo: row.advance_no, claimantName: row.claimant_name,
+    typeLabel: 'cash advance', amount: Number(row.amount_cents) / 100, currency: row.currency };
+}
+function baseAdvance(row, lines, attByLine, history, nameMap) {
+  const attView = (a) => ({
+    id: a.id, original_name: a.original_name, mime_type: a.mime_type,
+    size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
+  });
+  return {
+    id: row.id, type: 'advance',
+    claim_no: row.advance_no, advance_no: row.advance_no,
+    employee_id: row.employee_id, claimant_name: row.claimant_name,
+    department: row.department, region: row.region || '',
+    bank_name: row.bank_name, recipient_name: row.recipient_name, bank_account_no: row.bank_account_no,
+    purpose: row.purpose,
+    amount: Number(row.amount_cents) / 100,
+    realized_total: Number(row.realized_total_cents) / 100,
+    settlement: Number(row.settlement_cents) / 100,
+    settlement_direction: row.settlement_direction || '',
+    settlement_note: row.settlement_note || '',
+    settled_by: row.settled_by == null ? null : Number(row.settled_by),
+    settled_at: iso(row.settled_at),
+    currency: row.currency, status: row.status,
+    manager_comment: row.manager_comment,
+    manager_id: row.manager_id == null ? null : Number(row.manager_id),
+    paid_by: row.paid_by == null ? null : Number(row.paid_by),
+    approvers: asIntArray(row.approver_ids).map(id => ({ id, name: (nameMap && nameMap[id]) || `User #${id}` })),
+    current_step: row.current_step || 0,
+    decided_at: iso(row.decided_at), paid_at: iso(row.paid_at),
+    created_at: iso(row.created_at), updated_at: iso(row.updated_at),
+    lines: (lines || []).map(l => ({
+      id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: Number(l.amount_cents) / 100, description: l.description,
+      attachments: ((attByLine && attByLine[l.id]) || []).map(attView)
+    })),
+    history: (history || []).map(h => ({
+      actor_id: h.actor_id == null ? null : Number(h.actor_id),
+      actor_name: h.actor_name, action: h.action, from_status: h.from_status,
+      to_status: h.to_status, comment: h.comment, created_at: iso(h.created_at)
+    }))
+  };
+}
+async function serializeManyAdvance(rows) {
+  if (!rows.length) return [];
+  const ids = rows.map(r => r.id);
+  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
+  const lines = await q(
+    `SELECT id, advance_id, sort_order, line_date, db_no, expense_type, amount_cents, description
+     FROM cash_advance_lines WHERE advance_id IN (${ph}) ORDER BY sort_order, id`, ids);
+  const lineIds = lines.map(l => l.id);
+  let atts = [];
+  if (lineIds.length) {
+    const aph = lineIds.map((_, i) => `$${i + 1}`).join(',');
+    atts = await q(
+      `SELECT id, advance_line_id, original_name, mime_type, size_bytes, uploaded_at
+       FROM attachments WHERE advance_line_id IN (${aph}) ORDER BY id`, lineIds);
+  }
+  const hist = await q(
+    `SELECT advance_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+     FROM cash_advance_history WHERE advance_id IN (${ph}) ORDER BY id`, ids);
+  const l = groupBy(lines, 'advance_id');
+  const attByLine = groupBy(atts, 'advance_line_id');
+  const h = groupBy(hist, 'advance_id');
+  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
+  const nameMap = {};
+  if (approverIds.length) {
+    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
+    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
+    for (const u of us) nameMap[u.id] = u.full_name;
+  }
+  return rows.map(r => baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap));
+}
+async function serializeOneAdvance(row) { return (await serializeManyAdvance([row]))[0]; }
+async function loadAdvanceOr404(req, res) {
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [req.params.id]);
+  if (!rows[0]) { res.status(404).json({ error: 'Cash advance not found' }); return null; }
+  return rows[0];
+}
+
+// Validate a cash-advance request: a non-empty purpose and a positive amount.
+function normaliseAdvanceRequest(body) {
+  const b = body || {};
+  const purpose = String(b.purpose || '').trim();
+  if (!purpose) return { error: 'A purpose for the cash advance is required' };
+  const cents = parseAmountToCents(b.amount);
+  if (cents === null || cents <= 0) return { error: 'Enter the advance amount' };
+  // A blank currency means "use the region default"; the caller resolves it.
+  return { purpose, amountCents: cents, currency: String(b.currency || '').trim().slice(0, 8) };
+}
+
+// Create a cash-advance request (phase 1). No lines yet; those arrive at
+// realization. Retries on an advance_no collision (see createClaim).
+async function createCashAdvance(req, purpose, amountCents, currency, approverIds, region) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const advanceNo = await nextAdvanceNo();
+    const queries = [qq(
+      `INSERT INTO cash_advances
+        (advance_no, employee_id, claimant_name, department, region, bank_name, recipient_name,
+         bank_account_no, purpose, amount_cents, currency, status, approver_ids, current_step)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'submitted',$12::int[],$13)`,
+      [advanceNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
+       String(region || ''), String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
+       String(req.user.bank_account_no || '').trim(), purpose, amountCents, currency,
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+    queries.push(qq(
+      `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES (currval(${ADV_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
+      [req.user.id, String(req.user.full_name || '').trim()]));
+    queries.push(qq(`SELECT currval(${ADV_SEQ})::int AS id`));
+    try {
+      const results = await transaction(queries);
+      return results[results.length - 1][0].id;
+    } catch (e) {
+      const msg = String(e.message || '');
+      if (e.code === '23505' || msg.includes('advance_no') || msg.includes('duplicate')) continue;
+      throw e;
+    }
+  }
+  throw new Error('Could not allocate an advance number — please try again');
+}
+
+app.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
+  const parsed = normaliseAdvanceRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  const region = String(req.user.region || '');
+  const currency = parsed.currency || (await regionPrefsFor(region)).currency;
+  const id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, currency, built.ids, region);
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [id]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+  res.status(201).json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Edit + resubmit a rejected cash-advance request (phase 1 only).
+app.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'You can only edit your own cash advances' });
+  }
+  if (row.status !== 'rejected') {
+    return res.status(409).json({ error: 'Only rejected cash-advance requests can be edited and resubmitted' });
+  }
+  const parsed = normaliseAdvanceRequest(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const emp = (await q(
+    'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
+    [row.employee_id]))[0] || {};
+  const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, (req.body || {}).approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  await q(
+    `UPDATE cash_advances SET claimant_name=$1, department=$2, bank_name=$3, recipient_name=$4,
+       bank_account_no=$5, purpose=$6, amount_cents=$7, currency=$8, status='submitted',
+       manager_comment='', manager_id=NULL, decided_at=NULL, approver_ids=$9::int[], current_step=$10, updated_at=now()
+     WHERE id=$11`,
+    [String(emp.full_name || '').trim(), String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
+     String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
+     parsed.purpose, parsed.amountCents,
+     parsed.currency || row.currency || (await regionPrefsFor(row.region)).currency, intArrayLiteral(built.ids),
+     built.ids.length ? 1 : 0, row.id]);
+  await logAdvanceHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body || {}).resubmit_note || '').trim());
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [row.id]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Approve — phase-aware: advances the request chain (submitted → approved) or the
+// realization chain (realize_submitted → realize_approved).
+app.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const realizing = row.status === 'realize_submitted';
+  if (row.status !== 'submitted' && !realizing) {
+    return res.status(409).json({ error: `Cannot approve a cash advance that is "${row.status}"` });
+  }
+  if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
+  const amountForLimit = realizing ? row.realized_total_cents : row.amount_cents;
+  const le = approvalLimitError(req.user, amountForLimit, row.currency);
+  if (le) return res.status(403).json({ error: le });
+  const comment = String((req.body && req.body.comment) || '').trim();
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const finalStatus = realizing ? 'realize_approved' : 'approved';
+  const phase = realizing ? 'realization ' : '';
+  if (finalise) {
+    await q(`UPDATE cash_advances SET status=$1, manager_id=$2, manager_comment=$3, decided_at=now(), updated_at=now() WHERE id=$4`,
+      [finalStatus, req.user.id, comment, row.id]);
+    await logAdvanceHistory(row.id, req.user, ids.length ? `${phase}approved — step ${step} of ${ids.length}` : `${phase}approved`, row.status, finalStatus, comment);
+  } else {
+    await q(`UPDATE cash_advances SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
+    await logAdvanceHistory(row.id, req.user, `${phase}approved — step ${step} of ${ids.length}`, row.status, row.status, comment);
+  }
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  if (finalise) await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'approved');
+  else { const next = currentApproverId(rows[0]); if (next) await notifyPendingApprover(next, advanceNotify(rows[0])); }
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Reject — phase-aware: submitted → rejected, realize_submitted → rejected_realize.
+app.post('/api/cash-advances/:id/reject', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const comment = String((req.body && req.body.comment) || '').trim();
+  if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a cash advance' });
+  const realizing = row.status === 'realize_submitted';
+  if (row.status !== 'submitted' && !realizing) {
+    return res.status(409).json({ error: `Cannot reject a cash advance that is "${row.status}"` });
+  }
+  if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this cash advance' });
+  const toStatus = realizing ? 'rejected_realize' : 'rejected';
+  await q(`UPDATE cash_advances SET status=$1, manager_id=$2, manager_comment=$3, decided_at=now(), updated_at=now() WHERE id=$4`,
+    [toStatus, req.user.id, comment, row.id]);
+  await logAdvanceHistory(row.id, req.user, realizing ? 'realization rejected' : 'rejected', row.status, toStatus, comment);
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  await notifyClaimantRejected(rows[0].employee_id, { ...advanceNotify(rows[0]), reason: comment });
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Disburse the approved advance (phase 1 → paid). Unlocks realization.
+app.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark cash advances as paid' });
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved cash advances can be marked as paid' });
+  const paymentDate = String((req.body && req.body.payment_date) || '').trim();
+  if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a cash advance as paid' });
+  await q(`UPDATE cash_advances SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  await logAdvanceHistory(row.id, req.user, `advance paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'paid');
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Submit or resubmit the realization (phase 2): the itemised actual transactions
+// with per-line receipts. Allowed from 'paid' (first realization) or
+// 'rejected_realize' (edit after a rejected realization). Rebuilds the lines +
+// receipts and re-enters the approver chain at step 1.
+async function submitRealization(req, res, row) {
+  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'You can only realize your own cash advances' });
+  }
+  const b = req.body || {};
+  const parsed = normaliseClaimLines(b.lines);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region);
+  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  // Approver chain is re-resolved from the claimant's account, like a fresh submit.
+  const emp = (await q(
+    'SELECT approver_ids, approver1_options FROM users WHERE id = $1', [row.employee_id]))[0] || {};
+  const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, b.approver1);
+  if (built.error) return res.status(400).json({ error: built.error });
+  // Existing realization receipts (keyed by id) so kept ones survive an edit.
+  const existingAtts = await q(
+    `SELECT a.id, a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes
+       FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id WHERE l.advance_id = $1`, [row.id]);
+  const byId = new Map(existingAtts.map(a => [Number(a.id), a]));
+  const keptSet = new Set();
+  const verifiedByLine = [];
+  const allUploaded = [];
+  for (const line of parsed.lines) {
+    const checked = await verifyAttachments(line.rawAttachments);
+    if (checked.error) { for (const u of allUploaded) await deleteReceipt(u.url); return res.status(400).json({ error: checked.error }); }
+    verifiedByLine.push(checked.items);
+    allUploaded.push(...checked.items);
+    for (const id of line.keepIds) if (byId.has(id)) keptSet.add(id);
+  }
+  const dropped = existingAtts.filter(a => !keptSet.has(Number(a.id)));
+  const advanceId = Number(row.id);
+  const resubmit = row.status === 'rejected_realize';
+  try {
+    const queries = [
+      qq(`UPDATE cash_advances SET status='realize_submitted', realized_total_cents=$1,
+            manager_comment='', manager_id=NULL, decided_at=NULL,
+            approver_ids=$2::int[], current_step=$3, updated_at=now() WHERE id=$4`,
+        [parsed.totalCents, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, advanceId]),
+      qq(`DELETE FROM attachments WHERE advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
+      qq('DELETE FROM cash_advance_lines WHERE advance_id = $1', [advanceId])
+    ];
+    parsed.lines.forEach((l, i) => {
+      queries.push(qq(
+        `INSERT INTO cash_advance_lines (advance_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [advanceId, i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      const insertAtt = (url, pathname, name, mime, size) => queries.push(qq(
+        `INSERT INTO attachments (advance_line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES (currval(${ADV_LINE_SEQ}),$1,$2,$3,$4,$5)`, [url, pathname, name, mime, size]));
+      for (const id of l.keepIds) {
+        const a = byId.get(id);
+        if (a && keptSet.has(id)) insertAtt(a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes);
+      }
+      for (const u of verifiedByLine[i]) insertAtt(u.url, u.pathname, u.original_name, u.mime, u.size);
+    });
+    queries.push(qq(
+      `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES ($1,$2,$3,$4,$5,'realize_submitted',$6)`,
+      [advanceId, req.user.id, String(req.user.full_name || '').trim(),
+       resubmit ? 'realization resubmitted' : 'realization submitted', row.status,
+       String(b.resubmit_note || '').trim()]));
+    await transaction(queries);
+    for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+    const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [advanceId]);
+    const first = currentApproverId(rows[0]);
+    if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+    res.json({ claim: await serializeOneAdvance(rows[0]) });
+  } catch (e) {
+    for (const u of allUploaded) await deleteReceipt(u.url);
+    throw e;
+  }
+}
+
+app.post('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'paid') return res.status(409).json({ error: 'The advance must be paid before it can be realized' });
+  return submitRealization(req, res, row);
+}));
+
+app.put('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'rejected_realize') return res.status(409).json({ error: 'Only a rejected realization can be edited and resubmitted' });
+  return submitRealization(req, res, row);
+}));
+
+// Settle a fully-approved realization (phase 2 → settled). Records the direction:
+// actual > advance → top-up owed to the employee; actual < advance → balance the
+// employee returns; equal → even. Same permission as marking paid.
+app.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to settle cash advances' });
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (row.status !== 'realize_approved') return res.status(409).json({ error: 'Only an approved realization can be settled' });
+  const diff = Number(row.realized_total_cents) - Number(row.amount_cents);
+  const direction = diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even';
+  const note = String((req.body && req.body.note) || '').trim();
+  await q(`UPDATE cash_advances SET status='settled', settlement_cents=$1, settlement_direction=$2,
+            settlement_note=$3, settled_by=$4, settled_at=now(), updated_at=now() WHERE id=$5`,
+    [Math.abs(diff), direction, note, req.user.id, row.id]);
+  const label = direction === 'topup' ? `settled — top-up ${fmtMoney(Math.abs(diff), row.currency)} to employee`
+    : direction === 'return' ? `settled — ${fmtMoney(Math.abs(diff), row.currency)} returned by employee`
+    : 'settled — balanced';
+  await logAdvanceHistory(row.id, req.user, label, 'realize_approved', 'settled', note);
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'paid');
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+// Revert one step of a cash advance's lifecycle (mirrors planRevert, doubled for
+// the realization phase). Only the actor who owns a node may undo it.
+app.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const isSuper = req.user.role === 'superadmin';
+  const u = req.user;
+  let plan = null;
+  if (row.status === 'settled') {
+    if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a settlement' });
+    plan = { sql: `status='realize_approved', settlement_cents=0, settlement_direction='', settlement_note='', settled_by=NULL, settled_at=NULL`,
+      action: 'reverted settlement', from: 'settled', to: 'realize_approved' };
+  } else if (row.status === 'realize_approved') {
+    if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this realization can revert it' });
+    plan = { sql: `status='realize_submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted realization approval', from: 'realize_approved', to: 'realize_submitted' };
+  } else if (row.status === 'realize_submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
+      plan = { sql: `current_step=${step - 1}`, action: 'reverted realization approval', from: 'realize_submitted', to: 'realize_submitted' };
+    } else {
+      if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this realization' });
+      plan = { sql: `status='rejected_realize', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled realization to edit', from: 'realize_submitted', to: 'rejected_realize', comment: 'Reverted by the claimant to make changes' };
+    }
+  } else if (row.status === 'paid') {
+    if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a payment' });
+    plan = { sql: `status='approved', paid_by=NULL, paid_at=NULL`, action: 'reverted payment', from: 'paid', to: 'approved' };
+  } else if (row.status === 'approved') {
+    if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this advance can revert the approval' });
+    plan = { sql: `status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted approval', from: 'approved', to: 'submitted' };
+  } else if (row.status === 'submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
+      plan = { sql: `current_step=${step - 1}`, action: 'reverted approval', from: 'submitted', to: 'submitted' };
+    } else {
+      if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this submission' });
+      plan = { sql: `status='rejected', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected', comment: 'Reverted by the claimant to make changes' };
+    }
+  } else {
+    return res.status(409).json({ error: `A ${row.status} cash advance cannot be reverted` });
+  }
+  await q(`UPDATE cash_advances SET ${plan.sql}, updated_at=now() WHERE id=$1`, [row.id]);
+  await logAdvanceHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
+}));
+
+app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
+  const { status, department, q: search } = req.query;
+  const where = [];
+  const params = [];
+  const add = (clause, val) => { params.push(val); where.push(clause.replace('$$', `$${params.length}`)); };
+  if (!userCan(req.user, 'view_all_claims')) {
+    params.push(req.user.id);
+    const p = `$${params.length}`;
+    where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
+  }
+  if (!seesAllRegions(req.user)) {
+    params.push(req.user.region || '');
+    where.push(`region = $${params.length}`);
+  }
+  if (status) add('status = $$', status);
+  if (department) add('department = $$', department);
+  if (search) {
+    params.push(`%${search}%`);
+    const p = `$${params.length}`;
+    where.push(`(advance_no ILIKE ${p} OR claimant_name ILIKE ${p} OR purpose ILIKE ${p})`);
+  }
+  const rows = await q(
+    `SELECT * FROM cash_advances ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     ORDER BY created_at DESC`, params);
+  res.json({ claims: await serializeManyAdvance(rows) });
+}));
+
+app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (req.user.role !== 'superadmin' && !userCan(req.user, 'view_all_claims')
+      && row.employee_id !== req.user.id && !asIntArray(row.approver_ids).includes(req.user.id)) {
+    return res.status(403).json({ error: 'You can only view your own cash advances' });
+  }
+  res.json({ claim: await serializeOneAdvance(row) });
+}));
+
+// Download a realization receipt — auth-scoped, streamed from Blob.
+app.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+      && !asIntArray(row.approver_ids).includes(req.user.id)) {
+    return res.status(403).json({ error: 'You can only view your own attachments' });
+  }
+  const rows = await q(
+    `SELECT a.* FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id
+      WHERE a.id = $1 AND l.advance_id = $2`, [req.params.attId, row.id]);
+  const att = rows[0];
+  if (!att) return res.status(404).json({ error: 'Attachment not found' });
+  const r = await fetch(att.blob_url);
+  if (!r.ok) return res.status(502).json({ error: 'Could not fetch file from storage' });
+  const inlineOk = att.mime_type === 'application/pdf' || att.mime_type.startsWith('image/');
+  res.setHeader('Content-Type', att.mime_type);
+  res.setHeader('Content-Disposition', `${inlineOk ? 'inline' : 'attachment'}; filename="${encodeURIComponent(att.original_name)}"`);
+  res.send(Buffer.from(await r.arrayBuffer()));
+}));
+
+// Delete a cash advance outright (super admin only) — clears its realization
+// receipts (blobs), lines and history first.
+app.delete('/api/cash-advances/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
+  const row = await loadAdvanceOr404(req, res);
+  if (!row) return;
+  const atts = await q(
+    `SELECT a.blob_url FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id WHERE l.advance_id = $1`, [row.id]);
+  const advanceId = Number(row.id);
+  await transaction([
+    qq(`DELETE FROM attachments WHERE advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
+    qq('DELETE FROM cash_advance_lines WHERE advance_id = $1', [advanceId]),
+    qq('DELETE FROM cash_advance_history WHERE advance_id = $1', [advanceId]),
+    qq('DELETE FROM cash_advances WHERE id = $1', [advanceId])
+  ]);
+  for (const a of atts) await deleteReceipt(a.blob_url);
+  res.json({ ok: true });
+}));
+
+// ---------------------------------------------------------------------------
 // Daily reminder (Vercel Cron)
 // ---------------------------------------------------------------------------
 // Vercel Cron calls this once a day (see vercel.json). It emails every approver
@@ -1577,6 +2575,10 @@ app.get('/api/cron/reminders', ah(async (req, res) => {
     `SELECT claim_no, claimant_name, total_cents, currency, approver_ids, current_step
      FROM meal_claims WHERE status = 'submitted'`);
   for (const r of meal) push(currentApproverId(r), mealNotify(r));
+  const adv = await q(
+    `SELECT advance_no, claimant_name, amount_cents, currency, approver_ids, current_step
+     FROM cash_advances WHERE status IN ('submitted','realize_submitted')`);
+  for (const r of adv) push(currentApproverId(r), advanceNotify(r));
 
   let sent = 0;
   for (const [approverId, claims] of byApprover) {
@@ -1613,7 +2615,7 @@ const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 // `site`), and `status` (comma-separated; defaults to approved + paid).
 const INSIGHT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 app.get('/api/insights', requireAuth, ah(async (req, res) => {
-  const pos = await loadPositions();
+  const pos = await loadPositions(req.user.region);
   if (!insightsCanView(req.user, pos)) {
     return res.status(403).json({ error: 'You do not have access to insights' });
   }
@@ -1626,6 +2628,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
 
   const deptFilter = String(req.query.department || '').trim();
   const db = String(req.query.db || '').trim();
+  const nameFilter = String(req.query.name || '').trim();
 
   const params = [];
   const where = [];
@@ -1638,20 +2641,43 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   if (mode === 'approver') { params.push(req.user.id); where.push(`$${params.length} = ANY(appr)`); }
   if (deptFilter) { params.push(deptFilter); where.push(`lower(department) = lower($${params.length})`); }
   if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
+  // Employee-name substring filter (matches the claimant on each document).
+  if (nameFilter) { params.push(`%${nameFilter}%`); where.push(`claimant ILIKE $${params.length}`); }
+  // Region isolation: unless the viewer sees all regions, restrict to their own.
+  if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
 
+  // Reimbursement rows come from each claim's LINES (claim_lines), not the claim
+  // header, so every expense keeps its own real type instead of the header's
+  // "Multiple" summary. `no`/`claimant` carry the source document number and the
+  // claimant name so the client can drill into a type and search by employee.
   const rows = await q(
-    `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo,
-            cents::bigint AS cents, cid
+    `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo, d,
+            cents::bigint AS cents, cid, db, no, claimant
        FROM (
-         SELECT expense_type AS category, department, expense_date AS d,
-                amount_cents AS cents, status, COALESCE(db_no,'') AS db, 'c' || id AS cid,
-                approver_ids AS appr
-           FROM claims
+         SELECT l.expense_type AS category, c.department, l.line_date AS d,
+                l.amount_cents AS cents, c.status, COALESCE(l.db_no,'') AS db, 'c' || c.id AS cid,
+                c.approver_ids AS appr, c.region, c.claim_no AS no, c.claimant_name AS claimant
+           FROM claim_lines l JOIN claims c ON c.id = l.claim_id
          UNION ALL
          SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
                 l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
-                m.approver_ids AS appr
+                m.approver_ids AS appr, m.region AS region, m.claim_no AS no, m.claimant_name AS claimant
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
+         UNION ALL
+         -- Cash advances contribute their realization lines (actual transactions),
+         -- which only exist once the advance is realized. The realization approval
+         -- phase is mapped onto the base statuses so the status filter treats them
+         -- like any other claim (realize_approved -> approved, settled -> paid, …).
+         SELECT COALESCE(l.expense_type,'') AS category, a.department, l.line_date AS d,
+                l.amount_cents AS cents,
+                CASE a.status WHEN 'realize_submitted' THEN 'submitted'
+                              WHEN 'realize_approved'  THEN 'approved'
+                              WHEN 'settled'           THEN 'paid'
+                              WHEN 'rejected_realize'  THEN 'rejected'
+                              ELSE a.status END AS status,
+                COALESCE(l.db_no,'') AS db, 'a' || a.id AS cid,
+                a.approver_ids AS appr, a.region AS region, a.advance_no AS no, a.claimant_name AS claimant
+           FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id
        ) ev
       WHERE ${where.join(' AND ')}`, params);
 
@@ -1676,6 +2702,12 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const byType = [...byTypeMap.entries()].sort((a, b) => b[1] - a[1])
     .map(([type, cents]) => ({ type, cents }));
 
+  // Line-level detail for the selected year, biggest first, so the client can
+  // drill into any expense type (pivot-style) and show each underlying line.
+  const details = inYear
+    .map(r => ({ cid: r.cid || '', no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', type: r.category, cents: Number(r.cents) }))
+    .sort((a, b) => b.cents - a.cents);
+
   const monthCents = Array(12).fill(0);
   for (const r of inYear) { const m = Number(r.mo); if (m >= 1 && m <= 12) monthCents[m - 1] += Number(r.cents); }
   const byMonth = monthCents.map((cents, i) => ({ month: String(i + 1).padStart(2, '0'), cents }));
@@ -1697,21 +2729,60 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const drows = seeAll
     ? await q(
         `SELECT DISTINCT department FROM (
-           SELECT department FROM claims UNION SELECT department FROM meal_claims
+           SELECT department FROM claims
+           UNION SELECT department FROM meal_claims
+           UNION SELECT department FROM cash_advances
          ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`)
     : await q(
         `SELECT DISTINCT department FROM (
-           SELECT department FROM claims      WHERE $1 = ANY(approver_ids)
+           SELECT department FROM claims        WHERE $1 = ANY(approver_ids)
            UNION
-           SELECT department FROM meal_claims WHERE $1 = ANY(approver_ids)
+           SELECT department FROM meal_claims   WHERE $1 = ANY(approver_ids)
+           UNION
+           SELECT department FROM cash_advances WHERE $1 = ANY(approver_ids)
          ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`, [req.user.id]);
   const departments = drows.map(r => r.department);
 
+  // Employee options for the searchable filter — distinct claimant names in the
+  // viewer's scope (region + approver-mode), independent of the year/dept/status
+  // filters so the list stays stable as you narrow. Mirrors the department list.
+  const empConds = [`COALESCE(TRIM(claimant_name), '') <> ''`];
+  const empParams = [];
+  if (mode === 'approver') { empParams.push(req.user.id); empConds.push(`$${empParams.length} = ANY(approver_ids)`); }
+  if (!seesAllRegions(req.user)) { empParams.push(req.user.region || ''); empConds.push(`region = $${empParams.length}`); }
+  const erows = await q(
+    `SELECT DISTINCT claimant_name FROM (
+       SELECT claimant_name, approver_ids, region FROM claims
+       UNION ALL SELECT claimant_name, approver_ids, region FROM meal_claims
+       UNION ALL SELECT claimant_name, approver_ids, region FROM cash_advances
+     ) t WHERE ${empConds.join(' AND ')} ORDER BY claimant_name`, empParams);
+  const employees = erows.map(r => r.claimant_name);
+
+  // DB-number options for the searchable filter — distinct DB numbers in scope.
+  // DB lives per line: claim_lines.db_no, cash_advance_lines.db_no, and (for
+  // meals) meal_claim_lines.site, matching the `db` column in the rows query.
+  const dbConds = [`COALESCE(TRIM(db), '') <> ''`];
+  const dbParams = [];
+  if (mode === 'approver') { dbParams.push(req.user.id); dbConds.push(`$${dbParams.length} = ANY(approver_ids)`); }
+  if (!seesAllRegions(req.user)) { dbParams.push(req.user.region || ''); dbConds.push(`region = $${dbParams.length}`); }
+  const dbrows = await q(
+    `SELECT DISTINCT db FROM (
+       SELECT l.db_no AS db, c.approver_ids, c.region
+         FROM claim_lines l JOIN claims c ON c.id = l.claim_id
+       UNION ALL SELECT l.site AS db, m.approver_ids, m.region
+         FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
+       UNION ALL SELECT l.db_no AS db, a.approver_ids, a.region
+         FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id
+     ) t WHERE ${dbConds.join(' AND ')} ORDER BY db`, dbParams);
+  const dbNos = dbrows.map(r => r.db);
+
   res.json({
     scope: { mode, department: deptFilter || null },
-    currency: 'IDR',
-    year, years, status: statuses, db, departments,
-    byType, byMonth, byYear, kpis
+    // Region-scoped viewers see their region's currency; all-regions viewers see
+    // the global default (their totals may span multiple currencies).
+    currency: seesAllRegions(req.user) ? DEFAULT_CURRENCY : (await regionPrefsFor(req.user.region)).currency,
+    year, years, status: statuses, db, name: nameFilter, departments, employees, dbNos,
+    byType, byMonth, byYear, kpis, details
   });
 }));
 
@@ -1721,16 +2792,20 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
 // reimbursement, meal \u2014 defaults to both). Reimbursement claims export one row
 // each; meal allowances export one row per line item (per day), so finance sees
 // the full daily breakdown. A shared column set carries both.
-app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(async (req, res) => {
+app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req, res) => {
   const { from, to } = req.query;
   const statuses = String(req.query.status || '').split(',').map(s => s.trim())
     .filter(s => EXPORT_STATUSES.includes(s));
-  const types = String(req.query.types || 'reimbursement,meal').split(',').map(s => s.trim());
+  const types = String(req.query.types || 'reimbursement,meal,advance').split(',').map(s => s.trim());
   const wantReimb = types.includes('reimbursement');
   const wantMeal = types.includes('meal');
-  // Optional whitelist of submitter (employee) ids to include.
+  const wantAdvance = types.includes('advance');
+  // Optional whitelist of submitter (employee) ids to include. Filter to positive
+  // ids: an absent/empty param must yield [] (no filter), not [0] — Number('') is
+  // 0 and passes Number.isInteger, which would otherwise filter every row to
+  // employee_id IN (0) and export nothing when "all users" is selected.
   const employees = String(req.query.employees || '').split(',')
-    .map(s => Number(s.trim())).filter(Number.isInteger);
+    .map(s => Number(s.trim())).filter(n => Number.isInteger(n) && n > 0);
 
   const out = []; // { key: sortKey, cells: [...] }
 
@@ -1749,6 +2824,7 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(a
     }
     if (from) { params.push(from); where.push(`c.expense_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`c.expense_date <= $${params.length}`); }
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
     const rows = await q(
       `SELECT c.*, u.username AS employee_username FROM claims c JOIN users u ON u.id = c.employee_id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`, params);
@@ -1776,6 +2852,7 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(a
     }
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`m.region = $${params.length}`); }
     const rows = await q(
       `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
               m.bank_account_no, m.currency, m.status, m.manager_comment, m.decided_at, m.paid_at,
@@ -1792,6 +2869,48 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(a
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
         r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+    }
+  }
+
+  // Cash advances export one row per realization line — so only realized advances
+  // appear (a request-stage advance has no lines). The status filter is applied to
+  // the realization phase mapped onto the base statuses (see the CASE below); the
+  // Status column shows the advance's real status.
+  if (wantAdvance) {
+    const where = [];
+    const params = [];
+    const mappedStatus = `CASE a.status WHEN 'realize_submitted' THEN 'submitted'
+      WHEN 'realize_approved' THEN 'approved' WHEN 'settled' THEN 'paid'
+      WHEN 'rejected_realize' THEN 'rejected' ELSE a.status END`;
+    if (statuses.length) {
+      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
+      statuses.forEach(s => params.push(s));
+      where.push(`${mappedStatus} IN (${ph})`);
+    }
+    if (employees.length) {
+      const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
+      employees.forEach(e => params.push(e));
+      where.push(`a.employee_id IN (${ph})`);
+    }
+    if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
+    const rows = await q(
+      `SELECT a.advance_no, a.claimant_name, a.department, a.bank_name, a.recipient_name,
+              a.bank_account_no, a.currency, a.status, a.purpose, a.manager_comment,
+              a.decided_at, a.paid_at, a.created_at, u.username AS employee_username,
+              l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description, l.sort_order
+       FROM cash_advance_lines l
+       JOIN cash_advances a ON a.id = l.advance_id
+       JOIN users u ON u.id = a.employee_id
+       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+       ORDER BY a.created_at, l.sort_order`, params);
+    for (const r of rows) {
+      out.push({ key: iso(r.created_at) || '', cells: [
+        'Cash advance', r.advance_no, r.employee_username, r.claimant_name, r.department,
+        r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
+        (Number(r.amount_cents) / 100).toFixed(2), r.currency,
+        r.description, r.status, r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
 
@@ -1813,7 +2932,17 @@ app.get('/api/export.csv', requireAuth, requireRole('superadmin', 'admin'), ah(a
 // Admin: users
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
-const ROLES = ['superadmin', 'admin', 'user'];
+const ROLES = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Roles a delegated (non-superadmin) creator may assign: every role strictly
+// more junior than their own in the ROLES ladder (index 0 = most senior). This
+// keeps a create_accounts holder from minting peers or seniors — no
+// self-escalation. Super admins are unrestricted and handled at the call site.
+function creatableRolesFor(user) {
+  if (!user) return [];
+  if (user.role === 'superadmin') return ROLES.filter(r => r !== 'superadmin');
+  const i = ROLES.indexOf(user.role);
+  return i < 0 ? [] : ROLES.slice(i + 1);
+}
 
 // Send a test email so an admin can confirm the Resend configuration works.
 // Defaults to the admin's own account email; a recipient can be supplied.
@@ -1849,6 +2978,19 @@ function sanitizeApproverIds(input, excludeId) {
   }
   return out;
 }
+// An account's approvers must be in the same region as the account (All-regions
+// accounts and All-regions approvers are unrestricted). Returns an error string
+// if any listed approver is out of region, else '' when the chain is valid.
+async function approversRegionError(ids, region) {
+  const list = [...new Set(ids)].filter(Boolean);
+  if (!list.length || region === ALL_REGIONS || !region) return '';
+  const rows = await q(`SELECT region FROM users WHERE id = ANY($1::int[])`, [intArrayLiteral(list)]);
+  for (const r of rows) {
+    const rr = String(r.region || '');
+    if (rr !== String(region) && rr !== ALL_REGIONS) return 'Approvers must be in the same region as the account';
+  }
+  return '';
+}
 
 // The department Manager (position "Manager") then the FinanceAP account, as an
 // ordered approver chain. Returns whichever of the two currently exist and are
@@ -1872,26 +3014,38 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   // Superadmins read every account; admins and delegated seniors read only their
   // own department's accounts (to populate Manage-accounts). Everyone else is
   // forbidden.
-  if (!isSuper && !hasDelegation(req.user, await loadPositions())) {
+  if (!isSuper && !hasDelegation(req.user, await loadPositions(req.user.region))) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, active, created_by, created_by_name, created_at';
-  const users = isSuper
-    ? await q(`SELECT ${cols} FROM users ORDER BY id`)
-    : await q(`SELECT ${cols} FROM users WHERE lower(department) = lower($1) ORDER BY id`,
-        [String(req.user.department || '').trim()]);
+  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, active, created_by, created_by_name, created_at';
+  let users;
+  if (isSuper) {
+    users = await q(`SELECT ${cols} FROM users ORDER BY id`);
+  } else {
+    const where = ['lower(department) = lower($1)'];
+    const params = [String(req.user.department || '').trim()];
+    // Region isolation: a region-scoped manager sees only same-region accounts.
+    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
+    users = await q(`SELECT ${cols} FROM users WHERE ${where.join(' AND ')} ORDER BY id`, params);
+  }
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at) })) });
 }));
 // Account creation is super-admin only. Everyone else — including admins and
 // senior positions — can no longer create accounts (they may still reset /
 // enable-disable their team; see canManageAccount).
-app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const isSuper = true;
+app.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req, res) => {
+  const isSuper = req.user.role === 'superadmin';
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
   let { role, department, position, approver_ids, approver1_options } = req.body || {};
   if (!username || !password || !full_name || !role) return res.status(400).json({ error: 'username, password, full_name and role are required' });
   if (!ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  // Delegated creators (non-super) may only create accounts more junior than
+  // themselves; a super admin may assign any role. Guards against self-escalation
+  // regardless of what the client sent.
+  if (!isSuper && !creatableRolesFor(req.user).includes(role)) {
+    return res.status(403).json({ error: 'You cannot create an account with that role' });
+  }
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const nextEmail = normEmail(email);
   if (nextEmail && !EMAIL_RE.test(nextEmail)) return res.status(400).json({ error: 'Enter a valid email address' });
@@ -1901,16 +3055,34 @@ app.post('/api/users', requireAuth, requireRole('superadmin'), ah(async (req, re
     const dupe = await q('SELECT 1 FROM users WHERE lower(email) = $1', [nextEmail]);
     if (dupe[0]) return res.status(409).json({ error: 'That email is already used by another account' });
   }
+  // Region: super admins / all-region creators choose any region (incl. All
+  // regions); a region-scoped creator may only create accounts in their region.
+  let region;
+  if (seesAllRegions(req.user)) {
+    region = await normRegion((req.body || {}).region);
+    if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  } else {
+    region = String(req.user.region || '');
+  }
+  if (!region) return res.status(400).json({ error: 'Region is required' });
+  const apprIds = sanitizeApproverIds(approver_ids);
+  const appr1Ids = sanitizeApproverIds(approver1_options);
+  const are = await approversRegionError([...apprIds, ...appr1Ids], region);
+  if (are) return res.status(400).json({ error: are });
   // Only a super admin may grant the mark-paid permission.
   const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
+  // Approval limit (cents; null = unlimited). Defaults to unlimited when the
+  // caller omits both fields, preserving the historical any-amount behaviour.
+  const limit = parseApprovalLimit(req.body || {});
+  if (limit.error) return res.status(400).json({ error: limit.error });
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, created_by, created_by_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::int[],$12::int[],$13,$14,$15) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, created_by, created_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16,$17) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
-     String(department || '').trim(), String(position || '').trim(), nextEmail,
+     String(department || '').trim(), String(position || '').trim(), region, nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
-     String(bank_account_no || '').trim(), intArrayLiteral(sanitizeApproverIds(approver_ids)),
-     intArrayLiteral(sanitizeApproverIds(approver1_options)), canMarkPaidFlag,
+     String(bank_account_no || '').trim(), intArrayLiteral(apprIds),
+     intArrayLiteral(appr1Ids), canMarkPaidFlag, limit.cents,
      req.user.id, req.user.full_name || req.user.username || '']);
   res.status(201).json({ id: rows[0].id });
 }));
@@ -1918,9 +3090,14 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const { username, full_name, role, department, position, active, password, email,
+  const { username, full_name, role, department, position, region, active, password, email,
     bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  let nextRegion = u.region;
+  if (region !== undefined) {
+    nextRegion = await normRegion(region);
+    if (nextRegion === null) return res.status(400).json({ error: 'Invalid region' });
+  }
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;
   if (username != null && String(username).trim() && String(username).trim() !== u.username) {
@@ -1942,6 +3119,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     ? sanitizeApproverIds(approver_ids, u.id) : asIntArray(u.approver_ids);
   const nextApprover1Options = approver1_options !== undefined
     ? sanitizeApproverIds(approver1_options, u.id) : asIntArray(u.approver1_options);
+  const areEdit = await approversRegionError([...nextApprovers, ...nextApprover1Options], nextRegion);
+  if (areEdit) return res.status(400).json({ error: areEdit });
   // Stale-approver guard: deactivating an account that is the pending approver on
   // open claims would strand them (they could no longer sign in to act). Block it
   // so an admin resolves or reassigns those claims first.
@@ -1953,9 +3132,19 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
       });
     }
   }
+  // Approval limit: only change it when the caller actually sends the fields;
+  // otherwise keep the account's existing limit.
+  let nextLimit = u.approval_limit_cents;
+  const b = req.body || {};
+  if (Object.prototype.hasOwnProperty.call(b, 'approval_unlimited') ||
+      Object.prototype.hasOwnProperty.call(b, 'approval_limit')) {
+    const lim = parseApprovalLimit(b);
+    if (lim.error) return res.status(400).json({ error: lim.error });
+    nextLimit = lim.cents;
+  }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
-             can_mark_paid=$12, approver1_options=$14::int[] WHERE id=$13`, [
+             can_mark_paid=$12, approver1_options=$14::int[], region=$15, approval_limit_cents=$16 WHERE id=$13`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -1969,7 +3158,9 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     nextEmail,
     can_mark_paid !== undefined ? isActive(can_mark_paid) : u.can_mark_paid,
     u.id,
-    intArrayLiteral(nextApprover1Options)
+    intArrayLiteral(nextApprover1Options),
+    nextRegion,
+    nextLimit
   ]);
   if (password) {
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -1983,10 +3174,10 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
 // manage (see canManageAccount). Deliberately narrower than PUT /api/users/:id
 // so a delegated user cannot change role, department, approvers or active state.
 app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
-  const rows = await q('SELECT id, role, department, position FROM users WHERE id = $1', [req.params.id]);
+  const rows = await q('SELECT id, role, department, position, region FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target, await loadPositions())) {
+  if (!canManageAccount(req.user, target, await loadPositions(target.region))) {
     return res.status(403).json({ error: 'You do not have permission to reset this account\'s password' });
   }
   const password = (req.body && req.body.password) || '';
@@ -2000,10 +3191,10 @@ app.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) => {
 // is the current approver on open claims can't be deactivated (it would strand
 // those claims), so an admin must resolve or reassign them first.
 app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
-  const rows = await q('SELECT id, role, department, position, active FROM users WHERE id = $1', [req.params.id]);
+  const rows = await q('SELECT id, role, department, position, active, region FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target, await loadPositions())) {
+  if (!canManageAccount(req.user, target, await loadPositions(target.region))) {
     return res.status(403).json({ error: 'You do not have permission to change this account' });
   }
   const next = isActive(req.body && req.body.active);
@@ -2025,55 +3216,113 @@ app.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
 // Table names and flag column names are hard-coded (never user input), so
 // interpolation is safe. `flags` lists extra BOOLEAN columns (e.g. the purpose
 // gates allow_claim / allow_meal) that admins can toggle per row.
+// Which region a lookup request targets. Region-scoped users are pinned to their
+// own region; super admins / All-regions accounts may name any region (query for
+// reads, body for writes). Returns a concrete region name, '' (no region named —
+// on a read, means "every region"), or null when `requested` names an unknown
+// region. '*' is never a lookup region of its own.
+async function resolveLookupRegion(user, requested) {
+  if (!seesAllRegions(user)) return String(user.region || '');
+  const raw = requested == null ? '' : String(requested).trim();
+  if (!raw) return '';
+  const r = await normRegion(raw);
+  return r === ALL_REGIONS ? '' : r;
+}
+// May this user edit a lookup row that belongs to `region`? Super admins / All
+// -regions accounts may edit any; everyone else only their own region's rows.
+function canEditLookupRegion(user, region) {
+  if (seesAllRegions(user)) return true;
+  return String(region || '') === String(user.region || '');
+}
+
 function lookupRoutes(pathName, table, flags = [], opts = {}) {
   // `opts.ranked` adds a `rank` column (a reorderable seniority ladder) — it is
   // selected, ordered by, and gets its own POST /reorder endpoint below.
+  // `opts.regional` scopes the lookup to a region (see resolveLookupRegion).
   const ranked = !!opts.ranked;
+  const regional = !!opts.regional;
   const orderBy = ranked ? 'rank, name' : 'name';
-  const extraCols = ranked ? ['rank'] : [];
+  const extraCols = [...(ranked ? ['rank'] : []), ...(regional ? ['region'] : [])];
   // List — any signed-in user may read (the claim form needs departments and
-  // expense types). Non-admins receive only the active entries.
+  // expense types). Non-admins receive only the active entries. Regional lookups
+  // are filtered to the resolved region (a super admin with no ?region sees all).
   app.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
     const onlyActive = req.user.role !== 'superadmin';
     const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
-    const items = await q(
-      `SELECT ${cols} FROM ${table}
-       ${onlyActive ? 'WHERE active = TRUE' : ''} ORDER BY ${orderBy}`);
+    const region = regional ? await resolveLookupRegion(req.user, req.query.region) : null;
+    if (regional && region === null) return res.status(400).json({ error: 'Invalid region' });
+    const wheres = [];
+    const params = [];
+    if (onlyActive) wheres.push('active = TRUE');
+    if (regional && region) { params.push(region); wheres.push(`region = $${params.length}`); }
+    const whereSql = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
+    const items = await q(`SELECT ${cols} FROM ${table} ${whereSql} ORDER BY ${orderBy}`, params);
     res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at) })) });
   }));
 
-  // Reorder the whole ladder: body { order: [id, …] } sets rank = position + 1
-  // for the listed ids, atomically. Only defined for ranked lookups.
+  // Reorder one region's ladder: body { region, order: [id, …] } sets rank =
+  // position + 1 for the listed ids, atomically. Only defined for ranked lookups.
   if (ranked) {
-    app.post(`/api/${pathName}/reorder`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+    app.post(`/api/${pathName}/reorder`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
       const order = (req.body && req.body.order) || [];
       if (!Array.isArray(order) || !order.length) return res.status(400).json({ error: 'order must be a non-empty array of ids' });
       const ids = [];
       for (const v of order) { const n = Number(v); if (Number.isInteger(n) && n > 0) ids.push(n); }
       if (!ids.length) return res.status(400).json({ error: 'order must contain valid ids' });
-      await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2`, [i + 1, id])));
+      if (regional) {
+        const region = await resolveLookupRegion(req.user, (req.body || {}).region);
+        if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+        // Scope every update to the region so a stray cross-region id is a no-op.
+        await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2 AND region = $3`, [i + 1, id, region])));
+      } else {
+        await transaction(ids.map((id, i) => qq(`UPDATE ${table} SET rank = $1 WHERE id = $2`, [i + 1, id])));
+      }
       res.json({ ok: true });
     }));
   }
 
-  app.post(`/api/${pathName}`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  app.post(`/api/${pathName}`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
     const name = String((req.body && req.body.name) || '').trim();
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const exists = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1)`, [name]);
+    let region = '';
+    if (regional) {
+      region = await resolveLookupRegion(req.user, (req.body || {}).region);
+      if (region === null) return res.status(400).json({ error: 'Invalid region' });
+      if (!region) return res.status(400).json({ error: 'Choose a region' });
+    }
+    const exists = await q(
+      `SELECT 1 FROM ${table} WHERE lower(name) = lower($1)${regional ? ' AND region = $2' : ''}`,
+      regional ? [name, region] : [name]);
     if (exists[0]) return res.status(409).json({ error: 'That name already exists' });
-    const rows = await q(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id`, [name]);
+    let rows;
+    if (regional && ranked) {
+      // New ranked rows drop to the bottom of that region's ladder.
+      rows = await q(
+        `INSERT INTO ${table} (name, region, rank)
+           VALUES ($1, $2, (SELECT COALESCE(MAX(rank), 0) + 1 FROM ${table} WHERE region = $2)) RETURNING id`,
+        [name, region]);
+    } else if (regional) {
+      rows = await q(`INSERT INTO ${table} (name, region) VALUES ($1, $2) RETURNING id`, [name, region]);
+    } else {
+      rows = await q(`INSERT INTO ${table} (name) VALUES ($1) RETURNING id`, [name]);
+    }
     res.status(201).json({ id: rows[0].id });
   }));
 
-  app.put(`/api/${pathName}/:id`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  app.put(`/api/${pathName}/:id`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
     const rows = await q(`SELECT * FROM ${table} WHERE id = $1`, [req.params.id]);
     const item = rows[0];
     if (!item) return res.status(404).json({ error: 'Not found' });
+    if (regional && !canEditLookupRegion(req.user, item.region)) {
+      return res.status(403).json({ error: 'You do not have permission for this action' });
+    }
     const { name, active } = req.body || {};
     const newName = name != null ? String(name).trim() : item.name;
     if (!newName) return res.status(400).json({ error: 'Name is required' });
     if (newName.toLowerCase() !== item.name.toLowerCase()) {
-      const dupe = await q(`SELECT 1 FROM ${table} WHERE lower(name) = lower($1) AND id <> $2`, [newName, item.id]);
+      const dupe = await q(
+        `SELECT 1 FROM ${table} WHERE lower(name) = lower($1) AND id <> $2${regional ? ' AND region = $3' : ''}`,
+        regional ? [newName, item.id, item.region] : [newName, item.id]);
       if (dupe[0]) return res.status(409).json({ error: 'That name already exists' });
     }
     // Build the SET clause dynamically so a caller can update just a flag.
@@ -2090,20 +3339,90 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     res.json({ ok: true });
   }));
 
-  app.delete(`/api/${pathName}/:id`, requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  app.delete(`/api/${pathName}/:id`, requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+    if (regional) {
+      const rows = await q(`SELECT region FROM ${table} WHERE id = $1`, [req.params.id]);
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+      if (!canEditLookupRegion(req.user, rows[0].region)) {
+        return res.status(403).json({ error: 'You do not have permission for this action' });
+      }
+    }
     const rows = await q(`DELETE FROM ${table} WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
   }));
 }
-lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal']);
-lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true });
-lookupRoutes('expense-types', 'expense_types');
+lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal', 'allow_advance'], { regional: true });
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'allow_advance', 'can_manage'], { ranked: true, regional: true });
+lookupRoutes('expense-types', 'expense_types', [], { regional: true });
+lookupRoutes('regions', 'regions');
+
+// --- Role permissions matrix (region-scoped) --------------------------------
+// The capability matrix is configured per region by Super Admins only. Super
+// Admin is implicitly all-true and omitted from `matrix`; only Mid Management /
+// Low Management / Finance rows are editable.
+function canAccessRoleMatrix(user) {
+  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+}
+// Which region a request may act on. Non-superadmins are pinned to their own
+// region whatever they ask for; super admins / All-regions accounts may target
+// any region they name. Returns null for a named-but-unknown region.
+async function resolveMatrixRegion(user, requested) {
+  if (!seesAllRegions(user)) return String(user.region || '');
+  return normRegion(requested);
+}
+
+// Read the editable capability matrix for a region (?region=Name).
+app.get('/api/role-permissions', requireAuth, ah(async (req, res) => {
+  if (!canAccessRoleMatrix(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
+  const region = await resolveMatrixRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  res.json({
+    capabilities: CAPABILITIES,
+    roles: EDITABLE_ROLES,
+    editableRoles: editableRolesFor(req.user),
+    region,
+    matrix: await loadRolePermsForRegion(region),
+    superadminLocked: true
+  });
+}));
+// Toggle one capability for one editable role in one region. A CM/MD may only
+// touch their own region and only the Mid/Low/Finance rows — never their own
+// (admin) row or the Employee baseline — so they cannot self-escalate. Overrides
+// are stored sparsely so unset capabilities keep tracking the global defaults.
+app.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
+  if (!canAccessRoleMatrix(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
+  const { role, cap, value } = req.body || {};
+  const region = await resolveMatrixRegion(req.user, (req.body || {}).region);
+  if (!region || region === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region' });
+  if (!editableRolesFor(req.user).includes(role)) return res.status(400).json({ error: 'This role is not editable' });
+  if (!CAPABILITY_KEYS.has(cap)) return res.status(400).json({ error: 'Invalid capability' });
+
+  const settings = await loadAppSettings();
+  let byRegion = {};
+  try { byRegion = settings.role_permissions_by_region ? JSON.parse(settings.role_permissions_by_region) : {}; }
+  catch { byRegion = {}; }
+  const store = byRegion[region] || {};
+  if (!store[role]) store[role] = {};
+  store[role][cap] = isActive(value);
+  byRegion[region] = store;
+  await setAppSetting('role_permissions_by_region', JSON.stringify(byRegion));
+  res.json({ ok: true, region, matrix: await loadRolePermsForRegion(region, { ...settings, role_permissions_by_region: JSON.stringify(byRegion) }) });
+}));
 
 // ---------------------------------------------------------------------------
 // Static frontend + error handling
 // ---------------------------------------------------------------------------
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  // The client bundles (app.js / i18n.js) and the app shell change on every
+  // deploy but keep the same filenames. `no-cache` lets the browser keep a copy
+  // but forces it to revalidate against the server (a cheap 304 when unchanged)
+  // before using it, so a stale i18n.js can't linger after a release and show
+  // yesterday's strings. Other assets (logo, fonts) keep the default caching.
+  setHeaders(res, filePath) {
+    if (/\.(?:html|js|css)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 app.use((err, req, res, next) => {
   if (err) {

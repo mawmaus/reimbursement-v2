@@ -27,19 +27,22 @@ async function main() {
 
   // Seed the settings lookups from any values already present in the data so
   // administrators start with a usable list. Safe to run repeatedly.
+  // Lookups are per-region now, so seed each distinct name into every region.
   console.log('Backfilling settings lookups…');
   await sql.query(
-    `INSERT INTO departments (name)
-     SELECT DISTINCT TRIM(department) FROM users
-     WHERE TRIM(department) <> ''
-     UNION
-     SELECT DISTINCT TRIM(department) FROM claims WHERE TRIM(department) <> ''
-     ON CONFLICT (name) DO NOTHING`);
+    `INSERT INTO departments (name, region)
+     SELECT d.name, r.name FROM (
+       SELECT DISTINCT TRIM(department) AS name FROM users  WHERE TRIM(department) <> ''
+       UNION
+       SELECT DISTINCT TRIM(department) AS name FROM claims WHERE TRIM(department) <> ''
+     ) d CROSS JOIN regions r
+     ON CONFLICT (region, name) DO NOTHING`);
   await sql.query(
-    `INSERT INTO expense_types (name)
-     SELECT DISTINCT TRIM(expense_type) FROM claims
-     WHERE TRIM(expense_type) <> ''
-     ON CONFLICT (name) DO NOTHING`);
+    `INSERT INTO expense_types (name, region)
+     SELECT e.name, r.name FROM (
+       SELECT DISTINCT TRIM(expense_type) AS name FROM claims WHERE TRIM(expense_type) <> ''
+     ) e CROSS JOIN regions r
+     ON CONFLICT (region, name) DO NOTHING`);
 
   console.log('Done.');
 }

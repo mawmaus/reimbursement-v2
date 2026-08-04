@@ -14,14 +14,17 @@ const state = {
   // Active column sort for the ledger. key '' = server default (newest first);
   // dir 1 = ascending, -1 = descending.
   sort: { key: '', dir: 1 },
-  lookups: { departments: [], expense_types: [] },
+  lookups: { departments: [], expense_types: [], regions: [] },
   // Claim-date policy (from GET /api/claim-window). `earliest` is the computed
   // earliest expense date a claim may carry, or null when unrestricted.
   claimLimit: { max_age_days: null, earliest_date: null, earliest: null },
+  // Preset meal-allowance amounts for the signed-in user's region (from GET
+  // /api/meal-rates). The Meal Allowance form's Amount dropdown lists these.
+  mealRates: [],
   // Insights view: active filters, the "monthly vs yearly" trend toggle, and the
   // last payload from /api/insights (kept so the trend toggle re-renders without
   // a refetch).
-  insights: { year: '', department: '', db: '', status: 'approved,paid', trend: 'month', data: null },
+  insights: { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
   selected: new Set()
@@ -32,11 +35,32 @@ const claimKey = (type, id) => `${type}:${id}`;
 // API
 // ---------------------------------------------------------------------------
 async function api(pathName, opts = {}) {
-  const res = await fetch('/api' + pathName, {
-    credentials: 'same-origin',
-    headers: opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
-    ...opts
-  });
+  const method = (opts.method || 'GET').toUpperCase();
+  // A rejected fetch() is always a network-level failure (offline, a dropped
+  // connection, a DNS/TLS blip) surfacing as an opaque "Failed to fetch" — never
+  // an HTTP error, which resolves normally and is handled below. Those blips are
+  // transient, so retry a couple of times with a short backoff. Only GETs are
+  // safe to replay; retrying a POST/PUT/DELETE could double-submit (e.g. approve
+  // or mark-paid twice), so those surface the failure on the first miss.
+  const retries = method === 'GET' ? 2 : 0;
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch('/api' + pathName, {
+        credentials: 'same-origin',
+        headers: opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
+        ...opts
+      });
+      break;
+    } catch {
+      if (attempt >= retries) {
+        throw new Error(navigator.onLine === false
+          ? t('You appear to be offline. Check your connection and try again.')
+          : t('Network error — could not reach the server. Please try again.'));
+      }
+      await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
   let data = null;
   try { data = await res.json(); } catch { /* non-json */ }
   if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
@@ -55,18 +79,21 @@ function toast(msg, isErr = false) {
 // ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------
+// Always show the ISO currency code (IDR, USD, THB, VND, …) rather than a
+// locale symbol like "Rp" or "$", so amounts read the same for every user and
+// currency. currencyDisplay: 'code' forces the code prefix.
 function money(amount, currency) {
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'IDR' }).format(amount);
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'IDR', currencyDisplay: 'code' }).format(amount);
   } catch { return `${currency || ''} ${Number(amount).toLocaleString()}`; }
 }
 // Compact currency for chart axes / KPI headline numbers, e.g. "IDR 84.2M".
-// Matches money()'s locale/currency convention so the Insights view reads the
+// Matches money()'s currency-code convention so the Insights view reads the
 // same as the rest of the app. Amounts are in whole currency units (not cents).
 function moneyShort(amount, currency) {
   try {
     return new Intl.NumberFormat(undefined, {
-      style: 'currency', currency: currency || 'IDR', notation: 'compact', maximumFractionDigits: 1
+      style: 'currency', currency: currency || 'IDR', currencyDisplay: 'code', notation: 'compact', maximumFractionDigits: 1
     }).format(amount || 0);
   } catch { return `${currency || ''} ${Number(amount || 0).toLocaleString()}`; }
 }
@@ -75,31 +102,69 @@ function fmtBytes(b) {
   if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
   return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
-// Render a timestamp in Jakarta time (WIB, GMT+7) as "YYYY-MM-DD HH:MM WIB".
+// The time zone to render dates in: the signed-in user's region default (set in
+// Settings → Currency & time zone), falling back to Jakarta before login / for
+// All-regions accounts.
+function regionTimezone() {
+  return (state.user && state.user.timezone) || 'Asia/Jakarta';
+}
+// The region's default currency (Settings → Currency & time zone). Used to stamp
+// new claims; falls back to IDR before login / for All-regions accounts.
+function regionCurrency() {
+  return (state.user && state.user.currency) || 'IDR';
+}
+// A time zone's current UTC offset as "GMT+7", for display labels. Returns ''
+// if the runtime can't produce a short offset (older engines) so callers can
+// simply omit the label.
+function tzOffsetLabel(tz) {
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date()).find(p => p.type === 'timeZoneName');
+    return part ? part.value : '';
+  } catch { return ''; }
+}
+// Render a timestamp in the region's time zone as "YYYY-MM-DD HH:MM GMT+7".
 // Server timestamps arrive as UTC ISO strings; anything unparseable falls back
 // to a plain trim so we never render "Invalid Date".
 function fmtDateTime(s) {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return s.replace('T', ' ').slice(0, 16);
+  const tz = regionTimezone();
   const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {});
-  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} WIB`;
+  const zone = tzOffsetLabel(tz);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}${zone ? ' ' + zone : ''}`;
 }
-// Today's date (YYYY-MM-DD) in Jakarta time — used to default date pickers so a
-// late-evening entry doesn't roll to "tomorrow" via UTC.
+// Today's date (YYYY-MM-DD) in the region's time zone — used to default date
+// pickers so a late-evening entry doesn't roll to "tomorrow" via UTC.
 function todayWIB() {
   return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit'
+    timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit'
   }).format(new Date());
 }
 // English status labels — the source of truth for sorting and for the PDF
 // (whose font can't render non-Latin scripts). The UI uses statusLabel() so it
 // shows the active language instead.
 const STATUS_LABEL = { submitted: 'Pending review', approved: 'Approved', rejected: 'Rejected', paid: 'Paid' };
+// Cash-advance statuses reuse the four pill colours (base status) but read
+// differently. 'paid' on an advance means "disbursed — awaiting realization".
+const ADV_STATUS_LABEL = {
+  paid: 'Advance paid', realize_submitted: 'Realization pending',
+  realize_approved: 'Realization approved', rejected_realize: 'Realization returned',
+  settled: 'Settled'
+};
+const ADV_PILL_BASE = { realize_submitted: 'submitted', realize_approved: 'approved', rejected_realize: 'rejected', settled: 'paid' };
 const statusLabel = (s) => t(STATUS_LABEL[s] || s || '');
+// Status label that knows the row type (advances relabel some shared statuses).
+function statusLabelFor(c) {
+  if (c && c.type === 'advance' && ADV_STATUS_LABEL[c.status]) return t(ADV_STATUS_LABEL[c.status]);
+  return statusLabel(c ? c.status : '');
+}
+// CSS pill class for a status — maps advance-only statuses onto a base colour.
+const pillClass = (c) => (c && c.type === 'advance' && ADV_PILL_BASE[c.status]) || (c ? c.status : '');
 
 // Group an amount's integer part with thousands separators for readability as
 // the user types, e.g. "1000000" → "1,000,000". Commas are stripped again by
@@ -225,6 +290,35 @@ function showLogin() {
   renderLoginHint();
 }
 
+// Client mirrors of the server capability checks (userCan / canMarkPaid). caps
+// is the per-role matrix sent with the user; superadmin implicitly holds all.
+function uCan(cap) {
+  const u = state.user;
+  return !!(u && (u.role === 'superadmin' || (u.caps && u.caps[cap])));
+}
+function canPay(u) {
+  return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
+}
+// Advance oversight: Finance and CM/MD (admin) roles, plus super admin (who sits
+// above them) and Finance-AP (anyone who records payments — canPay). These track
+// every cash advance's disbursement vs settlement, so the Realized/Unrealized
+// tiles show them ALL advances and are always visible; everyone else sees only
+// their own, gated on advance access.
+function seesAllAdvances(u) {
+  return !!(u && (u.role === 'admin' || u.role === 'finance' || canPay(u)));
+}
+// Role ladder, most senior → most junior. Mirrors the server's ROLES.
+const ROLES_ORDER = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Roles the signed-in user may assign when creating an account: every role
+// strictly below their own (super admins get all but superadmin here; they use
+// the full list directly in the form). Mirrors the server's creatableRolesFor.
+function creatableRoles() {
+  const u = state.user;
+  if (!u) return [];
+  const i = ROLES_ORDER.indexOf(u.role);
+  return i < 0 ? [] : ROLES_ORDER.slice(i + 1);
+}
+
 function showApp() {
   $('#loginView').hidden = true;
   $('#appView').hidden = false;
@@ -232,20 +326,27 @@ function showApp() {
   // Role is intentionally not shown in the UI after login.
   $('#userBadge').innerHTML = `${esc(u.full_name)}`;
   // "Purpose" buttons are gated per department + job position (see Settings).
-  const purposes = u.purposes || { claim: false, meal: false };
+  const purposes = u.purposes || { claim: false, meal: false, advance: false };
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
+  $('#newAdvanceBtn').hidden = !purposes.advance;
   const isSuper = u.role === 'superadmin';
-  const isAdmin = u.role === 'admin';
-  // Export CSV: superadmins and admins. Settings (lookups): superadmins only.
-  $('#exportBtn').hidden = !(isSuper || isAdmin);
-  $('#settingsBtn').hidden = !isSuper;
-  // "Manage accounts": shown to non-superadmins whose position may manage their
-  // team's accounts (reset password / enable-disable). Account CREATION lives in
-  // Settings and is super-admin only. Superadmins use full Settings instead.
-  $('#accountsBtn').hidden = !(!isSuper && u.can_manage_accounts);
-  // Only super admins can delete claims (used to clear out test data).
-  $('#deleteSelBtn').hidden = !isSuper;
+  // Buttons follow the role-capability matrix (Settings → Roles).
+  $('#exportBtn').hidden = !uCan('export_csv');
+  // Settings opens for super admins, CM/MD (who always get the Roles tab), or
+  // anyone who can manage settings.
+  $('#settingsBtn').hidden = !(isSuper || u.role === 'admin' || uCan('manage_settings'));
+  // "Manage accounts": shown to non-superadmins who may manage their team's
+  // accounts (reset password / enable-disable) OR who hold the create_accounts
+  // capability (so the delegated "+ Add user" form is reachable). Superadmins use
+  // full Settings instead.
+  $('#accountsBtn').hidden = !(!isSuper && (u.can_manage_accounts || uCan('create_accounts')));
+  // Deleting claims (used to clear out test data) follows the matrix.
+  $('#deleteSelBtn').hidden = !uCan('delete_claims');
+  // Bulk "Mark as paid" / "Revert payment" — both shown to anyone who may
+  // record payments.
+  $('#markPaidSelBtn').hidden = !canPay(u);
+  $('#revertPaidSelBtn').hidden = !canPay(u);
   // Land on the clean menu; a tile opens the corresponding list. Reset the
   // Insights view and its state too — this runs on every login, and in the SPA a
   // logout→login in the same tab must never leave the previous user's Insights
@@ -254,7 +355,7 @@ function showApp() {
   $('#homeView').hidden = false;
   $('#listView').hidden = true;
   $('#insightsView').hidden = true;
-  state.insights = { year: '', department: '', db: '', status: 'approved,paid', trend: 'month', data: null };
+  state.insights = { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
   loadLookups();
   loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
@@ -274,13 +375,19 @@ document.addEventListener('click', (e) => {
 // Active departments + expense types drive the claim form dropdowns.
 async function loadLookups() {
   try {
-    const [d, e] = await Promise.all([api('/departments'), api('/expense-types')]);
-    state.lookups.departments = (d.items || []).filter(i => i.active).map(i => i.name);
-    state.lookups.expense_types = (e.items || []).filter(i => i.active).map(i => i.name);
+    const [d, e, r] = await Promise.all([api('/departments'), api('/expense-types'), api('/regions')]);
+    // Lookups come scoped to the signed-in user's region; an All-regions account
+    // gets every region's rows, so de-duplicate names for the pickers.
+    const uniqNames = (items) => [...new Set((items || []).filter(i => i.active).map(i => i.name))];
+    state.lookups.departments = uniqNames(d.items);
+    state.lookups.expense_types = uniqNames(e.items);
+    state.lookups.regions = uniqNames(r.items);
   } catch { /* form falls back to free text */ }
   // The claim-date policy gates how old an expense may be; the form uses it to
   // set the date picker's min and to validate before submit.
   try { state.claimLimit = await api('/claim-window'); } catch { /* no limit enforced client-side */ }
+  // Preset meal-allowance amounts for the meal form's Amount dropdown.
+  try { state.mealRates = (await api('/meal-rates')).rates || []; } catch { state.mealRates = []; }
 }
 // The earliest expense date a claim may carry, or '' when unrestricted.
 const claimEarliest = () => (state.claimLimit && state.claimLimit.earliest) || '';
@@ -366,11 +473,14 @@ function renderSummaryCards() {
     { k: 'approved', l: t('Approved'), n: count('approved'), status: 'approved' },
     { k: 'rejected', l: t('Rejected'), n: count('rejected'), status: 'rejected' },
     { k: 'paid', l: t('Paid'), n: count('paid'), status: 'paid' },
-    { k: 'total', l: totalCardLabel(), n: money(total, 'IDR') }
+    // Headline reads compact (e.g. IDR 123.3M) so it fits on one line even at
+    // billions; the exact figure sits just below for anyone who needs it.
+    { k: 'total', l: totalCardLabel(), n: moneyShort(total, regionCurrency()), sub: money(total, regionCurrency()) }
   ];
   $('#summaryCards').innerHTML = cards.map(c => {
     if (!c.status) {
-      return `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div><div class="card-l">${esc(c.l)}</div></div>`;
+      const sub = c.sub ? `<div class="card-sub">${esc(c.sub)}</div>` : '';
+      return `<div class="card ${c.k}"><div class="card-n">${esc(c.n)}</div>${sub}<div class="card-l">${esc(c.l)}</div></div>`;
     }
     const active = state.filters.status === c.status;
     const hint = active ? t('Clear {label} filter', { label: c.l }) : t('Show only {label} claims', { label: c.l });
@@ -390,7 +500,7 @@ function renderSummaryCards() {
 function setStatusFilter(status) {
   state.filters.status = state.filters.status === status ? '' : status;
   const sel = $('#statusFilter');
-  if (sel) sel.value = state.filters.status;
+  if (sel) { sel.value = state.filters.status; if (sel._mselRefresh) sel._mselRefresh(); }
   loadClaims();
 }
 
@@ -402,10 +512,11 @@ async function loadClaims() {
   const qs = p.toString();
   // Reimbursement + meal allowance claims share one ledger. Tag each with a
   // type so rows, the drawer, and actions can branch to the right endpoints.
-  const [r, m] = await Promise.all([api('/claims?' + qs), api('/meal-claims?' + qs)]);
+  const [r, m, a] = await Promise.all([api('/claims?' + qs), api('/meal-claims?' + qs), api('/cash-advances?' + qs)]);
   const reimb = (r.claims || []).map(c => ({ ...c, type: 'reimbursement' }));
   const meal = (m.claims || []).map(c => ({ ...c, type: 'meal' }));
-  state.claims = [...reimb, ...meal].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+  const adv = (a.claims || []).map(c => ({ ...c, type: 'advance' }));
+  state.claims = [...reimb, ...meal, ...adv].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
   // Drop selections for claims no longer in the current view.
   const avail = new Set(state.claims.map(c => claimKey(c.type, c.id)));
   [...state.selected].forEach(k => { if (!avail.has(k)) state.selected.delete(k); });
@@ -424,6 +535,11 @@ function rowView(c) {
     const site = (c.lines && c.lines[0] && c.lines[0].site) || '';
     return { typeLabel: t('Meal allowance'), date: first, amount: c.total_amount, db: site };
   }
+  if (c.type === 'advance') {
+    // The ledger amount is the requested/disbursed advance; the date is when it
+    // was requested (an advance has no single expense date).
+    return { typeLabel: t('Cash advance'), date: (c.created_at || '').slice(0, 10), amount: c.amount, db: '' };
+  }
   return { typeLabel: c.expense_type, date: c.expense_date, amount: c.amount, db: c.db_no || '' };
 }
 
@@ -434,6 +550,7 @@ function renderDeptOptions() {
   sel.innerHTML = '<option value="">All departments</option>' +
     depts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
   sel.value = current;
+  if (sel._mselRefresh) sel._mselRefresh();
 }
 
 // Claimant dropdown mirrors the department one; filtering is applied client-side
@@ -446,13 +563,168 @@ function renderClaimantOptions() {
   sel.innerHTML = '<option value="">All claimants</option>' +
     names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   sel.value = state.filters.claimant;
+  if (sel._mselRefresh) sel._mselRefresh();
+}
+
+// Replace a native <select> with a modern custom dropdown. The native element
+// stays in the DOM (visually hidden) so its value + change events keep driving
+// the existing filter logic; the custom UI just mirrors and updates it. Reads
+// options live, so dynamically-populated selects work. Adds a search box once a
+// list grows past 8 items (handy for the 100+ claimants).
+function enhanceSelect(sel) {
+  if (!sel || sel.dataset.msel) return;
+  sel.dataset.msel = '1';
+  const wrap = document.createElement('div');
+  wrap.className = 'msel';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add('msel-native');
+  sel.setAttribute('tabindex', '-1'); sel.setAttribute('aria-hidden', 'true');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button'; trigger.className = 'msel-trigger';
+  trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false');
+  const menu = document.createElement('div');
+  menu.className = 'msel-menu'; menu.setAttribute('role', 'listbox'); menu.hidden = true;
+  // The menu is portaled onto <body> only while open (see open/close) so no
+  // scrolling table or transformed modal can clip it; it's fixed-positioned
+  // against the trigger and removed on close to avoid orphaned nodes.
+  wrap.appendChild(trigger);
+
+  let activeIdx = -1;
+  // A long list gets a search box automatically; `data-search="always"` forces
+  // one even for short lists (e.g. the employee filter, where typing a name is
+  // the point regardless of how many people currently have expenses).
+  // `data-freetext="always"` makes it a hybrid: besides the listed options, the
+  // typed text can be committed as-is (a partial-name filter), and always shows
+  // a search box.
+  const freetext = () => sel.dataset.freetext === 'always';
+  const searchable = () => freetext() || sel.dataset.search === 'always' || sel.options.length > 8;
+  const refreshTrigger = () => {
+    const o = sel.options[sel.selectedIndex];
+    const placeholder = sel.selectedIndex <= 0 && !sel.value;
+    trigger.innerHTML = `<span class="msel-val${placeholder ? ' placeholder' : ''}">${esc(o ? o.textContent : '')}</span>`;
+  };
+  const optsBox = () => menu.querySelector('.msel-opts');
+  const renderOpts = (filter) => {
+    const raw = String(filter || '').trim();
+    const f = raw.toLowerCase();
+    const matches = [...sel.options].filter(o => !f || o.textContent.toLowerCase().includes(f));
+    let html = matches.map(o =>
+      `<div class="msel-opt${o.value === sel.value ? ' sel' : ''}" role="option" data-val="${esc(o.value)}" aria-selected="${o.value === sel.value}"><span class="msel-lab">${esc(o.textContent)}</span><span class="msel-check" aria-hidden="true">✓</span></div>`).join('');
+    // Hybrid: offer the typed text itself as a filter value, unless it already
+    // matches a listed option exactly.
+    if (freetext() && raw && !matches.some(o => o.textContent.toLowerCase() === f)) {
+      html = `<div class="msel-opt msel-free" role="option" data-free="1" data-val="${esc(raw)}"><span class="msel-lab">${esc(t('Search for “{q}”', { q: raw }))}</span></div>` + html;
+    }
+    optsBox().innerHTML = html || `<div class="msel-empty">${esc(t('No matches'))}</div>`;
+    activeIdx = -1;
+  };
+  const optEls = () => [...menu.querySelectorAll('.msel-opt')];
+  const setActive = (i) => {
+    const els = optEls(); if (!els.length) return;
+    activeIdx = (i + els.length) % els.length;
+    els.forEach((e, idx) => e.classList.toggle('active', idx === activeIdx));
+    els[activeIdx].scrollIntoView({ block: 'nearest' });
+  };
+  const onDocDown = (e) => { if (!wrap.contains(e.target) && !menu.contains(e.target)) close(); };
+  // Anchor the fixed menu under (or above, if short on space) the trigger.
+  // The menu grows to fit its widest option (so long names / DB numbers show in
+  // full) but never shrinks below the trigger, and stays on-screen. Re-run on
+  // scroll/resize while open.
+  const place = () => {
+    const r = trigger.getBoundingClientRect();
+    menu.style.width = 'auto';
+    menu.style.minWidth = r.width + 'px';
+    menu.style.maxWidth = Math.min(440, window.innerWidth - 16) + 'px';
+    const mw = menu.offsetWidth;
+    const left = Math.min(Math.round(r.left), window.innerWidth - 8 - mw);
+    menu.style.left = Math.max(8, left) + 'px';
+    menu.style.top = Math.round(r.bottom + 5) + 'px';
+    menu.style.maxHeight = '';
+    const mh = menu.offsetHeight;
+    const below = window.innerHeight - r.bottom - 10;
+    const above = r.top - 10;
+    if (mh > below && above > below) {
+      const h = Math.min(mh, above);
+      menu.style.maxHeight = h + 'px';
+      menu.style.top = Math.round(r.top - h - 5) + 'px';
+    } else if (mh > below) {
+      menu.style.maxHeight = below + 'px';
+    }
+  };
+  const onScroll = () => { if (!trigger.isConnected) { close(); return; } place(); };
+  const onKey = (e) => {
+    if (menu.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx - 1); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const els = optEls();
+      if (activeIdx >= 0 && els[activeIdx]) commitEl(els[activeIdx]);
+      else if (freetext()) { const inp = menu.querySelector('.msel-input'); const v = inp ? inp.value.trim() : ''; if (v) chooseFree(v); }
+    }
+  };
+  function open() {
+    if (!menu.hidden) return;
+    menu.innerHTML = (searchable() ? `<div class="msel-search"><input type="text" class="msel-input" placeholder="${esc(t('Search…'))}" aria-label="${esc(t('Search…'))}"></div>` : '') + `<div class="msel-opts"></div>`;
+    renderOpts('');
+    document.body.appendChild(menu);
+    menu.hidden = false; wrap.classList.add('open'); trigger.setAttribute('aria-expanded', 'true');
+    place();
+    const inp = menu.querySelector('.msel-input');
+    if (inp) { inp.addEventListener('input', () => renderOpts(inp.value)); setTimeout(() => inp.focus(), 0); }
+    document.addEventListener('mousedown', onDocDown, true);
+    document.addEventListener('keydown', onKey, true);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+  }
+  function close() {
+    if (menu.hidden) return;
+    menu.hidden = true; wrap.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false');
+    menu.remove();
+    document.removeEventListener('mousedown', onDocDown, true);
+    document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('scroll', onScroll, true);
+    window.removeEventListener('resize', onScroll);
+  }
+  function choose(val) {
+    if (sel.value !== val) { sel.value = val; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    refreshTrigger(); close(); trigger.focus();
+  }
+  // Commit a free-typed value: back it with a real <option> (a select can only
+  // hold values it owns), pruning any earlier synthetic one, then select it.
+  function chooseFree(text) {
+    const v = String(text).trim();
+    if (!v) return;
+    [...sel.options].forEach(o => { if (o.dataset.free === '1' && o.value !== v) o.remove(); });
+    if (![...sel.options].some(o => o.value === v)) {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v; opt.dataset.free = '1';
+      sel.appendChild(opt);
+    }
+    choose(v);
+  }
+  const commitEl = (o) => (o.dataset.free === '1' ? chooseFree(o.dataset.val) : choose(o.dataset.val));
+  trigger.addEventListener('click', () => (menu.hidden ? open() : close()));
+  trigger.addEventListener('keydown', (e) => {
+    if (menu.hidden && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); setActive(0); }
+  });
+  menu.addEventListener('click', (e) => { const o = e.target.closest('.msel-opt'); if (o) commitEl(o); });
+  sel.addEventListener('change', refreshTrigger);
+  sel._mselRefresh = refreshTrigger;
+  refreshTrigger();
 }
 
 // Is it currently THIS user's turn to approve claim c? (The pending approver at
 // the current step.) Role-agnostic: a super admin only matches claims where
 // they are explicitly the current approver, not every claim.
 function isMyTurn(c) {
-  if (!state.user || c.status !== 'submitted') return false;
+  // A cash advance awaits an approver in either the request ('submitted') or the
+  // realization ('realize_submitted') cycle.
+  const awaiting = c.status === 'submitted' || (c.type === 'advance' && c.status === 'realize_submitted');
+  if (!state.user || !awaiting) return false;
   const ids = (c.approvers || []).map(a => a.id);
   if (!ids.length) return false;
   return ids[(c.current_step || 1) - 1] === state.user.id;
@@ -473,6 +745,9 @@ function approvedByMe(c) {
   const step = c.current_step || 0;
   if (c.status === 'submitted' && step > 1) return ids[step - 2] === uid;
   if (c.status === 'approved') return c.manager_id === uid;
+  // Cash-advance realization cycle mirrors the same two "I approved this" cases.
+  if (c.type === 'advance' && c.status === 'realize_submitted' && step > 1) return ids[step - 2] === uid;
+  if (c.type === 'advance' && c.status === 'realize_approved') return c.manager_id === uid;
   return false;
 }
 const approvedByMeQueue = () => state.claims.filter(approvedByMe);
@@ -487,7 +762,7 @@ function reviewedByMe(c) {
   if (!state.user) return false;
   const uid = state.user.id;
   return (c.history || []).some(h =>
-    h.actor_id === uid && (h.action === 'rejected' || String(h.action).startsWith('approved')));
+    h.actor_id === uid && /\b(approved|rejected)\b/.test(String(h.action)));
 }
 const reviewedByMeQueue = () => state.claims.filter(reviewedByMe);
 
@@ -497,6 +772,22 @@ const reviewedByMeQueue = () => state.claims.filter(reviewedByMe);
 // reverted (canRevert lets the payer unpay any paid claim).
 const paidQueue = () => state.claims.filter(c => c.status === 'paid');
 
+// Cash-advance realization tiles. A disbursed advance ('paid') is UNREALIZED
+// until its realization is approved; once approved (and through settlement) it
+// is REALIZED. A returned realization ('rejected_realize') is still unrealized
+// (the claimant must resubmit). Request-stage advances (submitted/approved/
+// rejected — not yet disbursed) belong to the claim queues, not here.
+const ADV_UNREALIZED = ['paid', 'realize_submitted', 'rejected_realize'];
+const ADV_REALIZED = ['realize_approved', 'settled'];
+// Oversight roles see every advance; everyone else only their own.
+function advanceScope() {
+  const u = state.user;
+  const all = seesAllAdvances(u);
+  return state.claims.filter(c => c.type === 'advance' && (all || c.employee_id === (u && u.id)));
+}
+const unrealizedQueue = () => advanceScope().filter(c => ADV_UNREALIZED.includes(c.status));
+const realizedQueue = () => advanceScope().filter(c => ADV_REALIZED.includes(c.status));
+
 // Claims for the open view, before the client-side claimant filter.
 function viewClaims() {
   if (state.view === 'mine') return myClaims();
@@ -504,6 +795,8 @@ function viewClaims() {
   if (state.view === 'approved') return approvedByMeQueue();
   if (state.view === 'reviewed') return reviewedByMeQueue();
   if (state.view === 'paid') return paidQueue();
+  if (state.view === 'unrealized') return unrealizedQueue();
+  if (state.view === 'realized') return realizedQueue();
   return state.claims; // 'all' / 'home'
 }
 
@@ -517,13 +810,15 @@ function visibleClaims() {
 // --- Home menu (clean landing) ----------------------------------------------
 // English source maps; viewLabel()/viewEmpty() translate at render time so a
 // language switch updates them without reloading the constant.
-const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', reviewed: 'Reviewed by me', paid: 'Paid claims', all: 'All activities' };
+const VIEW_LABEL = { mine: 'My claims', approval: 'Needs my approval', approved: 'Approved by me', reviewed: 'Reviewed by me', paid: 'Paid claims', unrealized: 'Unrealized cash advances', realized: 'Realized cash advances', all: 'All activities' };
 const VIEW_EMPTY = {
   mine: 'You have not submitted any claims yet.',
   approval: 'Nothing is waiting for your approval right now.',
   approved: 'You have not approved any claims that are still open to revert.',
   reviewed: 'No claims have come to you for a decision yet.',
   paid: 'No claims have been marked as paid yet.',
+  unrealized: 'No cash advances are awaiting realization right now.',
+  realized: 'No cash advances have had their realization approved yet.',
   all: 'No claims in the system yet.'
 };
 const viewLabel = (k) => t(VIEW_LABEL[k] || 'Claims');
@@ -556,10 +851,17 @@ function renderHome() {
   // Finance AP (can_mark_paid) needs a home for claims already marked paid, so a
   // mistaken payment can be found and reverted. Same permission gate as the
   // "Mark as paid" / unpay actions.
-  if (u.role === 'superadmin' || u.can_mark_paid) {
+  if (canPay(u)) {
     tiles.push({ key: 'paid', title: t('Paid claims'), desc: t('Claims marked as paid — revert if needed'), count: paidQueue().length });
   }
-  if (u.role === 'superadmin') tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
+  // Cash-advance realization tiles: disbursed-but-unrealized vs realized. Finance
+  // and CM/MD (which track disbursement vs settlement across everyone) always see
+  // them; other users only when cash advance is part of their menu, scoped to own.
+  if (seesAllAdvances(u) || (u.purposes && u.purposes.advance)) {
+    tiles.push({ key: 'unrealized', title: t('Unrealized cash advances'), desc: t('Advances paid — awaiting realization'), count: unrealizedQueue().length });
+    tiles.push({ key: 'realized', title: t('Realized cash advances'), desc: t('Advances with realization approved'), count: realizedQueue().length });
+  }
+  if (uCan('view_all_claims')) tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
   // Insights is gated to Supervisor-and-above plus all of Finance (see
   // insightsCanView on the server). Among those, the backend scopes the data:
   // company-wide for super admins / Finance / GM-and-above, own department for
@@ -594,7 +896,7 @@ function goHome() {
   // Clean slate: clear filters so the menu counts reflect everything.
   state.filters = { status: '', department: '', claimant: '', q: '' };
   const si = $('#searchInput'); if (si) si.value = '';
-  const sf = $('#statusFilter'); if (sf) sf.value = '';
+  const sf = $('#statusFilter'); if (sf) { sf.value = ''; if (sf._mselRefresh) sf._mselRefresh(); }
   $('#listView').hidden = true;
   const iv = $('#insightsView'); if (iv) iv.hidden = true;
   $('#homeView').hidden = false;
@@ -632,6 +934,7 @@ async function loadInsights() {
   if (f.year) params.set('year', f.year);
   if (f.department) params.set('department', f.department);
   if (f.db) params.set('db', f.db);
+  if (f.name) params.set('name', f.name);
   if (f.status) params.set('status', f.status);
   try {
     const data = await api('/insights?' + params.toString());
@@ -650,6 +953,8 @@ function renderInsights() {
   if (!d) return;
   const f = state.insights;
   const cur = d.currency || 'IDR';
+  // A fresh dataset invalidates any open drill-down.
+  f.drill = null;
 
   // Scope note in the header: a chosen department wins; otherwise it reflects the
   // viewer's remit (whole company vs. the claims they approve).
@@ -664,6 +969,15 @@ function renderInsights() {
     .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
   const statusOpts = INSIGHT_STATUS_PRESETS
     .map(o => `<option value="${o.v}"${o.v === f.status ? ' selected' : ''}>${esc(t(o.l))}</option>`).join('');
+  const empList = d.employees || [];
+  // A free-typed employee filter (not one of the listed names) is kept as a
+  // synthetic option so the active filter still shows after a refetch.
+  const nameExtra = (f.name && !empList.includes(f.name))
+    ? `<option value="${esc(f.name)}" data-free="1" selected>${esc(f.name)}</option>` : '';
+  const nameOpts = `<option value="">${esc(t('All employees'))}</option>` + nameExtra
+    + empList.map(x => `<option value="${esc(x)}"${x === f.name ? ' selected' : ''}>${esc(x)}</option>`).join('');
+  const dbOpts = [`<option value="">${esc(t('All DB numbers'))}</option>`]
+    .concat((d.dbNos || []).map(x => `<option value="${esc(x)}"${x === f.db ? ' selected' : ''}>${esc(x)}</option>`)).join('');
 
   const k = d.kpis;
   const kpiCards = [
@@ -677,15 +991,16 @@ function renderInsights() {
     <div class="insights-filters">
       <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
-      <label>${esc(t('DB No'))}<input id="inDb" class="input" type="search" placeholder="${esc(t('Filter by DB…'))}" value="${esc(f.db)}" /></label>
+      <label>${esc(t('DB No'))}<select id="inDb" class="input" data-search="always">${dbOpts}</select></label>
       <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
+      <label>${esc(t('Employee'))}<select id="inName" class="input" data-freetext="always">${nameOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
     <div class="insights-charts">
       <div class="chart-card">
         <div class="chart-head"><div>
           <div class="chart-title">${esc(t('Spend by expense type'))}</div>
-          <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))}</div>
+          <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))} · ${esc(t('Click a type to see its expenses'))}</div>
         </div></div>
         <div id="typeBars" class="type-bars"></div>
       </div>
@@ -707,14 +1022,12 @@ function renderInsights() {
   renderTypeBars();
   renderTrend();
 
-  // Filters — Year / Department / Status refetch; DB refetches on change (Enter
-  // or blur) so we don't hit the server on every keystroke.
+  // Filters — every one is a dropdown now, so all refetch on change.
   $('#inYear').addEventListener('change', e => { f.year = e.target.value; loadInsights(); });
   const dept = $('#inDept'); if (dept) dept.addEventListener('change', e => { f.department = e.target.value; loadInsights(); });
   $('#inStatus').addEventListener('change', e => { f.status = e.target.value; loadInsights(); });
-  const db = $('#inDb');
-  db.addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
-  db.addEventListener('search', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
+  $('#inDb').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
+  $('#inName').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
 
   $$('#trendSeg button').forEach(b => b.addEventListener('click', () => {
     if (f.trend === b.dataset.trend) return;
@@ -730,30 +1043,188 @@ function currentStatusLabel(v) {
 }
 
 // Horizontal bars for spend-by-type. Long tails past 10 rows fold into "Other".
+// Each bar is clickable (pivot-style): it drills into the individual expense
+// lines that make up that type. `typeGroups` maps each visible bar to the real
+// expense type(s) it stands for (the "Other" bar covers the folded tail).
 function renderTypeBars() {
   const d = state.insights.data;
   const cur = d.currency || 'IDR';
   const wrap = $('#typeBars');
-  let items = d.byType.slice();
+  const items = d.byType.slice();
+  // A fresh render of the bars starts with no open drill-down (the detail window,
+  // if any, was already closed — it blocks the page while open), so clear any
+  // stale selection before we paint the highlight below.
+  state.insights.drill = null;
   if (!items.length) {
     wrap.innerHTML = `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
     return;
   }
+  // Build the visible bars and, alongside, the label→real-types grouping used by
+  // the drill-down. Fold everything past the top 9 into a single "Other" bar.
+  let bars;
   if (items.length > 10) {
-    const head = items.slice(0, 9);
-    const rest = items.slice(9).reduce((s, x) => s + x.cents, 0);
-    head.push({ type: t('Other'), cents: rest });
-    items = head;
+    const head = items.slice(0, 9).map(x => ({ label: x.type, cents: x.cents, types: [x.type] }));
+    const tail = items.slice(9);
+    head.push({ label: t('Other'), cents: tail.reduce((s, x) => s + x.cents, 0), types: tail.map(x => x.type) });
+    bars = head;
+  } else {
+    bars = items.map(x => ({ label: x.type, cents: x.cents, types: [x.type] }));
   }
-  const max = Math.max(...items.map(i => i.cents), 1);
-  wrap.innerHTML = items.map(i => {
+  state.insights.typeGroups = bars;
+
+  const max = Math.max(...bars.map(i => i.cents), 1);
+  wrap.innerHTML = bars.map((i, idx) => {
     const pct = Math.max(2, Math.round((i.cents / max) * 100));
-    return `<div class="bar-row">
-      <span class="bar-label" title="${esc(i.type)}">${esc(i.type)}</span>
+    const on = state.insights.drill === i.label;
+    return `<button type="button" class="bar-row${on ? ' on' : ''}" data-bar="${idx}"
+      aria-pressed="${on ? 'true' : 'false'}" title="${esc(t('Show expenses'))}: ${esc(i.label)}">
+      <span class="bar-label">${esc(i.label)}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
       <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}</span>
-    </div>`;
+    </button>`;
   }).join('');
+
+  // Clicking a bar opens the drill-down as a modal window over the page. The
+  // clicked bar stays highlighted underneath so it's clear which type is open;
+  // the highlight is cleared when the window closes (see clearTypeDrill).
+  $$('#typeBars .bar-row').forEach(b => b.addEventListener('click', () => {
+    const idx = Number(b.dataset.bar);
+    const bar = state.insights.typeGroups[idx];
+    if (!bar) return;
+    state.insights.drill = bar.label;
+    $$('#typeBars .bar-row').forEach(x => {
+      const on = Number(x.dataset.bar) === idx;
+      x.classList.toggle('on', on);
+      x.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    renderTypeDetailModal();
+  }));
+}
+
+// Active column sort for the drill-down table. Default: amount, largest first,
+// which matches the server's default row ordering. dir 1 = ascending, -1 = desc.
+let typeDetailSort = { key: 'amount', dir: -1 };
+// Sort the drill-down rows in place by the active column, tie-breaking on the
+// largest amount so equal keys stay in a stable, sensible order.
+function sortTypeDetail(rows) {
+  const { key, dir } = typeDetailSort;
+  const val = {
+    name: r => String(r.name || '').toLowerCase(),
+    no:   r => String(r.no || '').toLowerCase(),
+    date: r => String(r.date || ''),
+    db:   r => String(r.db || '').toLowerCase(),
+    type: r => String(r.type || '').toLowerCase(),
+    amount: r => r.cents,
+  }[key] || (r => r.cents);
+  rows.sort((a, b) => {
+    const va = val(a), vb = val(b);
+    if (va < vb) return -dir;
+    if (va > vb) return dir;
+    return b.cents - a.cents;
+  });
+}
+
+// Clear the active drill-down: drop the highlighted bar and the selected type.
+// Runs whenever the detail window closes (its × / the scrim / Escape), so the
+// insights page returns to a clean, un-highlighted state.
+function clearTypeDrill() {
+  state.insights.drill = null;
+  $$('#typeBars .bar-row').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+}
+
+// Drill-down for the selected expense type — the individual expense lines behind
+// that bar (employee, date, DB, amount) — shown in a modal window over the
+// insights page rather than inline beneath the charts. Sortable by any column;
+// each row opens its source claim. Rebuilt in place when a column is re-sorted.
+function renderTypeDetailModal() {
+  const d = state.insights.data;
+  const label = state.insights.drill;
+  const bar = (state.insights.typeGroups || []).find(g => g.label === label);
+  if (!label || !bar) { closeModal(); return; }
+
+  const cur = d.currency || 'IDR';
+  const set = new Set(bar.types);
+  const rows = (d.details || []).filter(r => set.has(r.type));
+  const total = rows.reduce((s, r) => s + r.cents, 0);
+  sortTypeDetail(rows); // apply the active column sort (defaults to amount desc)
+
+  // The "Other" bar spans several types, so it gets an extra Type column.
+  const showType = bar.types.length > 1;
+  // A clickable header cell that sorts by `key` and shows the active arrow.
+  const th = (key, label, numeric) => {
+    const on = typeDetailSort.key === key;
+    const arrow = on ? (typeDetailSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable${numeric ? ' num' : ''}" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (typeDetailSort.dir === 1 ? 'ascending' : 'descending') : 'none'}" style="cursor:pointer;user-select:none;white-space:nowrap">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
+  };
+  const body = rows.length ? `
+    <div class="type-detail-scroll">
+      <table class="pivot-table">
+        <thead><tr>
+          ${th('name', t('Employee'))}
+          ${th('no', t('Doc No'))}
+          ${th('date', t('Date'))}
+          ${th('db', t('DB No'))}
+          ${showType ? th('type', t('Type')) : ''}
+          ${th('amount', t('Amount'), true)}
+        </tr></thead>
+        <tbody>${rows.map(r => `<tr${r.cid ? ` class="row-open" data-cid="${esc(r.cid)}" tabindex="0" role="button" title="${esc(t('Open claim'))}"` : ''}>
+          <td>${esc(r.name || '—')}</td>
+          <td>${esc(r.no || '—')}</td>
+          <td>${esc(r.date || '—')}</td>
+          <td>${esc(r.db || '—')}</td>
+          ${showType ? `<td>${esc(r.type || '—')}</td>` : ''}
+          <td class="num">${esc(money(r.cents / 100, cur))}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>` : `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
+
+  openModal(`
+    <div class="modal-head">
+      <div>
+        <h2>${esc(label)}</h2>
+        <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('{n} expenses', { n: rows.length }))} · ${esc(money(total / 100, cur))}</p>
+      </div>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">${body}</div>`);
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  // Closing the window (×, scrim, or Escape) all route through closeModal, so
+  // hook the highlight cleanup there rather than on the × alone.
+  modalCloseHook = clearTypeDrill;
+  $('#modal .x-btn').addEventListener('click', closeModal);
+
+  // Clicking (or pressing Enter/Space on) a header sorts by that column; the same
+  // header again flips the direction. Amount opens largest-first, text A→Z.
+  const applySort = (key) => {
+    if (typeDetailSort.key === key) typeDetailSort.dir *= -1;
+    else typeDetailSort = { key, dir: key === 'amount' ? -1 : 1 };
+    renderTypeDetailModal(); // rebuild the window in place with the new order
+  };
+  $$('#modal th[data-sort]').forEach(h => {
+    h.addEventListener('click', () => applySort(h.dataset.sort));
+    h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applySort(h.dataset.sort); } });
+  });
+
+  // Each detail row drills one level further: into the source claim itself. Close
+  // this window first so the claim drawer opens cleanly on top of the page.
+  // `cid` is prefixed by kind — c=reimbursement, m=meal, a=advance — mirroring
+  // the insights SQL, so we split it back into (type, id) for the drawer.
+  $$('#modal .row-open').forEach(tr => {
+    const open = () => {
+      const cid = tr.dataset.cid || '';
+      const type = cid[0] === 'm' ? 'meal' : cid[0] === 'a' ? 'advance' : 'reimbursement';
+      const id = cid.slice(1);
+      if (!id) return;
+      // Keep this drill-down window open behind the claim: open the drawer
+      // elevated above the modal so closing it returns to the list.
+      openDrawer(id, type).then(() => {
+        $('#drawer').classList.add('over-modal');
+        $('#drawerScrim').classList.add('over-modal');
+      }).catch(ex => toast(ex.message, true));
+    };
+    tr.addEventListener('click', open);
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  });
 }
 
 // A dependency-free SVG line/area chart for the monthly / yearly trend, with a
@@ -885,7 +1356,7 @@ function renderClaims() {
     const checked = state.selected.has(claimKey(c.type, c.id)) ? 'checked' : '';
     return `
     <div class="ledger-row" data-id="${c.id}" data-type="${c.type}" tabindex="0" role="button">
-      <span class="row-spine ${c.status}"></span>
+      <span class="row-spine ${pillClass(c)}"></span>
       <span class="col-check"><input type="checkbox" class="row-check" data-id="${c.id}" data-type="${c.type}" ${checked} aria-label="Select ${esc(c.claim_no)}" /></span>
       <span class="col-no">${esc(c.claim_no)}</span>
       <span class="col-name">${esc(c.claimant_name)}</span>
@@ -893,7 +1364,7 @@ function renderClaims() {
       <span class="col-type">${esc(v.typeLabel)}</span>
       <span class="col-date mono">${esc(v.date)}</span>
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
-      <span class="col-status"><span class="pill ${c.status}">${esc(statusLabel(c.status))}</span></span>
+      <span class="col-status"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></span>
     </div>`; }).join('');
   $$('.ledger-row', wrap).forEach(el => {
     const open = () => openDrawer(el.dataset.id, el.dataset.type);
@@ -923,16 +1394,6 @@ function updateSelectionUI() {
     all.checked = boxes.length > 0 && checkedCount === boxes.length;
     all.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
   }
-  // Payment bulk actions surface only for users who may record payments, and
-  // only when the selection actually contains claims those actions can act on:
-  // approved → payable, paid → revertable.
-  const u = state.user || {};
-  const canPay = u.role === 'superadmin' || !!u.can_mark_paid;
-  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
-  const payable = chosen.filter(c => c.status === 'approved').length;
-  const revertable = chosen.filter(c => c.status === 'paid').length;
-  $('#bulkPaidBtn').hidden = !(canPay && payable > 0);
-  $('#bulkRevertBtn').hidden = !(canPay && revertable > 0);
 }
 
 // filters
@@ -945,6 +1406,23 @@ $('#statusFilter').addEventListener('change', e => { state.filters.status = e.ta
 $('#deptFilter').addEventListener('change', e => { state.filters.department = e.target.value; loadClaims(); });
 // Claimant filter is client-side, so just re-render (no server round-trip).
 $('#claimantFilter').addEventListener('change', e => { state.filters.claimant = e.target.value; renderClaims(); });
+// Upgrade every native <select> in the app to the modern custom dropdown —
+// including ones added later by dynamic renders (modals, table rows). Opt out
+// with [data-no-msel] or by living in the globe language switcher, which keeps
+// its own compact UI.
+function enhanceSelectsIn(root) {
+  if (!root || root.nodeType !== 1) return;
+  const list = root.matches && root.matches('select') ? [root]
+    : (root.querySelectorAll ? [...root.querySelectorAll('select')] : []);
+  list.forEach(sel => {
+    if (sel.dataset.msel || sel.closest('.lang-select') || sel.hasAttribute('data-no-msel')) return;
+    enhanceSelect(sel);
+  });
+}
+enhanceSelectsIn(document.body);
+new MutationObserver(muts => {
+  for (const m of muts) for (const node of m.addedNodes) enhanceSelectsIn(node);
+}).observe(document.body, { childList: true, subtree: true });
 
 // ---------------------------------------------------------------------------
 // Selection + PDF export
@@ -965,25 +1443,66 @@ $('#clearSelBtn').addEventListener('click', () => {
 });
 $('#genPdfBtn').addEventListener('click', generatePdf);
 $('#deleteSelBtn').addEventListener('click', deleteSelected);
-$('#bulkPaidBtn').addEventListener('click', bulkMarkPaid);
-$('#bulkRevertBtn').addEventListener('click', bulkRevertPaid);
+$('#markPaidSelBtn').addEventListener('click', markPaidSelected);
+$('#revertPaidSelBtn').addEventListener('click', revertPaidSelected);
 
-// Bulk "Mark as paid" — records payment for every selected *approved* claim
-// against a single payment date. Anything not currently approved is skipped
-// (the button only shows when at least one approved claim is selected).
-function bulkMarkPaid() {
-  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)) && c.status === 'approved');
-  if (!chosen.length) return;
+// Bulk revert payment — only paid claims are eligible; each goes back to
+// Approved. Confirm once, then revert them all (no date needed).
+async function revertPaidSelected() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  const paid = chosen.filter(c => c.status === 'paid');
+  if (!paid.length) {
+    toast(t('Only paid claims can have their payment reverted — none of the selected are paid.'), true);
+    return;
+  }
+  const n = paid.length;
+  const skipped = chosen.length - n;
+  let msg = n === 1 ? t('Revert payment on 1 claim? It will go back to Approved.')
+                    : t('Revert payment on {n} claims? They will go back to Approved.', { n });
+  if (skipped) msg += '\n' + t('{n} selected not paid and will be skipped.', { n: skipped });
+  if (!confirm(msg)) return;
+  const btn = $('#revertPaidSelBtn'); const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = t('Reverting…');
+  try {
+    let done = 0;
+    for (const c of paid) {
+      const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
+      await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
+      done++;
+    }
+    state.selected.clear();
+    toast(done === 1 ? t('Reverted 1 payment') : t('Reverted {n} payments', { n: done }));
+    loadAll();
+  } catch (ex) { toast(ex.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+// Bulk mark-paid — only approved claims are eligible; a payment date must be
+// chosen (in the modal) before any claim is marked paid.
+function markPaidSelected() {
+  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
+  const approved = chosen.filter(c => c.status === 'approved');
+  if (!approved.length) {
+    toast(t('Only approved claims can be marked as paid — none of the selected are approved.'), true);
+    return;
+  }
+  openBulkPaidModal(approved, chosen.length);
+}
+
+// Choose one payment date, then mark every eligible (approved) selected claim
+// paid with it. The confirm button stays disabled until a date is present.
+function openBulkPaidModal(claims, totalSelected) {
   const today = todayWIB();
+  const n = claims.length;
+  const skipped = totalSelected - n;
   openModal(`
-    <div class="modal-head"><h2>${esc(chosen.length === 1
-      ? t('Mark {n} claim as paid', { n: chosen.length })
-      : t('Mark {n} claims as paid', { n: chosen.length }))}</h2><button class="x-btn">×</button></div>
+    <div class="modal-head"><h2>${esc(n === 1 ? t('Mark 1 claim as paid') : t('Mark {n} claims as paid', { n }))}</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
       <form id="bulkPaidForm" class="form">
         <label>${esc(t('Payment date'))}
           <input type="date" name="payment_date" value="${today}" max="${today}" required /></label>
-        <p class="muted" style="margin:2px 0 0;font-size:.85rem">${esc(t('The date the payment was actually made.'))}</p>
+        <p class="muted" style="margin:2px 0 0;font-size:.85rem">${esc(t('The date the payment was actually made. Applied to all selected claims.'))}</p>
+        ${skipped ? `<p class="muted" style="margin:8px 0 0;font-size:.85rem">${esc(t('{n} selected not approved and will be skipped.', { n: skipped }))}</p>` : ''}
         <p class="form-error" id="bulkPaidErr" hidden></p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="bulkPaidCancel">${esc(t('Cancel'))}</button>
@@ -1001,41 +1520,22 @@ function bulkMarkPaid() {
     e.preventDefault();
     const payment_date = dateEl.value;
     if (!payment_date) return;
-    confirmBtn.disabled = true; confirmBtn.textContent = t('Saving…');
+    confirmBtn.disabled = true; confirmBtn.textContent = t('Marking…');
     try {
-      for (const c of chosen) {
-        const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      let done = 0;
+      for (const c of claims) {
+        const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
         await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
+        done++;
       }
       state.selected.clear();
-      toast(chosen.length === 1 ? t('Marked {n} claim as paid', { n: chosen.length }) : t('Marked {n} claims as paid', { n: chosen.length }));
+      toast(done === 1 ? t('Marked 1 claim as paid') : t('Marked {n} claims as paid', { n: done }));
       closeModal(); loadAll();
-    } catch (ex) { const el = $('#bulkPaidErr'); el.textContent = ex.message; el.hidden = false; confirmBtn.disabled = false; confirmBtn.textContent = t('Mark as paid'); }
+    } catch (ex) {
+      const el = $('#bulkPaidErr'); el.textContent = ex.message; el.hidden = false;
+      confirmBtn.disabled = false; confirmBtn.textContent = t('Mark as paid');
+    }
   });
-}
-
-// Bulk "Revert payment" — sends every selected *paid* claim back to Approved.
-function bulkRevertPaid() {
-  const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)) && c.status === 'paid');
-  if (!chosen.length) return;
-  const n = chosen.length;
-  if (!confirm(n === 1
-    ? t('Revert payment on {n} claim? It will go back to Approved.', { n })
-    : t('Revert payment on {n} claims? They will go back to Approved.', { n }))) return;
-  const btn = $('#bulkRevertBtn'); const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = t('Reverting…');
-  (async () => {
-    try {
-      for (const c of chosen) {
-        const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
-        await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
-      }
-      state.selected.clear();
-      toast(n === 1 ? t('Reverted {n} payment', { n }) : t('Reverted {n} payments', { n }));
-      loadAll();
-    } catch (ex) { toast(ex.message, true); }
-    finally { btn.disabled = false; btn.textContent = orig; }
-  })();
 }
 
 // Super-admin bulk delete — permanently removes the ticked claims (both types).
@@ -1049,7 +1549,7 @@ async function deleteSelected() {
   btn.disabled = true; btn.textContent = t('Deleting…');
   try {
     for (const c of chosen) {
-      const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      const path = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
       await api(path + c.id, { method: 'DELETE' });
     }
     state.selected.clear();
@@ -1068,7 +1568,7 @@ async function generatePdf() {
     // Pull full details (approvers, history, attachment list) for each claim.
     const detailed = [];
     for (const c of chosen) {
-      const path = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+      const path = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
       const { claim } = await api(path + c.id);
       claim.type = c.type;
       detailed.push(claim);
@@ -1220,24 +1720,38 @@ async function buildClaimsPdf(claims) {
   // Simple bordered table. cols: [{title,w,align}]. rows: array of cell arrays
   // where a cell is a string or {text,color,bold}. footer optional (same shape).
   const table = (cols, rows, footer) => {
-    const hh = 19, rh = 18;
-    need(hh + rh);
+    const hh = 19, lineH = 11;
+    need(hh + lineH + 6);
     y -= hh;
     page.drawRectangle({ x: M, y, width: CW, height: hh, color: rgb(0.96, 0.96, 0.94) });
     let x = M;
     cols.forEach(c => { page.drawText(pdfSafe(c.title), { x: x + 5, y: y + 6, size: 7.5, font: bold, color: muted }); x += c.w; });
     const drawRow = (cells, bg) => {
+      // Lay out each cell, wrapping its text to the column width so long expense
+      // types / descriptions stack onto extra lines instead of being truncated.
+      // A cell may set `span` to merge that many columns (used by total rows).
+      const laid = [];
+      for (let i = 0; i < cols.length;) {
+        const cell = cells[i] == null ? '' : cells[i];
+        const span = (typeof cell === 'object' && cell.span) ? cell.span : 1;
+        let w = 0; for (let k = 0; k < span && cols[i + k]; k++) w += cols[i + k].w;
+        const f = (typeof cell === 'object' && cell.bold) ? bold : font;
+        const color = (typeof cell === 'object' && cell.color) || ink;
+        const raw = typeof cell === 'object' ? (cell.text != null ? cell.text : '') : cell;
+        laid.push({ w, align: cols[i].align, f, color, lines: wrap(String(raw), 9, f, w - 10) });
+        i += span;
+      }
+      const nLines = laid.reduce((m, c) => Math.max(m, c.lines.length), 1);
+      const rh = nLines * lineH + 6;
       need(rh); y -= rh;
       if (bg) page.drawRectangle({ x: M, y, width: CW, height: rh, color: bg });
       let cx = M;
-      cols.forEach((col, i) => {
-        const cell = cells[i] == null ? '' : cells[i];
-        const val = pdfSafe(typeof cell === 'object' ? (cell.text != null ? cell.text : '') : cell);
-        const f = (typeof cell === 'object' && cell.bold) ? bold : font;
-        const color = (typeof cell === 'object' && cell.color) || ink;
-        const tx = col.align === 'right' ? cx + col.w - 5 - f.widthOfTextAtSize(val, 9) : cx + 5;
-        page.drawText(val, { x: tx, y: y + 5, size: 9, font: f, color });
-        cx += col.w;
+      laid.forEach(({ w, align, f, color, lines }) => {
+        lines.forEach((ln, li) => {
+          const tx = align === 'right' ? cx + w - 5 - f.widthOfTextAtSize(ln, 9) : cx + 5;
+          page.drawText(ln, { x: tx, y: y + rh - 11 - li * lineH, size: 9, font: f, color });
+        });
+        cx += w;
       });
       page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
     };
@@ -1247,13 +1761,15 @@ async function buildClaimsPdf(claims) {
 
   const claimHeader = (c) => {
     newPage();
-    const title = c.type === 'meal' ? 'Meal Allowance Claim' : 'Reimbursement Claim';
+    const title = c.type === 'meal' ? 'Meal Allowance Claim' : c.type === 'advance' ? 'Cash Advance' : 'Reimbursement Claim';
     if (logo) { const lw = 104, lh = lw * 213 / 631; page.drawImage(logo, { x: M, y: H - M - lh, width: lw, height: lh }); }
     else page.drawText('Cibes', { x: M, y: H - M - 20, size: 22, font: bold, color: orange });
     const rx = M + 128;
     page.drawText(title, { x: rx, y: H - M - 8, size: 16, font: bold, color: ink });
-    page.drawText(`${pdfSafe(c.claim_no)}   ${(STATUS_LABEL[c.status] || c.status).toUpperCase()}`,
-      { x: rx, y: H - M - 26, size: 9.5, font: bold, color: stColor[c.status] || muted });
+    const stText = (c.type === 'advance' && ADV_STATUS_LABEL[c.status]) || STATUS_LABEL[c.status] || c.status;
+    const stKey = (c.type === 'advance' && ADV_PILL_BASE[c.status]) || c.status;
+    page.drawText(`${pdfSafe(c.claim_no)}   ${String(stText).toUpperCase()}`,
+      { x: rx, y: H - M - 26, size: 9.5, font: bold, color: stColor[stKey] || muted });
     page.drawText(`Submitted ${fmtDateTime(c.created_at)}`, { x: rx, y: H - M - 40, size: 8.5, font, color: muted });
     y = H - M - 58;
     page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.5, color: orange });
@@ -1261,29 +1777,62 @@ async function buildClaimsPdf(claims) {
   };
 
   const drawDetails = (c) => {
-    if (c.type === 'meal') {
+    if (c.type === 'advance') {
+      kvRow('Claimant', c.claimant_name, 'Department', c.department);
+      kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
+      kvRow('Account no.', c.bank_account_no);
+      kvWide('Purpose', c.purpose);
+      kvRow('Advance requested', money(c.amount, c.currency));
+      section('Realization - actual transactions');
+      const cols = [
+        { title: 'Date', w: 66 }, { title: 'DB No.', w: 74 }, { title: 'Type of expense', w: 130 },
+        { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
+      ];
+      const lines = c.lines || [];
+      const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
+      table(cols, rows.length ? rows : [['', '', 'No realization yet', '', '']],
+        [{ text: 'TOTAL SPENT', bold: true, span: 3 }, '', '', { text: money(c.realized_total, c.currency), bold: true }, '']);
+      // Settlement summary: advance vs actual spend, and which way the balance goes.
+      if (lines.length) {
+        const diff = (c.realized_total || 0) - (c.amount || 0);
+        const dir = c.status === 'settled' ? c.settlement_direction : (diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even');
+        const amt = c.status === 'settled' ? c.settlement : Math.abs(diff);
+        const msg = dir === 'topup' ? 'Top-up owed to employee: ' + money(amt, c.currency)
+          : dir === 'return' ? 'Balance to be returned by employee: ' + money(amt, c.currency)
+          : 'Advance and actual spend match exactly.';
+        section(c.status === 'settled' ? 'Settlement' : 'Settlement (pending)');
+        line(msg, { size: 10 });
+        if (c.status === 'settled' && c.settlement_note) line(c.settlement_note, { size: 9, color: muted });
+      }
+    } else if (c.type === 'meal') {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
       kvRow('Account no.', c.bank_account_no);
       section('Meal allowance lines');
       const cols = [
-        { title: 'Date', w: 70 }, { title: 'DB Number Site', w: 120 }, { title: 'Job Category', w: 90 },
+        { title: 'Date', w: 66 }, { title: 'DB Number Site', w: 124 }, { title: 'Job Category', w: 90 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 360 }
       ];
       const rows = (c.lines || []).map(l => [l.line_date, l.site, l.job_category, money(l.amount, c.currency), l.description]);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
-        [{ text: 'TOTAL', bold: true }, '', '', { text: money(c.total_amount, c.currency), bold: true, align: 'right' }, '']);
+        [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.total_amount, c.currency), bold: true }, '']);
     } else {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
-      kvRow('Expense type', c.expense_type, 'Expense date', c.expense_date);
-      if (c.db_no) kvRow('DB No.', c.db_no);
-      need(20); y -= 13;
-      page.drawText('Amount', { x: M, y, size: 8, font, color: muted });
-      page.drawText(pdfSafe(money(c.amount, c.currency)), { x: M + 84, y, size: 13, font: bold, color: ink });
-      y -= 8;
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
       kvRow('Account no.', c.bank_account_no);
-      if (c.description) kvWide('Description', c.description);
+      section('Expense lines');
+      const cols = [
+        { title: 'Date', w: 66 }, { title: 'DB No.', w: 74 }, { title: 'Type of expense', w: 130 },
+        { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
+      ];
+      // Fall back to a single synthetic line for any legacy claim without lines.
+      const lines = (c.lines && c.lines.length) ? c.lines : [{
+        line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
+        amount: c.amount, description: c.description
+      }];
+      const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
+      table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
+        [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.amount, c.currency), bold: true }, '']);
     }
   };
 
@@ -1356,7 +1905,8 @@ async function buildClaimsPdf(claims) {
     for (const att of atts) {
       let bytes, mime = att.mime_type || '';
       try {
-        const res = await fetch(`/api/claims/${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
+        const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
+        const res = await fetch(`/api${base}${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('http');
         bytes = new Uint8Array(await res.arrayBuffer());
         if (!mime) mime = res.headers.get('Content-Type') || '';
@@ -1383,7 +1933,11 @@ async function buildClaimsPdf(claims) {
     drawDetails(c);
     drawApprovals(c);
     drawHistory(c);
-    const atts = c.attachments || [];
+    // Claims expose a flat top-level list; cash advances keep receipts per line,
+    // so fall back to flattening the lines when there's no top-level list.
+    const atts = (c.attachments && c.attachments.length)
+      ? c.attachments
+      : (c.lines || []).flatMap(l => l.attachments || []);
     if (atts.length) {
       section(`Attachments (${atts.length})`);
       atts.forEach(a => line(`- ${a.original_name}  (${fmtBytes(a.size_bytes)})`, { size: 9, gap: 3 }));
@@ -1406,9 +1960,23 @@ function approvalActionDate(c, name, action) {
 // ---------------------------------------------------------------------------
 // Drawer (claim detail + actions)
 // ---------------------------------------------------------------------------
-function closeDrawer() { $('#drawer').hidden = true; $('#drawerScrim').hidden = true; }
+function closeDrawer() {
+  $('#drawer').hidden = true; $('#drawerScrim').hidden = true;
+  $('#drawer').classList.remove('over-modal'); $('#drawerScrim').classList.remove('over-modal');
+  syncScrollLock();
+}
 $('#drawerScrim').addEventListener('click', closeDrawer);
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeDrawer(); closeModal(); } });
+// Escape backs out one layer at a time, topmost first. When the drawer floats
+// above the drill-down window (over-modal) it closes first, revealing the
+// window; otherwise a modal — which normally stacks above the drawer for an
+// edit/reject — takes priority, then the drawer.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const drawer = $('#drawer');
+  if (!drawer.hidden && drawer.classList.contains('over-modal')) closeDrawer();
+  else if (!$('#modal').hidden) closeModal();
+  else if (!drawer.hidden) closeDrawer();
+});
 
 // Mirror of the server's userCanApprove — decides whether to show actions.
 function canApprove(u, c) {
@@ -1443,12 +2011,31 @@ function renderChainProgress(c) {
       }).join('')}
     </ol>`;
 }
+// History action verbs are stored as lowercase server enums. Map them to
+// translatable Title-Case labels for the on-screen timeline. (The PDF keeps the
+// raw English — its embedded font is Latin-only; see pdfSafe.) Unknown verbs
+// fall back to a capitalised form so nothing renders blank.
+const ACTION_LABEL = {
+  submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected',
+  resubmitted: 'Resubmitted', paid: 'Paid', settled: 'Settled',
+  'realization submitted': 'Realization submitted',
+  'realization rejected': 'Realization rejected',
+  'realization resubmitted': 'Realization resubmitted',
+  'reverted approval': 'Reverted approval',
+  'reverted payment': 'Reverted payment',
+  'reverted realization approval': 'Reverted realization approval',
+  'reverted settlement': 'Reverted settlement'
+};
+const actionLabel = (a) => {
+  const s = String(a || '');
+  return t(ACTION_LABEL[s] || (s.charAt(0).toUpperCase() + s.slice(1)));
+};
 function renderHistory(c) {
   return `
     <div class="section-label">${esc(t('History'))}</div>
     <ul class="timeline">
       ${c.history.map(h => `
-        <li><span class="t-action">${esc(h.action)}</span>
+        <li><span class="t-action">${esc(actionLabel(h.action))}</span>
           <div class="t-meta">${esc(h.actor_name)} · ${fmtDateTime(h.created_at)}</div>
           ${h.comment ? `<div class="t-comment">${esc(h.comment)}</div>` : ''}</li>`).join('')}
     </ul>`;
@@ -1457,11 +2044,24 @@ function renderHistory(c) {
 // the server's planRevert: the payer can unpay, the final approver can unapprove,
 // the previous-step approver can undo their approval, and the claimant can cancel
 // a still-pending submission back to an editable state.
+// The set of statuses in which a document is awaiting an approver's decision. For
+// cash advances this covers both the request and the realization approval cycle.
+const inApprovalStage = (c) => c.status === 'submitted' || (c.type === 'advance' && c.status === 'realize_submitted');
+
 function canRevert(c, u, isOwner) {
   const ids = (c.approvers || []).map(a => a.id);
   const step = c.current_step || 0;
   const isSuper = u.role === 'superadmin';
-  if (c.status === 'paid') return isSuper || !!u.can_mark_paid;
+  // Cash-advance realization phase mirrors the request phase one status set up.
+  if (c.type === 'advance') {
+    if (c.status === 'settled') return canPay(u);
+    if (c.status === 'realize_approved') return isSuper || c.manager_id === u.id;
+    if (c.status === 'realize_submitted') {
+      if (step > 1) return isSuper || ids[step - 2] === u.id;
+      return isOwner || isSuper;
+    }
+  }
+  if (c.status === 'paid') return canPay(u);
   if (c.status === 'approved') return isSuper || c.manager_id === u.id;
   if (c.status === 'submitted') {
     if (step > 1) return isSuper || ids[step - 2] === u.id;
@@ -1472,6 +2072,12 @@ function canRevert(c, u, isOwner) {
 // Contextual label + confirmation copy for the revert button.
 function revertInfo(c) {
   const step = c.current_step || 0;
+  if (c.type === 'advance' && c.status === 'settled') return { label: t('Revert settlement'), confirm: t('Revert this settlement? The realization will go back to Approved.') };
+  if (c.type === 'advance' && c.status === 'realize_approved') return { label: t('Revert approval'), confirm: t('Revert your approval? The realization will go back to pending review.') };
+  if (c.type === 'advance' && c.status === 'realize_submitted') {
+    if (step > 1) return { label: t('Revert approval'), confirm: t('Revert your approval? The realization will return to the previous approver.') };
+    return { label: t('Cancel to edit'), confirm: t('Cancel this realization so you can edit it? It will move back to editable.') };
+  }
   if (c.status === 'paid') return { label: t('Revert payment'), confirm: t('Revert this payment? The claim will go back to Approved.') };
   if (c.status === 'approved') return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will go back to pending review.') };
   if (c.status === 'submitted' && step > 1) return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will return to the previous approver.') };
@@ -1479,12 +2085,21 @@ function revertInfo(c) {
 }
 function buildActions(c, u, isOwner) {
   const btns = [];
-  if (c.status === 'submitted' && canApprove(u, c)) {
+  if (inApprovalStage(c) && canApprove(u, c)) {
     btns.push(`<button class="btn btn-approve" data-act="approve">${esc(t('Approve'))}</button>`);
     btns.push(`<button class="btn btn-danger" data-act="reject">${esc(t('Reject & return'))}</button>`);
   }
-  if ((u.role === 'superadmin' || u.can_mark_paid) && c.status === 'approved') {
+  if (canPay(u) && c.status === 'approved') {
     btns.push(`<button class="btn btn-primary" data-act="paid">${esc(t('Mark as paid'))}</button>`);
+  }
+  // Cash-advance-only actions.
+  if (c.type === 'advance') {
+    if (isOwner && (c.status === 'paid' || c.status === 'rejected_realize')) {
+      btns.push(`<button class="btn btn-primary" data-act="realize">${esc(c.status === 'paid' ? t('Realize advance') : t('Edit & resubmit realization'))}</button>`);
+    }
+    if (canPay(u) && c.status === 'realize_approved') {
+      btns.push(`<button class="btn btn-primary" data-act="settle">${esc(t('Settle'))}</button>`);
+    }
   }
   if (isOwner && c.status === 'rejected') {
     btns.push(`<button class="btn btn-primary" data-act="edit">${esc(t('Edit & resubmit'))}</button>`);
@@ -1495,29 +2110,46 @@ function buildActions(c, u, isOwner) {
   return btns.join('\n            ');
 }
 
-// Body for a reimbursement claim: key/value details + attachments.
+// Body for a reimbursement claim: account/bank details + the itemised line table,
+// each line showing its own receipts.
 function reimbursementBody(c) {
-  const attachments = c.attachments.length ? `
-    <div class="section-label">${esc(t('Attachments'))}</div>
-    <ul class="attach-list">
-      ${c.attachments.map(a => `
-        <li><a href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">
-          📎 <span>${esc(a.original_name)}</span><span class="fsize">${fmtBytes(a.size_bytes)}</span></a></li>`).join('')}
-    </ul>` : `<div class="section-label">${esc(t('Attachments'))}</div><p class="muted">${esc(t('None uploaded.'))}</p>`;
+  const receiptLinks = (atts) => (atts && atts.length)
+    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    : `<span class="muted">${esc(t('—'))}</span>`;
+  // Fall back to a single synthetic line for any legacy claim without lines.
+  const lines = (c.lines && c.lines.length) ? c.lines : [{
+    line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
+    amount: c.amount, description: c.description, attachments: c.attachments || []
+  }];
+  const rows = lines.map(l => `
+    <tr>
+      <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
+      <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
+      <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
+      <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
+      <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
+      <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
+    </tr>`).join('');
   return `
     <dl class="kv">
       <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
-      <dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>
-      ${c.db_no ? `<dt>${esc(t('DB No.'))}</dt><dd>${esc(c.db_no)}</dd>` : ''}
-      <dt>${esc(t('Expense type'))}</dt><dd>${esc(c.expense_type)}</dd>
-      <dt>${esc(t('Expense date'))}</dt><dd>${esc(c.expense_date)}</dd>
-      <dt>${esc(t('Amount'))}</dt><dd class="amt">${esc(money(c.amount, c.currency))}</dd>
+      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
       <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
       <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
       <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-      ${c.description ? `<dt>${esc(t('Description'))}</dt><dd>${esc(c.description)}</dd>` : ''}
     </dl>
-    ${attachments}`;
+    <div class="section-label">${esc(t('Expense lines'))}</div>
+    <div class="meal-table-wrap">
+      <table class="meal-table rc-table">
+        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th><th>${esc(t('Receipts'))}</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
+          <td class="meal-total">${esc(money(c.amount, c.currency))}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
 }
 
 // Body for a meal allowance claim: account/bank details + the line-item table.
@@ -1552,8 +2184,65 @@ function mealBody(c) {
     </div>`;
 }
 
+// Body for a cash advance: account/bank details, the purpose + requested amount,
+// and — once realized — the itemised transactions with a settlement summary.
+function advanceBody(c) {
+  const receiptLinks = (atts) => (atts && atts.length)
+    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    : `<span class="muted">${esc(t('—'))}</span>`;
+  const hasLines = (c.lines || []).length > 0;
+  const linesTable = hasLines ? `
+    <div class="section-label">${esc(t('Realization — actual transactions'))}</div>
+    <div class="meal-table-wrap">
+      <table class="meal-table rc-table">
+        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th><th>${esc(t('Receipts'))}</th></tr></thead>
+        <tbody>${c.lines.map(l => `
+          <tr>
+            <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
+            <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
+            <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
+            <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
+          </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td colspan="3" class="meal-total-label">${esc(t('TOTAL SPENT'))}</td>
+          <td class="meal-total">${esc(money(c.realized_total, c.currency))}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>` : `<p class="muted" style="margin:10px 0">${esc(t('Realization not submitted yet.'))}</p>`;
+  // Settlement summary: the recorded outcome once settled, otherwise a live preview.
+  let settleBox = '';
+  if (hasLines) {
+    const diff = (c.realized_total || 0) - (c.amount || 0);
+    const dir = c.status === 'settled' ? c.settlement_direction : (diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even');
+    const amt = c.status === 'settled' ? c.settlement : Math.abs(diff);
+    const msg = dir === 'topup' ? t('Top-up owed to employee: {amt}', { amt: money(amt, c.currency) })
+      : dir === 'return' ? t('Balance to be returned by employee: {amt}', { amt: money(amt, c.currency) })
+      : t('Advance and actual spend match exactly.');
+    settleBox = `<div class="note-box adv-settle adv-diff-${dir}">
+      <div class="nb-label">${esc(c.status === 'settled' ? t('Settlement') : t('Settlement (pending)'))}</div>
+      <div>${esc(msg)}</div>
+      ${c.status === 'settled' && c.settlement_note ? `<div class="muted" style="margin-top:4px">${esc(c.settlement_note)}</div>` : ''}
+    </div>`;
+  }
+  return `
+    <dl class="kv">
+      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
+      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
+      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
+      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
+      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      <dt>${esc(t('Purpose'))}</dt><dd>${esc(c.purpose)}</dd>
+      <dt>${esc(t('Advance requested'))}</dt><dd><strong>${esc(money(c.amount, c.currency))}</strong></dd>
+    </dl>
+    ${linesTable}
+    ${settleBox}`;
+}
+
 async function openDrawer(id, type = 'reimbursement') {
-  const path = type === 'meal' ? '/meal-claims/' : '/claims/';
+  const path = type === 'meal' ? '/meal-claims/' : type === 'advance' ? '/cash-advances/' : '/claims/';
   const { claim: c } = await api(path + id);
   c.type = type;
   const u = state.user;
@@ -1562,12 +2251,12 @@ async function openDrawer(id, type = 'reimbursement') {
   const rejectedNote = (c.status === 'rejected' && c.manager_comment) ? `
     <div class="note-box"><div class="nb-label">${esc(t('Returned by manager'))}</div>
       <div>${esc(c.manager_comment)}</div></div>` : '';
-  const body = type === 'meal' ? mealBody(c) : reimbursementBody(c);
+  const body = type === 'meal' ? mealBody(c) : type === 'advance' ? advanceBody(c) : reimbursementBody(c);
   const actions = buildActions(c, u, isOwner);
 
   $('#drawer').innerHTML = `
     <div class="drawer-head">
-      <div><h2>${esc(c.claim_no)} <span class="pill ${c.status}">${esc(statusLabel(c.status))}</span></h2>
+      <div><h2>${esc(c.claim_no)} <span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></h2>
         <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('Submitted {time}', { time: fmtDateTime(c.created_at) }))}</p></div>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
@@ -1584,16 +2273,21 @@ async function openDrawer(id, type = 'reimbursement') {
 
   $('#drawerScrim').hidden = false;
   $('#drawer').hidden = false;
+  syncScrollLock();
 }
 
 async function handleAction(act, c) {
-  const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+  const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
   try {
     if (act === 'approve') {
       await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
       toast(t('Claim approved'));
     } else if (act === 'paid') {
       return openPaidModal(c);
+    } else if (act === 'realize') {
+      return openRealizeModal(c);
+    } else if (act === 'settle') {
+      return openSettleModal(c);
     } else if (act === 'revert') {
       const info = revertInfo(c);
       if (!confirm(info.confirm)) return;
@@ -1602,7 +2296,7 @@ async function handleAction(act, c) {
     } else if (act === 'reject') {
       return openRejectModal(c);
     } else if (act === 'edit') {
-      return c.type === 'meal' ? openMealAllowanceModal(c) : openClaimModal(c);
+      return c.type === 'meal' ? openMealAllowanceModal(c) : c.type === 'advance' ? openAdvanceRequestModal(c) : openClaimModal(c);
     }
     closeDrawer(); loadAll();
   } catch (ex) { toast(ex.message, true); }
@@ -1611,12 +2305,40 @@ async function handleAction(act, c) {
 // ---------------------------------------------------------------------------
 // Modal helpers
 // ---------------------------------------------------------------------------
+// Freeze the page behind any open modal / drawer so the background can't scroll.
+function syncScrollLock() {
+  const m2 = $('#modal2');
+  const open = !$('#modal').hidden || (m2 && !m2.hidden) || !$('#drawer').hidden;
+  document.body.classList.toggle('no-scroll', !!open);
+}
+// A callback run once the next time #modal closes, then cleared. Lets a modal
+// (e.g. the insights drill-down window) clean up page state on every close path
+// — its ×, the scrim, or Escape — which all funnel through closeModal().
+let modalCloseHook = null;
 function openModal(html) {
+  modalCloseHook = null; // a new modal supersedes any pending hook
+  // If a modal opens while the drawer is floating above a previous one (the
+  // insights drill-down window), that window is being replaced by a drawer
+  // action (edit / mark-paid / reject). Drop the drawer's elevation so this new
+  // modal stacks above the drawer as usual, and clear the now-gone window's
+  // bar highlight.
+  const drawer = $('#drawer');
+  if (drawer.classList.contains('over-modal')) {
+    drawer.classList.remove('over-modal');
+    $('#drawerScrim').classList.remove('over-modal');
+    clearTypeDrill();
+  }
   $('#modal').innerHTML = html;
   $('#modalScrim').hidden = false;
   $('#modal').hidden = false;
+  syncScrollLock();
 }
-function closeModal() { $('#modal').hidden = true; $('#modalScrim').hidden = true; $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); }
+function closeModal() {
+  $('#modal').hidden = true; $('#modalScrim').hidden = true;
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex');
+  if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
+  syncScrollLock();
+}
 $('#modalScrim').addEventListener('click', closeModal);
 
 // Client-side filter for a settings table: hides rows that don't match the
@@ -1636,8 +2358,9 @@ function openModal2(html) {
   $('#modal2').innerHTML = html;
   $('#modal2Scrim').hidden = false;
   $('#modal2').hidden = false;
+  syncScrollLock();
 }
-function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); }
+function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
@@ -1836,22 +2559,178 @@ function approver1PickerHtml(existing) {
     <select name="approver1" required>${opts.join('')}</select></label>`;
 }
 
-function openClaimModal(existing = null) {
-  const u = state.user;
-  const isEdit = !!existing;
-  pendingFiles = [];
-  keptAttachments = existing
-    ? (existing.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
-    : [];
-  keptClaimId = existing ? existing.id : null;
-  const v = existing || {
-    claimant_name: u.full_name,
-    // Only prefill the department if it is a registered one; otherwise leave it
-    // for the user to pick from the list.
-    department: state.lookups.departments.includes(u.department) ? u.department : '',
-    currency: 'IDR',
-    expense_date: todayWIB()
+// A reimbursement claim is an editable table: one row per expense (date, DB no,
+// type, amount, description) with that expense's own receipts. Files/kept
+// attachments live on the row objects (never in the DOM) so re-rendering the
+// table preserves them.
+let claimRows = [];
+let claimEditId = null;   // claim being edited, for the kept-receipt view links
+// Base API path for kept-receipt links in the shared line editor. Reimbursement
+// claims use /api/claims; the cash-advance realization form flips it to
+// /api/cash-advances so kept receipts open from the right endpoint.
+let rcAttachBase = '/api/claims';
+// Optional callback fired whenever the shared line editor's total changes, so the
+// realization form can refresh its "advance vs spent" difference banner.
+let rcTotalHook = null;
+const rcAmt = (s) => { const n = parseFloat(String(s == null ? '' : s).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : 0; };
+function claimTotal() { return claimRows.reduce((sum, r) => sum + rcAmt(r.amount), 0); }
+const blankClaimRow = (date = '') => ({ line_date: date, db_no: '', expense_type: '', expense_type_other: '', amount: '', description: '', files: [], kept: [] });
+
+function rcChips(r, i) {
+  const kept = (r.kept || []).map((a, k) =>
+    `<span class="file-chip file-chip-saved"><a href="${rcAttachBase}/${claimEditId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>` +
+    `<button type="button" data-chip="kept" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
+  const files = (r.files || []).map((f, k) =>
+    `<span class="file-chip">${esc(f.name)}<button type="button" data-chip="new" data-row="${i}" data-k="${k}" aria-label="${esc(t('Remove'))}">×</button></span>`);
+  return kept.concat(files).join('');
+}
+// Expense-type picker for a row: a native <select> (clean, and its dropdown is
+// never clipped by the scrolling table). "Others" is always offered and reveals
+// a free-text field. A legacy custom value is preserved as its own option.
+function rcTypeSelect(r) {
+  const cur = r.expense_type || '';
+  const opts = [...(state.lookups.expense_types || [])];
+  if (!opts.some(o => o.toLowerCase() === 'others')) opts.push('Others');
+  const extra = (cur && cur !== 'Others' && !opts.includes(cur)) ? cur : null;
+  return `<select name="expense_type">
+      <option value="" ${cur ? '' : 'selected'}>${esc(t('Select…'))}</option>
+      ${extra ? `<option value="${esc(extra)}" selected>${esc(extra)}</option>` : ''}
+      ${opts.map(o => `<option value="${esc(o)}" ${o === cur ? 'selected' : ''}>${esc(o === 'Others' ? t('Others (specify)') : o)}</option>`).join('')}
+    </select>
+    <input name="expense_type_other" class="rc-other" value="${esc(r.expense_type_other || '')}" placeholder="${esc(t('Specify the expense…'))}" ${cur === 'Others' ? '' : 'hidden'} />`;
+}
+function claimRowHtml(r, i) {
+  const min = claimEarliest() ? `min="${esc(claimEarliest())}"` : '';
+  return `<tr data-i="${i}">
+    <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
+    <td data-label="${esc(t('DB No.'))}"><input name="db_no" value="${esc(r.db_no || '')}" placeholder="DB 500 309" /></td>
+    <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
+    <td data-label="${esc(t('Amount'))}"><div class="rc-amt-wrap">
+      <input name="amount" class="rc-amt" inputmode="decimal" value="${esc(r.amount == null ? '' : groupAmount(String(r.amount)))}" placeholder="0" />
+      <button type="button" class="rc-calc" data-calc="${i}" title="${esc(t('Add up amounts'))}" aria-label="${esc(t('Add up amounts'))}">🧮</button>
+    </div></td>
+    <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
+    <td class="rc-receipts" data-label="${esc(t('Receipts'))}">
+      <div class="file-chips">${rcChips(r, i)}</div>
+      <button type="button" class="btn btn-ghost btn-sm rc-add" data-add="${i}">📎 ${esc(t('Add'))}</button>
+      <input type="file" class="rc-input" data-input="${i}" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
+    </td>
+    <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
+  </tr>`;
+}
+// Copy scalar fields from the DOM back into claimRows before any re-render, so
+// files/kept (not in the DOM) survive.
+function readClaimRows() {
+  $$('#rcRows tr[data-i]').forEach(tr => {
+    const i = +tr.dataset.i, r = claimRows[i]; if (!r) return;
+    const g = (n) => { const el = tr.querySelector(`[name="${n}"]`); return el ? el.value : ''; };
+    r.line_date = g('line_date'); r.db_no = g('db_no'); r.expense_type = g('expense_type');
+    r.expense_type_other = g('expense_type_other'); r.amount = g('amount'); r.description = g('description');
+  });
+}
+function renderClaimRows() {
+  const body = $('#rcRows');
+  body.innerHTML = claimRows.length
+    ? claimRows.map(claimRowHtml).join('')
+    : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
+  $('#rcTotal').textContent = liveAmt(claimTotal());
+  if (rcTotalHook) rcTotalHook();
+  $$('#rcRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    readClaimRows(); claimRows.splice(+b.dataset.rm, 1); renderClaimRows();
+  }));
+  $$('#rcRows .rc-add').forEach(b => b.addEventListener('click', () => {
+    const inp = $(`#rcRows .rc-input[data-input="${b.dataset.add}"]`); if (inp) inp.click();
+  }));
+  $$('#rcRows .rc-input').forEach(inp => inp.addEventListener('change', async () => {
+    const i = +inp.dataset.input, r = claimRows[i]; if (!r) return;
+    const accepted = await processFiles(inp.files, (r.files || []).length + (r.kept || []).length);
+    r.files = (r.files || []).concat(accepted);
+    readClaimRows(); renderClaimRows();
+  }));
+  $$('#rcRows [data-chip]').forEach(b => b.addEventListener('click', () => {
+    const r = claimRows[+b.dataset.row]; if (!r) return;
+    (b.dataset.chip === 'kept' ? r.kept : r.files).splice(+b.dataset.k, 1);
+    readClaimRows(); renderClaimRows();
+  }));
+  $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
+    el.value = groupAmount(el.value); // thousands separators as they type
+    readClaimRows(); $('#rcTotal').textContent = liveAmt(claimTotal()); if (rcTotalHook) rcTotalHook();
+  }));
+  // Reveal the "specify" field when the type is set to Others.
+  $$('#rcRows select[name="expense_type"]').forEach(sel => sel.addEventListener('change', () => {
+    const other = sel.closest('td').querySelector('.rc-other');
+    if (other) { other.hidden = sel.value !== 'Others'; if (!other.hidden) other.focus(); }
+  }));
+  // Per-row calculator: tally amounts and drop the sum into this row's Amount.
+  $$('#rcRows .rc-calc').forEach(b => b.addEventListener('click', () => openCalcModal(+b.dataset.calc)));
+}
+
+// A small calculator (over the claim form) that adds up several amounts and
+// writes the total into row `rowIndex`'s Amount field.
+function openCalcModal(rowIndex) {
+  let entries = [];
+  const sum = () => entries.reduce((a, b) => a + b, 0);
+  openModal2(`
+    <div class="modal-head"><h2>${esc(t('Add up amounts'))}</h2><button class="x-btn" id="calcClose">×</button></div>
+    <div class="modal-body">
+      <div class="calc-input-row">
+        <input id="calcInput" inputmode="decimal" placeholder="${esc(t('Add an amount…'))}" />
+        <button type="button" class="btn btn-ghost btn-sm" id="calcAdd">${esc(t('Add'))}</button>
+      </div>
+      <ul class="calc-list" id="calcList"></ul>
+      <div class="calc-foot">
+        <div class="calc-total-wrap"><span>${esc(t('Total'))}</span><strong id="calcTotal">0</strong></div>
+        <div class="calc-foot-btns">
+          <button type="button" class="btn btn-ghost btn-sm" id="calcClear">${esc(t('Clear'))}</button>
+          <button type="button" class="btn btn-primary btn-sm" id="calcApply">${esc(t('Use total'))}</button>
+        </div>
+      </div>
+    </div>`);
+  const render = () => {
+    $('#calcList').innerHTML = entries.length
+      ? entries.map((n, i) =>
+          `<li><span class="mono">${groupAmount(String(n))}</span>
+             <button type="button" data-i="${i}" aria-label="${esc(t('Remove'))}">×</button></li>`).join('')
+      : `<li class="calc-empty">${esc(t('No amounts added yet.'))}</li>`;
+    $('#calcTotal').textContent = groupAmount(String(sum())) || '0';
+    $$('#calcList button[data-i]').forEach(b =>
+      b.addEventListener('click', () => { entries.splice(+b.dataset.i, 1); render(); }));
   };
+  const add = () => {
+    const inp = $('#calcInput');
+    const n = Number(String(inp.value).replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(n) && n > 0) entries.push(n);
+    inp.value = ''; inp.focus(); render();
+  };
+  $('#calcClose').addEventListener('click', closeModal2);
+  $('#calcAdd').addEventListener('click', add);
+  $('#calcInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  $('#calcInput').addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
+  $('#calcClear').addEventListener('click', () => { entries = []; render(); });
+  $('#calcApply').addEventListener('click', () => {
+    readClaimRows();
+    if (claimRows[rowIndex]) claimRows[rowIndex].amount = String(sum());
+    closeModal2();
+    renderClaimRows();
+  });
+  render();
+  setTimeout(() => { const inp = $('#calcInput'); if (inp) inp.focus(); }, 0);
+}
+
+function openClaimModal(existing = null) {
+  const isEdit = !!existing;
+  claimEditId = isEdit ? existing.id : null;
+  rcAttachBase = '/api/claims';
+  if (isEdit) {
+    claimRows = (existing.lines || []).map(l => ({
+      line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
+      files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
+    }));
+    if (!claimRows.length) claimRows = [blankClaimRow()];
+  } else {
+    claimRows = [blankClaimRow(todayWIB())];
+  }
   openModal(`
     <div class="modal-head">
       <h2>${isEdit ? esc(t('Edit & resubmit claim')) : esc(t('New reimbursement claim'))}</h2>
@@ -1859,61 +2738,49 @@ function openClaimModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="claimForm" class="form">
-        <div class="grid2">
-          <label>${esc(t('Date'))}<input name="expense_date" type="date" required ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(v.expense_date || '')}" />${claimLimitNote()}</label>
-          <label>${esc(t('DB No.'))}<input name="db_no" value="${esc(v.db_no || '')}" placeholder="DB 500 309" /></label>
-          ${expenseTypeField(v.expense_type)}
-          <label>${esc(t('Amount'))}
-            <div class="amount-field">
-              <span class="amount-cur">${esc(v.currency || 'IDR')}</span>
-              <input type="hidden" name="currency" value="${esc(v.currency || 'IDR')}" />
-              <input name="amount" required inputmode="decimal" placeholder="0" value="${existing ? existing.amount : ''}" />
-              <button type="button" class="amount-calc-btn" id="calcToggle" aria-expanded="false"
-                aria-controls="calcPanel" title="${esc(t('Add up amounts'))}">🧮</button>
-            </div>
-            ${calcPanelHtml()}
-          </label>
-          ${approver1PickerHtml(existing)}
-          <label class="full">${esc(t('Description / purpose'))}
-            <textarea name="description" placeholder="${esc(t('What was this purchase for?'))}">${esc(v.description || '')}</textarea>
-          </label>
-          ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
-            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
-          <div class="full">
-            <div class="section-label" style="margin-top:4px">${esc(t('Receipts / files'))}</div>
-            ${isEdit ? `<p class="form-note drop-note">${esc(t('The receipts already on this claim are kept. Remove any you want to replace — only attach a file again if you removed it first.'))}</p>` : ''}
-            <div class="drop" id="dropZone">
-              <strong>${esc(t('Click to choose files'))}</strong>${esc(t(' or drag & drop'))}<br>
-              <span style="font-size:.8rem">${esc(t('PDF or images only · up to 8 files · 10 MB each (large images auto-compressed)'))}</span>
-              <input id="fileInput" type="file" multiple hidden
-                accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
-            </div>
-            <div class="file-chips" id="fileChips"></div>
-          </div>
+        <div class="meal-topbar">
+          <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
         </div>
+        ${claimLimitNote()}
+        <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).'))}</p>
         <p class="form-error" id="claimError" hidden></p>
-        <div class="modal-actions sticky-foot">
+        <div class="meal-scroll">
+          <div class="meal-table-wrap">
+            <table class="meal-table rc-table">
+              <colgroup>
+                <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
+              </colgroup>
+              <thead><tr>
+                <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
+                <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
+                <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+              </tr></thead>
+              <tbody id="rcRows"></tbody>
+              <tfoot><tr>
+                <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
+                <td class="meal-total" id="rcTotal">0</td>
+                <td colspan="3"></td>
+              </tr></tfoot>
+            </table>
+          </div>
+          ${approver1PickerHtml(existing)}
+          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
+            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+        </div>
+        <div class="modal-actions meal-foot">
           <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
-
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#cancelClaim').addEventListener('click', closeModal);
-
-  const fileInput = $('#fileInput'), drop = $('#dropZone');
-  drop.addEventListener('click', () => fileInput.click());
-  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
-  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
-  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('drag'); addFiles(e.dataTransfer.files); });
-  fileInput.addEventListener('change', () => addFiles(fileInput.files));
-  renderChips();
-
-  attachAmountGrouping($('#claimForm [name="amount"]'));
-  wireExpenseTypeField();
-  wireClaimCalculator();
+  $('#rcAddRow').addEventListener('click', () => {
+    readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows();
+  });
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
+  renderClaimRows();
 }
 
 // Only PDFs and images are accepted. The <input accept> covers the file picker,
@@ -1982,9 +2849,12 @@ async function compressImage(file, maxBytes) {
   return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
 }
 
-async function addFiles(list) {
+// Validate, HEIC-convert and compress a picked file list into accepted File[].
+// `alreadyCount` is the row's current file count, so it can't exceed 8.
+async function processFiles(list, alreadyCount = 0) {
+  const out = [];
   for (const f of Array.from(list)) {
-    if (keptAttachments.length + pendingFiles.length >= 8) { toast(t('Maximum 8 files'), true); break; }
+    if (alreadyCount + out.length >= 8) { toast(t('Maximum 8 files'), true); break; }
     if (!isAllowedUpload(f)) { toast(t('{name}: only PDF or image files are allowed', { name: f.name }), true); continue; }
     let file = f;
     // iPhone HEIC/HEIF photos aren't viewable in browsers, so convert them to
@@ -2005,9 +2875,9 @@ async function addFiles(list) {
       catch { toast(t("{name}: couldn't compress — please shrink it and retry", { name: f.name }), true); continue; }
     }
     if (file.size > MAX_UPLOAD) { toast(t('{name} exceeds 10 MB', { name: f.name }), true); continue; }
-    pendingFiles.push(file);
+    out.push(file);
   }
-  renderChips();
+  return out;
 }
 // Chips for the claim's receipts: the ones already saved (openable, so the
 // claimant can check what is there before replacing it) followed by the files
@@ -2124,45 +2994,54 @@ async function uploadReceipts(files, onProgress) {
 
 async function submitClaim(e, existing) {
   e.preventDefault();
+  readClaimRows();
   const err = $('#claimError'); err.hidden = true;
-  const payload = Object.fromEntries(new FormData(e.target).entries());
-  // Resolve the expense type. "Others" uses the free-text value; the combobox has
-  // no native `required`, so an empty pick is caught here.
-  let type = String(payload.expense_type || '').trim();
-  if (type === 'Others') {
-    const other = String(payload.expense_type_other || '').trim();
-    if (!other) { err.textContent = t('Please specify the expense type.'); err.hidden = false; return; }
-    type = other;
-  } else if (!type) {
-    err.textContent = t('Please choose the type of expense.'); err.hidden = false; return;
+  // Keep only rows the claimant actually filled in (any field or receipt).
+  const rows = claimRows.filter(r =>
+    r.line_date || r.db_no || String(r.expense_type || '').trim() || r.description
+    || rcAmt(r.amount) || (r.files || []).length || (r.kept || []).length);
+  if (!rows.length) { err.textContent = t('Add at least one expense line with a date, type and amount.'); err.hidden = false; return; }
+  // Resolve each row's expense type ("Others" uses its specify field).
+  const rowType = (r) => r.expense_type === 'Others' ? String(r.expense_type_other || '').trim() : String(r.expense_type || '').trim();
+  for (const r of rows) {
+    if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
+    if (r.expense_type === 'Others' && !String(r.expense_type_other || '').trim()) {
+      err.textContent = t('Please specify the expense type for the "Others" row.'); err.hidden = false; return;
+    }
+    if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
+    if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
-  payload.expense_type = type;
-  delete payload.expense_type_other;
-  // Approver 1 is required only when this account has 2+ candidates to choose from.
-  if ((state.user.approver1_choices || []).length >= 2 && !String(payload.approver1 || '').trim()) {
-    err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
-  }
-  // Claim-date policy: block an expense dated before the allowed floor.
+  // Claim-date policy: block any row dated before the allowed floor.
   const earliest = claimEarliest();
-  if (earliest && String(payload.expense_date || '') < earliest) {
+  if (earliest && rows.some(r => String(r.line_date || '') < earliest)) {
     err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest });
     err.hidden = false; return;
+  }
+  const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
+  if ((state.user.approver1_choices || []).length >= 2 && !approver1) {
+    err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
   }
   const btn = e.target.querySelector('button[type="submit"]');
   const label = btn.textContent;
   btn.disabled = true;
   try {
-    // Upload receipts to Blob first, then send the claim as JSON carrying only
-    // their metadata — keeping large files off the size-limited API route.
-    if (pendingFiles.length) btn.textContent = t('Uploading receipts…');
-    payload.attachments = await uploadReceipts(pendingFiles, (idx, total, frac) => {
-      const pct = Math.round(((idx + frac) / total) * 100);
-      btn.textContent = total > 1 ? t('Uploading {i}/{total}… {pct}%', { i: idx + 1, total, pct }) : t('Uploading… {pct}%', { pct });
-    });
+    // Upload each row's receipts to Blob, then send the claim as JSON carrying
+    // only their metadata (keeping large files off the size-limited API route).
+    if (rows.some(r => (r.files || []).length)) btn.textContent = t('Uploading receipts…');
+    const lines = [];
+    for (const r of rows) {
+      const uploaded = (r.files || []).length ? await uploadReceipts(r.files) : [];
+      lines.push({
+        line_date: r.line_date, db_no: r.db_no, expense_type: rowType(r),
+        amount: r.amount, description: r.description,
+        attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
+      });
+    }
+    const payload = { lines, currency: regionCurrency() };
+    if (approver1) payload.approver1 = Number(approver1);
     btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
     if (existing) {
-      // Receipts the claimant left in place; the server drops the rest.
-      payload.keep_attachment_ids = keptAttachments.map(a => a.id);
+      payload.resubmit_note = String((new FormData(e.target).get('resubmit_note') || '')).trim();
       await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
       toast(t('Claim resubmitted'));
     } else {
@@ -2183,25 +3062,29 @@ $('#newClaimBtn').addEventListener('click', () => openClaimModal());
 // "Meal Allowance Claim Form": a title, an editable table (one row per day),
 // a live total, and the rate note at the bottom.
 // ---------------------------------------------------------------------------
-// Indonesian rupiah, no decimals — "Rp 120.000".
-function idr(n) {
-  try { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n || 0); }
-  catch { return 'Rp ' + Math.round(n || 0).toLocaleString('id-ID'); }
-}
+// A running total in the region's default currency (Settings → Currency & time
+// zone). Mirrors money()'s locale/currency convention so the live total in a
+// claim form reads the same as the claim will once submitted — and follows the
+// region when its default currency changes (e.g. IDR → USD).
+function liveAmt(n) { return money(n || 0, regionCurrency()); }
 const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
 
-// The two fixed meal-allowance rates (see the note at the bottom of the form):
-// Bodetabek area 75.000, outside Bodetabek 120.000. Amount is chosen from these.
-const MEAL_RATES = [75000, 120000];
+// The preset meal-allowance amounts are configured per region in Settings → Meal
+// allowance and loaded into state.mealRates. The Amount field is a dropdown of
+// those amounts.
+const mealRateList = () => (state.mealRates && state.mealRates.length ? state.mealRates : []);
 function mealAmountSelect(val) {
   const cur = mealAmount(val);
+  const rates = mealRateList();
   // Preserve any legacy/custom amount from an older claim so editing never
-  // silently drops it — show it as an extra selected option.
-  const opts = [...MEAL_RATES];
-  if (cur && !opts.includes(cur)) opts.unshift(cur);
+  // silently drops it — show it as an extra selected option when it isn't one
+  // of the configured presets.
+  const known = new Set(rates);
+  const extra = cur && !known.has(cur) ? `<option value="${cur}" selected>${groupAmount(String(cur))}</option>` : '';
   return `<select name="amount" class="meal-amt">
     <option value="" ${cur ? '' : 'selected'}>${esc(t('— select —'))}</option>
-    ${opts.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${groupAmount(String(n))}</option>`).join('')}
+    ${extra}
+    ${rates.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${esc(groupAmount(String(n)))}</option>`).join('')}
   </select>`;
 }
 
@@ -2230,16 +3113,21 @@ function renderMealRows() {
   $('#mealRows').innerHTML = mealRows.length
     ? mealRows.map(mealRowHtml).join('')
     : `<tr><td colspan="6" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
-  $('#mealTotal').textContent = idr(mealTotal());
+  $('#mealTotal').textContent = liveAmt(mealTotal());
   $$('#mealRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
   }));
   $$('#mealRows .meal-amt').forEach(sel => sel.addEventListener('change', () => {
-    readMealRows(); $('#mealTotal').textContent = idr(mealTotal());
+    readMealRows(); $('#mealTotal').textContent = liveAmt(mealTotal());
   }));
 }
 
-function openMealAllowanceModal(existing = null) {
+async function openMealAllowanceModal(existing = null) {
+  // Refresh the Amount-dropdown presets for the submitter's region every time the
+  // form opens. state.mealRates is seeded at login but can be stale (e.g. an admin
+  // just changed them in Settings), so re-fetch to keep the form connected to the
+  // saved amounts. A failure keeps whatever presets we already have.
+  try { state.mealRates = (await api('/meal-rates')).rates || state.mealRates; } catch { /* keep current */ }
   const isEdit = !!existing;
   if (isEdit) {
     // Prefill from the claim being resubmitted.
@@ -2277,7 +3165,7 @@ function openMealAllowanceModal(existing = null) {
               <tfoot>
                 <tr>
                   <td colspan="3" class="meal-total-label">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))}</td>
-                  <td class="meal-total" id="mealTotal">Rp 0</td>
+                  <td class="meal-total" id="mealTotal">0</td>
                   <td colspan="2"></td>
                 </tr>
               </tfoot>
@@ -2286,11 +3174,6 @@ function openMealAllowanceModal(existing = null) {
           ${approver1PickerHtml(existing)}
           ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
             <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
-          <div class="meal-note">
-            <strong>${esc(t('MEAL ALLOWANCE CLAIM'))}</strong>
-            BODETABEK AREA — IDR 75.000,-
-            EXCLUDE BODETABEK AREA — IDR 120.000,-
-          </div>
         </div>
         <div class="modal-actions meal-foot">
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
@@ -2344,6 +3227,251 @@ async function submitMealClaim(e, existing) {
 $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 
 // ---------------------------------------------------------------------------
+// Cash advance — a two-stage document. Stage 1: request the advance (purpose +
+// amount), which runs the approver chain and is disbursed by finance. Stage 2
+// (once paid): realize it by submitting the actual transactions as an itemised
+// line table with receipts — the same editor as a reimbursement claim.
+// ---------------------------------------------------------------------------
+// Stage 1 request form: purpose + amount (+ Approver 1 when chooseable). Reused
+// for editing a rejected request.
+function openAdvanceRequestModal(existing = null) {
+  const isEdit = !!existing;
+  openModal(`
+    <div class="modal-head">
+      <h2>${isEdit ? esc(t('Edit & resubmit cash advance')) : esc(t('New cash advance'))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="advForm" class="form">
+        <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Ask for a cash advance up front. Once it is approved and paid, you will settle it by submitting your actual transactions.'))}</p>
+        <label class="full">${esc(t('Purpose of the cash advance'))} <span style="color:var(--danger,#d33)">*</span>
+          <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(existing ? existing.purpose || '' : '')}</textarea></label>
+        <label class="full">${esc(t('Amount needed'))} <span style="color:var(--danger,#d33)">*</span>
+          <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(existing && existing.amount != null ? groupAmount(String(Math.round(existing.amount))) : '')}" /></label>
+        ${approver1PickerHtml(existing)}
+        ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
+          <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+        <p class="form-error" id="advError" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="advCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit request')) : esc(t('Submit request'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#advCancel').addEventListener('click', closeModal);
+  const amt = $('#advForm [name="amount"]');
+  amt.addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
+  $('#advForm').addEventListener('submit', e => submitAdvanceRequest(e, existing));
+}
+
+async function submitAdvanceRequest(e, existing) {
+  e.preventDefault();
+  const err = $('#advError'); err.hidden = true;
+  const fd = new FormData(e.target);
+  const purpose = String(fd.get('purpose') || '').trim();
+  const amount = Number(String(fd.get('amount') || '').replace(/[^0-9.]/g, ''));
+  if (!purpose) { err.textContent = t('Please describe the purpose of the cash advance.'); err.hidden = false; return; }
+  if (!(amount > 0)) { err.textContent = t('Enter the advance amount.'); err.hidden = false; return; }
+  const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
+  const approver1 = String(fd.get('approver1') || '').trim();
+  if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  const payload = { purpose, amount, currency: regionCurrency() };
+  if (needsApprover1) payload.approver1 = Number(approver1);
+  try {
+    if (existing) {
+      payload.resubmit_note = String(fd.get('resubmit_note') || '').trim();
+      await api('/cash-advances/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
+      toast(t('Cash advance resubmitted'));
+    } else {
+      await api('/cash-advances', { method: 'POST', body: JSON.stringify(payload) });
+      toast(t('Cash advance requested'));
+    }
+    closeModal(); closeDrawer(); loadAll();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+}
+$('#newAdvanceBtn').addEventListener('click', () => openAdvanceRequestModal());
+
+// Stage 2 realization form: the actual transactions as an itemised line table
+// (the reimbursement-claim editor), with a live "advance vs spent" banner.
+function realizeDiffBanner(advanceAmount) {
+  const spent = claimTotal();
+  const diff = spent - advanceAmount;
+  const cls = diff > 0 ? 'adv-diff-topup' : diff < 0 ? 'adv-diff-return' : 'adv-diff-even';
+  const msg = diff > 0 ? t('Over the advance by {amt} — a top-up will be owed to you.', { amt: liveAmt(diff) })
+    : diff < 0 ? t('Under the advance by {amt} — you will return this balance.', { amt: liveAmt(-diff) })
+    : t('Exactly matches the advance.');
+  return `<div class="adv-diff ${cls}">
+      <div class="adv-diff-row"><span>${esc(t('Advance received'))}</span><strong>${esc(liveAmt(advanceAmount))}</strong></div>
+      <div class="adv-diff-row"><span>${esc(t('Total spent'))}</span><strong id="advSpent">${esc(liveAmt(spent))}</strong></div>
+      <div class="adv-diff-msg" id="advDiffMsg">${esc(msg)}</div>
+    </div>`;
+}
+function openRealizeModal(advance) {
+  const isEdit = advance.status === 'rejected_realize';
+  claimEditId = advance.id;
+  rcAttachBase = '/api/cash-advances';
+  if (isEdit && (advance.lines || []).length) {
+    claimRows = advance.lines.map(l => ({
+      line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
+      amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
+      files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
+    }));
+    if (!claimRows.length) claimRows = [blankClaimRow(todayWIB())];
+  } else {
+    claimRows = [blankClaimRow(todayWIB())];
+  }
+  openModal(`
+    <div class="modal-head">
+      <h2>${esc(t('Realize cash advance {no}', { no: advance.advance_no }))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="realizeForm" class="form">
+        <div class="meal-topbar">
+          <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
+        </div>
+        <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('Account for the advance: one row per expense, with that expense\'s receipts attached (PDF or images, up to 8 per row).'))}</p>
+        <div id="advDiffWrap">${realizeDiffBanner(advance.amount)}</div>
+        <p class="form-error" id="claimError" hidden></p>
+        <div class="meal-scroll">
+          <div class="meal-table-wrap">
+            <table class="meal-table rc-table">
+              <colgroup>
+                <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
+              </colgroup>
+              <thead><tr>
+                <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
+                <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
+                <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+              </tr></thead>
+              <tbody id="rcRows"></tbody>
+              <tfoot><tr>
+                <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
+                <td class="meal-total" id="rcTotal">0</td>
+                <td colspan="3"></td>
+              </tr></tfoot>
+            </table>
+          </div>
+          ${approver1PickerHtml(isEdit ? advance : null)}
+          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
+            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+        </div>
+        <div class="modal-actions meal-foot">
+          <button type="button" class="btn btn-ghost" id="cancelRealize">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Submit realization'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#cancelRealize').addEventListener('click', closeModal);
+  $('#rcAddRow').addEventListener('click', () => { readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows(); });
+  // Refresh the difference banner whenever the line total changes.
+  rcTotalHook = () => {
+    const spent = claimTotal();
+    const sp = $('#advSpent'); if (sp) sp.textContent = liveAmt(spent);
+    const wrap = $('#advDiffWrap'); if (wrap) wrap.innerHTML = realizeDiffBanner(advance.amount);
+  };
+  $('#realizeForm').addEventListener('submit', e => submitRealization(e, advance));
+  renderClaimRows();
+}
+
+async function submitRealization(e, advance) {
+  e.preventDefault();
+  readClaimRows();
+  const err = $('#claimError'); err.hidden = true;
+  const rows = claimRows.filter(r =>
+    r.line_date || r.db_no || String(r.expense_type || '').trim() || r.description
+    || rcAmt(r.amount) || (r.files || []).length || (r.kept || []).length);
+  if (!rows.length) { err.textContent = t('Add at least one expense line with a date, type and amount.'); err.hidden = false; return; }
+  const rowType = (r) => r.expense_type === 'Others' ? String(r.expense_type_other || '').trim() : String(r.expense_type || '').trim();
+  for (const r of rows) {
+    if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
+    if (r.expense_type === 'Others' && !String(r.expense_type_other || '').trim()) {
+      err.textContent = t('Please specify the expense type for the "Others" row.'); err.hidden = false; return;
+    }
+    if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
+    if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
+  }
+  const earliest = claimEarliest();
+  if (earliest && rows.some(r => String(r.line_date || '') < earliest)) {
+    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest }); err.hidden = false; return;
+  }
+  const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
+  const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
+  if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
+  const isEdit = advance.status === 'rejected_realize';
+  const btn = e.target.querySelector('button[type="submit"]');
+  const label = btn.textContent;
+  btn.disabled = true;
+  try {
+    if (rows.some(r => (r.files || []).length)) btn.textContent = t('Uploading receipts…');
+    const lines = [];
+    for (const r of rows) {
+      const uploaded = (r.files || []).length ? await uploadReceipts(r.files) : [];
+      lines.push({
+        line_date: r.line_date, db_no: r.db_no, expense_type: rowType(r),
+        amount: r.amount, description: r.description,
+        attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
+      });
+    }
+    const payload = { lines };
+    if (needsApprover1) payload.approver1 = Number(approver1);
+    btn.textContent = t('Submitting…');
+    if (isEdit) {
+      payload.resubmit_note = String((new FormData(e.target).get('resubmit_note') || '')).trim();
+      await api('/cash-advances/' + advance.id + '/realize', { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await api('/cash-advances/' + advance.id + '/realize', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    toast(t('Realization submitted'));
+    closeModal(); closeDrawer(); loadAll();
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; btn.textContent = label; }
+}
+
+// Settle a fully-approved realization (finance records the top-up / return).
+function openSettleModal(c) {
+  const diff = (c.realized_total || 0) - (c.amount || 0);
+  const line = diff > 0 ? t('A top-up of {amt} is owed to the employee.', { amt: money(diff, c.currency) })
+    : diff < 0 ? t('The employee returns {amt}.', { amt: money(-diff, c.currency) })
+    : t('The advance and the actual spend match exactly.');
+  openModal(`
+    <div class="modal-head"><h2>${esc(t('Settle {no}', { no: c.advance_no }))}</h2><button class="x-btn">×</button></div>
+    <div class="modal-body">
+      <form id="settleForm" class="form">
+        <dl class="kv">
+          <dt>${esc(t('Advance paid'))}</dt><dd>${esc(money(c.amount, c.currency))}</dd>
+          <dt>${esc(t('Total realized'))}</dt><dd>${esc(money(c.realized_total, c.currency))}</dd>
+          <dt>${esc(t('Difference'))}</dt><dd>${esc(money(Math.abs(diff), c.currency))}</dd>
+        </dl>
+        <p class="muted" style="margin:6px 0">${esc(line)}</p>
+        <label class="full">${esc(t('Settlement note (optional)'))}
+          <input name="note" placeholder="${esc(t('e.g. top-up paid / balance received on…'))}" /></label>
+        <p class="form-error" id="settleErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="settleCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Confirm settlement'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#settleCancel').addEventListener('click', closeModal);
+  $('#settleForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const note = String((new FormData(e.target).get('note') || '')).trim();
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      await api('/cash-advances/' + c.id + '/settle', { method: 'POST', body: JSON.stringify({ note }) });
+      toast(t('Cash advance settled'));
+      closeModal(); closeDrawer(); loadAll();
+    } catch (ex) { const el = $('#settleErr'); el.textContent = ex.message; el.hidden = false; btn.disabled = false; }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Reject modal
 // ---------------------------------------------------------------------------
 // Mark as paid — a payment date must be chosen before the claim can be recorded
@@ -2375,7 +3503,7 @@ function openPaidModal(c) {
     e.preventDefault();
     const payment_date = dateEl.value;
     if (!payment_date) return;
-    const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+    const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
     try {
       await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
       toast(t('Marked as paid'));
@@ -2404,7 +3532,7 @@ function openRejectModal(c) {
   $('#rejectForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const comment = new FormData(e.target).get('comment').trim();
-    const base = c.type === 'meal' ? '/meal-claims/' : '/claims/';
+    const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
     try {
       await api(`${base}${c.id}/reject`, { method: 'POST', body: JSON.stringify({ comment }) });
       toast(t('Claim returned to claimant'));
@@ -2438,6 +3566,12 @@ async function openExportModal() {
           <label>${esc(t('From date'))}<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
           <label>${esc(t('To date'))}<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
         </div>
+        <div class="date-presets">
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="month" data-off="0">${esc(t('This month'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="month" data-off="1">${esc(t('Last month'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="0">${esc(t('This year'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="1">${esc(t('Last year'))}</button>
+        </div>
         <div class="grid2 export-groups">
           <div class="export-group">
             <div class="section-label">${esc(t('Statuses to include'))}</div>
@@ -2451,6 +3585,7 @@ async function openExportModal() {
             <div class="check-group">
               <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> ${esc(t('Reimbursement claims'))}</label>
               <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> ${esc(t('Meal allowances'))}</label>
+              <label class="check-item"><input type="checkbox" name="types" value="advance" checked /> ${esc(t('Cash advances (realized)'))}</label>
             </div>
           </div>
         </div>
@@ -2481,6 +3616,23 @@ async function openExportModal() {
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#exportCancel').addEventListener('click', closeModal);
 
+  // Quick date presets: fill From/To with this or last calendar month / year.
+  // Dates are formatted from local components (not toISOString) so the day never
+  // shifts. `off` steps back one period; a 0 day rolls to the period's last day.
+  const ymd = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  $$('.date-presets button').forEach(b => b.addEventListener('click', () => {
+    const now = new Date();
+    const off = Number(b.dataset.off) || 0;
+    const first = b.dataset.unit === 'year'
+      ? new Date(now.getFullYear() - off, 0, 1)
+      : new Date(now.getFullYear(), now.getMonth() - off, 1);
+    const last = b.dataset.unit === 'year'
+      ? new Date(now.getFullYear() - off, 11, 31)
+      : new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
+    $('#exportForm [name="from"]').value = ymd(first);
+    $('#exportForm [name="to"]').value = ymd(last);
+  }));
+
   // Excel-style user filter: search narrows the list; Select all / Clear act on
   // whatever rows are currently visible.
   const list = $('#ufList');
@@ -2506,7 +3658,7 @@ async function openExportModal() {
     if (from && to && from > to) { err.textContent = t('The “from” date is after the “to” date.'); err.hidden = false; return; }
     const p = new URLSearchParams();
     if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
-    if (types.length < 2) p.set('types', types.join(','));
+    if (types.length < 3) p.set('types', types.join(','));
     if (emps.length < users.length) p.set('employees', emps.join(','));
     if (from) p.set('from', from);
     if (to) p.set('to', to);
@@ -2522,39 +3674,51 @@ async function openExportModal() {
 // ---------------------------------------------------------------------------
 $('#profileBtn').addEventListener('click', () => openProfileModal());
 
-// Bank name is picked from a short list (BCA / Others). "Others" reveals a free
-// text field for the actual bank name and shows a red fee note, since any
-// non-BCA payout is charged IDR 2,500. Returns the markup; wiring is done by
-// wireBankNameField after the modal is in the DOM.
-function bankNameField(current) {
+// Bank name is picked from a short list (the region's preferred bank / Others).
+// "Others" reveals a free text field for the actual bank name and shows a red
+// fee note, since payouts to any non-preferred bank are charged the region's
+// configured fee. The preferred bank and fee come from the account's region
+// (Settings → per-region defaults); both fall back to the legacy BCA / IDR 2,500
+// policy. `prefs` is { preferredBank, bankFee, currency }. Returns the markup;
+// wiring is done by wireBankNameField after the modal is in the DOM.
+function bankNameField(current, prefs) {
+  const p = prefs || {};
+  const preferred = String(p.preferredBank || 'BCA').trim() || 'BCA';
+  const fee = Number.isFinite(p.bankFee) ? p.bankFee : 2500;
+  const currency = p.currency || regionCurrency();
   const cur = String(current || '').trim();
-  const isBca = cur.toLowerCase() === 'bca';
-  const isOther = !!cur && !isBca;
-  const choice = isBca ? 'BCA' : (isOther ? 'Others' : 'BCA'); // default to BCA when unset
+  const isPreferred = cur.toLowerCase() === preferred.toLowerCase();
+  const isOther = !!cur && !isPreferred;
+  const choice = isPreferred ? 'PREF' : (isOther ? 'Others' : 'PREF'); // default to preferred when unset
+  const feeNote = fee > 0
+    ? `<p class="fee-note" id="bankFeeNote" ${choice === 'PREF' ? 'hidden' : ''}>${esc(t('⚠ A fee of {fee} is charged for every payment to a non-preferred bank account.', { fee: money(fee, currency) }))}</p>`
+    : '';
   return `
     <label>${esc(t('Bank name'))}
-      <select name="bank_choice" id="bankChoice">
-        <option value="BCA" ${choice === 'BCA' ? 'selected' : ''}>BCA</option>
+      <select name="bank_choice" id="bankChoice" data-preferred="${esc(preferred)}">
+        <option value="PREF" ${choice === 'PREF' ? 'selected' : ''}>${esc(preferred)}</option>
         <option value="Others" ${choice === 'Others' ? 'selected' : ''}>${esc(t('Others'))}</option>
       </select></label>
     <label id="bankOtherWrap" ${choice === 'Others' ? '' : 'hidden'}>${esc(t('Bank name (please specify)'))}
       <input name="bank_name_custom" id="bankNameCustom" value="${isOther ? esc(cur) : ''}" placeholder="${esc(t('Enter your bank name'))}" /></label>
-    <p class="fee-note" id="bankFeeNote" ${choice === 'BCA' ? 'hidden' : ''}>${esc(t('⚠ A fee of IDR 2,500 is charged for every payment to a non-BCA bank account.'))}</p>`;
+    ${feeNote}`;
 }
 // Toggle the custom field + fee note as the bank choice changes. Returns a
-// getter for the effective bank name to use on submit.
+// getter for the effective bank name to use on submit (the region's preferred
+// bank name when "PREF" is selected, else the typed custom name).
 function wireBankNameField() {
   const choice = $('#bankChoice');
   if (!choice) return () => '';
+  const preferred = choice.getAttribute('data-preferred') || '';
   const wrap = $('#bankOtherWrap'), custom = $('#bankNameCustom'), note = $('#bankFeeNote');
   const sync = () => {
     const other = choice.value === 'Others';
     wrap.hidden = !other;
-    note.hidden = choice.value === 'BCA';
+    if (note) note.hidden = !other;
   };
   choice.addEventListener('change', () => { sync(); if (choice.value === 'Others' && custom) custom.focus(); });
   sync();
-  return () => choice.value === 'BCA' ? 'BCA' : String((custom && custom.value) || '').trim();
+  return () => choice.value === 'Others' ? String((custom && custom.value) || '').trim() : preferred;
 }
 
 async function openProfileModal() {
@@ -2568,8 +3732,10 @@ async function openProfileModal() {
         <div class="section-label">${esc(t('Contact'))}</div>
         <label>${esc(t('Email (used for password resets & notifications)'))}
           <input name="email" type="email" value="${esc(me.email || '')}" placeholder="${esc(t('you@company.com'))}" /></label>
+        ${me.region ? `<div class="section-label" style="margin-top:14px">${esc(t('Region'))}</div>
+        <p class="muted" style="margin:0">${esc(regionLabel(me.region))} <span style="font-size:.8rem">— ${esc(t('set by your administrator'))}</span></p>` : ''}
         <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
-        ${bankNameField(me.bank_name)}
+        ${bankNameField(me.bank_name, { preferredBank: me.preferredBank, bankFee: me.bankFee, currency: me.currency })}
         <label>${esc(t('Recipient bank account name'))}<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="${esc(t('Name on the account'))}" /></label>
         <label>${esc(t('Bank account number'))}<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="${esc(t('Account number'))}" /></label>
         <p class="form-note caution">${esc(t('The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.'))}</p>
@@ -2630,13 +3796,36 @@ async function openProfileModal() {
 // ---------------------------------------------------------------------------
 // Admin: Settings (accounts, departments, positions, expense types)
 // ---------------------------------------------------------------------------
+// Tabs inside a region workspace. Regions themselves live one level up (the
+// Regions landing), so there is no Regions tab here.
 const SETTINGS_TABS = [
-  { key: 'accounts', label: 'Accounts' },
-  { key: 'departments', label: 'Departments' },
-  { key: 'positions', label: 'Job positions' },
-  { key: 'expense-types', label: 'Expense types' },
-  { key: 'claim-window', label: 'Claim window' }
+  { key: 'accounts', label: 'Accounts', accounts: true },
+  { key: 'departments', label: 'Departments', cap: 'manage_settings' },
+  { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
+  { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
+  { key: 'meal-rates', label: 'Meal allowance', cap: 'manage_settings' },
+  { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
+  { key: 'region-prefs', label: 'Currency, time zone & bank', regionPrefs: true },
+  { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
+// Tabs visible to the current user. The Roles matrix is open to Super Admins and
+// CM/MD (admins), who may edit the rows below their own; the rest need the
+// matching capability.
+function visibleSettingsTabs() {
+  const u = state.user;
+  const isSuper = u && u.role === 'superadmin';
+  const isCmMd = u && u.role === 'admin';
+  return SETTINGS_TABS.filter(tab => {
+    if (tab.roleMatrix) return isSuper || isCmMd;
+    // Currency & time zone: Super Admins (any region) and CM/MD (their own).
+    if (tab.regionPrefs) return isSuper || isCmMd;
+    // Accounts: Super Admins get the full editor; anyone who can create or manage
+    // accounts (CM/MD, delegated seniors) gets the delegated view of the tab.
+    if (tab.accounts) return isSuper || uCan('create_accounts') || !!(u && u.can_manage_accounts);
+    if (tab.super) return isSuper;
+    return tab.cap ? uCan(tab.cap) : true;
+  });
+}
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
@@ -2644,35 +3833,111 @@ $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 // "Manage accounts" screen; superadmins use full Settings instead.
 $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 
-// Human-readable role labels used across the account tables.
-const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Admin', employee: 'Employee' };
-const roleLabel = (r) => t(ROLE_LABELS[r] || r);
+// Human-readable role labels used across the account tables. These are the
+// system's formal role/position titles and are intentionally shown in English
+// in every language (like "Super Admin" and "Managing Director"), so roleLabel
+// deliberately does NOT run them through t(). Other uses of words like
+// "Employee"/"Finance" (e.g. the Insights filter) still localise normally.
+const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Country Manager / Managing Director', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
+const roleLabel = (r) => ROLE_LABELS[r] || r;
+// Display label for an account/claim region: '*' -> All regions, '' -> em dash.
+const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');
 // Creation-audit sub-line for the account tables: who created this account, or
 // "—" for accounts made directly (seed scripts) or before creator tracking.
 const creatorLine = (u) =>
   `<div class="u-sub u-creator">${u.created_by_name ? esc(t('Created by {name}', { name: u.created_by_name })) : t('Created by {name}', { name: '—' })}</div>`;
 
+// Settings entry point. A super admin first picks a region (the Regions
+// landing); everyone else is pinned to their own region and drops straight into
+// that region's workspace.
 function openSettingsModal() {
+  const u = state.user;
+  const isSuper = u && u.role === 'superadmin';
+  if (!isSuper) settingsState.region = String(u.region || '');
+  if (isSuper && !settingsState.region) return openRegionsLanding();
+  return openRegionWorkspace();
+}
+
+// Regions landing (super admin): cards to enter a region's workspace, plus the
+// full region list manager (add / rename / enable-disable / delete) below.
+function openRegionsLanding() {
   openModal(`
     <div class="modal-head">
-      <h2>${esc(t('Settings'))}</h2>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn btn-indigo-soft btn-sm" id="testEmailBtn">${esc(t('Send test email'))}</button>
-        <button class="x-btn">×</button>
+      <h2>${esc(t('Regions'))}</h2>
+      <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
+    </div>
+    <div class="modal-body"><div id="settingsPanel"></div></div>`);
+  // Frozen-header model: the intro + region cards + add/search bar stay put
+  // while the region table scrolls. renderRegionsLanding lays out #settingsPanel
+  // so the table is a direct scrolling child (see there).
+  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  renderRegionsLanding();
+}
+
+async function renderRegionsLanding() {
+  const panel = $('#settingsPanel');
+  panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
+  let items;
+  try { ({ items } = await api('/regions')); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const active = items.filter(r => r.active);
+  // Render the region-list manager straight into the panel first, so its table
+  // (.settings-list) is a direct flex child of #settingsPanel and owns the
+  // scroll. Then pin a frozen header (intro + region cards + the "Manage
+  // regions" label) above it — .settings-controls (add + search) stays frozen
+  // too, so only the table scrolls.
+  await renderLookupTab({ path: '/regions', noun: 'region' }, '#settingsPanel');
+  const header = `
+    <div class="region-landing-head">
+      <p class="muted" style="margin:0 0 14px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
+      <div class="region-grid">
+        ${active.length ? active.map(r => `
+          <button type="button" class="region-card" data-region="${esc(r.name)}">
+            <span class="region-card-name">${esc(r.name)}</span>
+            <span class="region-card-go" aria-hidden="true">→</span>
+          </button>`).join('') : `<p class="muted">${esc(t('No regions yet. Add one below.'))}</p>`}
       </div>
+      <div class="section-label" style="margin-top:20px">${esc(t('Manage regions'))}</div>
+    </div>`;
+  panel.insertAdjacentHTML('afterbegin', header);
+  $$('#settingsPanel .region-card').forEach(c => c.addEventListener('click', () => {
+    settingsState.region = c.dataset.region;
+    settingsState.tab = 'accounts';
+    openRegionWorkspace();
+  }));
+}
+
+// A region's workspace: tabs for that region's settings. Super admins get a
+// "← Regions" button to go back and switch regions; region-pinned managers do
+// not (they only ever see their own).
+function openRegionWorkspace() {
+  const u = state.user;
+  const isSuper = u && u.role === 'superadmin';
+  const region = settingsState.region;
+  const tabs = visibleSettingsTabs();
+  if (!tabs.some(x => x.key === settingsState.tab)) settingsState.tab = tabs.length ? tabs[0].key : 'roles';
+  openModal(`
+    <div class="modal-head">
+      <div class="ws-head">
+        ${isSuper ? `<button type="button" class="btn btn-ghost btn-sm ws-back" id="wsBack">← ${esc(t('Regions'))}</button>` : ''}
+        <h2>${esc(t('Settings'))}${region ? ` <span class="ws-region">${esc(region)}</span>` : ''}</h2>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
     </div>
     <div class="modal-body">
       <div class="tabs" id="settingsTabs">
-        ${SETTINGS_TABS.map(tab =>
+        ${tabs.map(tab =>
           `<button class="tab ${tab.key === settingsState.tab ? 'active' : ''}" data-tab="${tab.key}">${esc(t(tab.label))}</button>`).join('')}
       </div>
       <div id="settingsPanel"></div>
     </div>`);
   $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#testEmailBtn').addEventListener('click', sendTestEmail);
+  const back = $('#wsBack');
+  if (back) back.addEventListener('click', () => { settingsState.region = null; openRegionsLanding(); });
   $$('#settingsTabs .tab').forEach(b =>
-    b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openSettingsModal(); }));
+    b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openRegionWorkspace(); }));
   renderSettingsTab();
 }
 
@@ -2695,10 +3960,13 @@ function renderSettingsTab() {
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
+  if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
+  if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
+  if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
-    departments: { path: '/departments', noun: 'department', purposes: true },
-    positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true },
-    'expense-types': { path: '/expense-types', noun: 'expense type' }
+    departments: { path: '/departments', noun: 'department', purposes: true, regional: true },
+    positions: { path: '/positions', noun: 'job position', purposes: true, ranked: true, manage: true, regional: true },
+    'expense-types': { path: '/expense-types', noun: 'expense type', regional: true }
   }[settingsState.tab];
   return renderLookupTab(cfg);
 }
@@ -2708,10 +3976,13 @@ function renderSettingsTab() {
 // date. Both may be set; the effective floor shown is whichever is later.
 async function renderClaimWindowTab() {
   const panel = $('#settingsPanel');
+  // Scoped to the workspace region. This is a separate context from the logged-in
+  // user's own claim limit (state.claimLimit, set by loadLookups), so it must not
+  // overwrite it.
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
   let cw;
-  try { cw = await api('/claim-window'); }
+  try { cw = await api('/claim-window' + regionQS); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  state.claimLimit = cw;
   const status = cw.earliest
     ? t('Only expenses dated {date} or later can be claimed.', { date: cw.earliest })
     : t('No date limit is set — expenses of any date can be claimed.');
@@ -2739,21 +4010,222 @@ async function renderClaimWindowTab() {
     const err = $('#cwErr'); err.hidden = true;
     const fd = new FormData(e.target);
     try {
-      const updated = await api('/claim-window', { method: 'PUT', body: JSON.stringify({
-        max_age_days: fd.get('max_age_days'), earliest_date: fd.get('earliest_date')
+      await api('/claim-window', { method: 'PUT', body: JSON.stringify({
+        max_age_days: fd.get('max_age_days'), earliest_date: fd.get('earliest_date'),
+        ...(settingsState.region ? { region: settingsState.region } : {})
       }) });
-      state.claimLimit = updated;
       toast(t('Claim date limit saved'));
       renderClaimWindowTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 }
 
-// --- Generic lookup manager (departments / positions / expense types) --------
-async function renderLookupTab(cfg) {
+// --- Meal allowance rates (per-region dropdown presets) ----------------------
+// Editor for the preset amounts the Meal Allowance form's Amount dropdown offers,
+// scoped to the workspace region. Each preset is an optional label + an amount.
+// Saved via PUT /api/meal-rates; open to anyone with manage_settings.
+let mealRatesEdit = [];
+function mealRateEditRowHtml(n, i) {
+  return `<div class="mr-row" data-i="${i}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+    <input name="amount" class="mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" style="flex:1;min-width:0;margin:0" />
+    <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button>
+  </div>`;
+}
+function readMealRateEdit() {
+  mealRatesEdit = $$('#mrRows [data-i]').map(el => mealAmount(el.querySelector('[name="amount"]').value));
+}
+function renderMealRateRows() {
+  $('#mrRows').innerHTML = mealRatesEdit.length
+    ? mealRatesEdit.map(mealRateEditRowHtml).join('')
+    : `<p class="muted" style="margin:4px 0">${esc(t('No amounts yet — add one below.'))}</p>`;
+  $$('#mrRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+    readMealRateEdit(); mealRatesEdit.splice(+b.dataset.rm, 1); renderMealRateRows();
+  }));
+  // Group digits as the admin types, like the amount fields elsewhere.
+  $$('#mrRows .mr-amt').forEach(inp => inp.addEventListener('input', () => {
+    const pos = inp.value.length; inp.value = groupAmount(inp.value);
+    // Keep the caret at the end (grouping shifts characters); good enough here.
+    void pos;
+  }));
+}
+async function renderMealRatesTab() {
   const panel = $('#settingsPanel');
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  let data;
+  try { data = await api('/meal-rates' + regionQS); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  mealRatesEdit = (data.rates || []).slice();
+  if (!mealRatesEdit.length) mealRatesEdit = [0];
+  panel.innerHTML = `
+    <div class="settings-controls" style="max-width:320px">
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the preset amounts the Meal Allowance form offers in its Amount dropdown.'))}</p>
+      <div id="mrRows"></div>
+      <div style="margin-top:6px">
+        <button type="button" class="btn btn-brand-soft btn-sm" id="mrAddRow">${esc(t('+ Add amount'))}</button>
+      </div>
+      <p class="form-error" id="mrErr" hidden style="margin-top:12px"></p>
+      <div class="modal-actions" style="justify-content:flex-start;margin-top:14px">
+        <button type="button" class="btn btn-primary btn-sm" id="mrSave">${esc(t('Save'))}</button>
+      </div>
+    </div>`;
+  renderMealRateRows();
+  $('#mrAddRow').addEventListener('click', () => {
+    readMealRateEdit(); mealRatesEdit.push(0); renderMealRateRows();
+  });
+  $('#mrSave').addEventListener('click', async () => {
+    const err = $('#mrErr'); err.hidden = true;
+    readMealRateEdit();
+    // Keep only rows with a positive amount; a blank row is simply dropped.
+    const rates = mealRatesEdit.filter(n => n > 0);
+    try {
+      const saved = await api('/meal-rates', { method: 'PUT', body: JSON.stringify({
+        rates, ...(settingsState.region ? { region: settingsState.region } : {})
+      }) });
+      // If this is the signed-in user's own region, refresh the presets the meal
+      // form uses so a new claim reflects the change without a reload.
+      if (!settingsState.region || settingsState.region === state.user.region) {
+        state.mealRates = saved.rates || [];
+      }
+      toast(t('Meal allowance amounts saved'));
+      renderMealRatesTab();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  });
+}
+
+// --- Currency & time zone (per-region defaults) ------------------------------
+// Country Managers / Managing Directors (their own region) and Super Admins (any
+// region) set the region's default currency — stamped onto new claims — and its
+// default time zone, which decides what counts as "today" for claim dates. Both
+// are simple dropdowns saved via PUT /api/region-prefs.
+const CURRENCY_NAMES = {
+  IDR: 'Indonesian rupiah', USD: 'US dollar', THB: 'Thai baht', VND: 'Vietnamese đồng',
+  KHR: 'Cambodian riel', MYR: 'Malaysian ringgit', KRW: 'South Korean won'
+};
+async function renderRegionPrefsTab() {
+  const panel = $('#settingsPanel');
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  let data;
+  try { data = await api('/region-prefs' + regionQS); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const curOpts = (data.currencies || []).map(c =>
+    `<option value="${esc(c)}" ${c === data.currency ? 'selected' : ''}>${esc(c)}${CURRENCY_NAMES[c] ? ` — ${esc(t(CURRENCY_NAMES[c]))}` : ''}</option>`).join('');
+  const tzOpts = (data.timezones || []).map(z => {
+    const off = tzOffsetLabel(z);
+    return `<option value="${esc(z)}" ${z === data.timezone ? 'selected' : ''}>${esc(z)}${off ? ` (${esc(off)})` : ''}</option>`;
+  }).join('');
+  const feeCur = esc(data.currency || 'IDR');
+  panel.innerHTML = `
+    <div class="settings-controls" style="max-width:560px">
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.', { region: settingsState.region || t('this region') }))}</p>
+      <form id="rpForm" class="form">
+        <label>${esc(t('Default currency'))}
+          <select name="currency">${curOpts}</select>
+        </label>
+        <label>${esc(t('Default time zone'))}
+          <select name="timezone">${tzOpts}</select>
+        </label>
+        <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
+        <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Payments to the preferred bank are free; all other banks are charged this fee. This shows on each employee’s profile.'))}</p>
+        <label>${esc(t('Preferred bank (no transfer fee)'))}
+          <input name="bank" value="${esc(data.preferredBank || '')}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" />
+        </label>
+        <label>${esc(t('Fee for payments to other banks'))} (<span id="rpFeeCur">${feeCur}</span>)
+          <input name="bankFee" type="number" min="0" step="1" inputmode="numeric" value="${esc(String(data.bankFee != null ? data.bankFee : ''))}" />
+        </label>
+        <p class="form-error" id="rpErr" hidden></p>
+        <div class="modal-actions" style="justify-content:flex-start">
+          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
+        </div>
+      </form>
+    </div>`;
+  // Keep the fee's currency hint in sync with the chosen default currency, so it
+  // reflects the pending selection before the form is even saved.
+  const rpCur = $('#rpForm [name="currency"]'), rpFeeCur = $('#rpFeeCur');
+  if (rpCur && rpFeeCur) rpCur.addEventListener('change', () => { rpFeeCur.textContent = rpCur.value; });
+  $('#rpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#rpErr'); err.hidden = true;
+    const fd = new FormData(e.target);
+    try {
+      await api('/region-prefs', { method: 'PUT', body: JSON.stringify({
+        currency: fd.get('currency'), timezone: fd.get('timezone'),
+        bank: fd.get('bank'), bankFee: Number(fd.get('bankFee')),
+        ...(settingsState.region ? { region: settingsState.region } : {})
+      }) });
+      toast(t('Saved'));
+      // If the actor edited their own region, refresh so new-claim defaults and
+      // date formatting pick up the change without a reload.
+      if (state.user && String(state.user.region || '') === String(settingsState.region || '')) {
+        try { const { user } = await api('/me'); if (user) state.user = { ...state.user, ...user }; } catch { /* keep going */ }
+      }
+      renderRegionPrefsTab();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  });
+}
+
+// --- Roles: region-scoped capability matrix ----------------------------------
+// Rows are capabilities; columns are the region's roles (Super Admin is never
+// shown — it always holds every permission). The Employee column is shown
+// locked for reference; Country Manager / MD, Mid Management, Low Management,
+// and Finance are editable by a Super Admin and persist immediately via PUT.
+// Grants are additive on top of job-position / department / flag permissions,
+// and apply only within the selected region.
+async function renderRolesTab() {
+  const panel = $('#settingsPanel');
+  const region = settingsState.region;
+  let data;
+  try { data = await api('/role-permissions' + (region ? `?region=${encodeURIComponent(region)}` : '')); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const { capabilities, roles, editableRoles, matrix } = data;
+  const editable = new Set(editableRoles || []);
+  const head = `<th>${esc(t('Capability'))}</th>`
+    + roles.map(r => `<th style="text-align:center;width:120px">${esc(roleLabel(r))}${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
+  const cell = (cap, role) => {
+    const on = !!(matrix[role] && matrix[role][cap]);
+    const canEdit = editable.has(role);
+    const title = canEdit ? '' : (role === 'employee'
+      ? t('The Employee baseline is fixed.')
+      : t('Country Manager / Managing Director permissions are set by the Super Admin.'));
+    return `<td class="tick-cell" style="text-align:center"><input type="checkbox" ${canEdit ? `data-role="${role}" data-cap="${cap}"` : 'disabled'} ${on ? 'checked' : ''}${title ? ` title="${esc(title)}"` : ''} /></td>`;
+  };
+  panel.innerHTML = `
+    <div class="settings-controls">
+      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Employee row is shown for reference. These grants are added on top of what a user already gets from their job position and department.', { region: region || t('this region') }))}</p>
+    </div>
+    <div class="settings-list">
+      <table class="utable">
+        <thead><tr>${head}</tr></thead>
+        <tbody>${capabilities.map(c => `
+          <tr>
+            <td data-label="${esc(t('Capability'))}" class="name-cell">
+              <div>${esc(t(c.label))}</div>
+              <div class="u-sub" style="color:var(--muted);font-size:.8rem;font-weight:400">${esc(t(c.desc))}</div>
+            </td>
+            ${roles.map(r => cell(c.key, r)).join('')}
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  $$('#settingsPanel input[data-cap]').forEach(cb => cb.addEventListener('change', async () => {
+    const role = cb.dataset.role, cap = cb.dataset.cap, value = cb.checked;
+    try {
+      await api('/role-permissions', { method: 'PUT', body: JSON.stringify({ region, role, cap, value }) });
+      toast(t('Saved'));
+    } catch (ex) { cb.checked = !value; toast(ex.message, true); }
+  }));
+}
+
+// --- Generic lookup manager (departments / positions / expense types) --------
+async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
+  const panel = $(mountSel);
+  // Regional lookups (departments / positions / expense types) are scoped to the
+  // workspace's region; the region list itself is global. Reads carry ?region;
+  // create/reorder carry it in the body. Edits/deletes are authorised server-side
+  // from the row's own region, so they need nothing extra.
+  const regionScoped = !!(cfg.regional && settingsState.region);
+  const regionQS = regionScoped ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  const regionBody = regionScoped ? { region: settingsState.region } : {};
   let items;
-  try { ({ items } = await api(cfg.path)); }
+  try { ({ items } = await api(cfg.path + regionQS)); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
 
   const p = !!cfg.purposes;         // purpose gates (New claim / New meal allowance)
@@ -2770,10 +4242,10 @@ async function renderLookupTab(cfg) {
         <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
       </div></td>`;
   const headCols = (ranked ? `<th style="width:64px">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th><th>${esc(t('Active'))}</th>`
-    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th>` : '')
+    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th><th>${esc(t('New cash advance'))}</th>` : '')
     + (manage ? `<th>${esc(t('Manage accounts'))}</th>` : '')
     + '<th style="width:220px"></th>';
-  const colspan = 2 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
+  const colspan = 2 + (ranked ? 1 : 0) + (p ? 3 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
@@ -2795,7 +4267,7 @@ async function renderLookupTab(cfg) {
             ${ranked ? orderCell(it, i) : ''}
             <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
             <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
-            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) : ''}
+            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) + flagCell(it, 'allow_advance', t('New cash advance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
             <td class="act-cell" data-label="${esc(t('Actions'))}">
               <div class="u-actions">
@@ -2813,7 +4285,7 @@ async function renderLookupTab(cfg) {
   $('#lookupForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = new FormData(e.target).get('name').trim();
-    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name }) }); toast(t('Added')); refreshAfterSettings(); }
+    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) }); toast(t('Added')); refreshAfterSettings(); }
     catch (ex) { const el = $('#lookupErr'); el.textContent = ex.message; el.hidden = false; }
   });
   $$('#settingsPanel [data-toggle]').forEach(b => b.addEventListener('click', async () => {
@@ -2851,7 +4323,7 @@ async function renderLookupTab(cfg) {
     if (swap < 0 || swap >= items.length) return;
     [items[idx], items[swap]] = [items[swap], items[idx]];
     try {
-      await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id) }) });
+      await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id), ...regionBody }) });
       refreshAfterSettings();
     } catch (ex) { toast(ex.message, true); refreshAfterSettings(); }
   }));
@@ -2883,18 +4355,115 @@ function startInlineRename(cell, it, cfg) {
   });
 }
 
-// Re-render the current tab and keep the claim-form dropdowns in sync.
-function refreshAfterSettings() { loadLookups(); renderSettingsTab(); }
+// Re-render whatever settings view is open and keep the claim-form dropdowns in
+// sync. On the Regions landing (super admin, no region chosen) that's the
+// landing; inside a region workspace it's the active tab.
+function refreshAfterSettings() {
+  loadLookups();
+  const isSuper = state.user && state.user.role === 'superadmin';
+  if (isSuper && !settingsState.region) return renderRegionsLanding();
+  renderSettingsTab();
+}
 
 // --- Accounts (users) --------------------------------------------------------
+// Current sort for the accounts table: key + direction (1 = A→Z, -1 = Z→A).
+let accountsSort = { key: 'full_name', dir: 1 };
+// Sort a copy of the accounts by the active column, always tie-breaking on name.
+function sortAccounts(users) {
+  const { key, dir } = accountsSort;
+  const val = (u) => key === 'active' ? (u.active ? 1 : 0) : String(u[key] || '').toLowerCase();
+  const name = (u) => String(u.full_name || '').toLowerCase();
+  return [...users].sort((a, b) => {
+    const va = val(a), vb = val(b);
+    if (va < vb) return -dir;
+    if (va > vb) return dir;
+    return name(a).localeCompare(name(b));
+  });
+}
+
+// Fetch the accounts once, then paint from cache so re-sorting is instant.
 async function renderAccountsTab() {
   const panel = $('#settingsPanel');
-  let users, positions;
+  const region = settingsState.region;
+  const rQS = region ? `?region=${encodeURIComponent(region)}` : '';
+  let users, positions, depts;
   try {
-    [{ users }, { items: positions }] = await Promise.all([api('/users'), api('/positions')]);
+    [{ users }, { items: positions }, { items: depts }] =
+      await Promise.all([api('/users'), api('/positions' + rQS), api('/departments' + rQS)]);
   } catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   settingsState.positions = positions.map(p => p.name);
-  settingsState.users = users;
+  // The account form's Department picker should reflect this region's list.
+  settingsState.departments = depts.filter(d => d.active).map(d => d.name);
+  // Scope the workspace's account list to this region (All-regions accounts, e.g.
+  // super admins, stay visible everywhere).
+  settingsState.users = region ? users.filter(u => u.region === region || u.region === '*') : users;
+  if (state.user.role === 'superadmin') paintAccounts();
+  else paintDelegatedAccounts();
+}
+
+// The Accounts tab for a non-superadmin (CM/MD or a delegated senior): the same
+// department-scoped, rank-limited team screen as the "Manage accounts" modal —
+// reset passwords / enable-disable your team, plus "+ Add user" for anyone who
+// holds create_accounts. Rendered into the Settings workspace panel.
+function paintDelegatedAccounts() {
+  const panel = $('#settingsPanel');
+  const users = settingsState.users || [];
+  const dept = state.user.department || '';
+  const canCreate = uCan('create_accounts');
+  panel.innerHTML = `
+    <div class="settings-controls">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
+        ${canCreate ? `<button class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : ''}
+      </div>
+      <p class="muted" style="margin:0 0 12px;font-size:.85rem">${canCreate
+        ? esc(t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' }))
+        : esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
+    </div>
+    <div class="settings-list">
+      <table class="utable utable-manage">
+        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
+        <tbody>${users.length ? users.map(u => `
+          <tr>
+            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
+            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Active'))}">${u.active
+                ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
+                : `<span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${maCanManage(u) ? `<div class="u-actions">
+              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
+              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
+            </div>` : '<span class="muted">—</span>'}</td>
+          </tr>`).join('') : `<tr><td colspan="5" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
+      </table>
+    </div>`;
+  wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
+  const addBtn = $('#addUserBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
+  $$('#settingsPanel [data-reset]').forEach(b => b.addEventListener('click', () =>
+    renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
+  $$('#settingsPanel [data-active]').forEach(b => b.addEventListener('click', async () => {
+    const u = users.find(x => x.id == b.dataset.active);
+    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
+    try {
+      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
+      toast(u.active ? t('Account disabled') : t('Account enabled'));
+      renderAccountsTab();
+    } catch (ex) { toast(ex.message, true); }
+  }));
+}
+
+function paintAccounts() {
+  const panel = $('#settingsPanel');
+  const users = settingsState.users || [];
+  const sorted = sortAccounts(users);
+  // A clickable header cell that sorts by `key` and shows the active arrow.
+  const th = (key, label) => {
+    const on = accountsSort.key === key;
+    const arrow = on ? (accountsSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (accountsSort.dir === 1 ? 'ascending' : 'descending') : 'none'}" style="cursor:pointer;user-select:none;white-space:nowrap">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
+  };
 
   panel.innerHTML = `
     <div class="settings-controls">
@@ -2905,12 +4474,13 @@ async function renderAccountsTab() {
     </div>
     <div class="settings-list">
       <table class="utable utable-users">
-        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Role'))}</th><th>${esc(t('Dept / Position'))}</th><th>${esc(t('Active'))}</th><th></th></tr></thead>
-        <tbody>${users.map(u => `
+        <thead><tr>${th('full_name', t('User'))}${th('email', t('Email'))}${th('role', t('Role'))}${th('region', t('Region'))}${th('department', t('Dept / Position'))}${th('active', t('Active'))}<th></th></tr></thead>
+        <tbody>${sorted.map(u => `
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}</td>
+            <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${u.approval_limit_cents == null ? esc(t('Approves any amount')) : esc(t('Approves ≤ {amount}', { amount: money(u.approval_limit_cents / 100) }))}</div></td>
+            <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
             <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
             <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'employee')
@@ -2923,6 +4493,17 @@ async function renderAccountsTab() {
       </table>
     </div>`;
   wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
+  // Clicking (or pressing Enter/Space on) a header sorts by that column; the same
+  // header again flips the direction.
+  const applySort = (key) => {
+    if (accountsSort.key === key) accountsSort.dir *= -1;
+    else accountsSort = { key, dir: 1 };
+    paintAccounts();
+  };
+  $$('#settingsPanel th[data-sort]').forEach(h => {
+    h.addEventListener('click', () => applySort(h.dataset.sort));
+    h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applySort(h.dataset.sort); } });
+  });
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
@@ -3081,12 +4662,21 @@ function renderUserForm(u) {
         <label>${esc(t('Email (for resets & notifications)'))}<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="${esc(t('you@company.com'))}" /></label>
         ${state.user.role === 'superadmin' ? `<label>${esc(t('Role'))}
           <select name="role">
-            <option value="superadmin" ${isEdit && u.role === 'superadmin' ? 'selected' : ''}>${esc(t('Super Admin'))}</option>
-            <option value="admin" ${isEdit && u.role === 'admin' ? 'selected' : ''}>${esc(t('Admin'))}</option>
-            <option value="employee" ${!isEdit || u.role === 'employee' ? 'selected' : ''}>${esc(t('Employee'))}</option>
-          </select></label>` : ''}
+            ${['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
+              `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
+          </select></label>`
+        : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}
+          <select name="role">
+            ${creatableRoles().map((r, i, arr) =>
+              `<option value="${r}" ${i === arr.length - 1 ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
+          </select></label>` : '')}
         <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
         <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
+        ${(state.user.role === 'superadmin' || (!isEdit && state.user.region === '*')) ? `<label>${esc(t('Region'))}
+          <select name="region">
+            ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(isEdit ? u.region === r : r === settingsState.region) ? 'selected' : ''}>${esc(r)}</option>`).join('')}
+            ${state.user.role === 'superadmin' ? `<option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>` : ''}
+          </select></label>` : ''}
         <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
           <div class="pw-wrap">
             <input name="password" type="password" ${isEdit ? '' : 'required'} />
@@ -3095,7 +4685,12 @@ function renderUserForm(u) {
       </div>
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">${esc(t('Permissions'))}</div>
-      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>` : ''}
+      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>
+      <div class="section-label" style="margin-top:8px">${esc(t('Approval limit'))}</div>
+      <label class="perm-check"><input type="checkbox" name="approval_unlimited" ${(isEdit ? u.approval_limit_cents == null : true) ? 'checked' : ''} /> <span>${esc(t('Unlimited — can approve a claim of any amount'))}</span></label>
+      <label id="apprLimitWrap" style="margin-top:8px">${esc(t('Maximum claim amount this account can approve'))}
+        <input name="approval_limit" inputmode="decimal" placeholder="${esc(t('e.g. 5,000,000'))}" value="${(isEdit && u.approval_limit_cents != null) ? esc(String(u.approval_limit_cents / 100)) : ''}" />
+      </label>` : ''}
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">${esc(t('Approver 1 — let the submitter choose from'))}</div>
       <p class="muted" style="font-size:.82rem;margin:0 0 6px">${esc(t('Add two or more accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With one, it\'s used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.'))}</p>
@@ -3125,6 +4720,45 @@ function renderUserForm(u) {
   if (state.user.role === 'superadmin') {
     renderApprover1Options(excludeId);
     $('#addApprover1OptBtn').addEventListener('click', () => { syncApprover1Options(); acctApprover1Options.push(''); renderApprover1Options(excludeId); });
+    // Approval limit: the amount field is only relevant when "Unlimited" is off.
+    const unl = $('#uForm [name="approval_unlimited"]');
+    const amt = $('#uForm [name="approval_limit"]');
+    const wrap = $('#apprLimitWrap');
+    if (unl && amt && wrap) {
+      const syncLimit = () => { const on = unl.checked; amt.disabled = on; wrap.style.opacity = on ? '.5' : '1'; if (on) amt.value = ''; };
+      unl.addEventListener('change', syncLimit); syncLimit();
+    }
+  }
+  // Departments and job positions are per-region now, so when the Region changes
+  // reload its lists and rebuild those two pickers. The current pick is preserved
+  // (optionSelect keeps a value even if it's not in the new region). Runs for any
+  // creator who has a Region select (super admins and all-regions delegates).
+  {
+    const regionSel = $('#uForm select[name="region"]');
+    if (regionSel) regionSel.addEventListener('change', async () => {
+      const region = regionSel.value;
+      const concrete = region && region !== '*';
+      const qs = concrete ? `?region=${encodeURIComponent(region)}` : '';
+      let depts, positions;
+      try {
+        const [d, p] = await Promise.all([api('/departments' + qs), api('/positions' + qs)]);
+        const uniq = (items) => [...new Set((items || []).filter(i => i.active).map(i => i.name))];
+        depts = uniq(d.items); positions = uniq(p.items);
+      } catch (ex) { toast(ex.message, true); return; }
+      // These selects are now wrapped in a .msel; swap the whole wrapper for a
+      // fresh native select and re-enhance it (keeping the current value).
+      const rebuild = (sel, options) => {
+        if (!sel) return;
+        const target = sel.closest('.msel') || sel;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = optionSelect(sel.name, sel.value, options);
+        const fresh = tmp.firstElementChild;
+        target.replaceWith(fresh);
+        enhanceSelect(fresh);
+      };
+      rebuild($('#uForm select[name="department"]'), depts);
+      rebuild($('#uForm select[name="position"]'), positions);
+    });
   }
   $('#uForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3143,22 +4777,38 @@ function renderUserForm(u) {
     if (state.user.role === 'superadmin') {
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
+      payload.region = fd.get('region') || '';
+      const unlimited = fd.get('approval_unlimited') === 'on';
+      const limitAmt = String(fd.get('approval_limit') || '').trim();
+      if (!unlimited && !limitAmt) { const el = $('#uErr'); el.textContent = t('Enter an approval limit or choose Unlimited.'); el.hidden = false; return; }
+      payload.approval_unlimited = unlimited;
+      payload.approval_limit = limitAmt;
+    } else if (!isEdit && state.user.region === '*') {
+      // An all-regions delegate picks the new account's region; a region-scoped
+      // one has it pinned server-side to their own, so no field is sent.
+      payload.region = fd.get('region') || '';
     }
     const pw = fd.get('password');
     if (pw && (!isEdit || pw.length)) payload.password = pw;
     try {
       if (isEdit) await api('/users/' + u.id, { method: 'PUT', body: JSON.stringify(payload) });
       else await api('/users', { method: 'POST', body: JSON.stringify(payload) });
-      closeModal2(); toast(t('User saved')); renderAccountsTab();
+      closeModal2(); toast(t('User saved'));
+      // Refresh whichever account screen is open: the super-admin Settings tab or
+      // the delegated "Manage accounts" modal.
+      if ($('#maBody')) renderManageAccounts(); else renderAccountsTab();
     } catch (ex) { const el = $('#uErr'); el.textContent = ex.message; el.hidden = false; }
   });
 }
 
 // ---------------------------------------------------------------------------
-// Delegated account creation (senior positions — not superadmins)
+// Delegated account management (non-superadmins)
 // ---------------------------------------------------------------------------
-// A user in a senior job position may create accounts for junior positions in
-// their own department. The server enforces the same rules; this is the UI.
+// The team screen non-superadmins get instead of full Settings: reset passwords
+// and enable/disable accounts they may manage (positions ranked below theirs),
+// plus — for anyone granted the create_accounts capability — a "+ Add user" form
+// scoped to their region and to roles below their own. The server enforces the
+// same rules; this is the UI.
 function openManageAccountsModal() {
   openModal(`
     <div class="modal-head">
@@ -3179,11 +4829,18 @@ async function renderManageAccounts() {
   try { ({ users } = await api('/users')); }
   catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const dept = state.user.department || '';
+  const canCreate = uCan('create_accounts');
+  // Keep the approver-combo / creatable-position helpers fed while this modal is
+  // open (they read settingsState); the delegated create form reuses them.
+  settingsState.users = users;
   body.innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
       <input id="maSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
+      ${canCreate ? `<button class="btn btn-primary btn-sm" id="maAddUserBtn">${esc(t('+ Add user'))}</button>` : ''}
     </div>
-    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
+    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${canCreate
+      ? esc(t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' }))
+      : esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
     <div class="settings-list">
       <table class="utable utable-manage">
         <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
@@ -3203,6 +4860,8 @@ async function renderManageAccounts() {
       </table>
     </div>`;
   wireTableSearch($('#maSearch'), '#maBody .settings-list');
+  const addBtn = $('#maAddUserBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
   $$('#maBody [data-reset]').forEach(b => b.addEventListener('click', () =>
     renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
   $$('#maBody [data-active]').forEach(b => b.addEventListener('click', async () => {
@@ -3224,6 +4883,25 @@ function maCanManage(u) {
   if (u.role === 'superadmin') return false;
   const list = (state.user.creatable_positions || []).map(p => p.toLowerCase());
   return list.includes(String(u.position || '').trim().toLowerCase());
+}
+
+// Open the account-creation form for a delegated (non-superadmin) creator who
+// holds the create_accounts capability. Loads their region's department /
+// job-position lists (the form's pickers read settingsState) before opening it.
+// settingsState.users is already populated by the surrounding manage-accounts
+// screen. The server enforces the same region scope and the role-below-self rule.
+async function openDelegatedUserForm() {
+  const region = String(state.user.region || '');
+  settingsState.region = region;
+  const qs = region && region !== '*' ? `?region=${encodeURIComponent(region)}` : '';
+  try {
+    const [{ items: positions }, { items: depts }] = await Promise.all([
+      api('/positions' + qs), api('/departments' + qs)
+    ]);
+    settingsState.positions = positions.map(p => p.name);
+    settingsState.departments = depts.filter(d => d.active).map(d => d.name);
+  } catch (ex) { toast(ex.message, true); return; }
+  renderUserForm(null);
 }
 
 function renderResetPasswordForm(u) {

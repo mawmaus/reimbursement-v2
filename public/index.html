@@ -58,6 +58,7 @@
       </label>
       <button id="newClaimBtn" class="btn btn-primary btn-sm" hidden data-i18n="New claim">New claim</button>
       <button id="newMealBtn" class="btn btn-primary btn-sm" hidden data-i18n="New meal allowance">New meal allowance</button>
+      <button id="newAdvanceBtn" class="btn btn-primary btn-sm" hidden data-i18n="New cash advance">New cash advance</button>
       <button id="exportBtn" class="btn btn-green-soft btn-sm" hidden data-i18n="Export CSV">Export CSV</button>
       <button id="profileBtn" class="btn btn-indigo-soft btn-sm" data-i18n="Profile">Profile</button>
       <button id="accountsBtn" class="btn btn-brand-soft btn-sm" hidden data-i18n="Manage accounts">Manage accounts</button>
@@ -107,7 +108,7 @@
             <option value="paid" data-i18n="Paid">Paid</option>
           </select>
           <select id="deptFilter" class="input"><option value="" data-i18n="All departments">All departments</option></select>
-          <select id="claimantFilter" class="input"><option value="" data-i18n="All claimants">All claimants</option></select>
+          <select id="claimantFilter" class="input" data-search="always"><option value="" data-i18n="All claimants">All claimants</option></select>
         </div>
       </section>
 
@@ -115,8 +116,8 @@
         <span id="selCount" class="sel-count"></span>
         <div class="sel-actions">
           <button id="clearSelBtn" class="btn btn-ghost btn-sm" type="button" data-i18n="Clear">Clear</button>
-          <button id="bulkPaidBtn" class="btn btn-green-soft btn-sm" type="button" hidden data-i18n="Mark as paid">Mark as paid</button>
-          <button id="bulkRevertBtn" class="btn btn-ghost btn-sm" type="button" hidden data-i18n="Revert payment">Revert payment</button>
+          <button id="markPaidSelBtn" class="btn btn-green-soft btn-sm" type="button" hidden data-i18n="Mark as paid">Mark as paid</button>
+          <button id="revertPaidSelBtn" class="btn btn-amber-soft btn-sm" type="button" hidden data-i18n="Revert payment">Revert payment</button>
           <button id="deleteSelBtn" class="btn btn-danger btn-sm" type="button" hidden data-i18n="Delete">Delete</button>
           <button id="genPdfBtn" class="btn btn-primary btn-sm" type="button" data-i18n="Download PDF">Download PDF</button>
         </div>

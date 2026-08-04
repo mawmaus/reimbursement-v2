@@ -19,7 +19,9 @@
   --red-tint:   #f9e4e1;
   --indigo:     #3f5896;
   --indigo-tint:#e6e9f5;
-  --shadow:     0 8px 30px -12px rgba(40,40,45,.26);
+  --shadow:     0 12px 34px -12px rgba(40,40,45,.24);
+  --shadow-sm:  0 1px 2px rgba(23,38,32,.05);
+  --shadow-md:  0 10px 26px -14px rgba(23,38,32,.30);
 
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -78,7 +80,8 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 
 .input, .form input, .form select, .form textarea {
   font: inherit; color: var(--ink); background: var(--surface);
-  border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; width: 100%;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; width: 100%;
+  transition: border-color .14s, box-shadow .14s;
 }
 .input:focus, .form input:focus, .form select:focus, .form textarea:focus {
   outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint);
@@ -131,7 +134,8 @@ input[type="search"] { min-width: 220px; }
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 8px;
-  padding: 11px 22px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 11px 22px; background: rgba(255,255,255,.85); backdrop-filter: saturate(1.4) blur(8px);
+  border-bottom: 1px solid var(--line); box-shadow: var(--shadow-sm);
 }
 /* Brand pushes the action group + Sign out to the right; Sign out stays last. */
 .topbar-left { display: flex; align-items: center; gap: 12px; margin-right: auto; }
@@ -145,6 +149,16 @@ input[type="search"] { min-width: 220px; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 26px 22px 60px; }
 
+/* Fixed-height app shell — ONLY when the claims list is open: the topbar,
+   list header, summary cards, and filter row stay put while only the claim
+   rows scroll, so a long ledger never pushes them off-screen. The home and
+   insights views are untouched and scroll with the page as before. */
+#appView:has(#listView:not([hidden])) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+#appView:has(#listView:not([hidden])) .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding-bottom: 24px; }
+#listView:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#listView .ledger { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#listView #claimRows { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
 /* ---------- Home menu (clean landing) ---------- */
 .home { padding: 8px 0; }
 .home-greeting { color: var(--ink-soft); font-size: 1.05rem; margin: 6px 2px 20px; }
@@ -152,11 +166,11 @@ input[type="search"] { min-width: 220px; }
 .home-tile {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
   text-align: left; padding: 22px 20px; min-height: 128px; cursor: pointer;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,.04));
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow-sm);
   transition: border-color .14s, box-shadow .14s, transform .14s;
 }
-.home-tile:hover { border-color: var(--pine); box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+.home-tile:hover { border-color: var(--pine); box-shadow: var(--shadow-md); transform: translateY(-3px); }
 .home-tile:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
 .home-tile .tile-title { font-size: 1.15rem; font-weight: 650; color: var(--ink); }
 .home-tile .tile-desc { font-size: .88rem; color: var(--muted); }
@@ -197,13 +211,18 @@ input[type="search"] { min-width: 220px; }
   text-transform: uppercase; letter-spacing: .04em;
 }
 .insights-filters .input { min-width: 160px; }
+/* The enhanced dropdown replaces the native <select>; keep its trigger from
+   collapsing to the (narrow) filter-label width so the value stays readable. */
+.insights-filters .msel-trigger { min-width: 160px; }
 .insights-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
-.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
-.kpi-l { font-size: .73rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
-.kpi-v { margin-top: 6px; font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 15px 17px;
+  box-shadow: var(--shadow-sm); }
+.kpi-l { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
+.kpi-v { margin-top: 7px; font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .kpi-sub { font-size: .85rem; font-weight: 650; color: var(--pine-deep); }
 .insights-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; min-width: 0;
+  box-shadow: var(--shadow-sm); }
 .chart-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
 .chart-title { font-size: 1rem; font-weight: 650; }
 .chart-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
@@ -218,13 +237,45 @@ input[type="search"] { min-width: 220px; }
 }
 .seg button.on { background: var(--surface); color: var(--pine-deep); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 
-/* Spend-by-type horizontal bars */
-.type-bars { display: flex; flex-direction: column; gap: 11px; }
-.bar-row { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; }
+/* Spend-by-type horizontal bars (clickable: they drill into the type) */
+.type-bars { display: flex; flex-direction: column; gap: 5px; }
+.bar-row {
+  display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px;
+  width: 100%; text-align: left; border: 1px solid transparent; background: none;
+  font: inherit; color: inherit; cursor: pointer; padding: 6px 8px; border-radius: 9px;
+  transition: background .12s, border-color .12s;
+}
+.bar-row:hover { background: var(--pine-tint); }
+.bar-row:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+.bar-row.on { background: var(--pine-tint); border-color: var(--pine); }
 .bar-label { font-size: .82rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-track { height: 12px; background: var(--line-soft); border-radius: 6px; overflow: hidden; }
 .bar-fill { display: block; height: 100%; background: var(--pine); border-radius: 6px; transition: width .3s ease; }
 .bar-val { font-size: .82rem; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+
+/* Type drill-down (pivot) table — shown in a modal window over the insights
+   page. In the flex modal the title bar stays fixed and this region owns the
+   scroll, so the sticky column headers pin below the title bar, not under it. */
+.type-detail-scroll { overflow-x: auto; }
+.modal-flex .modal-body > .type-detail-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.pivot-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.pivot-table th, .pivot-table td {
+  text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); white-space: nowrap;
+}
+.pivot-table th {
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+  font-weight: 650; position: sticky; top: 0; background: var(--surface);
+}
+.pivot-table td { color: var(--ink-soft); }
+.pivot-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.pivot-table td.num { color: var(--ink); font-weight: 650; }
+.pivot-table th.sortable:hover { color: var(--ink); }
+.pivot-table th.sortable:focus-visible { outline: 2px solid var(--pine); outline-offset: -2px; }
+.pivot-table th .sort-arrow { color: var(--pine); font-size: .82em; }
+.pivot-table tbody tr:last-child td { border-bottom: none; }
+.pivot-table tbody tr.row-open { cursor: pointer; }
+.pivot-table tbody tr.row-open:hover td { background: var(--surface-2, var(--line-soft)); }
+.pivot-table tbody tr.row-open:focus-visible { outline: 2px solid var(--pine); outline-offset: -2px; }
 
 /* Trend line/area chart */
 .trend-chart { position: relative; }
@@ -244,44 +295,57 @@ input[type="search"] { min-width: 220px; }
 .trend-tip .tip-lab { font-size: .7rem; opacity: .75; }
 .trend-tip .tip-val { font-size: .85rem; font-weight: 650; font-variant-numeric: tabular-nums; }
 
-/* ---------- Summary cards ---------- */
+/* ---------- Summary stat cards ---------- */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
 .card {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px;
-  border-left: 3px solid var(--line); min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 14px 16px 15px; min-width: 0; display: flex; flex-direction: column; gap: 9px;
+  box-shadow: 0 1px 2px rgba(23,38,32,.05);
+  transition: box-shadow .16s, border-color .16s, transform .07s, background .16s;
 }
-.card .card-n { font-family: var(--mono); font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums;
-  line-height: 1.12; letter-spacing: -.02em; }
-/* Money totals run long (IDR reaches millions/billions). Size them to fit a
-   150px card so "IDR 1,000,000" wraps at the space into two tidy lines, and
-   only let genuinely huge figures break rather than spill past the border. */
-.card.total .card-n { font-size: 1.3rem; overflow-wrap: anywhere; }
-.card .card-l { font-size: .73rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 650; }
-.card.submitted { border-left-color: var(--amber); }
-.card.approved  { border-left-color: var(--green); }
-.card.rejected  { border-left-color: var(--red); }
-.card.paid      { border-left-color: var(--indigo); }
-.card.total     { border-left-color: var(--pine); }
+/* Label sits on top with a small status dot; the number reads big below it. */
+.card .card-l {
+  order: -1; display: flex; align-items: center; gap: 7px; margin: 0;
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650;
+}
+.card .card-l::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.card .card-n {
+  font-size: 1.95rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1; letter-spacing: -.025em; color: var(--ink);
+}
+/* Total headline is compact (IDR 123.3M) so it reads big like the counts. */
+.card.total .card-n { font-size: 1.95rem; }
+/* Exact figure under the compact headline; muted and tucked close to it. */
+.card .card-sub { font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); margin-top: -4px; overflow-wrap: anywhere; }
+.card.submitted .card-l::before { background: var(--amber); }
+.card.approved  .card-l::before { background: var(--green); }
+.card.rejected  .card-l::before { background: var(--red); }
+.card.paid      .card-l::before { background: var(--indigo); }
+.card.total     .card-l::before { background: var(--pine); }
 
-/* Status cards double as filters: click to narrow the ledger to that status.
-   Hover/active keep each card's coloured left accent (so we lean on background
-   tint + shadow rather than changing border-color). */
-.card-filter { cursor: pointer; user-select: none;
-  transition: background .15s, box-shadow .15s, transform .05s; }
-.card-filter:hover { box-shadow: 0 6px 18px -12px rgba(0,0,0,.4); }
-.card-filter:active { transform: translateY(1px); }
+/* Status cards double as filters: click to narrow the ledger to that status. */
+.card-filter { cursor: pointer; user-select: none; }
+.card-filter:hover { border-color: var(--muted); box-shadow: 0 8px 20px -12px rgba(23,38,32,.32); transform: translateY(-2px); }
+.card-filter:active { transform: translateY(0); }
 .card-filter:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
-.card.submitted.active { background: var(--amber-tint); }
-.card.approved.active  { background: var(--green-tint); }
-.card.rejected.active  { background: var(--red-tint); }
-.card.paid.active      { background: var(--indigo-tint); }
+.card.submitted.active { background: var(--amber-tint); border-color: var(--amber); }
+.card.approved.active  { background: var(--green-tint); border-color: var(--green); }
+.card.rejected.active  { background: var(--red-tint); border-color: var(--red); }
+.card.paid.active      { background: var(--indigo-tint); border-color: var(--indigo); }
 
 /* ---------- Toolbar ---------- */
-.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.toolbar-left, .toolbar-right { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.toolbar-left, .toolbar-right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+/* Filters sit inline on one row: search grows, selects size to their content.
+   (The base .input is width:100% for forms — override that here.) */
+.toolbar-left { flex: 1; }
+.toolbar-left .input { width: auto; }
+.toolbar-left #searchInput { flex: 1 1 260px; min-width: 200px; }
+.toolbar-left select.input { flex: 0 0 auto; }
 
 /* ---------- Ledger ---------- */
-.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(23,38,32,.05); }
 .ledger-head, .ledger-row {
   display: grid;
   grid-template-columns: 4px 36px 130px 1.2fr 120px 1.2fr 110px 130px 120px;
@@ -346,11 +410,16 @@ input[type="search"] { min-width: 220px; }
 .scrim { position: fixed; inset: 0; background: rgba(23,38,32,.42); z-index: 40; animation: fade .16s; }
 @keyframes fade { from { opacity: 0; } }
 .drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); z-index: 50;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(900px, 100%); z-index: 50;
   background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow);
   overflow-y: auto; animation: slidein .2s ease;
 }
 @keyframes slidein { from { transform: translateX(100%); } }
+/* When the claim drawer is opened from the insights drill-down window, it floats
+   above that modal (and its scrim dims it) instead of the modal's usual place on
+   top of the drawer — so closing the drawer returns to the still-open window. */
+.scrim.over-modal { z-index: 60; }
+.drawer.over-modal { z-index: 70; }
 .drawer-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: 18px 22px; display: flex; justify-content: space-between; align-items: flex-start; z-index: 1; }
 .drawer-body { padding: 22px; }
@@ -488,6 +557,49 @@ input[type="search"] { min-width: 220px; }
 .combo-item[aria-selected="true"] { font-weight: 650; }
 .combo-empty { padding: 8px 10px; color: var(--muted); font-size: .85rem; }
 
+/* ---------- Modern select (custom dropdown replacing native <select>) ------- */
+.msel { position: relative; }
+.msel-native { position: absolute !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.msel-trigger {
+  width: 100%; display: flex; align-items: center; font: inherit; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 34px 9px 12px; transition: border-color .14s, box-shadow .14s;
+}
+.msel-trigger:hover { border-color: var(--muted); }
+.msel-trigger:focus-visible, .msel.open .msel-trigger { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.msel-val { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel-val.placeholder { color: var(--muted); }
+.msel::after {
+  content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px;
+  transform: translateY(-70%) rotate(45deg); border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  pointer-events: none; transition: transform .15s;
+}
+.msel.open::after { transform: translateY(-30%) rotate(225deg); border-color: var(--pine); }
+/* Portaled to <body> and fixed-positioned by JS, so the menu escapes any
+   scrolling table or transformed modal and is never clipped. left/top/width are
+   set inline against the trigger's rect. */
+.msel-menu {
+  position: fixed; z-index: 200; padding: 5px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+  max-height: 300px; overflow-y: auto; animation: mselpop .12s ease;
+}
+@keyframes mselpop { from { opacity: 0; transform: translateY(-5px); } }
+.msel-search { position: sticky; top: -5px; background: var(--surface); padding: 1px 1px 6px; margin: -5px -5px 5px; border-bottom: 1px solid var(--line-soft); z-index: 1; }
+.msel-search input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: .88rem; }
+.msel-search input:focus { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.msel-opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: .9rem; color: var(--ink); }
+.msel-opt .msel-lab { flex: 1; white-space: nowrap; }
+.msel-opt .msel-check { flex: none; color: var(--pine-deep); opacity: 0; font-weight: 700; }
+.msel-opt.sel .msel-check { opacity: 1; }
+.msel-opt.sel .msel-lab { font-weight: 650; }
+.msel-opt:hover, .msel-opt.active { background: var(--pine-tint); color: var(--pine-deep); }
+/* Hybrid free-text action row: pick the typed text itself as the filter. */
+.msel-opt.msel-free .msel-lab { color: var(--muted); font-style: italic; }
+.msel-opt.msel-free::before { content: "⌕"; margin-right: 2px; font-style: normal; color: var(--muted); }
+.msel-opt.msel-free:hover .msel-lab, .msel-opt.msel-free.active .msel-lab { color: var(--pine-deep); }
+.msel-empty { padding: 12px 10px; color: var(--muted); font-size: .85rem; text-align: center; }
+.toolbar-left .msel { flex: 0 0 auto; min-width: 172px; }
+
 /* Inline "sum your claim" calculator */
 .calc-panel {
   margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
@@ -548,17 +660,21 @@ input[type="search"] { min-width: 220px; }
 /* Accounts table: keep it inside the modal — long emails wrap instead of
    forcing a horizontal scroll, and the username sits under the name. */
 .utable td, .utable th { overflow-wrap: anywhere; }
-.utable-users { table-layout: fixed; }
-.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 24%; }
-.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 22%; }
-.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 14%; }
-.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 20%; }
-.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 9%; }
-.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 11%; }
-/* Role/Active hold single short words — don't let the global anywhere-break
-   chop "superadmin" or the "Active" header mid-word on narrower tablets. */
+/* Seven columns (User, Email, Role, Region, Dept/Position, Active, Actions);
+   widths sum to 100% so table-layout:fixed never overflows its container. */
+.utable-users { table-layout: fixed; width: 100%; }
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 22%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 20%; }
+.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 11%; }
+.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 12%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 16%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 8%; }
+.utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 11%; }
+/* Role/Region/Active hold single short words — don't let the global
+   anywhere-break chop "Super Admin" / "Active" mid-word on narrower tablets. */
 .utable-users td:nth-child(3), .utable-users th:nth-child(3),
-.utable-users td:nth-child(5), .utable-users th:nth-child(5) { overflow-wrap: normal; }
+.utable-users td:nth-child(4), .utable-users th:nth-child(4),
+.utable-users td:nth-child(6), .utable-users th:nth-child(6) { overflow-wrap: normal; }
 /* Delegated "Manage accounts" table: wider actions column, and its cells must
    never break words (the buttons live here). */
 .utable-manage { table-layout: fixed; }
@@ -582,6 +698,7 @@ input[type="search"] { min-width: 220px; }
 /* checkbox groups (export dialog) — pill toggles that highlight when checked.
    flex-direction:row is explicit to override the generic ".form label" column
    layout, which otherwise stacks the tickbox above its label. */
+.date-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .export-groups { align-items: stretch; margin-top: 6px; }
 .export-group { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 14px; }
 .export-group .section-label { margin: 0 0 10px; }
@@ -643,8 +760,10 @@ input[type="search"] { min-width: 220px; }
 }
 .meal-note strong { display: block; color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
 
-/* Meal form: frozen action bar on top, scrolling table below. */
-.modal-flex #mealForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Meal + reimbursement forms: frozen action bar on top, scrolling table below. */
+.modal-flex #mealForm,
+.modal-flex #claimForm,
+.modal-flex #realizeForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .meal-topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
@@ -664,7 +783,7 @@ input[type="search"] { min-width: 220px; }
 .modal-flex #settingsTabs { flex: none; }
 .modal-flex #settingsPanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .settings-controls { flex: none; }
-.settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .settings-list .utable thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
 .settings-search { margin-bottom: 14px; }
 .settings-search input { width: 100%; }
@@ -747,21 +866,37 @@ input[type="search"] { min-width: 220px; }
   .topbar-signout { order: 2; margin-left: auto; padding: 9px 14px; min-height: 40px; }
   /* Account name gets its own full-width line, left-aligned under the logo,
      instead of floating in the middle of the button row. */
-  .topbar-right { order: 3; flex-wrap: wrap; justify-content: flex-start; gap: 10px; width: 100%; }
+  .topbar-right { order: 3; flex-wrap: wrap; justify-content: flex-start; gap: 8px; width: 100%; }
   .user-badge { margin-right: 0; flex-basis: 100%; text-align: left; }
-  /* Roomier touch targets so wrapped buttons don't sit shoulder-to-shoulder. */
-  .topbar-right .btn-sm { padding: 9px 14px; min-height: 40px; }
+  /* Compact pills — neat and tappable without dominating the screen. */
+  .topbar-right .btn-sm { padding: 7px 12px; min-height: 34px; font-size: .84rem; }
+  .topbar-lang, .topbar-right select { min-height: 34px; font-size: .84rem; }
 
-  /* Toolbar: stack search + filters full width, actions on their own row. */
+  /* "My claims" header: Menu + Refresh on the top row, title on its own line. */
+  .list-head { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 14px; }
+  #backHome { order: 1; }
+  .refresh-btn { order: 2; margin-left: auto; }
+  .list-title { order: 3; flex-basis: 100%; font-size: 1.15rem; }
+  .refresh-stamp { order: 4; flex-basis: 100%; font-size: .72rem; margin-top: -2px; }
+
+  /* Toolbar: search gets its own full-width row; the filter dropdowns wrap two
+     to a row below it. Note: the search input carries `flex: 1 1 260px` for the
+     desktop row — in this column/wrap layout that 260px basis would balloon into
+     a 260px-TALL empty box, so every control's flex is reset to auto here. */
   .toolbar { flex-direction: column; align-items: stretch; }
-  .toolbar-left, .toolbar-right { flex-direction: column; align-items: stretch; }
-  .toolbar-left .input, input[type="search"], select.input { min-width: 0; width: 100%; }
+  .toolbar-left { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+  .toolbar-right { flex-direction: column; align-items: stretch; }
+  .toolbar-left .input, input[type="search"], select.input { min-width: 0; }
+  .toolbar-left #searchInput { flex: 1 1 100%; width: 100%; }
+  .toolbar-left select.input { flex: 1 1 140px; width: auto; }
+  .toolbar-left .msel { flex: 1 1 140px; min-width: 0; width: auto; }
   .toolbar-right .btn { width: 100%; }
 
   /* Insights filters stack full width; scope chip drops below the title. */
   .insights-filters { flex-direction: column; align-items: stretch; }
   .insights-filters label { width: 100%; }
   .insights-filters .input { min-width: 0; width: 100%; }
+  .insights-filters .msel-trigger { min-width: 0; }
   .insights-scope { margin-left: 0; }
 
   .ledger-head { display: none; }
@@ -787,13 +922,20 @@ input[type="search"] { min-width: 220px; }
   .modal-actions.sticky-foot { margin: 14px -16px -18px; padding: 14px 16px; }
 }
 
-/* Small phones — two-up summary cards and tighter type. */
-@media (max-width: 460px) {
-  .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-  .card { padding: 13px 13px; }
-  .card .card-n { font-size: 1.45rem; }
+/* Phones — 2×2 status cards with the total on its own full-width row, tighter
+   type, and no oversized controls. Covers most handsets (the default auto-fit
+   grid would otherwise pack an awkward 3-then-2 layout at ~480–560px). */
+@media (max-width: 600px) {
+  .cards { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 16px; }
+  .card { padding: 10px 12px; border-radius: 10px; }
+  .card .card-n { font-size: 1.3rem; }
+  .card .card-l { font-size: .66rem; letter-spacing: .05em; }
+  .card.total { grid-column: 1 / -1; }
+  .card.total .card-n { font-size: 1.3rem; }
+  .card .card-sub { font-size: .72rem; }
   .topbar-title { display: none; }
-  .btn-sm { padding: 6px 10px; }
+  .btn-sm { padding: 6px 10px; font-size: .82rem; }
+  .list-title { font-size: 1.05rem; }
 }
 
 /* Phones — reflow data-dense tables into labelled cards so nothing is clipped
@@ -827,12 +969,18 @@ input[type="search"] { min-width: 220px; }
   }
   .settings-list .utable td.act-cell .u-actions { justify-content: flex-start; }
   .settings-list .utable td[colspan] { text-align: center; padding: 14px 0; }
+}
 
-  /* Meal-allowance line tables (entry form + read-only detail) → cards */
+/* Meal + reimbursement line tables reflow to labelled cards below tablet width,
+   so they never force a horizontal scroll — phones (portrait AND landscape) and
+   small tablets. Covers both the entry forms (#mealRows / #rcRows) and the
+   read-only detail tables. */
+@media (max-width: 900px) {
   .meal-table-wrap { border: none; overflow: visible; }
-  .meal-table { min-width: 0; border-collapse: separate; border-spacing: 0; }
+  .meal-table { min-width: 0 !important; border-collapse: separate; border-spacing: 0; }
   .meal-table thead { display: none; }
   .meal-table, .meal-table tbody, .meal-table tfoot { display: block; }
+  .meal-table colgroup { display: none; }
   .meal-table tbody tr {
     display: block; position: relative;
     border: 1px solid var(--line); border-radius: 10px;
@@ -847,14 +995,16 @@ input[type="search"] { min-width: 220px; }
   .meal-table tbody td:empty { display: none; }
   .meal-table tbody input,
   .meal-table tbody select {
-    border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px;
+    border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; width: 100%;
   }
   .meal-table tbody input:focus { background: var(--pine-tint); }
-  /* Remove-row control (entry form only) floats top-right of its card */
-  #mealRows td.meal-x { position: absolute; top: 6px; right: 8px; padding: 0; width: auto; }
-  #mealRows td.meal-x::before { display: none; }
-  #mealRows td.meal-x .x-btn { font-size: 1.35rem; }
-  #mealRows tr td:first-child { padding-right: 34px; }
+  /* Remove-row control floats top-right of its card (both line forms) */
+  #mealRows td.meal-x, #rcRows td.meal-x { position: absolute; top: 6px; right: 8px; padding: 0; width: auto; }
+  #mealRows td.meal-x::before, #rcRows td.meal-x::before { display: none; }
+  #mealRows td.meal-x .x-btn, #rcRows td.meal-x .x-btn { font-size: 1.35rem; }
+  #mealRows tr td:first-child, #rcRows tr td:first-child { padding-right: 34px; }
+  /* Receipts cell stacks like the rest; the Add button sits under its label. */
+  .rc-table .rc-receipts { padding: 6px 0 0; }
   /* Running total row */
   .meal-table tfoot tr {
     display: flex; justify-content: space-between; align-items: baseline;
@@ -911,3 +1061,112 @@ input[type="search"] { min-width: 220px; }
 @media (max-width: 720px) {
   .lang-select select { max-width: 120px; }
 }
+
+/* --- Region workspace (Settings) ------------------------------------------ */
+/* Regions landing: the intro + cards + "Manage regions" label form a frozen
+   header (flex:none) above the scrolling region table. */
+.region-landing-head { flex: none; }
+/* Regions landing: a grid of cards, one per region, that open its workspace. */
+.region-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.region-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 16px 18px; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color .14s, box-shadow .14s, transform .14s;
+}
+.region-card:hover { border-color: var(--pine); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.region-card:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+.region-card-name { font-size: 1.05rem; font-weight: 650; color: var(--ink); }
+.region-card-go { color: var(--pine-deep); font-size: 1.2rem; font-weight: 700; }
+
+/* Workspace header: back-to-regions button sitting beside the title, with the
+   active region shown as a brand pill. */
+.ws-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ws-region {
+  display: inline-block; margin-left: 4px; padding: 2px 10px;
+  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--pine-deep); background: var(--pine-tint);
+  border-radius: 999px; vertical-align: middle;
+}
+
+/* --- Reimbursement line table (per-row receipts) -------------------------- */
+/* Wider than the meal table (it has a Type + Receipts column), so it scrolls
+   horizontally on small screens and gets room on desktop. */
+.rc-table { min-width: 960px; }
+.rc-table th, .rc-table td { padding: 2px; }
+.rc-table thead th { padding: 8px 6px; }
+/* Comfortable column widths; type + description get the most room so long
+   expense types and descriptions are readable. Description takes the slack. */
+.rc-table col.c-date { width: 120px; } .rc-table col.c-db { width: 100px; }
+.rc-table col.c-type { width: 230px; } .rc-table col.c-amt { width: 120px; }
+.rc-table col.c-recv { width: 150px; } .rc-table col.c-x { width: 34px; }
+/* Detail-view line tables (reimbursement + cash advance) fit the drawer with no
+   horizontal scroll: drop the edit-form min-width and let cells wrap. These
+   tables are read-only text (no inputs), so wrapping is fine. */
+.drawer-body .meal-table,
+.drawer-body .rc-table { min-width: 0; }
+.drawer-body .meal-table-wrap { overflow-x: visible; }
+.drawer-body .rc-table th,
+.drawer-body .rc-table td { padding: 6px 8px; white-space: normal; overflow-wrap: break-word; }
+/* Headers stay on one line; only Type of expense / Description wrap. Date,
+   amount and the total keep their value on a single line (no vertical breaks). */
+.drawer-body .rc-table thead th { white-space: nowrap; }
+.drawer-body .rc-table td.mono,
+.drawer-body .rc-table td.meal-amt,
+.drawer-body .rc-table td.meal-total { white-space: nowrap; }
+/* The detail table's last column is Receipts, not the edit form's delete-button
+   column, so undo the 34px-wide / centred td:last-child rule here (it otherwise
+   squeezes receipts to a sliver once the table stacks on mobile). */
+.drawer-body .rc-table tbody td.line-receipts { width: auto; text-align: left; }
+/* Receipts cell in the claim form: chips stack above a small Add button. */
+.rc-table .rc-receipts { vertical-align: middle; padding: 6px; }
+.rc-table .rc-receipts .file-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.rc-table .rc-receipts .file-chips:empty { display: none; }   /* no gap when no files yet */
+.rc-table .rc-receipts .rc-add { padding: 3px 8px; font-size: .8rem; white-space: nowrap; }
+.rc-table td .rc-amt { text-align: right; }
+/* Amount cell: number input + a small calculator button. */
+.rc-table .rc-amt-wrap { display: flex; align-items: stretch; width: 100%; }
+.rc-table .rc-amt-wrap .rc-amt { flex: 1 1 auto; min-width: 0; }
+.rc-table .rc-calc { flex: none; border: none; background: transparent; cursor: pointer;
+  padding: 0 7px; font-size: 1rem; line-height: 1; border-radius: 6px; }
+.rc-table .rc-calc:hover { background: var(--pine-tint); }
+/* "Others → specify" free-text field, shown under the type select for a row. */
+.rc-table .rc-other { margin-top: 4px; width: 100%; }
+
+/* Freeze the page behind an open modal / drawer (no background scrolling). */
+body.no-scroll { overflow: hidden; }
+/* Receipts shown per line in the detail drawer. Each filename is a single
+   ellipsised line (full name on hover via title=) so a long auto-generated
+   name can't stretch the column or break one character per line. */
+.line-receipts { font-size: .82rem; }
+.line-receipt { display: block; max-width: 240px; margin: 0 0 2px; color: var(--pine-deep);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.line-receipt:hover { text-decoration: underline; }
+
+/* "Locked" hint under a non-editable column header in the Roles matrix. */
+.role-locked {
+  margin-top: 2px; font-size: .68rem; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* Cash-advance realization: the live "advance vs spent" difference banner and
+   the drawer settlement box. Colours reuse the palette — amber = a top-up is
+   owed, green = a balance comes back, neutral = balanced. */
+.adv-diff {
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 8px 0 4px;
+  background: var(--surface);
+}
+.adv-diff-row { display: flex; justify-content: space-between; gap: 12px; font-size: .9rem; padding: 2px 0; }
+.adv-diff-row strong { font-variant-numeric: tabular-nums; }
+.adv-diff-msg { margin-top: 6px; font-size: .85rem; font-weight: 600; }
+.adv-diff-topup  { border-color: var(--amber); background: var(--amber-tint); }
+.adv-diff-topup  .adv-diff-msg { color: var(--amber); }
+.adv-diff-return { border-color: var(--green); background: var(--green-tint); }
+.adv-diff-return .adv-diff-msg { color: var(--green); }
+.adv-diff-even   .adv-diff-msg { color: var(--muted); }
+.adv-settle.note-box.adv-diff-topup  { border-color: var(--amber); background: var(--amber-tint); }
+.adv-settle.note-box.adv-diff-return { border-color: var(--green); background: var(--green-tint); }
