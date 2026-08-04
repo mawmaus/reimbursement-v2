@@ -928,24 +928,40 @@ input[type="search"] { min-width: 220px; }
   .insights-filters .msel-trigger { min-width: 0; }
   .insights-scope { margin-left: 0; }
 
-  /* Phone claim card: two facing columns — identity on the left (claim no,
-     name, type), figures on the right (status, amount, date). The middle track
-     is minmax(0,1fr) so it can shrink and truncate rather than shoving the row
-     wider than the screen; every text cell carries min-width:0 for the same
-     reason. */
+  /* Phone claims list: each row becomes a standalone card (matching the account
+     and settings tables, which already reflow to cards on phones) instead of a
+     cramped flat divided list. The colour spine is a rounded accent pinned to
+     the card's left edge; a checkbox column sits inside, then two facing
+     columns — identity on the left (name, claim no, type), figures on the right
+     (amount, status, date). The middle track is minmax(0,1fr) so long text
+     truncates instead of pushing the card past the screen edge. */
   .ledger-head { display: none; }
-  .ledger-row { grid-template-columns: 4px 30px minmax(0, 1fr) auto; grid-template-areas:
-      "spine check no status" "spine check name amt" "spine check type date";
-      padding: 13px 16px 13px 0; gap: 4px 12px; min-height: 0; align-content: center; }
-  .row-spine { grid-area: spine; height: 100%; }
+  .ledger { background: none; border: none; box-shadow: none; overflow: visible; }
+  #claimRows { padding: 2px 1px 4px; }
+  .ledger-row {
+    position: relative; overflow: hidden;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas: "check name amt" "check no status" "check type date";
+    gap: 5px 12px; align-content: center; min-height: 0;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 13px;
+    padding: 13px 15px 13px 16px; margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(23, 38, 32, .05);
+  }
+  .ledger-row:hover { background: var(--surface); }
+  .ledger-row:last-child { margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+  .row-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; height: auto;
+    border-radius: 13px 0 0 13px; }
   .col-check { grid-area: check; }
-  .col-no { grid-area: no; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-name { grid-area: name; min-width: 0; overflow-wrap: anywhere; font-size: .98rem; }
+  /* Name is the card's headline; amount its hero figure. */
+  .col-name { grid-area: name; min-width: 0; overflow-wrap: anywhere; font-size: 1rem; font-weight: 600; }
+  .ledger-row .col-amt { grid-area: amt; text-align: right; white-space: nowrap;
+    font-size: 1rem; font-weight: 640; color: var(--ink); align-self: start; }
+  .ledger-row .col-no { grid-area: no; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-size: .78rem; }
+  .col-status { grid-area: status; text-align: right; align-self: center; }
+  .ledger-row .col-type { grid-area: type; min-width: 0; font-size: .82rem; }
+  .ledger-row .col-date { grid-area: date; text-align: right; font-size: .78rem; white-space: nowrap; align-self: end; }
   .col-db { display: none; }
-  .col-type { grid-area: type; min-width: 0; }
-  .col-date { grid-area: date; font-size: .8rem; white-space: nowrap; }
-  .col-amt { grid-area: amt; text-align: right; white-space: nowrap; font-size: .95rem; }
-  .col-status { grid-area: status; text-align: right; }
   .grid2 { grid-template-columns: 1fr; }
   .kv { grid-template-columns: 1fr; gap: 2px; }
   .kv dd { margin-bottom: 8px; }
