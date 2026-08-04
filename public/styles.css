@@ -957,13 +957,19 @@ input[type="search"] { min-width: 220px; }
    or squeezed into vertical text. Each <td> carries a data-label used as its
    field caption; the table markup is unchanged, so JS that reads cells by
    name/selector keeps working. */
-@media (max-width: 680px) {
+@media (max-width: 900px) {
   /* Accounts / settings / manage-accounts tables → stacked cards */
   .settings-list .utable thead { display: none; }
   .settings-list .utable,
   .settings-list .utable tbody,
   .settings-list .utable tr,
   .settings-list .utable td { display: block; }
+  /* The desktop tables are table-layout:fixed with percentage column widths;
+     once the cells become blocks those percentages would pin every field to a
+     sliver of the card (22%, 11%, …), forcing text to wrap one word per line.
+     Reset them to full card width. */
+  .settings-list .utable tr,
+  .settings-list .utable td { width: auto !important; }
   .settings-list .utable tr {
     border: 1px solid var(--line); border-radius: 10px;
     padding: 4px 14px 10px; margin-bottom: 10px; background: var(--surface);
@@ -984,6 +990,21 @@ input[type="search"] { min-width: 220px; }
   }
   .settings-list .utable td.act-cell .u-actions { justify-content: flex-start; }
   .settings-list .utable td[colspan] { text-align: center; padding: 14px 0; }
+}
+
+/* Tablets: the multi-field account cards have room to spare, so flow their
+   fields in two columns instead of one tall stack. The name/header cell and the
+   actions row still span the full card width. Scoped to the user tables so the
+   simpler settings tables (departments, positions, …) keep their single column. */
+@media (min-width: 620px) and (max-width: 900px) {
+  .settings-list .utable-users tr,
+  .settings-list .utable-manage tr {
+    display: grid; grid-template-columns: 1fr 1fr; column-gap: 26px; align-items: start;
+  }
+  .settings-list .utable-users tr > td:first-child,
+  .settings-list .utable-users tr > td.act-cell,
+  .settings-list .utable-manage tr > td:first-child,
+  .settings-list .utable-manage tr > td.act-cell { grid-column: 1 / -1; }
 }
 
 /* Meal + reimbursement line tables reflow to labelled cards below tablet width,
