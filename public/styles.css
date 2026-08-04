@@ -889,6 +889,18 @@ input[type="search"] { min-width: 220px; }
 }
 
 @media (max-width: 720px) {
+  /* Undo the fixed-height "app shell" on phones. On desktop it pins the topbar,
+     list header, summary cards, and filters while only the rows scroll — but on
+     a phone those pinned bands eat almost the whole screen, leaving the claim
+     list a ~75px sliver with dead space beneath it. Here the whole page scrolls
+     as one document (like the home/insights views already do), so the list gets
+     all the room and the header simply scrolls away as you go down. */
+  #appView:has(#listView:not([hidden])) { display: block; height: auto; overflow: visible; }
+  #appView:has(#listView:not([hidden])) .container { display: block; overflow: visible; min-height: 0; }
+  #listView:not([hidden]) { display: block; }
+  #listView .ledger { display: block; }
+  #listView #claimRows { overflow: visible; }
+
   /* Topbar: logo top-left, Sign out top-right, everything else wraps below. */
   .topbar { flex-wrap: wrap; gap: 10px 12px; }
   .topbar-left { order: 1; margin-right: 0; }
