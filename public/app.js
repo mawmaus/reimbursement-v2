@@ -986,7 +986,7 @@ function renderInsights() {
   const nameOpts = `<option value="">${esc(t('All employees'))}</option>` + nameExtra
     + empList.map(x => `<option value="${esc(x)}"${x === f.name ? ' selected' : ''}>${esc(x)}</option>`).join('');
   const dbOpts = [`<option value="">${esc(t('All DB numbers'))}</option>`]
-    .concat((d.dbNos || []).map(x => `<option value="${esc(x)}"${x === f.db ? ' selected' : ''}>${esc(x)}</option>`)).join('');
+    .concat((d.dbNos || []).map(x => `<option value="${esc(x)}"${x === f.db ? ' selected' : ''}>${esc(dbFmt(x))}</option>`)).join('');
 
   const k = d.kpis;
   const kpiCards = [
@@ -1180,7 +1180,7 @@ function renderTypeDetailModal() {
           <td>${esc(r.name || '—')}</td>
           <td>${esc(r.no || '—')}</td>
           <td>${esc(r.date || '—')}</td>
-          <td>${esc(r.db || '—')}</td>
+          <td>${esc(dbFmt(r.db) || '—')}</td>
           ${showType ? `<td>${esc(r.type || '—')}</td>` : ''}
           <td class="num">${esc(money(r.cents / 100, cur))}</td>
         </tr>`).join('')}</tbody>
@@ -1369,7 +1369,7 @@ function renderClaims() {
       <span class="col-check"><input type="checkbox" class="row-check" data-id="${c.id}" data-type="${c.type}" ${checked} aria-label="Select ${esc(c.claim_no)}" /></span>
       <span class="col-no">${esc(c.claim_no)}</span>
       <span class="col-name">${esc(c.claimant_name)}</span>
-      <span class="col-db mono">${esc(v.db) || '—'}</span>
+      <span class="col-db mono">${esc(dbFmt(v.db)) || '—'}</span>
       <span class="col-type">${esc(v.typeLabel)}</span>
       <span class="col-date mono">${esc(v.date)}</span>
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
@@ -1798,7 +1798,7 @@ async function buildClaimsPdf(claims) {
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
       ];
       const lines = c.lines || [];
-      const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
+      const rows = lines.map(l => [l.line_date, dbFmt(l.db_no), l.expense_type, money(l.amount, c.currency), l.description || '']);
       table(cols, rows.length ? rows : [['', '', 'No realization yet', '', '']],
         [{ text: 'TOTAL SPENT', bold: true, span: 3 }, '', '', { text: money(c.realized_total, c.currency), bold: true }, '']);
       // Settlement summary: advance vs actual spend, and which way the balance goes.
@@ -1822,7 +1822,7 @@ async function buildClaimsPdf(claims) {
         { title: 'Date', w: 66 }, { title: 'DB Number Site', w: 124 }, { title: 'Job Category', w: 90 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 360 }
       ];
-      const rows = (c.lines || []).map(l => [l.line_date, l.site, l.job_category, money(l.amount, c.currency), l.description]);
+      const rows = (c.lines || []).map(l => [l.line_date, dbFmt(l.site), l.job_category, money(l.amount, c.currency), l.description]);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
         [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.total_amount, c.currency), bold: true }, '']);
     } else {
@@ -1839,7 +1839,7 @@ async function buildClaimsPdf(claims) {
         line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
         amount: c.amount, description: c.description
       }];
-      const rows = lines.map(l => [l.line_date, l.db_no || '', l.expense_type, money(l.amount, c.currency), l.description || '']);
+      const rows = lines.map(l => [l.line_date, dbFmt(l.db_no), l.expense_type, money(l.amount, c.currency), l.description || '']);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
         [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.amount, c.currency), bold: true }, '']);
     }
@@ -2133,7 +2133,7 @@ function reimbursementBody(c) {
   const rows = lines.map(l => `
     <tr>
       <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
-      <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
+      <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(dbFmt(l.db_no)) : '<span class="muted">—</span>'}</td>
       <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
       <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
       <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
@@ -2166,7 +2166,7 @@ function mealBody(c) {
   const rows = (c.lines || []).map(l => `
     <tr>
       <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
-      <td data-label="${esc(t('DB Number Site'))}">${esc(l.site)}</td>
+      <td data-label="${esc(t('DB Number Site'))}">${esc(dbFmt(l.site))}</td>
       <td data-label="${esc(t('Job Category'))}">${esc(l.job_category)}</td>
       <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
       <td data-label="${esc(t('Additional Description'))}">${esc(l.description)}</td>
@@ -2208,7 +2208,7 @@ function advanceBody(c) {
         <tbody>${c.lines.map(l => `
           <tr>
             <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
-            <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(l.db_no) : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(dbFmt(l.db_no)) : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
             <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
             <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
@@ -2622,6 +2622,10 @@ function dbCombine(on, digits) {
   const d = String(digits || '').replace(/\D/g, '');
   return on ? (d ? 'DB ' + d : 'DB') : '';
 }
+// Display a stored DB string ("DB 200231") with no space → "DB200231". Purely
+// cosmetic: the stored value keeps its space so filters/search/PDF stay uniform
+// across old and new claims; only what the reader sees is tightened.
+const dbFmt = v => String(v == null ? '' : v).replace(/\s+/g, '');
 function dbCellHtml(value) {
   const { on, digits } = dbParse(value);
   return `<div class="db-cell">
