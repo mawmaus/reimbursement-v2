@@ -159,7 +159,10 @@ input[type="search"] { min-width: 220px; }
    list header, summary cards, and filter row stay put while only the claim
    rows scroll, so a long ledger never pushes them off-screen. The home and
    insights views are untouched and scroll with the page as before. */
-#appView:has(#listView:not([hidden])) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+/* `height: 100dvh` under `zoom: var(--app-zoom)` on :root renders the shell at
+   only 80% of the viewport, leaving a dead band below it. Divide by the zoom so
+   it fills the real viewport on every screen size (desktop included). */
+#appView:has(#listView:not([hidden])) { display: flex; flex-direction: column; height: calc(100dvh / var(--app-zoom)); overflow: hidden; }
 /* overflow-x is pinned to hidden on the scroll containers: setting only
    overflow-y:auto makes CSS compute overflow-x to `auto` too, so the tiniest
    horizontal overflow (a long name, or the vertical scrollbar shaving a few px
@@ -810,7 +813,14 @@ input[type="search"] { min-width: 220px; }
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
 /* Frozen controls (add-form + search) on top, scrolling list below. */
 .modal-flex #settingsTabs { flex: none; }
-.modal-flex #settingsPanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Panel scrolls itself. Table tabs put a flex:1 .settings-list inside that
+   fills the panel exactly (so the panel never needs to scroll and the list
+   scrolls internally with its sticky header). Form-only tabs (currency & time
+   zone, claim window, meal rates) render just a flex:none .settings-controls
+   with no inner scroller — without overflow-y here a tall form would be clipped
+   with no way to scroll. overflow-x stays hidden so overflow-y:auto doesn't get
+   promoted to a stray sideways scrollbar. */
+.modal-flex #settingsPanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
 .settings-controls { flex: none; }
 .settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .settings-list .utable thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
@@ -887,15 +897,9 @@ input[type="search"] { min-width: 220px; }
   .topbar { padding: 10px 16px; }
   .ledger-head, .ledger-row { grid-template-columns: 4px 32px 96px 1.2fr 96px 1fr 84px 96px 88px; }
 
-  /* Mobile + tablet: the top block (header, summary cards, filters) stays frozen
-     and only the claim list scrolls — same as desktop. Two fixes here:
-     1) Dead space: `height: 100dvh` under `zoom: var(--app-zoom)` renders the
-        shell at only 80% of the viewport, leaving ~20% empty below it. Dividing
-        by the zoom makes it fill the real viewport again. (Desktop keeps plain
-        100dvh — it's happy as-is.)
-     2) Room: shrink the summary cards and filter spacing so the frozen block
-        doesn't starve the scrolling list. */
-  #appView:has(#listView:not([hidden])) { height: calc(100dvh / var(--app-zoom)); }
+  /* Mobile + tablet: shrink the summary cards and filter spacing so the frozen
+     top block doesn't starve the scrolling claim list. (The shell height fix
+     that removes the dead band lives on the base rule and applies everywhere.) */
   #listView .cards { gap: 6px; margin-bottom: 10px; }
   #listView .card { padding: 8px 10px; border-radius: 9px; }
   #listView .card .card-n { font-size: 1.15rem; }
