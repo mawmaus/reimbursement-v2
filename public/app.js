@@ -4185,8 +4185,9 @@ async function renderRegionPrefsTab() {
         <label>${esc(t('Preferred bank (no transfer fee)'))}
           <input name="bank" value="${esc(data.preferredBank || '')}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" />
         </label>
-        <label>${esc(t('Fee for payments to other banks'))} (<span id="rpFeeCur">${feeCur}</span>)
-          <input name="bankFee" type="number" min="0" step="1" inputmode="numeric" value="${esc(String(data.bankFee != null ? data.bankFee : ''))}" />
+        <label>
+          <span>${esc(t('Fee for payments to other banks'))} (<span id="rpFeeCur">${feeCur}</span>)</span>
+          <input name="bankFee" inputmode="numeric" autocomplete="off" value="${data.bankFee != null ? esc(groupAmount(String(data.bankFee))) : ''}" />
         </label>
         <p class="form-error" id="rpErr" hidden></p>
         <div class="modal-actions" style="justify-content:flex-start">
@@ -4198,6 +4199,9 @@ async function renderRegionPrefsTab() {
   // reflects the pending selection before the form is even saved.
   const rpCur = $('#rpForm [name="currency"]'), rpFeeCur = $('#rpFeeCur');
   if (rpCur && rpFeeCur) rpCur.addEventListener('change', () => { rpFeeCur.textContent = rpCur.value; });
+  // Thousands separators + digits-only as the admin types (same as amount fields
+  // elsewhere); commas are stripped again on submit via mealAmount().
+  attachAmountGrouping($('#rpForm [name="bankFee"]'));
   $('#rpForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#rpErr'); err.hidden = true;
@@ -4205,7 +4209,7 @@ async function renderRegionPrefsTab() {
     try {
       await api('/region-prefs', { method: 'PUT', body: JSON.stringify({
         currency: fd.get('currency'), timezone: fd.get('timezone'),
-        bank: fd.get('bank'), bankFee: Number(fd.get('bankFee')),
+        bank: fd.get('bank'), bankFee: mealAmount(fd.get('bankFee')),
         ...(settingsState.region ? { region: settingsState.region } : {})
       }) });
       toast(t('Saved'));
