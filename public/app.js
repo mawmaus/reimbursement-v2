@@ -633,24 +633,33 @@ function enhanceSelect(sel) {
   // full) but never shrinks below the trigger, and stays on-screen. Re-run on
   // scroll/resize while open.
   const place = () => {
+    // The whole UI runs at :root { zoom }, which scales this body-portaled menu
+    // too. getBoundingClientRect(), innerWidth/innerHeight are all in VISUAL
+    // (post-zoom) px, but a CSS length set on the menu is multiplied by the zoom
+    // when rendered — so left/top/size we assign must be divided by the zoom to
+    // land where getBoundingClientRect says. offsetWidth/Height are in the menu's
+    // own (zoomed) units, so multiply them back up to compare in visual px.
+    // Without this the menu lands up-and-left of its field. Reduces to the plain
+    // math when zoom is 1.
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const r = trigger.getBoundingClientRect();
     menu.style.width = 'auto';
-    menu.style.minWidth = r.width + 'px';
-    menu.style.maxWidth = Math.min(440, window.innerWidth - 16) + 'px';
-    const mw = menu.offsetWidth;
+    menu.style.minWidth = (r.width / z) + 'px';
+    menu.style.maxWidth = (Math.min(440, window.innerWidth - 16) / z) + 'px';
+    const mw = menu.offsetWidth * z;
     const left = Math.min(Math.round(r.left), window.innerWidth - 8 - mw);
-    menu.style.left = Math.max(8, left) + 'px';
-    menu.style.top = Math.round(r.bottom + 5) + 'px';
+    menu.style.left = (Math.max(8, left) / z) + 'px';
+    menu.style.top = ((r.bottom + 5) / z) + 'px';
     menu.style.maxHeight = '';
-    const mh = menu.offsetHeight;
+    const mh = menu.offsetHeight * z;
     const below = window.innerHeight - r.bottom - 10;
     const above = r.top - 10;
     if (mh > below && above > below) {
       const h = Math.min(mh, above);
-      menu.style.maxHeight = h + 'px';
-      menu.style.top = Math.round(r.top - h - 5) + 'px';
+      menu.style.maxHeight = (h / z) + 'px';
+      menu.style.top = ((r.top - h - 5) / z) + 'px';
     } else if (mh > below) {
-      menu.style.maxHeight = below + 'px';
+      menu.style.maxHeight = (below / z) + 'px';
     }
   };
   const onScroll = () => { if (!trigger.isConnected) { close(); return; } place(); };
@@ -2811,11 +2820,6 @@ function openClaimModal(existing = null) {
                 <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
               </tr></thead>
               <tbody id="rcRows"></tbody>
-              <tfoot><tr>
-                <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
-                <td class="meal-total" id="rcTotal">0</td>
-                <td colspan="3"></td>
-              </tr></tfoot>
             </table>
           </div>
           ${approver1PickerHtml(existing)}
@@ -2823,6 +2827,7 @@ function openClaimModal(existing = null) {
             <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
         </div>
         <div class="modal-actions meal-foot">
+          <span class="meal-foot-total">${esc(t('TOTAL'))} <span class="meal-total" id="rcTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
@@ -3218,13 +3223,6 @@ async function openMealAllowanceModal(existing = null) {
                 </tr>
               </thead>
               <tbody id="mealRows"></tbody>
-              <tfoot>
-                <tr>
-                  <td colspan="3" class="meal-total-label">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))}</td>
-                  <td class="meal-total" id="mealTotal">0</td>
-                  <td colspan="2"></td>
-                </tr>
-              </tfoot>
             </table>
           </div>
           ${approver1PickerHtml(existing)}
@@ -3232,6 +3230,7 @@ async function openMealAllowanceModal(existing = null) {
             <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
         </div>
         <div class="modal-actions meal-foot">
+          <span class="meal-foot-total">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))} <span class="meal-total" id="mealTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
@@ -3404,11 +3403,6 @@ function openRealizeModal(advance) {
                 <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
               </tr></thead>
               <tbody id="rcRows"></tbody>
-              <tfoot><tr>
-                <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
-                <td class="meal-total" id="rcTotal">0</td>
-                <td colspan="3"></td>
-              </tr></tfoot>
             </table>
           </div>
           ${approver1PickerHtml(isEdit ? advance : null)}
@@ -3416,6 +3410,7 @@ function openRealizeModal(advance) {
             <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
         </div>
         <div class="modal-actions meal-foot">
+          <span class="meal-foot-total">${esc(t('TOTAL'))} <span class="meal-total" id="rcTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="cancelRealize">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${esc(t('Submit realization'))}</button>
         </div>

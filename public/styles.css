@@ -800,14 +800,19 @@ input[type="search"] { min-width: 220px; }
   padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 /* Frozen footer: a flex-none bar after the scroll region, pinned to the modal
-   bottom while the rows scroll between it and the top bar. */
-.meal-foot { flex: none; margin-top: 0; padding-top: 14px; border-top: 1px solid var(--line); }
-/* Let .meal-scroll own both scroll axes so the sticky header/total below
-   resolve against it rather than a nested scroll container. */
+   bottom while the rows scroll between it and the top bar. The running total
+   lives here (left, buttons right) instead of a sticky table footer — a sticky
+   tfoot pinned over the scrolling rows and covered the bottom row you were
+   editing. flex-wrap lets the total drop to its own line on a narrow phone. */
+.meal-foot { flex: none; margin-top: 0; padding-top: 14px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.meal-foot-total { margin-right: auto; display: flex; align-items: baseline; gap: 8px;
+  font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--muted); }
+.meal-foot-total .meal-total { font-size: 1.05rem; font-weight: 650; }
+/* Let .meal-scroll own both scroll axes so the sticky header resolves against
+   it rather than a nested scroll container. */
 .meal-scroll .meal-table-wrap { overflow: visible; }
-/* Keep the column headers and the running total visible while rows scroll. */
+/* Keep the column headers visible while rows scroll. */
 .meal-scroll .meal-table thead th { position: sticky; top: 0; z-index: 2; }
-.meal-scroll .meal-table tfoot td { position: sticky; bottom: 0; z-index: 2; }
 
 /* ---------- Settings ---------- */
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
