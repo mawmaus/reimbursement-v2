@@ -34,7 +34,7 @@ html, body { margin: 0; padding: 0; }
    leaving the responsive breakpoints untouched (media queries still evaluate
    against the real viewport width), so each device keeps its own layout, just
    rendered smaller. Users can still pinch- or Ctrl-zoom from here. */
-:root { zoom: 0.8; }
+:root { --app-zoom: 0.8; zoom: var(--app-zoom); }
 body {
   font-family: var(--sans);
   color: var(--ink);
@@ -886,21 +886,25 @@ input[type="search"] { min-width: 220px; }
   .container { padding: 20px 16px 48px; }
   .topbar { padding: 10px 16px; }
   .ledger-head, .ledger-row { grid-template-columns: 4px 32px 96px 1.2fr 96px 1fr 84px 96px 88px; }
+
+  /* Mobile + tablet: the top block (header, summary cards, filters) stays frozen
+     and only the claim list scrolls — same as desktop. Two fixes here:
+     1) Dead space: `height: 100dvh` under `zoom: var(--app-zoom)` renders the
+        shell at only 80% of the viewport, leaving ~20% empty below it. Dividing
+        by the zoom makes it fill the real viewport again. (Desktop keeps plain
+        100dvh — it's happy as-is.)
+     2) Room: shrink the summary cards and filter spacing so the frozen block
+        doesn't starve the scrolling list. */
+  #appView:has(#listView:not([hidden])) { height: calc(100dvh / var(--app-zoom)); }
+  #listView .cards { gap: 6px; margin-bottom: 10px; }
+  #listView .card { padding: 8px 10px; border-radius: 9px; }
+  #listView .card .card-n { font-size: 1.15rem; }
+  #listView .list-head { margin-bottom: 8px; }
+  #listView .toolbar { gap: 6px; margin-bottom: 8px; }
+  #listView .toolbar-left { gap: 6px; }
 }
 
 @media (max-width: 720px) {
-  /* Undo the fixed-height "app shell" on phones. On desktop it pins the topbar,
-     list header, summary cards, and filters while only the rows scroll — but on
-     a phone those pinned bands eat almost the whole screen, leaving the claim
-     list a ~75px sliver with dead space beneath it. Here the whole page scrolls
-     as one document (like the home/insights views already do), so the list gets
-     all the room and the header simply scrolls away as you go down. */
-  #appView:has(#listView:not([hidden])) { display: block; height: auto; overflow: visible; }
-  #appView:has(#listView:not([hidden])) .container { display: block; overflow: visible; min-height: 0; }
-  #listView:not([hidden]) { display: block; }
-  #listView .ledger { display: block; }
-  #listView #claimRows { overflow: visible; }
-
   /* Topbar: logo top-left, Sign out top-right, everything else wraps below. */
   .topbar { flex-wrap: wrap; gap: 10px 12px; }
   .topbar-left { order: 1; margin-right: 0; }
