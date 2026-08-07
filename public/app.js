@@ -369,6 +369,8 @@ function showApp() {
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
   $('#newAdvanceBtn').hidden = !purposes.advance;
+  // Light up a "draft waiting" dot on any New button that has a saved draft.
+  refreshDraftBadges();
   const isSuper = u.role === 'superadmin';
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');
@@ -2856,10 +2858,85 @@ function openCalcModal(rowIndex) {
   setTimeout(() => { const inp = $('#calcInput'); if (inp) inp.focus(); }, 0);
 }
 
+// ---------------------------------------------------------------------------
+// Local drafts — an unsent "New claim" / "New meal allowance" / "New cash
+// advance" form is kept in the browser so a mis-click, an accidental close, or
+// a reload never throws the work away. Drafts are stored per signed-in user (so
+// they never leak between accounts sharing a device) and per form type. Only
+// the typed fields are saved — receipt files can't be serialized to storage, so
+// those are re-attached when a claim draft is reopened.
+//
+// Two ways in: an explicit "Save draft" button, and an automatic save whenever
+// the form is closed by its × / the scrim / Escape while it has content (the
+// mis-click case). Pressing "Cancel" is treated as a deliberate discard, and a
+// successful submit clears the draft. A reopened form shows a banner with a
+// "Start fresh" option to drop the draft.
+// ---------------------------------------------------------------------------
+const DRAFT_BTN = { claim: '#newClaimBtn', meal: '#newMealBtn', advance: '#newAdvanceBtn' };
+function draftKey(kind) { return `draft:${kind}:${state.user ? state.user.id : 'anon'}`; }
+function loadDraft(kind) {
+  try { const raw = localStorage.getItem(draftKey(kind)); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
+}
+function saveDraftData(kind, data) {
+  try { localStorage.setItem(draftKey(kind), JSON.stringify({ savedAt: Date.now(), data })); }
+  catch { /* storage full / disabled — nothing more we can do */ }
+  refreshDraftBadges();
+}
+function clearDraft(kind) {
+  try { localStorage.removeItem(draftKey(kind)); } catch { /* ignore */ }
+  refreshDraftBadges();
+}
+// Show a small dot on a "New …" button whenever that form has a saved draft, so
+// the claimant can see one is waiting and reopen it.
+function refreshDraftBadges() {
+  for (const kind of Object.keys(DRAFT_BTN)) {
+    const btn = $(DRAFT_BTN[kind]); if (!btn) continue;
+    btn.classList.toggle('has-draft', !!loadDraft(kind));
+  }
+}
+
+// The banner shown at the top of a form that was reopened from a saved draft.
+// `note` is an optional extra line (used to remind claim drafts to re-attach
+// receipts).
+function draftBannerHtml(note) {
+  return `<div class="draft-banner" id="draftBanner">
+    <span class="draft-banner-txt">📝 ${esc(t('Picked up from your saved draft.'))}${note ? ' ' + esc(note) : ''}</span>
+    <button type="button" class="draft-discard" id="draftDiscard">${esc(t('Start fresh'))}</button>
+  </div>`;
+}
+// Wire the banner's "Start fresh": drop the draft and reopen the form empty.
+function wireDraftBanner(kind, reopen) {
+  const b = $('#draftDiscard'); if (!b) return;
+  b.addEventListener('click', () => { clearDraft(kind); modalCloseHook = null; reopen(); });
+}
+// Auto-save on an accidental close (×, scrim, Escape). `collect` returns the
+// draft data, or null when the form is effectively empty (nothing worth saving).
+function armDraftAutosave(kind, collect) {
+  modalCloseHook = () => {
+    const data = collect();
+    if (!data) { clearDraft(kind); return; }
+    saveDraftData(kind, data);
+    toast(t('Draft saved — reopen it from the New button.'));
+  };
+}
+// Explicit "Save draft": save (if there's anything) and close.
+function saveDraftAndClose(kind, collect) {
+  const data = collect();
+  if (!data) { toast(t('Nothing to save yet — fill in the form first.'), true); return; }
+  saveDraftData(kind, data);
+  modalCloseHook = null; // already saved; don't double-save on close
+  toast(t('Draft saved'));
+  closeModal();
+}
+// "Cancel": deliberate discard — drop any draft and close without saving.
+function discardDraftAndClose(kind) { clearDraft(kind); modalCloseHook = null; closeModal(); }
+
 function openClaimModal(existing = null) {
   const isEdit = !!existing;
   claimEditId = isEdit ? existing.id : null;
   rcAttachBase = '/api/claims';
+  const draft = isEdit ? null : loadDraft('claim');
   if (isEdit) {
     claimRows = (existing.lines || []).map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
@@ -2867,6 +2944,10 @@ function openClaimModal(existing = null) {
       files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
     }));
     if (!claimRows.length) claimRows = [blankClaimRow()];
+  } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
+    // Restore the saved draft's rows, giving each a fresh files/kept pair
+    // (receipts aren't stored, so they start empty and get re-attached).
+    claimRows = draft.data.rows.map(r => ({ ...blankClaimRow(), ...r, files: [], kept: [] }));
   } else {
     claimRows = [blankClaimRow(todayWIB())];
   }
@@ -2877,6 +2958,7 @@ function openClaimModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="claimForm" class="form">
+        ${draft ? draftBannerHtml(t('Re-attach any receipts.')) : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -2904,18 +2986,42 @@ function openClaimModal(existing = null) {
         <div class="modal-actions meal-foot">
           <span class="meal-foot-total">${esc(t('TOTAL'))} <span class="meal-total" id="rcTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
+          ${isEdit ? '' : `<button type="button" class="btn btn-ghost" id="rcSaveDraft">${esc(t('Save draft'))}</button>`}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
   $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#cancelClaim').addEventListener('click', closeModal);
+  $('#cancelClaim').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('claim'));
   $('#rcAddRow').addEventListener('click', () => {
     readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows();
   });
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
   renderClaimRows();
+  if (!isEdit) {
+    // Preselect the draft's Approver 1 (the picker only renders when ≥2 choices).
+    if (draft && draft.data.approver1) {
+      const sel = $('#claimForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
+    }
+    const collect = collectClaimDraft;
+    $('#rcSaveDraft').addEventListener('click', () => saveDraftAndClose('claim', collect));
+    armDraftAutosave('claim', collect);
+    if (draft) wireDraftBanner('claim', () => openClaimModal());
+  }
+}
+// Gather the claim form's typed fields into a draft payload, or null when every
+// row is empty. Receipts are intentionally excluded (File objects can't persist).
+function collectClaimDraft() {
+  readClaimRows();
+  const rows = claimRows.map(r => ({
+    line_date: r.line_date || '', db_no: r.db_no || '', expense_type: r.expense_type || '',
+    expense_type_other: r.expense_type_other || '', amount: r.amount || '', description: r.description || ''
+  }));
+  const filled = rows.some(r => r.line_date || r.db_no || r.expense_type || r.expense_type_other || r.amount || r.description);
+  if (!filled) return null;
+  const approver1 = (($('#claimForm [name="approver1"]') || {}).value) || '';
+  return { rows, approver1 };
 }
 
 // Only PDFs and images are accepted. The <input accept> covers the file picker,
@@ -3182,7 +3288,9 @@ async function submitClaim(e, existing) {
     } else {
       await api('/claims', { method: 'POST', body: JSON.stringify(payload) });
       toast(t('Claim submitted'));
+      clearDraft('claim');
     }
+    modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) {
     err.textContent = ex.message; err.hidden = false;
@@ -3265,6 +3373,7 @@ async function openMealAllowanceModal(existing = null) {
   // saved amounts. A failure keeps whatever presets we already have.
   try { state.mealRates = (await api('/meal-rates')).rates || state.mealRates; } catch { /* keep current */ }
   const isEdit = !!existing;
+  const draft = isEdit ? null : loadDraft('meal');
   if (isEdit) {
     // Prefill from the claim being resubmitted.
     mealRows = (existing.lines || []).map(l => ({
@@ -3272,6 +3381,10 @@ async function openMealAllowanceModal(existing = null) {
       amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description
     }));
     if (!mealRows.length) mealRows = [{ date: '', site: '', category: '', amount: '', desc: '' }];
+  } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
+    mealRows = draft.data.rows.map(r => ({
+      date: r.date || '', site: r.site || '', category: r.category || '', amount: r.amount || '', desc: r.desc || ''
+    }));
   } else {
     // Start with a handful of blank rows, like the paper form.
     mealRows = Array.from({ length: 5 }, () => ({ date: '', site: '', category: '', amount: '', desc: '' }));
@@ -3283,6 +3396,7 @@ async function openMealAllowanceModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="mealForm" class="form">
+        ${draft ? draftBannerHtml() : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -3307,18 +3421,38 @@ async function openMealAllowanceModal(existing = null) {
         <div class="modal-actions meal-foot">
           <span class="meal-foot-total">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))} <span class="meal-total" id="mealTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
+          ${isEdit ? '' : `<button type="button" class="btn btn-ghost" id="mealSaveDraft">${esc(t('Save draft'))}</button>`}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
   $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#mealCancel').addEventListener('click', closeModal);
+  $('#mealCancel').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('meal'));
   $('#mealAddRow').addEventListener('click', () => {
     readMealRows(); mealRows.push({ date: '', site: '', category: '', amount: '', desc: '' }); renderMealRows();
   });
   $('#mealForm').addEventListener('submit', e => submitMealClaim(e, existing));
   renderMealRows();
+  if (!isEdit) {
+    if (draft && draft.data.approver1) {
+      const sel = $('#mealForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
+    }
+    $('#mealSaveDraft').addEventListener('click', () => saveDraftAndClose('meal', collectMealDraft));
+    armDraftAutosave('meal', collectMealDraft);
+    if (draft) wireDraftBanner('meal', () => openMealAllowanceModal());
+  }
+}
+// Gather the meal form's typed fields into a draft payload, or null when empty.
+function collectMealDraft() {
+  readMealRows();
+  const rows = mealRows.map(r => ({
+    date: r.date || '', site: r.site || '', category: r.category || '', amount: r.amount || '', desc: r.desc || ''
+  }));
+  const filled = rows.some(r => r.date || r.site || r.category || r.amount || r.desc);
+  if (!filled) return null;
+  const approver1 = (($('#mealForm [name="approver1"]') || {}).value) || '';
+  return { rows, approver1 };
 }
 
 async function submitMealClaim(e, existing) {
@@ -3350,7 +3484,9 @@ async function submitMealClaim(e, existing) {
     } else {
       await api('/meal-claims', { method: 'POST', body: JSON.stringify(payload) });
       toast(t('Meal claim submitted'));
+      clearDraft('meal');
     }
+    modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
 }
@@ -3366,6 +3502,12 @@ $('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
 // for editing a rejected request.
 function openAdvanceRequestModal(existing = null) {
   const isEdit = !!existing;
+  const draft = isEdit ? null : loadDraft('advance');
+  // For a new request, seed the fields from the saved draft if there is one.
+  const prePurpose = isEdit ? (existing.purpose || '') : (draft ? draft.data.purpose || '' : '');
+  const preAmount = isEdit
+    ? (existing.amount != null ? groupAmount(String(Math.round(existing.amount))) : '')
+    : (draft ? groupAmount(String(draft.data.amount || '')) : '');
   openModal(`
     <div class="modal-head">
       <h2>${isEdit ? esc(t('Edit & resubmit cash advance')) : esc(t('New cash advance'))}</h2>
@@ -3373,26 +3515,47 @@ function openAdvanceRequestModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="advForm" class="form">
+        ${draft ? draftBannerHtml() : ''}
         <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Ask for a cash advance up front. Once it is approved and paid, you will settle it by submitting your actual transactions.'))}</p>
         <label class="full">${esc(t('Purpose of the cash advance'))} <span style="color:var(--danger,#d33)">*</span>
-          <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(existing ? existing.purpose || '' : '')}</textarea></label>
+          <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(prePurpose)}</textarea></label>
         <label class="full">${esc(t('Amount needed'))} <span style="color:var(--danger,#d33)">*</span>
-          <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(existing && existing.amount != null ? groupAmount(String(Math.round(existing.amount))) : '')}" /></label>
+          <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(preAmount)}" /></label>
         ${approver1PickerHtml(existing)}
         ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
           <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
         <p class="form-error" id="advError" hidden></p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="advCancel">${esc(t('Cancel'))}</button>
+          ${isEdit ? '' : `<button type="button" class="btn btn-ghost" id="advSaveDraft">${esc(t('Save draft'))}</button>`}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit request')) : esc(t('Submit request'))}</button>
         </div>
       </form>
     </div>`);
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#advCancel').addEventListener('click', closeModal);
+  $('#advCancel').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('advance'));
   const amt = $('#advForm [name="amount"]');
   amt.addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
   $('#advForm').addEventListener('submit', e => submitAdvanceRequest(e, existing));
+  if (!isEdit) {
+    if (draft && draft.data.approver1) {
+      const sel = $('#advForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
+    }
+    $('#advSaveDraft').addEventListener('click', () => saveDraftAndClose('advance', collectAdvanceDraft));
+    armDraftAutosave('advance', collectAdvanceDraft);
+    if (draft) wireDraftBanner('advance', () => openAdvanceRequestModal());
+  }
+}
+// Gather the cash-advance form's fields into a draft payload, or null when both
+// the purpose and the amount are empty.
+function collectAdvanceDraft() {
+  const f = $('#advForm'); if (!f) return null;
+  const purpose = ((f.querySelector('[name="purpose"]') || {}).value || '').trim();
+  const amountRaw = ((f.querySelector('[name="amount"]') || {}).value || '');
+  const amount = String(amountRaw).replace(/[^0-9.]/g, '');
+  if (!purpose && !amount) return null;
+  const approver1 = ((f.querySelector('[name="approver1"]') || {}).value) || '';
+  return { purpose, amount, approver1 };
 }
 
 async function submitAdvanceRequest(e, existing) {
@@ -3418,7 +3581,9 @@ async function submitAdvanceRequest(e, existing) {
     } else {
       await api('/cash-advances', { method: 'POST', body: JSON.stringify(payload) });
       toast(t('Cash advance requested'));
+      clearDraft('advance');
     }
+    modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
 }

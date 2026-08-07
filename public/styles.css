@@ -799,6 +799,23 @@ input[type="search"] { min-width: 220px; }
 .modal-flex #realizeForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .meal-topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+
+/* Draft banner — shown at the top of a form reopened from a saved draft. Soft
+   brand tint so it reads as a gentle "you're continuing where you left off"
+   note, with a quiet "Start fresh" link on the right. */
+.draft-banner { flex: none; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 10px 14px; border-radius: 12px;
+  background: var(--pine-tint); border: 1px solid var(--amber-tint); }
+.draft-banner-txt { flex: 1 1 auto; font-size: .85rem; font-weight: 560; color: var(--amber); min-width: 0; }
+.draft-discard { flex: none; border: none; background: transparent; padding: 4px 8px; border-radius: 8px;
+  font: inherit; font-size: .82rem; font-weight: 650; color: var(--pine-deep); cursor: pointer; }
+.draft-discard:hover { background: #fff6; text-decoration: underline; }
+
+/* "Draft waiting" dot on a New… button whose form has an unsent saved draft. */
+.btn.has-draft { position: relative; }
+.btn.has-draft::after { content: ""; position: absolute; top: -3px; right: -3px;
+  width: 9px; height: 9px; border-radius: 50%; background: var(--pine-deep);
+  border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--pine-tint); }
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 /* Frozen footer: a flex-none bar after the scroll region, pinned to the modal
    bottom while the rows scroll between it and the top bar. The running total
