@@ -27,7 +27,11 @@ const state = {
   insights: { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
-  selected: new Set()
+  selected: new Set(),
+  // Top-bar region picker: which region an all-region viewer (Super Admin / VP /
+  // '*' account) has scoped the dashboard to. '' = all regions. Region-locked
+  // accounts ignore this (they only ever see their own region). Reset on login.
+  viewRegion: ''
 };
 const claimKey = (type, id) => `${type}:${id}`;
 
@@ -307,6 +311,36 @@ function canPay(u) {
 function seesAllAdvances(u) {
   return !!(u && (u.role === 'admin' || u.role === 'finance' || canPay(u)));
 }
+// All-region viewers (Super Admins, VPs and '*' accounts) see every region and
+// get the top-bar region picker to narrow the view. Mirrors the server's
+// seesAllRegions. Region-locked accounts only ever see their own region.
+function seesAllRegionsUI(u) {
+  return !!(u && (u.role === 'superadmin' || u.role === 'vp' || u.region === '*'));
+}
+// Top-bar region picker: populate its options and toggle visibility for the
+// signed-in user. All-region viewers pick "All regions" or a single region; the
+// choice scopes the home tiles, claim lists and insights. Hidden for everyone
+// else. Called on login (visibility) and after lookups load (to fill options).
+function renderRegionPicker() {
+  const wrap = $('#regionPicker');
+  const sel = $('#regionSelect');
+  if (!wrap || !sel) return;
+  const show = seesAllRegionsUI(state.user);
+  wrap.hidden = !show;
+  if (!show) return;
+  const cur = state.viewRegion || '';
+  sel.innerHTML = `<option value="">${esc(t('All regions'))}</option>`
+    + (state.lookups.regions || []).map(r =>
+        `<option value="${esc(r)}"${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
+  sel.value = cur;
+}
+// Switching region re-scopes the whole dashboard: reload the ledger (which also
+// refreshes the home tiles + summary cards) and, if Insights is open, refetch it.
+$('#regionSelect').addEventListener('change', (e) => {
+  state.viewRegion = e.target.value || '';
+  loadClaims();
+  if (!$('#insightsView').hidden) loadInsights();
+});
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
 const ROLES_ORDER = ['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Roles the signed-in user may assign when creating an account: every role
@@ -356,6 +390,10 @@ function showApp() {
   $('#listView').hidden = true;
   $('#insightsView').hidden = true;
   state.insights = { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
+  // Reset the region scope on every login so a same-tab account switch never
+  // carries the previous user's chosen region; then show/hide + fill the picker.
+  state.viewRegion = '';
+  renderRegionPicker();
   loadLookups();
   loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
@@ -382,6 +420,8 @@ async function loadLookups() {
     state.lookups.departments = uniqNames(d.items);
     state.lookups.expense_types = uniqNames(e.items);
     state.lookups.regions = uniqNames(r.items);
+    // Now that the region list is known, fill the top-bar picker's options.
+    renderRegionPicker();
   } catch { /* form falls back to free text */ }
   // The claim-date policy gates how old an expense may be; the form uses it to
   // set the date picker's min and to validate before submit.
@@ -509,6 +549,8 @@ async function loadClaims() {
   if (state.filters.status) p.set('status', state.filters.status);
   if (state.filters.department) p.set('department', state.filters.department);
   if (state.filters.q) p.set('q', state.filters.q);
+  // All-region viewers may scope the ledger (and thus the home tiles) to one region.
+  if (state.viewRegion) p.set('region', state.viewRegion);
   const qs = p.toString();
   // Reimbursement + meal allowance claims share one ledger. Tag each with a
   // type so rows, the drawer, and actions can branch to the right endpoints.
@@ -945,6 +987,7 @@ async function loadInsights() {
   if (f.db) params.set('db', f.db);
   if (f.name) params.set('name', f.name);
   if (f.status) params.set('status', f.status);
+  if (state.viewRegion) params.set('region', state.viewRegion);
   try {
     const data = await api('/insights?' + params.toString());
     state.insights.data = data;
@@ -968,9 +1011,11 @@ function renderInsights() {
   // Scope note in the header: a chosen department wins; otherwise it reflects the
   // viewer's remit (whole company vs. the claims they approve).
   const scopeEl = $('#insightsScope');
-  scopeEl.textContent = d.scope.department
+  const remit = d.scope.department
     ? d.scope.department
     : (d.scope.mode === 'all' ? t('Company-wide') : t('Claims you approve'));
+  // Lead with the active region when an all-region viewer has narrowed the scope.
+  scopeEl.textContent = state.viewRegion ? `${state.viewRegion} · ${remit}` : remit;
 
   const yearOpts = (d.years.length ? d.years : [d.year])
     .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');

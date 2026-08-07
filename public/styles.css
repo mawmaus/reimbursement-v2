@@ -1166,6 +1166,9 @@ input[type="search"] { min-width: 220px; }
   transform: rotate(45deg);
 }
 .topbar-lang { margin-right: 2px; }
+/* Region picker sits first in the top bar; reuse the language-switcher chrome. */
+.topbar-region { margin-right: 2px; }
+.topbar-region .lang-globe { opacity: .9; }
 
 /* Login card: centre the switcher under the hint with a hairline divider. */
 .login-lang {

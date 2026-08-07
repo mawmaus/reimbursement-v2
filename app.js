@@ -158,7 +158,7 @@ const normLang = (v) => SUPPORTED_LANGS.includes(String(v || '')) ? String(v) : 
 // '*' accounts see everything. Regions are a managed lookup (Settings).
 const ALL_REGIONS = '*';
 function seesAllRegions(user) {
-  return !!user && (user.role === 'superadmin' || user.region === ALL_REGIONS);
+  return !!user && (user.role === 'superadmin' || user.role === 'vp' || user.region === ALL_REGIONS);
 }
 // Resolve a requested region to its canonical stored value: '*' stays '*'; a
 // known active region name is returned with the lookup's casing; '' stays '';
@@ -170,6 +170,21 @@ async function normRegion(v) {
   if (!s) return '';
   const rows = await q('SELECT name FROM regions WHERE lower(name) = lower($1) AND active = TRUE', [s]);
   return rows[0] ? rows[0].name : null;
+}
+
+// Which region a data read (claim lists, summaries, insights) is scoped to for
+// this request. Region-locked accounts are always pinned to their own region.
+// All-region viewers (Super Admins, VPs, '*' accounts) see every region by
+// default, but the top-bar region picker can narrow the view to one region via
+// ?region=Name. Returns the region name to filter by (may be '' for a
+// blank-region account), or null to apply NO region filter (see everything). A
+// blank / '*' / unknown ?region from an all-region viewer keeps the full view.
+async function viewRegionFilter(req) {
+  if (!seesAllRegions(req.user)) return String(req.user.region || '');
+  const raw = req.query && req.query.region != null ? String(req.query.region).trim() : '';
+  if (!raw || raw === ALL_REGIONS) return null;
+  const r = await normRegion(raw);
+  return (!r || r === ALL_REGIONS) ? null : r;
 }
 
 // --- App-wide settings (key/value store) -----------------------------------
@@ -1257,10 +1272,8 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
   }
-  if (!seesAllRegions(req.user)) {
-    params.push(req.user.region || '');
-    where.push(`region = $${params.length}`);
-  }
+  const vr = await viewRegionFilter(req);
+  if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
   if (search) {
@@ -1282,10 +1295,8 @@ app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
     params.push(req.user.id);
     where.push(`(employee_id = $${params.length} OR $${params.length} = ANY(approver_ids))`);
   }
-  if (!seesAllRegions(req.user)) {
-    params.push(req.user.region || '');
-    where.push(`region = $${params.length}`);
-  }
+  const vr = await viewRegionFilter(req);
+  if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   const scope = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(amount_cents),0)::bigint AS total
@@ -1808,10 +1819,8 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
   }
-  if (!seesAllRegions(req.user)) {
-    params.push(req.user.region || '');
-    where.push(`region = $${params.length}`);
-  }
+  const vr = await viewRegionFilter(req);
+  if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
   if (search) {
@@ -1834,10 +1843,8 @@ app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
     params.push(req.user.id);
     where.push(`(employee_id = $${params.length} OR $${params.length} = ANY(approver_ids))`);
   }
-  if (!seesAllRegions(req.user)) {
-    params.push(req.user.region || '');
-    where.push(`region = $${params.length}`);
-  }
+  const vr = await viewRegionFilter(req);
+  if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   const scope = where.length ? 'WHERE ' + where.join(' AND ') : '';
   const rows = await q(
     `SELECT status, COUNT(*)::int AS n, COALESCE(SUM(total_cents),0)::bigint AS total
@@ -2493,10 +2500,8 @@ app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
     const p = `$${params.length}`;
     where.push(`(employee_id = ${p} OR ${p} = ANY(approver_ids))`);
   }
-  if (!seesAllRegions(req.user)) {
-    params.push(req.user.region || '');
-    where.push(`region = $${params.length}`);
-  }
+  const vr = await viewRegionFilter(req);
+  if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   if (status) add('status = $$', status);
   if (department) add('department = $$', department);
   if (search) {
@@ -2652,8 +2657,11 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
   // Employee-name substring filter (matches the claimant on each document).
   if (nameFilter) { params.push(`%${nameFilter}%`); where.push(`claimant ILIKE $${params.length}`); }
-  // Region isolation: unless the viewer sees all regions, restrict to their own.
-  if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
+  // Region scope: region-locked viewers are pinned to their own region; all
+  // -region viewers (Super Admins / VPs) may narrow to one via the top-bar picker
+  // (?region=Name), else they see every region. Reused for the option lists below.
+  const vr = await viewRegionFilter(req);
+  if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
 
   // Reimbursement rows come from each claim's LINES (claim_lines), not the claim
   // header, so every expense keeps its own real type instead of the header's
@@ -2733,15 +2741,17 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   };
 
   // Department options for the filter dropdown. See-all viewers get every
-  // department; approver-scoped viewers get only the departments among the claims
-  // they approve (e.g. an approver over Technician + After Sales sees both).
+  // department (scoped to the picked region when one is chosen); approver-scoped
+  // viewers get only the departments among the claims they approve (e.g. an
+  // approver over Technician + After Sales sees both).
   const drows = seeAll
     ? await q(
         `SELECT DISTINCT department FROM (
-           SELECT department FROM claims
-           UNION SELECT department FROM meal_claims
-           UNION SELECT department FROM cash_advances
-         ) t WHERE COALESCE(TRIM(department), '') <> '' ORDER BY department`)
+           SELECT department, region FROM claims
+           UNION SELECT department, region FROM meal_claims
+           UNION SELECT department, region FROM cash_advances
+         ) t WHERE COALESCE(TRIM(department), '') <> ''${vr !== null ? ' AND region = $1' : ''} ORDER BY department`,
+        vr !== null ? [vr] : [])
     : await q(
         `SELECT DISTINCT department FROM (
            SELECT department FROM claims        WHERE $1 = ANY(approver_ids)
@@ -2758,7 +2768,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const empConds = [`COALESCE(TRIM(claimant_name), '') <> ''`];
   const empParams = [];
   if (mode === 'approver') { empParams.push(req.user.id); empConds.push(`$${empParams.length} = ANY(approver_ids)`); }
-  if (!seesAllRegions(req.user)) { empParams.push(req.user.region || ''); empConds.push(`region = $${empParams.length}`); }
+  if (vr !== null) { empParams.push(vr); empConds.push(`region = $${empParams.length}`); }
   const erows = await q(
     `SELECT DISTINCT claimant_name FROM (
        SELECT claimant_name, approver_ids, region FROM claims
@@ -2773,7 +2783,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
   const dbConds = [`COALESCE(TRIM(db), '') <> ''`];
   const dbParams = [];
   if (mode === 'approver') { dbParams.push(req.user.id); dbConds.push(`$${dbParams.length} = ANY(approver_ids)`); }
-  if (!seesAllRegions(req.user)) { dbParams.push(req.user.region || ''); dbConds.push(`region = $${dbParams.length}`); }
+  if (vr !== null) { dbParams.push(vr); dbConds.push(`region = $${dbParams.length}`); }
   const dbrows = await q(
     `SELECT DISTINCT db FROM (
        SELECT l.db_no AS db, c.approver_ids, c.region
@@ -2789,7 +2799,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
     scope: { mode, department: deptFilter || null },
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
-    currency: seesAllRegions(req.user) ? DEFAULT_CURRENCY : (await regionPrefsFor(req.user.region)).currency,
+    currency: vr ? (await regionPrefsFor(vr)).currency : DEFAULT_CURRENCY,
     year, years, status: statuses, db, name: nameFilter, departments, employees, dbNos,
     byType, byMonth, byYear, kpis, details
   });
