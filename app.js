@@ -2714,23 +2714,36 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
 
   // Everything else is for the selected year only.
   const inYear = rows.filter(r => r.yr === year);
+  // Optional month narrowing within the selected year (the "Month" filter). The
+  // month dropdown lists the months that actually have data; a requested month
+  // outside that set is ignored (falls back to the whole year). The type
+  // breakdown, KPIs and drill-down details use this narrowed scope; the option
+  // lists and the monthly trend chart still describe the whole year.
+  const monthsSet = new Set(inYear.map(r => r.mo));
+  const months = [...monthsSet].sort();
+  const monthReq = String(req.query.month || '').trim();
+  const month = (/^(0[1-9]|1[0-2])$/.test(monthReq) && monthsSet.has(monthReq)) ? monthReq : '';
+  const inScope = month ? inYear.filter(r => r.mo === month) : inYear;
+
   const byTypeMap = new Map();
-  for (const r of inYear) byTypeMap.set(r.category, (byTypeMap.get(r.category) || 0) + Number(r.cents));
+  for (const r of inScope) byTypeMap.set(r.category, (byTypeMap.get(r.category) || 0) + Number(r.cents));
   const byType = [...byTypeMap.entries()].sort((a, b) => b[1] - a[1])
     .map(([type, cents]) => ({ type, cents }));
 
-  // Line-level detail for the selected year, biggest first, so the client can
+  // Line-level detail for the selected scope, biggest first, so the client can
   // drill into any expense type (pivot-style) and show each underlying line.
-  const details = inYear
+  const details = inScope
     .map(r => ({ cid: r.cid || '', no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', type: r.category, cents: Number(r.cents) }))
     .sort((a, b) => b.cents - a.cents);
 
+  // The monthly trend always spans the whole year (it's the "in context" view);
+  // the Month filter narrows the KPIs / breakdown, not this chart.
   const monthCents = Array(12).fill(0);
   for (const r of inYear) { const m = Number(r.mo); if (m >= 1 && m <= 12) monthCents[m - 1] += Number(r.cents); }
   const byMonth = monthCents.map((cents, i) => ({ month: String(i + 1).padStart(2, '0'), cents }));
 
-  const total = inYear.reduce((s, r) => s + Number(r.cents), 0);
-  const claims = new Set(inYear.map(r => r.cid)).size;
+  const total = inScope.reduce((s, r) => s + Number(r.cents), 0);
+  const claims = new Set(inScope.map(r => r.cid)).size;
   const top = byType[0] || null;
   const kpis = {
     total_cents: total,
@@ -2800,7 +2813,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
     currency: vr ? (await regionPrefsFor(vr)).currency : DEFAULT_CURRENCY,
-    year, years, status: statuses, db, name: nameFilter, departments, employees, dbNos,
+    year, years, month, months, status: statuses, db, name: nameFilter, departments, employees, dbNos,
     byType, byMonth, byYear, kpis, details
   });
 }));

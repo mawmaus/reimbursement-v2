@@ -24,7 +24,7 @@ const state = {
   // Insights view: active filters, the "monthly vs yearly" trend toggle, and the
   // last payload from /api/insights (kept so the trend toggle re-renders without
   // a refetch).
-  insights: { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null },
+  insights: { year: '', month: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null },
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
   selected: new Set(),
@@ -240,6 +240,9 @@ function initLangUI() {
     sel.innerHTML = I18N.LANGS.map(l =>
       `<option value="${l.code}">${esc(I18N.NATIVE[l.code] || l.label)}</option>`).join('');
     sel.value = I18N.getLang();
+    // These selects are upgraded to the custom dropdown; nudge its trigger to
+    // reflect the freshly-filled options/value (a programmatic .value = fires no change).
+    if (sel._mselRefresh) sel._mselRefresh();
   };
   const login = $('#loginLang'), top = $('#topLang');
   fill(login); fill(top);
@@ -254,8 +257,8 @@ function initLangUI() {
 function syncLangSelectors() {
   const cur = I18N.getLang();
   const login = $('#loginLang'), top = $('#topLang');
-  if (login && login.value !== cur) login.value = cur;
-  if (top && top.value !== cur) top.value = cur;
+  if (login && login.value !== cur) { login.value = cur; if (login._mselRefresh) login._mselRefresh(); }
+  if (top && top.value !== cur) { top.value = cur; if (top._mselRefresh) top._mselRefresh(); }
 }
 
 // A signed-in user picks a language: apply it instantly (chrome + whatever view
@@ -333,6 +336,8 @@ function renderRegionPicker() {
     + (state.lookups.regions || []).map(r =>
         `<option value="${esc(r)}"${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
   sel.value = cur;
+  // The select is upgraded to the custom dropdown; refresh its trigger label.
+  if (sel._mselRefresh) sel._mselRefresh();
 }
 // Switching region re-scopes the whole dashboard: reload the ledger (which also
 // refreshes the home tiles + summary cards) and, if Insights is open, refetch it.
@@ -389,7 +394,7 @@ function showApp() {
   $('#homeView').hidden = false;
   $('#listView').hidden = true;
   $('#insightsView').hidden = true;
-  state.insights = { year: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
+  state.insights = { year: '', month: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
   // Reset the region scope on every login so a same-tab account switch never
   // carries the previous user's chosen region; then show/hide + fill the picker.
   state.viewRegion = '';
@@ -641,11 +646,15 @@ function enhanceSelect(sel) {
   // typed text can be committed as-is (a partial-name filter), and always shows
   // a search box.
   const freetext = () => sel.dataset.freetext === 'always';
-  const searchable = () => freetext() || sel.dataset.search === 'always' || sel.options.length > 8;
+  const searchable = () => sel.dataset.search !== 'never'
+    && (freetext() || sel.dataset.search === 'always' || sel.options.length > 8);
   const refreshTrigger = () => {
     const o = sel.options[sel.selectedIndex];
     const placeholder = sel.selectedIndex <= 0 && !sel.value;
-    trigger.innerHTML = `<span class="msel-val${placeholder ? ' placeholder' : ''}">${esc(o ? o.textContent : '')}</span>`;
+    // Optional leading icon (data-icon="🌐") — used by the compact top-bar
+    // language / region pickers so they keep their glyph while using this menu.
+    const icon = sel.dataset.icon ? `<span class="msel-icon" aria-hidden="true">${esc(sel.dataset.icon)}</span>` : '';
+    trigger.innerHTML = icon + `<span class="msel-val${placeholder ? ' placeholder' : ''}">${esc(o ? o.textContent : '')}</span>`;
   };
   const optsBox = () => menu.querySelector('.msel-opts');
   const renderOpts = (filter) => {
@@ -983,6 +992,7 @@ async function loadInsights() {
   const f = state.insights;
   const params = new URLSearchParams();
   if (f.year) params.set('year', f.year);
+  if (f.month) params.set('month', f.month);
   if (f.department) params.set('department', f.department);
   if (f.db) params.set('db', f.db);
   if (f.name) params.set('name', f.name);
@@ -992,6 +1002,9 @@ async function loadInsights() {
     const data = await api('/insights?' + params.toString());
     state.insights.data = data;
     state.insights.year = data.year || ''; // server may resolve to the latest year
+    // Server echoes the month it applied ('' when the chosen month has no data in
+    // the resolved year, e.g. after switching years), so mirror it back.
+    state.insights.month = data.month || '';
     // Drop a department filter that isn't in this viewer's scope any more.
     if (f.department && !data.departments.includes(f.department)) state.insights.department = '';
     renderInsights();
@@ -1019,6 +1032,15 @@ function renderInsights() {
 
   const yearOpts = (d.years.length ? d.years : [d.year])
     .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');
+  // Month filter — lists only the months that have data in the selected year.
+  const monthNames = I18N.months();
+  const monthOpts = [`<option value="">${esc(t('All months'))}</option>`]
+    .concat((d.months || []).map(m => {
+      const nm = monthNames[parseInt(m, 10) - 1] || m;
+      return `<option value="${esc(m)}"${m === d.month ? ' selected' : ''}>${esc(nm)}</option>`;
+    })).join('');
+  // Period label for the breakdown card's subtitle: month + year, or just year.
+  const periodLabel = d.month ? `${monthNames[parseInt(d.month, 10) - 1] || d.month} ${d.year}` : String(d.year);
   const deptOpts = [`<option value="">${esc(t('All departments'))}</option>`]
     .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
   const statusOpts = INSIGHT_STATUS_PRESETS
@@ -1044,6 +1066,7 @@ function renderInsights() {
   $('#insightsBody').innerHTML = `
     <div class="insights-filters">
       <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
+      <label>${esc(t('Month'))}<select id="inMonth" class="input" data-search="never">${monthOpts}</select></label>
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
       <label>${esc(t('DB No'))}<select id="inDb" class="input" data-search="always">${dbOpts}</select></label>
       <label>${esc(t('Status'))}<select id="inStatus" class="input">${statusOpts}</select></label>
@@ -1054,7 +1077,7 @@ function renderInsights() {
       <div class="chart-card">
         <div class="chart-head"><div>
           <div class="chart-title">${esc(t('Spend by expense type'))}</div>
-          <div class="chart-sub">${esc(d.year)} · ${esc(currentStatusLabel(f.status))} · ${esc(t('Click a type to see its expenses'))}</div>
+          <div class="chart-sub">${esc(periodLabel)} · ${esc(currentStatusLabel(f.status))} · ${esc(t('Click a type to see its expenses'))}</div>
         </div></div>
         <div id="typeBars" class="type-bars"></div>
       </div>
@@ -1078,6 +1101,7 @@ function renderInsights() {
 
   // Filters — every one is a dropdown now, so all refetch on change.
   $('#inYear').addEventListener('change', e => { f.year = e.target.value; loadInsights(); });
+  $('#inMonth').addEventListener('change', e => { f.month = e.target.value; loadInsights(); });
   const dept = $('#inDept'); if (dept) dept.addEventListener('change', e => { f.department = e.target.value; loadInsights(); });
   $('#inStatus').addEventListener('change', e => { f.status = e.target.value; loadInsights(); });
   $('#inDb').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
@@ -1317,7 +1341,9 @@ function renderTrend() {
   }
   const line = points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.value).toFixed(1)}`).join(' ');
   const area = `M ${xAt(0).toFixed(1)},${(padT + plotH).toFixed(1)} L ${line.split(' ').join(' L ')} L ${xAt(n - 1).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
-  const dots = points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="3.5" class="dot" />`).join('');
+  // Emphasise the month currently picked in the Month filter (monthly view only).
+  const selMo = (monthly && state.insights.month) ? (parseInt(state.insights.month, 10) - 1) : -1;
+  const dots = points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="${i === selMo ? 5.5 : 3.5}" class="dot${i === selMo ? ' dot-sel' : ''}" />`).join('');
   const xlabels = points.map((p, i) =>
     `<text x="${xAt(i).toFixed(1)}" y="${H - 8}" class="ax" text-anchor="middle">${esc(p.label)}</text>`).join('');
   // Larger transparent hit targets drive the hover tooltip.
@@ -1461,15 +1487,15 @@ $('#deptFilter').addEventListener('change', e => { state.filters.department = e.
 // Claimant filter is client-side, so just re-render (no server round-trip).
 $('#claimantFilter').addEventListener('change', e => { state.filters.claimant = e.target.value; renderClaims(); });
 // Upgrade every native <select> in the app to the modern custom dropdown —
-// including ones added later by dynamic renders (modals, table rows). Opt out
-// with [data-no-msel] or by living in the globe language switcher, which keeps
-// its own compact UI.
+// including ones added later by dynamic renders (modals, table rows). The
+// language + region pickers are enhanced too (they carry data-icon for their
+// glyph); opt out only with [data-no-msel].
 function enhanceSelectsIn(root) {
   if (!root || root.nodeType !== 1) return;
   const list = root.matches && root.matches('select') ? [root]
     : (root.querySelectorAll ? [...root.querySelectorAll('select')] : []);
   list.forEach(sel => {
-    if (sel.dataset.msel || sel.closest('.lang-select') || sel.hasAttribute('data-no-msel')) return;
+    if (sel.dataset.msel || sel.hasAttribute('data-no-msel')) return;
     enhanceSelect(sel);
   });
 }

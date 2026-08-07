@@ -35,10 +35,9 @@
     <p class="login-hint muted" id="loginHint"></p>
 
     <div class="login-lang">
-      <label class="lang-select" title="Language">
-        <span class="lang-globe" aria-hidden="true">🌐</span>
-        <select id="loginLang" aria-label="Language"></select>
-      </label>
+      <div class="topbar-ctl">
+        <select id="loginLang" data-icon="🌐" aria-label="Language"></select>
+      </div>
     </div>
   </div>
 </div>
@@ -51,15 +50,13 @@
       <span class="topbar-title" data-i18n="Reimbursement Portal">Reimbursement Portal</span>
     </div>
     <div class="topbar-right">
-      <label class="lang-select topbar-region" id="regionPicker" title="Region" hidden>
-        <span class="lang-globe" aria-hidden="true">📍</span>
-        <select id="regionSelect" aria-label="Region"></select>
-      </label>
+      <div class="topbar-ctl" id="regionPicker" title="Region" hidden>
+        <select id="regionSelect" data-icon="📍" aria-label="Region"></select>
+      </div>
       <span id="userBadge" class="user-badge"></span>
-      <label class="lang-select topbar-lang" title="Language">
-        <span class="lang-globe" aria-hidden="true">🌐</span>
-        <select id="topLang" aria-label="Language"></select>
-      </label>
+      <div class="topbar-ctl">
+        <select id="topLang" data-icon="🌐" aria-label="Language"></select>
+      </div>
       <button id="newClaimBtn" class="btn btn-primary btn-sm" hidden data-i18n="New claim">New claim</button>
       <button id="newMealBtn" class="btn btn-primary btn-sm" hidden data-i18n="New meal allowance">New meal allowance</button>
       <button id="newAdvanceBtn" class="btn btn-primary btn-sm" hidden data-i18n="New cash advance">New cash advance</button>
