@@ -308,7 +308,7 @@ function seesAllAdvances(u) {
   return !!(u && (u.role === 'admin' || u.role === 'finance' || canPay(u)));
 }
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
-const ROLES_ORDER = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+const ROLES_ORDER = ['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Roles the signed-in user may assign when creating an account: every role
 // strictly below their own (super admins get all but superadmin here; they use
 // the full list directly in the form). Mirrors the server's creatableRolesFor.
@@ -333,9 +333,9 @@ function showApp() {
   const isSuper = u.role === 'superadmin';
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');
-  // Settings opens for super admins, CM/MD (who always get the Roles tab), or
+  // Settings opens for super admins, VP / CM/MD (who always get the Roles tab), or
   // anyone who can manage settings.
-  $('#settingsBtn').hidden = !(isSuper || u.role === 'admin' || uCan('manage_settings'));
+  $('#settingsBtn').hidden = !(isSuper || u.role === 'vp' || u.role === 'admin' || uCan('manage_settings'));
   // "Manage accounts": shown to non-superadmins who may manage their team's
   // accounts (reset password / enable-disable) OR who hold the create_accounts
   // capability (so the delegated "+ Add user" form is reachable). Superadmins use
@@ -3863,15 +3863,16 @@ const SETTINGS_TABS = [
   { key: 'region-prefs', label: 'Currency, time zone & bank', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
-// Tabs visible to the current user. The Roles matrix is open to Super Admins and
-// CM/MD (admins), who may edit the rows below their own; the rest need the
+// Tabs visible to the current user. The Roles matrix is open to Super Admins, VPs
+// and CM/MD (admins), who may edit the rows below their own; the rest need the
 // matching capability.
 function visibleSettingsTabs() {
   const u = state.user;
   const isSuper = u && u.role === 'superadmin';
+  const isVp = u && u.role === 'vp';
   const isCmMd = u && u.role === 'admin';
   return SETTINGS_TABS.filter(tab => {
-    if (tab.roleMatrix) return isSuper || isCmMd;
+    if (tab.roleMatrix) return isSuper || isVp || isCmMd;
     // Currency & time zone: Super Admins (any region) and CM/MD (their own).
     if (tab.regionPrefs) return isSuper || isCmMd;
     // Accounts: Super Admins get the full editor; anyone who can create or manage
@@ -3893,7 +3894,7 @@ $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 // in every language (like "Super Admin" and "Managing Director"), so roleLabel
 // deliberately does NOT run them through t(). Other uses of words like
 // "Employee"/"Finance" (e.g. the Insights filter) still localise normally.
-const ROLE_LABELS = { superadmin: 'Super Admin', admin: 'Country Manager / Managing Director', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
+const ROLE_LABELS = { superadmin: 'Super Admin', vp: 'Vice President', admin: 'Country Manager / Managing Director', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
 const roleLabel = (r) => ROLE_LABELS[r] || r;
 // Display label for an account/claim region: '*' -> All regions, '' -> em dash.
 const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');
@@ -4225,10 +4226,12 @@ async function renderRegionPrefsTab() {
 // --- Roles: region-scoped capability matrix ----------------------------------
 // Rows are capabilities; columns are the region's roles (Super Admin is never
 // shown — it always holds every permission). The Employee column is shown
-// locked for reference; Country Manager / MD, Mid Management, Low Management,
-// and Finance are editable by a Super Admin and persist immediately via PUT.
-// Grants are additive on top of job-position / department / flag permissions,
-// and apply only within the selected region.
+// locked for reference; Vice President, Country Manager / MD, Mid Management,
+// Low Management, and Finance are editable, and persist immediately via PUT.
+// Which columns a given user may toggle comes from the server (editableRoles): a
+// Super Admin edits every row below Super Admin, a VP every row below VP, a CM/MD
+// only Mid/Low/Finance. Grants are additive on top of job-position / department /
+// flag permissions, and apply only within the selected region.
 async function renderRolesTab() {
   const panel = $('#settingsPanel');
   const region = settingsState.region;
@@ -4244,7 +4247,7 @@ async function renderRolesTab() {
     const canEdit = editable.has(role);
     const title = canEdit ? '' : (role === 'employee'
       ? t('The Employee baseline is fixed.')
-      : t('Country Manager / Managing Director permissions are set by the Super Admin.'));
+      : t('This role’s permissions are managed by a more senior administrator.'));
     return `<td class="tick-cell" style="text-align:center"><input type="checkbox" ${canEdit ? `data-role="${role}" data-cap="${cap}"` : 'disabled'} ${on ? 'checked' : ''}${title ? ` title="${esc(title)}"` : ''} /></td>`;
   };
   panel.innerHTML = `
@@ -4723,7 +4726,7 @@ function renderUserForm(u) {
         <label>${esc(t('Email (for resets & notifications)'))}<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="${esc(t('you@company.com'))}" /></label>
         ${state.user.role === 'superadmin' ? `<label>${esc(t('Role'))}
           <select name="role">
-            ${['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
+            ${['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
               `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
           </select></label>`
         : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}

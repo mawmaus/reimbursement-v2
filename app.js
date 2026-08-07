@@ -300,24 +300,29 @@ const CAPABILITIES = [
 const CAPABILITY_KEYS = new Set(CAPABILITIES.map(c => c.key));
 // Editable roles shown as rows in the region matrix (superadmin is implicit/all
 // -on and never shown). Ordered senior → junior to match the workspace UI.
-const EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance', 'employee'];
-// Super Admins may configure Country Manager / Managing Director, Mid
-// Management, Low Management, and Finance permissions for each region. The
+const EDITABLE_ROLES = ['vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+// Super Admins may configure Vice President, Country Manager / Managing Director,
+// Mid Management, Low Management, and Finance permissions for each region. The
 // Employee baseline stays locked.
-const REGION_EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance'];
+const REGION_EDITABLE_ROLES = ['vp', 'admin', 'manager', 'lowmgmt', 'finance'];
+// A VP sits just below the Super Admin: they may open the region matrix and
+// configure every role beneath them — CM/MD, Mid/Low Management and Finance —
+// but never the Super Admin (implicit/all-on) or their own VP row.
+const VP_EDITABLE_ROLES = ['admin', 'manager', 'lowmgmt', 'finance'];
 // A CM/MD (admin) may also open the region matrix, but only for the rows below
-// their own — Mid/Low/Finance — never the admin row (self-escalation) or the
-// locked Employee baseline. Which rows an actor may toggle depends on their role.
+// their own — Mid/Low/Finance — never the VP or admin rows (self-escalation) or
+// the locked Employee baseline. Which rows an actor may toggle depends on role.
 const CMMD_EDITABLE_ROLES = ['manager', 'lowmgmt', 'finance'];
 function editableRolesFor(user) {
   if (!user) return [];
   if (user.role === 'superadmin') return REGION_EDITABLE_ROLES;
+  if (user.role === 'vp') return VP_EDITABLE_ROLES;
   if (user.role === 'admin') return CMMD_EDITABLE_ROLES;
   return [];
 }
 // Only capabilities set true here are granted by default; everything else false.
 // New roles start with nothing — configure them per region in the matrix.
-const ROLE_DEFAULTS = { admin: { export_csv: true }, manager: {}, lowmgmt: {}, finance: {}, employee: {} };
+const ROLE_DEFAULTS = { vp: { export_csv: true }, admin: { export_csv: true }, manager: {}, lowmgmt: {}, finance: {}, employee: {} };
 
 // Fill a raw stored matrix into a complete { role: { cap: bool } }, taking each
 // missing entry from `fallback` (another filled matrix) or, failing that, from
@@ -852,16 +857,20 @@ function creatablePositions(user, pos) {
 
 // Whether `actor` may manage (reset password / enable-disable) the account
 // `target`. Superadmins may manage anyone. Everyone else (admins and delegated
-// seniors) may manage any NON-superadmin in their OWN department whose position
-// ranks strictly below their own — regardless of the target's role. This keeps
-// management purely rank + department based (a Manager can reset/disable a more
-// junior Supervisor whether that Supervisor is an employee or an admin), while
-// still protecting superadmins and anyone at or above the actor's own rank.
+// seniors) may manage any account below Super Admin / VP in their OWN department
+// whose position ranks strictly below their own — regardless of the target's
+// role. This keeps management purely rank + department based (a Manager can
+// reset/disable a more junior Supervisor whether that Supervisor is an employee
+// or an admin), while still protecting superadmins, VPs, and anyone at or above
+// the actor's own rank.
 // (Account *creation* is gated by the create_accounts capability — see POST.)
 function canManageAccount(actor, target, pos) {
   if (actor.role === 'superadmin') return true;
   if (!hasDelegation(actor, pos)) return false;
   if (target.role === 'superadmin') return false;
+  // A VP outranks everyone but the Super Admin — only a Super Admin may act on
+  // one (reset its password, enable/disable it). CM/MD and seniors never can.
+  if (target.role === 'vp') return false;
   // Region isolation: a region-scoped actor manages only same-region accounts.
   if (!seesAllRegions(actor) && String(target.region || '') !== String(actor.region || '')) return false;
   const aDept = String(actor.department || '').trim().toLowerCase();
@@ -2932,7 +2941,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
 // Admin: users
 // ---------------------------------------------------------------------------
 const isActive = (v) => v === true || v === 1 || v === '1' || v === 'true';
-const ROLES = ['superadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+const ROLES = ['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Roles a delegated (non-superadmin) creator may assign: every role strictly
 // more junior than their own in the ROLES ladder (index 0 = most senior). This
 // keeps a create_accounts holder from minting peers or seniors — no
@@ -3362,7 +3371,7 @@ lookupRoutes('regions', 'regions');
 // Admin is implicitly all-true and omitted from `matrix`; only Mid Management /
 // Low Management / Finance rows are editable.
 function canAccessRoleMatrix(user) {
-  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+  return !!user && (user.role === 'superadmin' || user.role === 'vp' || user.role === 'admin');
 }
 // Which region a request may act on. Non-superadmins are pinned to their own
 // region whatever they ask for; super admins / All-regions accounts may target

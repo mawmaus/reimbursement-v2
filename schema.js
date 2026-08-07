@@ -8,7 +8,7 @@ const SCHEMA = [
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name     TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('superadmin','admin','manager','lowmgmt','finance','employee')),
+    role          TEXT NOT NULL CHECK (role IN ('superadmin','vp','admin','manager','lowmgmt','finance','employee')),
     department    TEXT NOT NULL DEFAULT '',
     position      TEXT NOT NULL DEFAULT '',
     active        BOOLEAN NOT NULL DEFAULT TRUE,
@@ -33,20 +33,23 @@ const SCHEMA = [
   // see everything. Existing super admins get '*' so they keep full visibility.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT ''`,
   `UPDATE users SET region = '*' WHERE role = 'superadmin' AND region = ''`,
-  // Role model: six codes mapped to the org's roles —
-  //   superadmin → Super Admin      admin    → Country Manager / Managing Director
+  // Role model: seven codes mapped to the org's roles —
+  //   superadmin → Super Admin      vp       → Vice President
+  //   admin      → Country Manager / Managing Director
   //   manager    → Mid Management    lowmgmt  → Low Management
   //   finance    → Finance           employee → Employee
-  // Their powers are configured in the region-scoped role-permission matrix.
+  // Their powers are configured in the region-scoped role-permission matrix. VP
+  // sits just below Super Admin (above CM/MD): it may configure every role beneath
+  // it in that matrix, and only a Super Admin may act on a VP account.
   // The legacy generic 'user' role is retired: fold it into 'employee' (the new
-  // baseline), then widen the CHECK to the six-code set and normalise any value
+  // baseline), then widen the CHECK to the seven-code set and normalise any value
   // still outside it to 'employee'. NOTE: we deliberately do NOT remap
   // 'admin' → 'superadmin' here — 'admin' is a real role (Country Manager / MD),
   // and an idempotent remap would clobber those accounts on every boot.
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`,
   `UPDATE users SET role = 'employee' WHERE role = 'user'`,
-  `UPDATE users SET role = 'employee' WHERE role NOT IN ('superadmin','admin','manager','lowmgmt','finance','employee')`,
-  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','admin','manager','lowmgmt','finance','employee'))`,
+  `UPDATE users SET role = 'employee' WHERE role NOT IN ('superadmin','vp','admin','manager','lowmgmt','finance','employee')`,
+  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','vp','admin','manager','lowmgmt','finance','employee'))`,
   // Per-account approval limit: the largest claim amount (in cents, matching
   // claims.amount_cents / meal_claims.total_cents) this account may approve. NULL
   // means unlimited — the default, so existing accounts keep approving any amount.
