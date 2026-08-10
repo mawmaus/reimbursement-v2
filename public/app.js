@@ -4182,7 +4182,7 @@ async function renderRegionsLanding() {
   await renderLookupTab({ path: '/regions', noun: 'region' }, '#settingsPanel');
   const header = `
     <div class="region-landing-head">
-      <p class="muted" style="margin:0 0 14px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
+      <p class="muted" style="margin:0 0 8px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
       <div class="region-grid">
         ${active.length ? active.map(r => `
           <button type="button" class="region-card" data-region="${esc(r.name)}">
@@ -4190,7 +4190,7 @@ async function renderRegionsLanding() {
             <span class="region-card-go" aria-hidden="true">→</span>
           </button>`).join('') : `<p class="muted">${esc(t('No regions yet. Add one below.'))}</p>`}
       </div>
-      <div class="section-label" style="margin-top:20px">${esc(t('Manage regions'))}</div>
+      <div class="section-label" style="margin-top:10px">${esc(t('Manage regions'))}</div>
     </div>`;
   panel.insertAdjacentHTML('afterbegin', header);
   $$('#settingsPanel .region-card').forEach(c => c.addEventListener('click', () => {
@@ -4548,7 +4548,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const colspan = 2 + (ranked ? 1 : 0) + (p ? 3 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
-      <form id="lookupForm" class="form" style="margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
+      <form id="lookupForm" class="form" style="margin-bottom:10px">
         <div style="display:flex;gap:8px;align-items:flex-end">
           <label style="flex:1;margin:0">${esc(t('Add {noun}', { noun }))}<input name="name" required placeholder="${esc(t('Name'))}" /></label>
           <button type="submit" class="btn btn-primary btn-sm">${esc(t('Add'))}</button>
