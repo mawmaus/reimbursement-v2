@@ -4544,7 +4544,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const headCols = (ranked ? `<th style="width:64px">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th><th>${esc(t('Active'))}</th>`
     + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th><th>${esc(t('New cash advance'))}</th>` : '')
     + (manage ? `<th>${esc(t('Manage accounts'))}</th>` : '')
-    + '<th style="width:220px"></th>';
+    + '<th class="u-actions-h"></th>';
   const colspan = 2 + (ranked ? 1 : 0) + (p ? 3 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
@@ -4560,7 +4560,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
       </div>
     </div>
     <div class="settings-list">
-      <table class="utable">
+      <table class="utable utable-lookup">
         <thead><tr>${headCols}</tr></thead>
         <tbody>${items.length ? items.map((it, i) => `
           <tr data-id="${it.id}">
