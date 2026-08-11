@@ -3163,7 +3163,13 @@ function xhrSend(method, url, body, contentType, onProgress) {
       } else {
         let msg = `the server returned ${xhr.status}`;
         try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = j.error; } catch { /* keep default */ }
-        reject(new Error(msg));
+        // Attach the status (and any Retry-After) so the caller can tell a
+        // transient 429 rate-limit apart from a deterministic 4xx/5xx.
+        const err = new Error(msg);
+        err.status = xhr.status;
+        const ra = xhr.getResponseHeader('retry-after');
+        if (ra) err.retryAfter = ra;
+        reject(err);
       }
     };
     xhr.onerror = () => reject(new Error('a network error interrupted the upload'));
@@ -3177,16 +3183,45 @@ function xhrSend(method, url, body, contentType, onProgress) {
 // files must go directly to Blob to clear the serverless ~4.5 MB body limit.
 const DIRECT_BLOB_THRESHOLD = 4 * 1024 * 1024;
 
-// Upload one already-materialized receipt, retrying once on a transient
-// network/timeout hiccup (HTTP-status errors are deterministic, so not retried).
+// Parse a Retry-After header (delta-seconds or an HTTP-date) into milliseconds,
+// or null when it is absent or unparseable.
+function retryAfterMs(v) {
+  if (!v) return null;
+  const secs = Number(v);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const when = Date.parse(v);
+  return Number.isFinite(when) ? Math.max(0, when - Date.now()) : null;
+}
+
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// Upload one already-materialized receipt. A network blip or timeout is worth
+// exactly one retry; an HTTP 429 (rate limiting — Vercel's edge throttles the
+// burst of back-to-back receipt uploads) is transient too, so we retry it a few
+// times with exponential backoff, honoring a Retry-After header when present.
+// Every other HTTP-status and bad-response error is deterministic and rethrown.
 async function sendReceipt(method, url, body, contentType, onProgress) {
-  try {
-    return await xhrSend(method, url, body, contentType, onProgress);
-  } catch (e) {
-    // Only a network blip or timeout is worth retrying; HTTP-status and
-    // bad-response errors are deterministic.
-    if (!/network error|timed out/.test(e.message)) throw e;
-    return await xhrSend(method, url, body, contentType, onProgress);
+  const MAX_429_RETRIES = 3;
+  let rateLimitTries = 0, netTries = 0;
+  for (;;) {
+    try {
+      return await xhrSend(method, url, body, contentType, onProgress);
+    } catch (e) {
+      if (e.status === 429 && rateLimitTries < MAX_429_RETRIES) {
+        rateLimitTries++;
+        const server = retryAfterMs(e.retryAfter);
+        // Fall back to 1s / 2s / 4s backoff with jitter when the server gives
+        // no Retry-After, so parallel uploads don't all wake at once.
+        const backoff = Math.min(8000, 1000 * 2 ** (rateLimitTries - 1)) + Math.random() * 250;
+        await wait(server === null ? backoff : server);
+        continue;
+      }
+      if (/network error|timed out/.test(e.message) && netTries < 1) {
+        netTries++;
+        continue;
+      }
+      throw e;
+    }
   }
 }
 
