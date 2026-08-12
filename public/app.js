@@ -3881,7 +3881,7 @@ $('#exportBtn').addEventListener('click', () => openExportModal());
 
 async function openExportModal() {
   let users = [];
-  try { ({ users } = await api('/users')); } catch (ex) { toast(ex.message, true); return; }
+  try { ({ users } = await api('/claim-submitters')); } catch (ex) { toast(ex.message, true); return; }
   users.sort((a, b) => String(a.full_name).localeCompare(String(b.full_name)));
 
   openModal(`

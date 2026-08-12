@@ -2960,6 +2960,23 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   res.send(csv);
 }));
 
+// The submitter picker for the export dialog. Deliberately separate from
+// GET /api/users (which exposes full account records \u2014 bank details, approver
+// chains \u2014 and is gated by account-management delegation): exporting only needs
+// id / name / username, so this is gated by export_csv and returns nothing
+// sensitive. Region-scoped to match what the export itself can include, so a
+// region user never sees or filters on accounts outside their region.
+app.get('/api/claim-submitters', requireAuth, requireCap('export_csv'), ah(async (req, res) => {
+  const where = [];
+  const params = [];
+  if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
+  const users = await q(
+    `SELECT id, full_name, username FROM users
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     ORDER BY full_name`, params);
+  res.json({ users });
+}));
+
 // ---------------------------------------------------------------------------
 // Admin: users
 // ---------------------------------------------------------------------------
