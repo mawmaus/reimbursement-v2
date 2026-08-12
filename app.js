@@ -2854,18 +2854,34 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
       employees.forEach(e => params.push(e));
       where.push(`c.employee_id IN (${ph})`);
     }
-    if (from) { params.push(from); where.push(`c.expense_date >= $${params.length}`); }
-    if (to) { params.push(to); where.push(`c.expense_date <= $${params.length}`); }
+    // Filter on the line's own date (like meal/advance), so a multi-line claim
+    // contributes only the lines that fall in the range.
+    if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
+    if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
+    // One row per line so each expense category exports on its own row (instead of
+    // the claim header's "Multiple" summary). first_approved_at is the earliest
+    // approval action logged for the claim — 'approved'/'approved — step N of M',
+    // but not reverts ('reverted approval') — i.e. when the first approver signed off.
     const rows = await q(
-      `SELECT c.*, u.username AS employee_username FROM claims c JOIN users u ON u.id = c.employee_id
-       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}`, params);
+      `SELECT c.claim_no, c.claimant_name, c.department, c.bank_name, c.recipient_name,
+              c.bank_account_no, c.currency, c.status, c.manager_comment, c.decided_at,
+              c.paid_at, c.created_at, u.username AS employee_username, fa.first_approved_at,
+              l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description, l.sort_order
+       FROM claim_lines l
+       JOIN claims c ON c.id = l.claim_id
+       JOIN users u ON u.id = c.employee_id
+       LEFT JOIN (SELECT claim_id, MIN(created_at) AS first_approved_at
+                    FROM claim_history WHERE action LIKE 'approved%' GROUP BY claim_id) fa
+              ON fa.claim_id = c.id
+       ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+       ORDER BY c.created_at, l.sort_order`, params);
     for (const r of rows) {
       out.push({ key: iso(r.created_at) || '', cells: [
         'Reimbursement', r.claim_no, r.employee_username, r.claimant_name, r.department,
-        r.bank_name, r.recipient_name, r.bank_account_no, r.expense_date, r.expense_type, r.db_no || '',
+        r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
-        r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
 
@@ -2888,11 +2904,14 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     const rows = await q(
       `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
               m.bank_account_no, m.currency, m.status, m.manager_comment, m.decided_at, m.paid_at,
-              m.created_at, u.username AS employee_username,
+              m.created_at, u.username AS employee_username, fa.first_approved_at,
               l.line_date, l.site, l.job_category, l.amount_cents, l.description, l.sort_order
        FROM meal_claim_lines l
        JOIN meal_claims m ON m.id = l.meal_claim_id
        JOIN users u ON u.id = m.employee_id
+       LEFT JOIN (SELECT meal_claim_id, MIN(created_at) AS first_approved_at
+                    FROM meal_claim_history WHERE action LIKE 'approved%' GROUP BY meal_claim_id) fa
+              ON fa.meal_claim_id = m.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY m.created_at, l.sort_order`, params);
     for (const r of rows) {
@@ -2900,7 +2919,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         'Meal allowance', r.claim_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
-        r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
 
@@ -2927,14 +2946,19 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
+    // first_approved_at = the request-phase approval ('approved%'); the realization
+    // phase logs 'realization approved …', which this prefix match deliberately skips.
     const rows = await q(
       `SELECT a.advance_no, a.claimant_name, a.department, a.bank_name, a.recipient_name,
               a.bank_account_no, a.currency, a.status, a.purpose, a.manager_comment,
-              a.decided_at, a.paid_at, a.created_at, u.username AS employee_username,
+              a.decided_at, a.paid_at, a.created_at, u.username AS employee_username, fa.first_approved_at,
               l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description, l.sort_order
        FROM cash_advance_lines l
        JOIN cash_advances a ON a.id = l.advance_id
        JOIN users u ON u.id = a.employee_id
+       LEFT JOIN (SELECT advance_id, MIN(created_at) AS first_approved_at
+                    FROM cash_advance_history WHERE action LIKE 'approved%' GROUP BY advance_id) fa
+              ON fa.advance_id = a.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY a.created_at, l.sort_order`, params);
     for (const r of rows) {
@@ -2942,7 +2966,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         'Cash advance', r.advance_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency,
-        r.description, r.status, r.manager_comment, iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.description, r.status, r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
 
@@ -2950,7 +2974,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
 
   const headers = ['Type', 'Claim No', 'Submitted By', 'Claimant Name', 'Department',
     'Bank Name', 'Recipient Name', 'Bank Account No', 'Date', 'Category', 'Site', 'Amount',
-    'Currency', 'Description', 'Status', 'Manager Comment', 'Decided At', 'Paid At', 'Created At'];
+    'Currency', 'Description', 'Status', 'Manager Comment', 'First Approved At', 'Decided At', 'Paid At', 'Created At'];
   const lines = [headers.map(csvCell).join(',')];
   for (const r of out) lines.push(r.cells.map(csvCell).join(','));
 
