@@ -3090,6 +3090,376 @@ async function compressImage(file, maxBytes) {
   return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
 }
 
+// ---------------------------------------------------------------------------
+// Receipt photo editor — crop, rotate, and (optionally) burn in a date + GPS
+// location stamp. Opens for every picked image so a receipt photographed on a
+// phone can be straightened/tightened and carries a tamper-evident capture
+// stamp, the way dedicated "GPS camera" apps produce. PDFs and animated GIFs
+// skip it (nothing to crop/rotate). Returns a new JPEG File, the untouched
+// original (if the browser can't decode it), or null when the user cancels.
+// ---------------------------------------------------------------------------
+const STAMP_FONT = '-apple-system, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+
+// Draw `img` rotated by `deg` degrees into a new canvas sized to the rotated
+// image's bounding box. Shared by the on-screen preview and the full-res export
+// so the two always agree on geometry.
+function rotatedImageCanvas(img, deg) {
+  const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  const rad = deg * Math.PI / 180;
+  const s = Math.abs(Math.sin(rad)), c = Math.abs(Math.cos(rad));
+  const bw = Math.max(1, Math.round(w * c + h * s));
+  const bh = Math.max(1, Math.round(w * s + h * c));
+  const cnv = document.createElement('canvas');
+  cnv.width = bw; cnv.height = bh;
+  const ctx = cnv.getContext('2d');
+  ctx.translate(bw / 2, bh / 2);
+  ctx.rotate(rad);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  return cnv;
+}
+
+// One-shot geolocation as a promise.
+function getPositionOnce(opts) {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('no geolocation'));
+    navigator.geolocation.getCurrentPosition(resolve, reject, opts);
+  });
+}
+
+// Turn a coordinate into a street address via our same-origin proxy (which
+// forwards to a public geocoder). Best-effort — null on any failure.
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch(`/api/geocode?lat=${lat}&lon=${lon}&lang=${encodeURIComponent(I18N.getLang())}`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j.address) || null;
+  } catch { return null; }
+}
+
+// Format the capture time as "16 Aug 2026 · 14:32:07 GMT+7".
+function fmtStampTime(d) {
+  const M = I18N.months();
+  const p2 = n => String(n).padStart(2, '0');
+  const off = -d.getTimezoneOffset(); // minutes east of UTC
+  const sign = off >= 0 ? '+' : '-';
+  const oh = Math.floor(Math.abs(off) / 60), om = Math.abs(off) % 60;
+  const gmt = `GMT${sign}${oh}${om ? ':' + p2(om) : ''}`;
+  return `${d.getDate()} ${M[d.getMonth()]} ${d.getFullYear()} · `
+    + `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${gmt}`;
+}
+// Signed decimal coordinate → "3.589200°N" style.
+function fmtLat(v) { return `${Math.abs(v).toFixed(6)}°${v >= 0 ? 'N' : 'S'}`; }
+function fmtLon(v) { return `${Math.abs(v).toFixed(6)}°${v >= 0 ? 'E' : 'W'}`; }
+
+// Wrap `text` to physical lines no wider than maxWidth (ctx.font already set).
+function wrapTextLines(ctx, text, maxWidth) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const out = []; let cur = '';
+  for (const w of words) {
+    const test = cur ? cur + ' ' + w : w;
+    if (!cur || ctx.measureText(test).width <= maxWidth) cur = test;
+    else { out.push(cur); cur = w; }
+  }
+  if (cur) out.push(cur);
+  return out.length ? out : [''];
+}
+
+// Burn a bottom-anchored capture stamp into `box` (x,y,w,h) of `ctx`. `lines`
+// is [{ text, bold }]. Font sizes scale with box.w, so the preview (drawn into
+// the crop rectangle) and the export (drawn into the full-res crop) look the
+// same. Address lines are clamped to two rows so the band can't swallow the
+// photo.
+function drawCaptureStamp(ctx, box, lines) {
+  if (!lines || !lines.length) return;
+  const fs = Math.min(Math.max(box.w * 0.026, 12), 44);
+  const headFs = fs * 1.14;
+  const padX = fs * 0.85, padY = fs * 0.62, lineGap = fs * 0.34, accent = Math.max(3, fs * 0.24);
+  const textLeft = padX + accent + fs * 0.5;
+  const maxTextW = box.w - textLeft - padX;
+  // Expand logical lines into physical (wrapped) rows carrying their own font.
+  const rows = [];
+  lines.forEach(ln => {
+    const size = ln.bold ? headFs : fs;
+    ctx.font = `${ln.bold ? 700 : 500} ${size}px ${STAMP_FONT}`;
+    let wrapped = wrapTextLines(ctx, ln.text, maxTextW);
+    if (wrapped.length > 2) { // clamp long addresses to two rows + ellipsis
+      wrapped = wrapped.slice(0, 2);
+      while (wrapped[1] && ctx.measureText(wrapped[1] + '…').width > maxTextW && wrapped[1].length > 1) {
+        wrapped[1] = wrapped[1].slice(0, -1);
+      }
+      wrapped[1] = (wrapped[1] || '').replace(/\s+$/, '') + '…';
+    }
+    wrapped.forEach(txt => rows.push({ txt, size, bold: ln.bold }));
+  });
+  const rowH = fs * 1.32;
+  const bandH = padY * 2 + rows.length * rowH;
+  const bandY = box.y + box.h - bandH;
+  ctx.save();
+  // Dark translucent band across the bottom of the crop.
+  ctx.fillStyle = 'rgba(18,18,20,0.58)';
+  ctx.fillRect(box.x, bandY, box.w, bandH);
+  // Brand accent bar on the left.
+  ctx.fillStyle = '#f7982a';
+  ctx.fillRect(box.x + padX, bandY + padY, accent, bandH - padY * 2);
+  // Text.
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = fs * 0.18;
+  let ty = bandY + padY;
+  rows.forEach(r => {
+    ctx.font = `${r.bold ? 700 : 500} ${r.size}px ${STAMP_FONT}`;
+    ctx.fillStyle = r.bold ? '#ffffff' : 'rgba(255,255,255,0.92)';
+    ctx.fillText(r.txt, box.x + textLeft, ty + (rowH - r.size) / 2);
+    ty += rowH;
+  });
+  ctx.restore();
+}
+
+// The editor itself. Resolves with a File (edited JPEG), the original file (on
+// a decode error), or null (cancelled).
+function editImage(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); }; // can't decode — attach as-is
+    img.onload = () => setup();
+    img.src = url;
+
+    let settled = false;
+    function settle(result) {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      document.removeEventListener('keydown', onKey, true);
+      $('#modal2Scrim').removeEventListener('click', onScrim);
+      $('#modal2').classList.remove('ph-modal');
+      closeModal2();
+      resolve(result);
+    }
+    const onScrim = () => settle(null);
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); settle(null); }
+    };
+
+    function setup() {
+      const shotAt = new Date();
+      let quarter = 0;          // 0/90/180/270 from the rotate buttons
+      let fine = 0;             // -45..45 straighten slider
+      let stampOn = true;
+      let geo = null;           // { lat, lon, acc, address? }
+      let geoStatus = 'idle';   // idle | locating | located | denied
+      let crop = null;          // { x, y, w, h } in stage (display) pixels
+      let stageW = 0, stageH = 0, rc = null;
+      const totalDeg = () => ((quarter + fine) % 360 + 360) % 360;
+
+      openModal2(`
+        <div class="modal-head"><h2>${esc(t('Edit photo'))}</h2>
+          <button class="x-btn" id="phCancelX" aria-label="${esc(t('Cancel'))}">×</button></div>
+        <div class="modal-body ph-body">
+          <div class="ph-stage" id="phStage">
+            <canvas class="ph-canvas" id="phCanvas"></canvas>
+            <div class="ph-crop" id="phCrop">
+              <span class="ph-handle" data-h="nw"></span><span class="ph-handle" data-h="ne"></span>
+              <span class="ph-handle" data-h="sw"></span><span class="ph-handle" data-h="se"></span>
+            </div>
+          </div>
+          <div class="ph-tools">
+            <div class="ph-rotrow">
+              <button type="button" class="btn btn-ghost btn-sm" id="phRotL">↺ ${esc(t('Rotate left'))}</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="phRotR">↻ ${esc(t('Rotate right'))}</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="phReset">${esc(t('Reset'))}</button>
+            </div>
+            <label class="ph-fine">
+              <span>${esc(t('Straighten'))}</span>
+              <input type="range" id="phFine" min="-45" max="45" step="1" value="0" />
+              <output id="phFineOut">0°</output>
+            </label>
+            <label class="ph-stamp-toggle">
+              <input type="checkbox" id="phStamp" checked />
+              <span>${esc(t('Stamp date & location'))}</span>
+            </label>
+            <div class="ph-stamp-preview" id="phStampInfo"></div>
+          </div>
+        </div>
+        <div class="ph-foot">
+          <button type="button" class="btn btn-ghost" id="phCancel">${esc(t('Cancel'))}</button>
+          <button type="button" class="btn btn-primary" id="phAttach">${esc(t('Attach photo'))}</button>
+        </div>`);
+      $('#modal2').classList.add('modal-wide', 'ph-modal');
+      document.addEventListener('keydown', onKey, true);
+      $('#modal2Scrim').addEventListener('click', onScrim);
+
+      const stageEl = $('#phStage'), canvas = $('#phCanvas'), cropEl = $('#phCrop');
+
+      // Build the stage for the current rotation and (re)fit the crop box.
+      function layout(resetCrop) {
+        rc = rotatedImageCanvas(img, totalDeg());
+        // Fit the rotated image into the available modal space.
+        const maxW = Math.min(stageEl.parentElement.clientWidth || 560, 620);
+        const maxH = 440;
+        const scale = Math.min(maxW / rc.width, maxH / rc.height, 1);
+        stageW = Math.max(1, Math.round(rc.width * scale));
+        stageH = Math.max(1, Math.round(rc.height * scale));
+        canvas.width = stageW; canvas.height = stageH;
+        stageEl.style.width = stageW + 'px';
+        stageEl.style.height = stageH + 'px';
+        if (resetCrop || !crop) crop = { x: 0, y: 0, w: stageW, h: stageH };
+        else clampCrop();
+        draw();
+      }
+
+      function clampCrop() {
+        const min = 28;
+        crop.w = Math.max(min, Math.min(crop.w, stageW));
+        crop.h = Math.max(min, Math.min(crop.h, stageH));
+        crop.x = Math.max(0, Math.min(crop.x, stageW - crop.w));
+        crop.y = Math.max(0, Math.min(crop.y, stageH - crop.h));
+      }
+
+      // Current stamp lines (empty when the stamp is switched off).
+      function stampLines() {
+        if (!stampOn) return [];
+        const lines = [{ text: fmtStampTime(new Date(shotAt)), bold: true }];
+        if (geo) {
+          if (geo.address) lines.push({ text: geo.address });
+          lines.push({ text: `${fmtLat(geo.lat)}  ${fmtLon(geo.lon)}  ±${Math.round(geo.acc)} m` });
+        } else if (geoStatus === 'locating') {
+          lines.push({ text: t('Locating…') });
+        } else if (geoStatus === 'denied') {
+          lines.push({ text: t('Location unavailable') });
+        }
+        return lines;
+      }
+
+      function draw() {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, stageW, stageH);
+        ctx.drawImage(rc, 0, 0, rc.width, rc.height, 0, 0, stageW, stageH);
+        // Preview the stamp inside the crop rectangle (same proportions as export).
+        drawCaptureStamp(ctx, { x: crop.x, y: crop.y, w: crop.w, h: crop.h }, stampLines());
+        cropEl.style.left = crop.x + 'px';
+        cropEl.style.top = crop.y + 'px';
+        cropEl.style.width = crop.w + 'px';
+        cropEl.style.height = crop.h + 'px';
+        renderStampInfo();
+      }
+
+      function renderStampInfo() {
+        const el = $('#phStampInfo');
+        if (!stampOn) { el.innerHTML = `<span class="muted">${esc(t('No stamp will be added.'))}</span>`; return; }
+        const loc = geo
+          ? (geo.address ? esc(geo.address) : `${esc(fmtLat(geo.lat))} ${esc(fmtLon(geo.lon))}`)
+          : geoStatus === 'locating' ? esc(t('Locating…'))
+          : geoStatus === 'denied' ? esc(t('Location unavailable'))
+          : '';
+        el.innerHTML = `<strong>📅 ${esc(fmtStampTime(new Date(shotAt)))}</strong>`
+          + (loc ? `<span>📍 ${loc}</span>` : '');
+      }
+
+      // Ask for location the first time the stamp is (or stays) enabled.
+      function ensureGeo() {
+        if (!stampOn || geoStatus !== 'idle') return;
+        geoStatus = 'locating'; renderStampInfo(); draw();
+        getPositionOnce({ enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 })
+          .then(async pos => {
+            geo = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy || 0 };
+            geoStatus = 'located'; draw();
+            const addr = await reverseGeocode(geo.lat, geo.lon);
+            if (addr && geo) { geo.address = addr; draw(); }
+          })
+          .catch(() => { geoStatus = 'denied'; draw(); });
+      }
+
+      // -- Crop drag/resize (pointer events, touch-friendly) --
+      let drag = null;
+      function stagePoint(e) {
+        const r = stageEl.getBoundingClientRect();
+        const z = r.width / stageW || 1; // account for the page's CSS zoom
+        return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
+      }
+      function onDown(e, mode, handle) {
+        e.preventDefault();
+        const p = stagePoint(e);
+        drag = { mode, handle, sx: p.x, sy: p.y, orig: { ...crop } };
+        try { e.target.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      }
+      function onMove(e) {
+        if (!drag) return;
+        const p = stagePoint(e);
+        const dx = p.x - drag.sx, dy = p.y - drag.sy, o = drag.orig, min = 28;
+        if (drag.mode === 'move') {
+          crop.x = Math.max(0, Math.min(o.x + dx, stageW - o.w));
+          crop.y = Math.max(0, Math.min(o.y + dy, stageH - o.h));
+        } else {
+          let x = o.x, y = o.y, w = o.w, h = o.h;
+          const H = drag.handle;
+          if (H.includes('e')) w = Math.max(min, Math.min(o.w + dx, stageW - o.x));
+          if (H.includes('s')) h = Math.max(min, Math.min(o.h + dy, stageH - o.y));
+          if (H.includes('w')) { const nx = Math.max(0, Math.min(o.x + dx, o.x + o.w - min)); w = o.w + (o.x - nx); x = nx; }
+          if (H.includes('n')) { const ny = Math.max(0, Math.min(o.y + dy, o.y + o.h - min)); h = o.h + (o.y - ny); y = ny; }
+          crop = { x, y, w, h };
+        }
+        draw();
+      }
+      function onUp() { drag = null; }
+
+      cropEl.addEventListener('pointerdown', e => {
+        if (e.target.classList.contains('ph-handle')) onDown(e, 'resize', e.target.dataset.h);
+        else onDown(e, 'move', null);
+      });
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+      // Tidy the document-level listeners when the editor closes.
+      const cleanup = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+
+      // -- Controls --
+      $('#phRotL').addEventListener('click', () => { quarter -= 90; layout(true); });
+      $('#phRotR').addEventListener('click', () => { quarter += 90; layout(true); });
+      $('#phReset').addEventListener('click', () => {
+        quarter = 0; fine = 0; $('#phFine').value = '0'; $('#phFineOut').textContent = '0°'; layout(true);
+      });
+      $('#phFine').addEventListener('input', e => {
+        fine = Number(e.target.value) || 0;
+        $('#phFineOut').textContent = `${fine}°`;
+        layout(true);
+      });
+      $('#phStamp').addEventListener('change', e => {
+        stampOn = e.target.checked;
+        if (stampOn) ensureGeo();
+        draw();
+      });
+      const cancel = () => { cleanup(); settle(null); };
+      $('#phCancel').addEventListener('click', cancel);
+      $('#phCancelX').addEventListener('click', cancel);
+      $('#phAttach').addEventListener('click', async () => {
+        cleanup();
+        try {
+          const out = rotatedImageCanvas(img, totalDeg()); // full-res rotated
+          const sc = out.width / stageW;                   // stage px → full-res px
+          const cw = Math.max(1, Math.round(crop.w * sc)), ch = Math.max(1, Math.round(crop.h * sc));
+          const cnv = document.createElement('canvas');
+          cnv.width = cw; cnv.height = ch;
+          const cx = cnv.getContext('2d');
+          cx.drawImage(out, crop.x * sc, crop.y * sc, crop.w * sc, crop.h * sc, 0, 0, cw, ch);
+          drawCaptureStamp(cx, { x: 0, y: 0, w: cw, h: ch }, stampLines());
+          const blob = await new Promise(res => cnv.toBlob(res, 'image/jpeg', 0.92));
+          if (!blob) throw new Error('encode failed');
+          const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+          settle(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+        } catch {
+          toast(t("Couldn't process the photo — attaching the original"), true);
+          settle(file);
+        }
+      });
+
+      layout(true);
+      ensureGeo();
+      window.addEventListener('resize', () => layout(false), { once: true });
+    }
+  });
+}
+
 // Validate, HEIC-convert and compress a picked file list into accepted File[].
 // `alreadyCount` is the row's current file count, so it can't exceed 8.
 async function processFiles(list, alreadyCount = 0) {
@@ -3104,6 +3474,15 @@ async function processFiles(list, alreadyCount = 0) {
       toast(t('Converting {name}…', { name: f.name }));
       try { file = await heicToJpeg(file); }
       catch { toast(t("{name}: couldn't read this iPhone photo", { name: f.name }), true); continue; }
+    }
+    // Every still image opens the crop / rotate / stamp editor before it is
+    // compressed. Animated GIFs and PDFs skip it (nothing to crop, and re-encoding
+    // would flatten a GIF). A null result means the user cancelled — drop it.
+    const editable = file.type && file.type.startsWith('image/') && file.type !== 'image/gif';
+    if (editable) {
+      const edited = await editImage(file);
+      if (!edited) continue; // cancelled in the editor
+      file = edited;
     }
     // Compress images down to the same-origin upload capacity so they take the
     // reliable path through our own domain. Modern phone photos are often 4–8 MB,

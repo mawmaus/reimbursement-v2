@@ -526,6 +526,50 @@ input[type="search"] { min-width: 220px; }
 .file-chip-saved a:hover { text-decoration-thickness: 2px; }
 .drop-note { margin-bottom: 10px; line-height: 1.4; }
 
+/* ---------- Receipt photo editor (crop / rotate / stamp) ---------- */
+.modal.ph-modal { display: flex; flex-direction: column; overflow: hidden; }
+.ph-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 16px;
+  align-items: center; overflow: auto; }
+.ph-stage { position: relative; margin: 0 auto; touch-action: none; user-select: none;
+  border-radius: 10px; overflow: hidden; background: #12121400;
+  box-shadow: 0 10px 30px -16px rgba(0,0,0,.5); }
+.ph-canvas { display: block; width: 100%; height: 100%; }
+/* The crop rectangle: a moveable window whose big outer shadow dims everything
+   outside it, so the kept area stands out. */
+.ph-crop { position: absolute; box-sizing: border-box; cursor: move;
+  border: 1.5px solid rgba(255,255,255,.95);
+  box-shadow: 0 0 0 100vmax rgba(10,10,12,.5);
+  background-image:
+    linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px);
+  background-size: 33.33% 33.33%; background-position: center; }
+.ph-handle { position: absolute; width: 18px; height: 18px; background: #fff;
+  border: 2px solid var(--pine); border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.ph-handle[data-h="nw"] { left: -10px; top: -10px; cursor: nwse-resize; }
+.ph-handle[data-h="ne"] { right: -10px; top: -10px; cursor: nesw-resize; }
+.ph-handle[data-h="sw"] { left: -10px; bottom: -10px; cursor: nesw-resize; }
+.ph-handle[data-h="se"] { right: -10px; bottom: -10px; cursor: nwse-resize; }
+
+.ph-tools { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; }
+.ph-rotrow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.ph-fine { display: flex; align-items: center; gap: 12px; }
+.ph-fine > span { font-size: .8rem; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+.ph-fine input[type="range"] { flex: 1 1 auto; accent-color: var(--pine); }
+.ph-fine output { font-family: var(--mono); font-size: .82rem; color: var(--ink-soft);
+  min-width: 42px; text-align: right; }
+.ph-stamp-toggle { display: flex; align-items: center; gap: 9px; font-size: .9rem; font-weight: 600;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); cursor: pointer; }
+.ph-stamp-toggle input { width: 17px; height: 17px; accent-color: var(--pine); flex: none; }
+.ph-stamp-preview { display: flex; flex-direction: column; gap: 3px; font-size: .82rem;
+  line-height: 1.4; color: var(--ink-soft); padding: 0 2px; overflow-wrap: anywhere; }
+.ph-stamp-preview strong { color: var(--ink); font-weight: 650; }
+.ph-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px;
+  border-top: 1px solid var(--line); background: var(--surface); }
+@media (max-width: 560px) {
+  .ph-foot .btn { flex: 1 1 0; }
+  .ph-rotrow .btn { flex: 1 1 auto; }
+}
+
 /* Amount field: fixed currency prefix + amount input + calculator toggle */
 .amount-field { display: flex; align-items: stretch; gap: 0;
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; }
