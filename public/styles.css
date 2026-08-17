@@ -1019,8 +1019,8 @@ input[type="search"] { min-width: 220px; }
   .topbar-right { order: 3; flex-wrap: wrap; justify-content: flex-start; gap: 8px; width: 100%; }
   .user-badge { margin-right: 0; flex-basis: 100%; text-align: left; }
   /* Compact pills — neat and tappable without dominating the screen. */
-  .topbar-right .btn-sm { padding: 7px 12px; min-height: 34px; font-size: .84rem; }
-  .topbar-ctl .msel-trigger { min-height: 34px; font-size: .84rem; }
+  .topbar-right .btn-sm { padding: 5px 10px; min-height: 30px; font-size: .78rem; border-radius: 7px; }
+  .topbar-ctl .msel-trigger { min-height: 30px; font-size: .78rem; }
 
   /* "My claims" header: Menu + Refresh on the top row, title on its own line. */
   .list-head { flex-wrap: wrap; gap: 6px 10px; margin-bottom: 14px; }
@@ -1106,7 +1106,7 @@ input[type="search"] { min-width: 220px; }
   .card.total .card-n { font-size: 1.3rem; }
   .card .card-sub { font-size: .72rem; }
   .topbar-title { display: none; }
-  .btn-sm { padding: 6px 10px; font-size: .82rem; }
+  .btn-sm { padding: 5px 9px; font-size: .78rem; min-height: 30px; }
   .list-title { font-size: 1.05rem; }
 }
 
