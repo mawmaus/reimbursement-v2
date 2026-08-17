@@ -3334,10 +3334,14 @@ function editImage(file) {
           <button class="x-btn" id="phCancelX" aria-label="${esc(t('Cancel'))}">×</button></div>
         <div class="modal-body ph-body">
           <div class="ph-stage" id="phStage">
-            <canvas class="ph-canvas" id="phCanvas"></canvas>
-            <div class="ph-crop" id="phCrop">
-              <span class="ph-handle" data-h="nw"></span><span class="ph-handle" data-h="ne"></span>
-              <span class="ph-handle" data-h="sw"></span><span class="ph-handle" data-h="se"></span>
+            <div class="ph-frame" id="phFrame">
+              <canvas class="ph-canvas" id="phCanvas"></canvas>
+              <div class="ph-crop" id="phCrop">
+                <span class="ph-handle ph-edge" data-h="n"></span><span class="ph-handle ph-edge" data-h="s"></span>
+                <span class="ph-handle ph-edge" data-h="w"></span><span class="ph-handle ph-edge" data-h="e"></span>
+                <span class="ph-handle ph-corner" data-h="nw"></span><span class="ph-handle ph-corner" data-h="ne"></span>
+                <span class="ph-handle ph-corner" data-h="sw"></span><span class="ph-handle ph-corner" data-h="se"></span>
+              </div>
             </div>
           </div>
           <div class="ph-tools">
@@ -3373,20 +3377,22 @@ function editImage(file) {
       document.addEventListener('keydown', onKey, true);
       $('#modal2Scrim').addEventListener('click', onScrim);
 
-      const stageEl = $('#phStage'), canvas = $('#phCanvas'), cropEl = $('#phCrop');
+      const stageEl = $('#phStage'), frameEl = $('#phFrame'), canvas = $('#phCanvas'), cropEl = $('#phCrop');
+      const GUTTER = 22; // room around the image so edge/corner handles stay grabbable
 
       // Build the stage for the current rotation and (re)fit the crop box.
       function layout(resetCrop) {
         rc = rotatedImageCanvas(img, totalDeg());
-        // Fit the rotated image into the available modal space.
-        const maxW = Math.min(stageEl.parentElement.clientWidth || 560, 620);
-        const maxH = 440;
+        // Fit the rotated image into the available modal space (minus the gutter
+        // that frames it, so handles at the image edge sit inside the stage).
+        const maxW = Math.min(stageEl.parentElement.clientWidth || 560, 620) - GUTTER * 2;
+        const maxH = 420;
         const scale = Math.min(maxW / rc.width, maxH / rc.height, 1);
         stageW = Math.max(1, Math.round(rc.width * scale));
         stageH = Math.max(1, Math.round(rc.height * scale));
         canvas.width = stageW; canvas.height = stageH;
-        stageEl.style.width = stageW + 'px';
-        stageEl.style.height = stageH + 'px';
+        frameEl.style.width = stageW + 'px';
+        frameEl.style.height = stageH + 'px';
         if (resetCrop || !crop) crop = { x: 0, y: 0, w: stageW, h: stageH };
         else clampCrop();
         draw();
@@ -3457,8 +3463,8 @@ function editImage(file) {
       // -- Crop drag/resize (pointer events, touch-friendly) --
       let drag = null;
       function stagePoint(e) {
-        const r = stageEl.getBoundingClientRect();
-        const z = r.width / stageW || 1; // account for the page's CSS zoom
+        const r = canvas.getBoundingClientRect(); // crop coords share the canvas origin
+        const z = r.width / stageW || 1;          // account for the page's CSS zoom
         return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
       }
       function onDown(e, mode, handle) {

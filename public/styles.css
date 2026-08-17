@@ -530,10 +530,14 @@ input[type="search"] { min-width: 220px; }
 .modal.ph-modal { display: flex; flex-direction: column; overflow: hidden; }
 .ph-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 16px;
   align-items: center; overflow: auto; }
-.ph-stage { position: relative; margin: 0 auto; touch-action: none; user-select: none;
-  border-radius: 10px; overflow: hidden; background: #12121400;
+/* Padded frame around the image: the gutter gives edge/corner handles room to
+   sit at the image boundary without being clipped or jammed against the screen
+   edge, so every side (including the bottom) is grabbable on a phone. */
+.ph-stage { position: relative; flex: none; margin: 0 auto; padding: 22px; touch-action: none; user-select: none;
+  border-radius: 12px; overflow: hidden; background: var(--paper);
   box-shadow: 0 10px 30px -16px rgba(0,0,0,.5); }
-.ph-canvas { display: block; width: 100%; height: 100%; }
+.ph-frame { position: relative; } /* exactly image-sized; crop shares its origin */
+.ph-canvas { display: block; width: 100%; height: 100%; border-radius: 4px; }
 /* The crop rectangle: a moveable window whose big outer shadow dims everything
    outside it, so the kept area stands out. */
 .ph-crop { position: absolute; box-sizing: border-box; cursor: move; touch-action: none;
@@ -543,14 +547,22 @@ input[type="search"] { min-width: 220px; }
     linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px);
   background-size: 33.33% 33.33%; background-position: center; }
-.ph-handle { position: absolute; width: 20px; height: 20px; background: #fff; touch-action: none;
-  border: 2px solid var(--pine); border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
-/* Roomy invisible hit area so the small dots are easy to grab with a finger. */
-.ph-handle::after { content: ''; position: absolute; inset: -14px; border-radius: 50%; }
-.ph-handle[data-h="nw"] { left: -11px; top: -11px; cursor: nwse-resize; }
-.ph-handle[data-h="ne"] { right: -11px; top: -11px; cursor: nesw-resize; }
-.ph-handle[data-h="sw"] { left: -11px; bottom: -11px; cursor: nesw-resize; }
-.ph-handle[data-h="se"] { right: -11px; bottom: -11px; cursor: nwse-resize; }
+.ph-handle { position: absolute; background: #fff; touch-action: none;
+  border: 2px solid var(--pine); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+/* Roomy invisible hit area so the handles are easy to grab with a finger. */
+.ph-handle::after { content: ''; position: absolute; inset: -14px; }
+/* Corner handles: round dots that resize both dimensions. */
+.ph-corner { width: 20px; height: 20px; border-radius: 50%; }
+.ph-corner[data-h="nw"] { left: -11px; top: -11px; cursor: nwse-resize; }
+.ph-corner[data-h="ne"] { right: -11px; top: -11px; cursor: nesw-resize; }
+.ph-corner[data-h="sw"] { left: -11px; bottom: -11px; cursor: nesw-resize; }
+.ph-corner[data-h="se"] { right: -11px; bottom: -11px; cursor: nwse-resize; }
+/* Edge handles: pills at each side midpoint that resize one edge (incl. bottom). */
+.ph-edge { border-radius: 7px; }
+.ph-edge[data-h="n"] { top: -8px; left: 50%; transform: translateX(-50%); width: 38px; height: 12px; cursor: ns-resize; }
+.ph-edge[data-h="s"] { bottom: -8px; left: 50%; transform: translateX(-50%); width: 38px; height: 12px; cursor: ns-resize; }
+.ph-edge[data-h="w"] { left: -8px; top: 50%; transform: translateY(-50%); width: 12px; height: 38px; cursor: ew-resize; }
+.ph-edge[data-h="e"] { right: -8px; top: 50%; transform: translateY(-50%); width: 12px; height: 38px; cursor: ew-resize; }
 
 .ph-tools { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; }
 .ph-rotrow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
