@@ -3244,14 +3244,15 @@ function editImage(file) {
 
     function setup() {
       const shotAt = new Date();
-      let quarter = 0;          // 0/90/180/270 from the rotate buttons
-      let fine = 0;             // -45..45 straighten slider
+      let angle = 0;            // free rotation in degrees (dial + 90° buttons)
       let stampOn = true;
       let geo = null;           // { lat, lon, acc, address? }
       let geoStatus = 'idle';   // idle | locating | located | denied
       let crop = null;          // { x, y, w, h } in stage (display) pixels
       let stageW = 0, stageH = 0, rc = null;
-      const totalDeg = () => ((quarter + fine) % 360 + 360) % 360;
+      const totalDeg = () => ((angle % 360) + 360) % 360;
+      // Angle wrapped into -180..180 for display and the dial knob position.
+      const displayAngle = () => ((angle % 360) + 540) % 360 - 180;
 
       openModal2(`
         <div class="modal-head"><h2>${esc(t('Edit photo'))}</h2>
@@ -3270,11 +3271,18 @@ function editImage(file) {
               <button type="button" class="btn btn-ghost btn-sm" id="phRotR">↻ ${esc(t('Rotate right'))}</button>
               <button type="button" class="btn btn-ghost btn-sm" id="phReset">${esc(t('Reset'))}</button>
             </div>
-            <label class="ph-fine">
-              <span>${esc(t('Straighten'))}</span>
-              <input type="range" id="phFine" min="-45" max="45" step="1" value="0" />
-              <output id="phFineOut">0°</output>
-            </label>
+            <div class="ph-dial-row">
+              <div class="ph-dial" id="phDial" role="slider" tabindex="0"
+                aria-label="${esc(t('Rotate'))}" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0">
+                <div class="ph-dial-track"></div>
+                <div class="ph-dial-knob" id="phDialKnob"></div>
+                <div class="ph-dial-val" id="phDialVal">0°</div>
+              </div>
+              <div class="ph-dial-cap">
+                <span class="ph-dial-title">${esc(t('Rotate'))}</span>
+                <span class="ph-dial-hint">${esc(t('Drag the dial to straighten'))}</span>
+              </div>
+            </div>
             <label class="ph-stamp-toggle">
               <input type="checkbox" id="phStamp" checked />
               <span>${esc(t('Stamp date & location'))}</span>
@@ -3414,16 +3422,43 @@ function editImage(file) {
       const cleanup = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
 
       // -- Controls --
-      $('#phRotL').addEventListener('click', () => { quarter -= 90; layout(true); });
-      $('#phRotR').addEventListener('click', () => { quarter += 90; layout(true); });
-      $('#phReset').addEventListener('click', () => {
-        quarter = 0; fine = 0; $('#phFine').value = '0'; $('#phFineOut').textContent = '0°'; layout(true);
+      const dial = $('#phDial'), knob = $('#phDialKnob'), dialVal = $('#phDialVal');
+      // Reflect the current angle on the dial: centre readout + knob on the ring.
+      function updateDial() {
+        const disp = displayAngle();
+        dialVal.textContent = `${Math.round(disp)}°`;
+        dial.setAttribute('aria-valuenow', String(Math.round(disp)));
+        const c = dial.clientWidth / 2 || 52, R = c - 11;
+        const rad = (disp - 90) * Math.PI / 180; // -90 so 0° sits at the top
+        knob.style.left = (c + R * Math.cos(rad)) + 'px';
+        knob.style.top = (c + R * Math.sin(rad)) + 'px';
+      }
+      // Pointer angle around the dial centre, mapped so straight-up is 0°.
+      function dialAngle(e) {
+        const r = dial.getBoundingClientRect();
+        let d = Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI + 90;
+        d = ((d % 360) + 540) % 360 - 180;              // → -180..180
+        for (const s of [-180, -90, 0, 90, 180]) if (Math.abs(d - s) <= 2.5) d = s; // snap to right angles
+        return d;
+      }
+      let dialDrag = false;
+      dial.addEventListener('pointerdown', e => {
+        e.preventDefault(); dialDrag = true;
+        try { dial.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+        angle = dialAngle(e); updateDial(); layout(true);
       });
-      $('#phFine').addEventListener('input', e => {
-        fine = Number(e.target.value) || 0;
-        $('#phFineOut').textContent = `${fine}°`;
-        layout(true);
+      dial.addEventListener('pointermove', e => { if (dialDrag) { angle = dialAngle(e); updateDial(); layout(true); } });
+      const endDial = () => { dialDrag = false; };
+      dial.addEventListener('pointerup', endDial);
+      dial.addEventListener('pointercancel', endDial);
+      dial.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { angle -= 1; updateDial(); layout(true); e.preventDefault(); }
+        else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { angle += 1; updateDial(); layout(true); e.preventDefault(); }
       });
+
+      $('#phRotL').addEventListener('click', () => { angle -= 90; updateDial(); layout(true); });
+      $('#phRotR').addEventListener('click', () => { angle += 90; updateDial(); layout(true); });
+      $('#phReset').addEventListener('click', () => { angle = 0; updateDial(); layout(true); });
       $('#phStamp').addEventListener('change', e => {
         stampOn = e.target.checked;
         if (stampOn) ensureGeo();
@@ -3454,6 +3489,7 @@ function editImage(file) {
       });
 
       layout(true);
+      updateDial();
       ensureGeo();
       window.addEventListener('resize', () => layout(false), { once: true });
     }
