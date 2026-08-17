@@ -2862,9 +2862,10 @@ function openCalcModal(rowIndex) {
 // Local drafts — an unsent "New claim" / "New meal allowance" / "New cash
 // advance" form is kept in the browser so a mis-click, an accidental close, or
 // a reload never throws the work away. Drafts are stored per signed-in user (so
-// they never leak between accounts sharing a device) and per form type. Only
-// the typed fields are saved — receipt files can't be serialized to storage, so
-// those are re-attached when a claim draft is reopened.
+// they never leak between accounts sharing a device) and per form type. The
+// typed fields go to localStorage; a claim's receipt files can't be serialized
+// there, so those File objects are stored in IndexedDB (which holds Blobs
+// natively) and re-hydrated onto the rows when the draft reopens.
 //
 // Two ways in: an explicit "Save draft" button, and an automatic save whenever
 // the form is closed by its × / the scrim / Escape while it has content (the
@@ -2885,7 +2886,57 @@ function saveDraftData(kind, data) {
 }
 function clearDraft(kind) {
   try { localStorage.removeItem(draftKey(kind)); } catch { /* ignore */ }
+  clearDraftFiles(kind); // drop any stored receipt blobs alongside the fields
   refreshDraftBadges();
+}
+
+// Receipt blobs for a claim draft live in IndexedDB, keyed by the same draftKey
+// as the typed fields. localStorage can't hold File objects; IndexedDB stores
+// them (and their name/type) natively via structured clone. Every op is
+// best-effort — if IndexedDB is unavailable (private mode, disabled), the draft
+// still keeps its typed fields and just loses the attachments.
+const DRAFT_DB = 'reimbursement-drafts';
+const DRAFT_STORE = 'files';
+function draftDbOpen() {
+  return new Promise((resolve, reject) => {
+    let req;
+    try { req = indexedDB.open(DRAFT_DB, 1); } catch (e) { reject(e); return; }
+    req.onupgradeneeded = () => { req.result.createObjectStore(DRAFT_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+// `rowsFiles` is a per-row array of File arrays, aligned index-for-index with the
+// draft's saved rows so each receipt returns to the row it was attached to.
+async function saveDraftFiles(kind, rowsFiles) {
+  try {
+    const db = await draftDbOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(DRAFT_STORE, 'readwrite');
+      tx.objectStore(DRAFT_STORE).put(rowsFiles, draftKey(kind));
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch { /* IndexedDB unavailable — typed fields still saved */ }
+}
+async function loadDraftFiles(kind) {
+  try {
+    const db = await draftDbOpen();
+    const val = await new Promise((resolve, reject) => {
+      const tx = db.transaction(DRAFT_STORE, 'readonly');
+      const rq = tx.objectStore(DRAFT_STORE).get(draftKey(kind));
+      rq.onsuccess = () => resolve(rq.result); rq.onerror = () => reject(rq.error);
+    });
+    db.close();
+    return Array.isArray(val) ? val : null;
+  } catch { return null; }
+}
+function clearDraftFiles(kind) {
+  draftDbOpen().then(db => {
+    const tx = db.transaction(DRAFT_STORE, 'readwrite');
+    tx.objectStore(DRAFT_STORE).delete(draftKey(kind));
+    tx.oncomplete = () => db.close();
+  }).catch(() => { /* ignore */ });
 }
 // Show a small dot on a "New …" button whenever that form has a saved draft, so
 // the claimant can see one is waiting and reopen it.
@@ -2912,19 +2963,23 @@ function wireDraftBanner(kind, reopen) {
 }
 // Auto-save on an accidental close (×, scrim, Escape). `collect` returns the
 // draft data, or null when the form is effectively empty (nothing worth saving).
-function armDraftAutosave(kind, collect) {
+// `collectFiles` (optional) returns the per-row File arrays to persist to
+// IndexedDB — only the claim form has receipts, so meal/advance omit it.
+function armDraftAutosave(kind, collect, collectFiles) {
   modalCloseHook = () => {
     const data = collect();
     if (!data) { clearDraft(kind); return; }
     saveDraftData(kind, data);
+    if (collectFiles) saveDraftFiles(kind, collectFiles());
     toast(t('Draft saved — reopen it from the New button.'));
   };
 }
 // Explicit "Save draft": save (if there's anything) and close.
-function saveDraftAndClose(kind, collect) {
+function saveDraftAndClose(kind, collect, collectFiles) {
   const data = collect();
   if (!data) { toast(t('Nothing to save yet — fill in the form first.'), true); return; }
   saveDraftData(kind, data);
+  if (collectFiles) saveDraftFiles(kind, collectFiles());
   modalCloseHook = null; // already saved; don't double-save on close
   toast(t('Draft saved'));
   closeModal();
@@ -2945,8 +3000,8 @@ function openClaimModal(existing = null) {
     }));
     if (!claimRows.length) claimRows = [blankClaimRow()];
   } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
-    // Restore the saved draft's rows, giving each a fresh files/kept pair
-    // (receipts aren't stored, so they start empty and get re-attached).
+    // Restore the saved draft's rows. Files start empty here and are re-hydrated
+    // from IndexedDB once the modal is open (see the loadDraftFiles call below).
     claimRows = draft.data.rows.map(r => ({ ...blankClaimRow(), ...r, files: [], kept: [] }));
   } else {
     claimRows = [blankClaimRow(todayWIB())];
@@ -2958,7 +3013,7 @@ function openClaimModal(existing = null) {
     </div>
     <div class="modal-body">
       <form id="claimForm" class="form">
-        ${draft ? draftBannerHtml(t('Re-attach any receipts.')) : ''}
+        ${draft ? draftBannerHtml() : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -3005,23 +3060,43 @@ function openClaimModal(existing = null) {
       const sel = $('#claimForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
     }
     const collect = collectClaimDraft;
-    $('#rcSaveDraft').addEventListener('click', () => saveDraftAndClose('claim', collect));
-    armDraftAutosave('claim', collect);
+    $('#rcSaveDraft').addEventListener('click', () => saveDraftAndClose('claim', collect, collectClaimFiles));
+    armDraftAutosave('claim', collect, collectClaimFiles);
     if (draft) wireDraftBanner('claim', () => openClaimModal());
+    // Re-hydrate the draft's receipts from IndexedDB back onto their rows, then
+    // re-render so the file chips reappear. Async, so the modal shows instantly.
+    if (draft) loadDraftFiles('claim').then(perRow => {
+      if (!perRow) return;
+      readClaimRows(); // keep any edits the user made before restore landed
+      perRow.forEach((files, idx) => {
+        if (claimRows[idx] && Array.isArray(files)) claimRows[idx].files = files;
+      });
+      renderClaimRows();
+    });
   }
 }
-// Gather the claim form's typed fields into a draft payload, or null when every
-// row is empty. Receipts are intentionally excluded (File objects can't persist).
+// Gather the claim form's typed fields into a draft payload, or null when the
+// form is effectively empty. Receipt File objects go to IndexedDB separately
+// (see collectClaimFiles) since they can't be JSON-serialized into localStorage.
 function collectClaimDraft() {
   readClaimRows();
   const rows = claimRows.map(r => ({
     line_date: r.line_date || '', db_no: r.db_no || '', expense_type: r.expense_type || '',
     expense_type_other: r.expense_type_other || '', amount: r.amount || '', description: r.description || ''
   }));
-  const filled = rows.some(r => r.line_date || r.db_no || r.expense_type || r.expense_type_other || r.amount || r.description);
-  if (!filled) return null;
+  const typed = rows.some(r => r.line_date || r.db_no || r.expense_type || r.expense_type_other || r.amount || r.description);
+  // A row with only a receipt attached (no typed fields yet) is still worth
+  // keeping — otherwise the auto-save on close would silently drop it.
+  const hasFiles = claimRows.some(r => (r.files || []).length);
+  if (!typed && !hasFiles) return null;
   const approver1 = (($('#claimForm [name="approver1"]') || {}).value) || '';
   return { rows, approver1 };
+}
+// The per-row receipt File arrays, aligned index-for-index with collectClaimDraft's
+// rows (both map over claimRows in order), for persisting to IndexedDB.
+function collectClaimFiles() {
+  readClaimRows();
+  return claimRows.map(r => (r.files || []).slice());
 }
 
 // Only PDFs and images are accepted. The <input accept> covers the file picker,
