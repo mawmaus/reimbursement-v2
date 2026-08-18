@@ -2897,9 +2897,10 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
     // One row per line so each expense category exports on its own row (instead of
-    // the claim header's "Multiple" summary). first_approved_at is the earliest
-    // approval action logged for the claim — 'approved'/'approved — step N of M',
-    // but not reverts ('reverted approval') — i.e. when the first approver signed off.
+    // the claim header's "Multiple" summary). first_approved_at is when the FIRST
+    // approver (step 1) approved — the LATEST such approval, so after a reject +
+    // resubmit it reflects the re-approval, not the original. 'approved' with no
+    // step suffix covers claims that have no approver chain.
     const rows = await q(
       `SELECT c.claim_no, c.claimant_name, c.department, c.bank_name, c.recipient_name,
               c.bank_account_no, c.currency, c.status, c.manager_comment, c.decided_at,
@@ -2908,8 +2909,9 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
        FROM claim_lines l
        JOIN claims c ON c.id = l.claim_id
        JOIN users u ON u.id = c.employee_id
-       LEFT JOIN (SELECT claim_id, MIN(created_at) AS first_approved_at
-                    FROM claim_history WHERE action LIKE 'approved%' GROUP BY claim_id) fa
+       LEFT JOIN (SELECT claim_id, MAX(created_at) AS first_approved_at
+                    FROM claim_history WHERE action LIKE 'approved — step 1 of %' OR action = 'approved'
+                    GROUP BY claim_id) fa
               ON fa.claim_id = c.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY c.created_at, l.sort_order`, params);
@@ -2946,8 +2948,9 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
        FROM meal_claim_lines l
        JOIN meal_claims m ON m.id = l.meal_claim_id
        JOIN users u ON u.id = m.employee_id
-       LEFT JOIN (SELECT meal_claim_id, MIN(created_at) AS first_approved_at
-                    FROM meal_claim_history WHERE action LIKE 'approved%' GROUP BY meal_claim_id) fa
+       LEFT JOIN (SELECT meal_claim_id, MAX(created_at) AS first_approved_at
+                    FROM meal_claim_history WHERE action LIKE 'approved — step 1 of %' OR action = 'approved'
+                    GROUP BY meal_claim_id) fa
               ON fa.meal_claim_id = m.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY m.created_at, l.sort_order`, params);
@@ -2983,8 +2986,9 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
-    // first_approved_at = the request-phase approval ('approved%'); the realization
-    // phase logs 'realization approved …', which this prefix match deliberately skips.
+    // first_approved_at = when the first approver (step 1) approved the request
+    // phase — the LATEST such approval, so a reject + resubmit shows the re-approval.
+    // The realization phase logs 'realization approved …', deliberately skipped here.
     const rows = await q(
       `SELECT a.advance_no, a.claimant_name, a.department, a.bank_name, a.recipient_name,
               a.bank_account_no, a.currency, a.status, a.purpose, a.manager_comment,
@@ -2993,8 +2997,9 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
        FROM cash_advance_lines l
        JOIN cash_advances a ON a.id = l.advance_id
        JOIN users u ON u.id = a.employee_id
-       LEFT JOIN (SELECT advance_id, MIN(created_at) AS first_approved_at
-                    FROM cash_advance_history WHERE action LIKE 'approved%' GROUP BY advance_id) fa
+       LEFT JOIN (SELECT advance_id, MAX(created_at) AS first_approved_at
+                    FROM cash_advance_history WHERE action LIKE 'approved — step 1 of %' OR action = 'approved'
+                    GROUP BY advance_id) fa
               ON fa.advance_id = a.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY a.created_at, l.sort_order`, params);
