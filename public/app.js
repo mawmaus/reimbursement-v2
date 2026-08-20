@@ -5261,7 +5261,7 @@ function paintDelegatedAccounts() {
       <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(scopeCopy)}</p>
     </div>
     <div class="settings-list">
-      <table class="utable utable-manage">
+      <table class="utable utable-manage ${seesAllDepts ? 'utable-manage--wide' : 'utable-manage--5'}">
         <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
@@ -5692,7 +5692,7 @@ async function renderManageAccounts() {
     </div>
     <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(scopeCopy)}</p>
     <div class="settings-list">
-      <table class="utable utable-manage">
+      <table class="utable utable-manage ${seesAllDepts ? 'utable-manage--wide' : 'utable-manage--5'}">
         <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>

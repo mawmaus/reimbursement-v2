@@ -762,14 +762,25 @@ input[type="search"] { min-width: 220px; }
 .utable-users td:nth-child(4), .utable-users th:nth-child(4),
 .utable-users td:nth-child(6), .utable-users th:nth-child(6) { overflow-wrap: normal; }
 /* Delegated "Manage accounts" table: wider actions column, and its cells must
-   never break words (the buttons live here). */
+   never break words (the buttons live here). Two column layouts: the default
+   5-column (User, Email, Position, Active, Actions), and the 6-column variant
+   (.utable-manage--wide) that Director-and-above viewers get, which inserts a
+   Department column. Each :not()-scopes the other so the fixed-layout widths
+   never bleed across and starve the Actions column. */
 .utable-manage { table-layout: fixed; }
-.utable-manage th:nth-child(1), .utable-manage td:nth-child(1) { width: 30%; }
-.utable-manage th:nth-child(2), .utable-manage td:nth-child(2) { width: 25%; }
-.utable-manage th:nth-child(3), .utable-manage td:nth-child(3) { width: 12%; }
-.utable-manage th:nth-child(4), .utable-manage td:nth-child(4) { width: 10%; }
-.utable-manage th:nth-child(5), .utable-manage td:nth-child(5) { width: 23%; }
-.utable-manage td:nth-child(5) { overflow-wrap: normal; }
+.utable-manage--5 th:nth-child(1), .utable-manage--5 td:nth-child(1) { width: 30%; }
+.utable-manage--5 th:nth-child(2), .utable-manage--5 td:nth-child(2) { width: 25%; }
+.utable-manage--5 th:nth-child(3), .utable-manage--5 td:nth-child(3) { width: 12%; }
+.utable-manage--5 th:nth-child(4), .utable-manage--5 td:nth-child(4) { width: 10%; }
+.utable-manage--5 th:nth-child(5), .utable-manage--5 td:nth-child(5) { width: 23%; }
+.utable-manage--wide th:nth-child(1), .utable-manage--wide td:nth-child(1) { width: 24%; }
+.utable-manage--wide th:nth-child(2), .utable-manage--wide td:nth-child(2) { width: 19%; }
+.utable-manage--wide th:nth-child(3), .utable-manage--wide td:nth-child(3) { width: 13%; }
+.utable-manage--wide th:nth-child(4), .utable-manage--wide td:nth-child(4) { width: 12%; }
+.utable-manage--wide th:nth-child(5), .utable-manage--wide td:nth-child(5) { width: 9%; }
+.utable-manage--wide th:nth-child(6), .utable-manage--wide td:nth-child(6) { width: 23%; }
+/* The Actions cell holds the buttons — never break its words, whichever layout. */
+.utable-manage td.act-cell { overflow-wrap: normal; }
 .u-actions-h { text-align: right; }
 .u-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .u-actions .btn { white-space: nowrap; }
