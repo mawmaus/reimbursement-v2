@@ -888,9 +888,14 @@ function canManageAccount(actor, target, pos) {
   if (target.role === 'vp') return false;
   // Region isolation: a region-scoped actor manages only same-region accounts.
   if (!seesAllRegions(actor) && String(target.region || '') !== String(actor.region || '')) return false;
-  const aDept = String(actor.department || '').trim().toLowerCase();
-  const tDept = String(target.department || '').trim().toLowerCase();
-  if (!aDept || aDept !== tDept) return false;
+  // Department scope: normally an actor manages only their own department, but
+  // Director-and-above positions reach across every department (still rank- and
+  // region-bounded by the checks around this one).
+  if (!accountsSeeAllDepts(actor, pos)) {
+    const aDept = String(actor.department || '').trim().toLowerCase();
+    const tDept = String(target.department || '').trim().toLowerCase();
+    if (!aDept || aDept !== tDept) return false;
+  }
   const tRank = positionRank(target.position, pos);
   if (tRank === Infinity) return false;
   return positionRank(actor.position, pos) < tRank;
@@ -905,6 +910,7 @@ function canManageAccount(actor, target, pos) {
 // "General Manager" position exists, fall back to the seeded GM rank (5).
 const GM_FALLBACK_RANK = 5;
 const SUPERVISOR_FALLBACK_RANK = 10;
+const DIRECTOR_FALLBACK_RANK = 3;
 const isFinanceDept = (dept) => /financ/i.test(String(dept || ''));
 // True when `user`'s position ranks at or above `posName` (or the given fallback
 // rank if that position isn't on the ladder). rank 1 is the most senior, so
@@ -933,6 +939,21 @@ function insightsSeeAll(user, pos) {
   if (userCan(user, 'view_insights_all')) return true;
   if (isFinanceDept(user.department)) return true;
   return rankAtLeast(user, pos, 'general manager', GM_FALLBACK_RANK);
+}
+
+// --- Cross-department account reach -----------------------------------------
+// The Manage-accounts list and canManageAccount are normally scoped to the
+// actor's OWN department. This override lifts the department wall for the most
+// senior positions: super admins always, plus any position ranked Director or
+// above (rank <= Director's rank; rank 1 is most senior). Such actors may view —
+// and, subject to the usual rank/role/region guards in canManageAccount, manage —
+// accounts in ANY department. Region isolation is unchanged: a region-scoped
+// Director still sees only their own region. Director's rank is read live from
+// the ladder (super admins can reorder it), falling back to the seeded rank 3.
+function accountsSeeAllDepts(user, pos) {
+  if (!user) return false;
+  if (user.role === 'superadmin') return true;
+  return rankAtLeast(user, pos, 'director', DIRECTOR_FALLBACK_RANK);
 }
 
 // ---------------------------------------------------------------------------
@@ -1000,6 +1021,7 @@ app.post('/api/login', ah(async (req, res) => {
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
     approver1_choices: await approver1Choices(user.approver1_options),
     can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
+    sees_all_departments: accountsSeeAllDepts(user, pos),
     caps: user.caps
   } });
 }));
@@ -1029,7 +1051,8 @@ app.get('/api/me', ah(async (req, res) => {
   await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
+    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -1045,7 +1068,8 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     await attachCaps(u);
     return res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u),
       creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
-      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
+      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
+      sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
   }
   const { bank_name, recipient_name, bank_account_no, email } = body;
   const nextEmail = normEmail(email);
@@ -1064,7 +1088,8 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
     approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos), caps: u.caps } });
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
+    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
 }));
 
 // Claim-date policy: how far back an expense may be dated and still be claimable.
@@ -3126,10 +3151,12 @@ async function adminAutoApproverChain(dept) { // eslint-disable-line no-unused-v
 
 app.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
+  const pos = await loadPositions(req.user.region);
   // Superadmins read every account; admins and delegated seniors read only their
-  // own department's accounts (to populate Manage-accounts). Everyone else is
-  // forbidden.
-  if (!isSuper && !hasDelegation(req.user, await loadPositions(req.user.region))) {
+  // own department's accounts (to populate Manage-accounts) — except Director-and-
+  // above positions, which read every department (region-bounded). Everyone else
+  // is forbidden.
+  if (!isSuper && !hasDelegation(req.user, pos)) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
   const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, active, created_by, created_by_name, created_at';
@@ -3137,11 +3164,18 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   if (isSuper) {
     users = await q(`SELECT ${cols} FROM users ORDER BY id`);
   } else {
-    const where = ['lower(department) = lower($1)'];
-    const params = [String(req.user.department || '').trim()];
+    const where = [];
+    const params = [];
+    // Department scope: own department only, unless a Director-and-above position
+    // (which sees every department).
+    if (!accountsSeeAllDepts(req.user, pos)) {
+      params.push(String(req.user.department || '').trim());
+      where.push(`lower(department) = lower($${params.length})`);
+    }
     // Region isolation: a region-scoped manager sees only same-region accounts.
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
-    users = await q(`SELECT ${cols} FROM users WHERE ${where.join(' AND ')} ORDER BY id`, params);
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    users = await q(`SELECT ${cols} FROM users ${clause} ORDER BY id`, params);
   }
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at) })) });
 }));

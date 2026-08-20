@@ -5241,23 +5241,33 @@ function paintDelegatedAccounts() {
   const users = settingsState.users || [];
   const dept = state.user.department || '';
   const canCreate = uCan('create_accounts');
+  // Director-and-above positions see every department (server-computed); adapt the
+  // scope blurb and add a Department column so cross-department rows are legible.
+  const seesAllDepts = !!state.user.sees_all_departments;
+  const scopeCopy = seesAllDepts
+    ? (canCreate
+        ? t('All departments. You can create accounts, reset passwords and enable/disable any account ranked below yours.')
+        : t('All departments. You can reset passwords and enable/disable any account ranked below yours. Only a super admin can create new accounts.'))
+    : (canCreate
+        ? t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' })
+        : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }));
+  const colspan = seesAllDepts ? 6 : 5;
   panel.innerHTML = `
     <div class="settings-controls">
       <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
         <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
         ${canCreate ? `<button class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : ''}
       </div>
-      <p class="muted" style="margin:0 0 12px;font-size:.85rem">${canCreate
-        ? esc(t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' }))
-        : esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
+      <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(scopeCopy)}</p>
     </div>
     <div class="settings-list">
       <table class="utable utable-manage">
-        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
+        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            ${seesAllDepts ? `<td data-label="${esc(t('Department'))}">${u.department ? esc(u.department) : '<span class="muted">—</span>'}</td>` : ''}
             <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Active'))}">${u.active
                 ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
@@ -5266,7 +5276,7 @@ function paintDelegatedAccounts() {
               <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
               <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
             </div>` : '<span class="muted">—</span>'}</td>
-          </tr>`).join('') : `<tr><td colspan="5" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
       </table>
     </div>`;
   wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
@@ -5661,24 +5671,34 @@ async function renderManageAccounts() {
   catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const dept = state.user.department || '';
   const canCreate = uCan('create_accounts');
+  // Director-and-above positions see every department (server-computed), so the
+  // scope blurb and an extra Department column adapt to that wider view.
+  const seesAllDepts = !!state.user.sees_all_departments;
   // Keep the approver-combo / creatable-position helpers fed while this modal is
   // open (they read settingsState); the delegated create form reuses them.
   settingsState.users = users;
+  const scopeCopy = seesAllDepts
+    ? (canCreate
+        ? t('All departments. You can create accounts, reset passwords and enable/disable any account ranked below yours.')
+        : t('All departments. You can reset passwords and enable/disable any account ranked below yours. Only a super admin can create new accounts.'))
+    : (canCreate
+        ? t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' })
+        : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }));
+  const colspan = seesAllDepts ? 6 : 5;
   body.innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
       <input id="maSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
       ${canCreate ? `<button class="btn btn-primary btn-sm" id="maAddUserBtn">${esc(t('+ Add user'))}</button>` : ''}
     </div>
-    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${canCreate
-      ? esc(t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' }))
-      : esc(t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))}</p>
+    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(scopeCopy)}</p>
     <div class="settings-list">
       <table class="utable utable-manage">
-        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th><th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
+        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
             <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+            ${seesAllDepts ? `<td data-label="${esc(t('Department'))}">${u.department ? esc(u.department) : '<span class="muted">—</span>'}</td>` : ''}
             <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Active'))}">${u.active
                 ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
@@ -5687,7 +5707,7 @@ async function renderManageAccounts() {
               <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
               <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
             </div>` : '<span class="muted">—</span>'}</td>
-          </tr>`).join('') : `<tr><td colspan="5" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
+          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
       </table>
     </div>`;
   wireTableSearch($('#maSearch'), '#maBody .settings-list');
