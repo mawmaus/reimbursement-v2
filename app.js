@@ -2671,7 +2671,34 @@ function csvCell(v) {
   const s = v === null || v === undefined ? '' : (v instanceof Date ? v.toISOString() : String(v));
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
-const EXPORT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
+// "Pending review" (DB status 'submitted') is split for export by which approver
+// is next: step 1 is still with the department Manager; once the Manager has
+// signed off the claim advances to step >= 2 and is with FinanceAP. So finance can
+// export only what Managers have already approved by picking pending_finance.
+const EXPORT_STATUSES = ['pending_manager', 'pending_finance', 'approved', 'rejected', 'paid'];
+// Turn the selected export-status tokens into a SQL boolean over a base-status
+// expression and a current_step expression. Tokens come from EXPORT_STATUSES (a
+// fixed whitelist) and the exprs are hard-coded column refs, so inlining them is
+// injection-safe and keeps the caller's positional params untouched. Returns ''
+// when nothing is selected (meaning: no status filter).
+function exportStatusCondition(tokens, statusExpr, stepExpr) {
+  const parts = [];
+  for (const tk of tokens) {
+    if (tk === 'pending_manager') parts.push(`(${statusExpr} = 'submitted' AND COALESCE(${stepExpr}, 0) <= 1)`);
+    else if (tk === 'pending_finance') parts.push(`(${statusExpr} = 'submitted' AND ${stepExpr} >= 2)`);
+    else if (tk === 'approved' || tk === 'rejected' || tk === 'paid') parts.push(`${statusExpr} = '${tk}'`);
+  }
+  return parts.length ? `(${parts.join(' OR ')})` : '';
+}
+// Human label for the CSV Status column. A 'submitted' base status splits into the
+// two pending-review buckets by step; every other status passes through unchanged
+// (matching what the export showed before).
+function exportStatusLabel(baseStatus, step) {
+  if (baseStatus === 'submitted') {
+    return (Number(step) || 0) >= 2 ? 'Pending Review - FinanceAP' : 'Pending Review - Manager';
+  }
+  return baseStatus;
+}
 // ---------------------------------------------------------------------------
 // Expense insights (charts)
 // ---------------------------------------------------------------------------
@@ -2906,11 +2933,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   if (wantReimb) {
     const where = [];
     const params = [];
-    if (statuses.length) {
-      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
-      statuses.forEach(s => params.push(s));
-      where.push(`c.status IN (${ph})`);
-    }
+    const scond = exportStatusCondition(statuses, 'c.status', 'c.current_step');
+    if (scond) where.push(scond);
     if (employees.length) {
       const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
       employees.forEach(e => params.push(e));
@@ -2923,20 +2947,25 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
     // One row per line so each expense category exports on its own row (instead of
     // the claim header's "Multiple" summary). first_approved_at is when the FIRST
-    // approver (step 1) approved — the LATEST such approval, so after a reject +
-    // resubmit it reflects the re-approval, not the original. 'approved' with no
-    // step suffix covers claims that have no approver chain.
+    // approver (step 1) approved in the CURRENT cycle: the latest step-1 approval
+    // dated after the most recent (re)submission. So a reject + resubmit clears the
+    // date until the Manager approves again. 'approved' with no step suffix covers
+    // claims that have no approver chain.
     const rows = await q(
       `SELECT c.claim_no, c.claimant_name, c.department, c.bank_name, c.recipient_name,
-              c.bank_account_no, c.currency, c.status, c.manager_comment, c.decided_at,
+              c.bank_account_no, c.currency, c.status, c.current_step, c.manager_comment, c.decided_at,
               c.paid_at, c.created_at, u.username AS employee_username, fa.first_approved_at,
               l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description, l.sort_order
        FROM claim_lines l
        JOIN claims c ON c.id = l.claim_id
        JOIN users u ON u.id = c.employee_id
-       LEFT JOIN (SELECT claim_id, MAX(created_at) AS first_approved_at
-                    FROM claim_history WHERE action LIKE 'approved — step 1 of %' OR action = 'approved'
-                    GROUP BY claim_id) fa
+       LEFT JOIN (SELECT h.claim_id, MAX(h.created_at) AS first_approved_at
+                    FROM claim_history h
+                   WHERE (h.action LIKE 'approved — step 1 of %' OR h.action = 'approved')
+                     AND h.created_at > COALESCE((SELECT MAX(s.created_at) FROM claim_history s
+                           WHERE s.claim_id = h.claim_id AND s.action IN ('submitted','resubmitted')),
+                           '-infinity'::timestamptz)
+                   GROUP BY h.claim_id) fa
               ON fa.claim_id = c.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY c.created_at, l.sort_order`, params);
@@ -2944,7 +2973,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
       out.push({ key: iso(r.created_at) || '', cells: [
         'Reimbursement', r.claim_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
-        (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
+        (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description,
+        exportStatusLabel(r.status, r.current_step),
         r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
@@ -2952,11 +2982,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   if (wantMeal) {
     const where = [];
     const params = [];
-    if (statuses.length) {
-      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
-      statuses.forEach(s => params.push(s));
-      where.push(`m.status IN (${ph})`);
-    }
+    const scond = exportStatusCondition(statuses, 'm.status', 'm.current_step');
+    if (scond) where.push(scond);
     if (employees.length) {
       const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
       employees.forEach(e => params.push(e));
@@ -2967,15 +2994,19 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`m.region = $${params.length}`); }
     const rows = await q(
       `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
-              m.bank_account_no, m.currency, m.status, m.manager_comment, m.decided_at, m.paid_at,
+              m.bank_account_no, m.currency, m.status, m.current_step, m.manager_comment, m.decided_at, m.paid_at,
               m.created_at, u.username AS employee_username, fa.first_approved_at,
               l.line_date, l.site, l.job_category, l.amount_cents, l.description, l.sort_order
        FROM meal_claim_lines l
        JOIN meal_claims m ON m.id = l.meal_claim_id
        JOIN users u ON u.id = m.employee_id
-       LEFT JOIN (SELECT meal_claim_id, MAX(created_at) AS first_approved_at
-                    FROM meal_claim_history WHERE action LIKE 'approved — step 1 of %' OR action = 'approved'
-                    GROUP BY meal_claim_id) fa
+       LEFT JOIN (SELECT h.meal_claim_id, MAX(h.created_at) AS first_approved_at
+                    FROM meal_claim_history h
+                   WHERE (h.action LIKE 'approved — step 1 of %' OR h.action = 'approved')
+                     AND h.created_at > COALESCE((SELECT MAX(s.created_at) FROM meal_claim_history s
+                           WHERE s.meal_claim_id = h.meal_claim_id AND s.action IN ('submitted','resubmitted')),
+                           '-infinity'::timestamptz)
+                   GROUP BY h.meal_claim_id) fa
               ON fa.meal_claim_id = m.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY m.created_at, l.sort_order`, params);
@@ -2983,7 +3014,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
       out.push({ key: iso(r.created_at) || '', cells: [
         'Meal allowance', r.claim_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
-        (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description, r.status,
+        (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description,
+        exportStatusLabel(r.status, r.current_step),
         r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
@@ -2998,11 +3030,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     const mappedStatus = `CASE a.status WHEN 'realize_submitted' THEN 'submitted'
       WHEN 'realize_approved' THEN 'approved' WHEN 'settled' THEN 'paid'
       WHEN 'rejected_realize' THEN 'rejected' ELSE a.status END`;
-    if (statuses.length) {
-      const ph = statuses.map((_, i) => `$${params.length + i + 1}`).join(',');
-      statuses.forEach(s => params.push(s));
-      where.push(`${mappedStatus} IN (${ph})`);
-    }
+    const scond = exportStatusCondition(statuses, `(${mappedStatus})`, 'a.current_step');
+    if (scond) where.push(scond);
     if (employees.length) {
       const ph = employees.map((_, i) => `$${params.length + i + 1}`).join(',');
       employees.forEach(e => params.push(e));
@@ -3012,28 +3041,39 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
     // first_approved_at = when the first approver (step 1) approved the request
-    // phase — the LATEST such approval, so a reject + resubmit shows the re-approval.
-    // The realization phase logs 'realization approved …', deliberately skipped here.
+    // phase, in the current cycle: the latest step-1 approval dated after the most
+    // recent request (re)submission, so a reject + resubmit clears it until re-approved.
+    // Request (re)submissions are 'submitted'/'resubmitted'; the realization phase
+    // uses 'realization submitted/resubmitted' and 'realization approved …', all of
+    // which this deliberately ignores.
     const rows = await q(
       `SELECT a.advance_no, a.claimant_name, a.department, a.bank_name, a.recipient_name,
-              a.bank_account_no, a.currency, a.status, a.purpose, a.manager_comment,
+              a.bank_account_no, a.currency, a.status, a.current_step, a.purpose, a.manager_comment,
               a.decided_at, a.paid_at, a.created_at, u.username AS employee_username, fa.first_approved_at,
               l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description, l.sort_order
        FROM cash_advance_lines l
        JOIN cash_advances a ON a.id = l.advance_id
        JOIN users u ON u.id = a.employee_id
-       LEFT JOIN (SELECT advance_id, MAX(created_at) AS first_approved_at
-                    FROM cash_advance_history WHERE action LIKE 'approved — step 1 of %' OR action = 'approved'
-                    GROUP BY advance_id) fa
+       LEFT JOIN (SELECT h.advance_id, MAX(h.created_at) AS first_approved_at
+                    FROM cash_advance_history h
+                   WHERE (h.action LIKE 'approved — step 1 of %' OR h.action = 'approved')
+                     AND h.created_at > COALESCE((SELECT MAX(s.created_at) FROM cash_advance_history s
+                           WHERE s.advance_id = h.advance_id AND s.action IN ('submitted','resubmitted')),
+                           '-infinity'::timestamptz)
+                   GROUP BY h.advance_id) fa
               ON fa.advance_id = a.id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
        ORDER BY a.created_at, l.sort_order`, params);
     for (const r of rows) {
+      // Show the manager/finance split for a pending realization; leave every other
+      // advance status (realize_approved, settled, …) as its raw value, as before.
+      const advStatus = (r.status === 'submitted' || r.status === 'realize_submitted')
+        ? exportStatusLabel('submitted', r.current_step) : r.status;
       out.push({ key: iso(r.created_at) || '', cells: [
         'Cash advance', r.advance_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency,
-        r.description, r.status, r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.description, advStatus, r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
     }
   }
 

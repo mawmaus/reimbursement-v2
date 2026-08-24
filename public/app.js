@@ -4367,8 +4367,13 @@ function openRejectModal(c) {
 // Export (finance) — choose a date range and one or more statuses; covers both
 // reimbursement and meal allowance claims.
 // ---------------------------------------------------------------------------
+// "Pending review" is split by which approver is next: pending_manager = still
+// with the department Manager (step 1); pending_finance = Manager approved, now
+// with FinanceAP (step >= 2). Picking only pending_finance exports what the
+// Managers have already approved.
 const EXPORT_STATUS_OPTS = [
-  { v: 'submitted', l: 'Pending review' },
+  { v: 'pending_manager', l: 'Pending Review - Manager' },
+  { v: 'pending_finance', l: 'Pending Review - FinanceAP' },
   { v: 'approved', l: 'Approved' },
   { v: 'rejected', l: 'Rejected' },
   { v: 'paid', l: 'Paid' }
