@@ -162,9 +162,17 @@ const ADV_STATUS_LABEL = {
 };
 const ADV_PILL_BASE = { realize_submitted: 'submitted', realize_approved: 'approved', rejected_realize: 'rejected', settled: 'paid' };
 const statusLabel = (s) => t(STATUS_LABEL[s] || s || '');
+// "Pending review" splits by which approver is next: step 1 is still with the
+// department Manager; once they approve, the claim advances to step >= 2, where it
+// waits on FinanceAP. pendingReviewBase is the untranslated label (used for
+// sorting); pendingReviewLabel is the translated one shown in the UI.
+const pendingReviewBase = (step) => (Number(step) || 0) >= 2
+  ? 'Pending Review - FinanceAP' : 'Pending Review - Manager';
+const pendingReviewLabel = (step) => t(pendingReviewBase(step));
 // Status label that knows the row type (advances relabel some shared statuses).
 function statusLabelFor(c) {
   if (c && c.type === 'advance' && ADV_STATUS_LABEL[c.status]) return t(ADV_STATUS_LABEL[c.status]);
+  if (c && c.status === 'submitted') return pendingReviewLabel(c.current_step);
   return statusLabel(c ? c.status : '');
 }
 // CSS pill class for a status — maps advance-only statuses onto a base colour.
@@ -1389,7 +1397,7 @@ const SORT_VAL = {
   type: c => rowView(c).typeLabel || '',
   date: c => rowView(c).date || '',
   amount: c => Number(rowView(c).amount) || 0,
-  status: c => STATUS_LABEL[c.status] || c.status || ''
+  status: c => c.status === 'submitted' ? pendingReviewBase(c.current_step) : (STATUS_LABEL[c.status] || c.status || '')
 };
 function sortClaims(claims) {
   const { key, dir } = state.sort;
