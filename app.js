@@ -1286,6 +1286,17 @@ app.post('/api/reset-password', ah(async (req, res) => {
 // ---------------------------------------------------------------------------
 // Claims
 // ---------------------------------------------------------------------------
+// Apply the ledger status filter. Besides the plain base statuses it understands
+// the two "pending review" splits: pending_manager = still with the department
+// Manager (submitted, step <= 1); pending_finance = Manager approved, now with
+// FinanceAP (submitted, step >= 2). The split clauses reference current_step
+// directly (safe literals); base statuses go through the parameterized `add`.
+function applyListStatusFilter(status, where, add) {
+  if (!status) return;
+  if (status === 'pending_manager') where.push(`(status = 'submitted' AND COALESCE(current_step, 0) <= 1)`);
+  else if (status === 'pending_finance') where.push(`(status = 'submitted' AND current_step >= 2)`);
+  else add('status = $$', status);
+}
 app.get('/api/claims', requireAuth, ah(async (req, res) => {
   const { status, department, q: search } = req.query;
   const where = [];
@@ -1299,7 +1310,7 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
   }
   const vr = await viewRegionFilter(req);
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
-  if (status) add('status = $$', status);
+  applyListStatusFilter(status, where, add);
   if (department) add('department = $$', department);
   if (search) {
     const like = `%${search}%`;
@@ -1883,7 +1894,7 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   }
   const vr = await viewRegionFilter(req);
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
-  if (status) add('status = $$', status);
+  applyListStatusFilter(status, where, add);
   if (department) add('department = $$', department);
   if (search) {
     params.push(`%${search}%`);
@@ -2564,7 +2575,7 @@ app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
   }
   const vr = await viewRegionFilter(req);
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
-  if (status) add('status = $$', status);
+  applyListStatusFilter(status, where, add);
   if (department) add('department = $$', department);
   if (search) {
     params.push(`%${search}%`);

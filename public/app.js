@@ -521,10 +521,15 @@ const totalCardLabel = () => anyFilterActive() ? t('Filtered total') : t('Total 
 function renderSummaryCards() {
   const claims = visibleClaims();
   const count = st => claims.filter(c => c.status === st).length;
+  // "Pending" splits by which approver is next: step 1 is with the department
+  // Manager; step >= 2 means the Manager approved and it now waits on FinanceAP.
+  const pending = bucket => claims.filter(c => c.status === 'submitted'
+    && ((Number(c.current_step) || 0) >= 2) === (bucket === 'finance')).length;
   const total = claims.reduce((sum, c) => sum + Number(rowView(c).amount || 0), 0);
   // status key doubles as the filter value; the total card is display-only.
   const cards = [
-    { k: 'submitted', l: t('Pending'), n: count('submitted'), status: 'submitted' },
+    { k: 'submitted', l: t('Pending - Manager'), n: pending('manager'), status: 'pending_manager' },
+    { k: 'submitted', l: t('Pending - FinanceAP'), n: pending('finance'), status: 'pending_finance' },
     { k: 'approved', l: t('Approved'), n: count('approved'), status: 'approved' },
     { k: 'rejected', l: t('Rejected'), n: count('rejected'), status: 'rejected' },
     { k: 'paid', l: t('Paid'), n: count('paid'), status: 'paid' },
