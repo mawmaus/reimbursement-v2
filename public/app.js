@@ -1675,7 +1675,7 @@ async function generatePdf() {
     a.href = url;
     a.download = detailed.length === 1
       ? `${detailed[0].claim_no}.pdf`
-      : `claims-${new Date().toISOString().slice(0, 10)}.pdf`;
+      : `claims-${todayWIB()}.pdf`; // today in the region zone, not UTC
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast(detailed.length === 1 ? t('PDF ready — {n} claim', { n: detailed.length }) : t('PDF ready — {n} claims', { n: detailed.length }));
