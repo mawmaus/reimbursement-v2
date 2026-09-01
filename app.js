@@ -124,6 +124,35 @@ const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch
 // ---------------------------------------------------------------------------
 const iso = (v) => (v instanceof Date ? v.toISOString() : v);
 
+// A time zone's current UTC offset as "GMT+7", for column labels. Mirrors the
+// client's tzOffsetLabel(); returns '' if the runtime can't produce a short
+// offset so callers can simply omit the label.
+function tzOffsetLabel(tz) {
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz || DEFAULT_TIMEZONE, timeZoneName: 'shortOffset' })
+      .formatToParts(new Date()).find(x => x.type === 'timeZoneName');
+    return part ? part.value : '';
+  } catch { return ''; }
+}
+// Render a stored (UTC) timestamp as "YYYY-MM-DD HH:MM:SS" in `tz`, so exported
+// dates read as the same wall-clock time the portal shows on screen instead of
+// the raw UTC instant. Mirrors the client's fmtDateTime() minus the zone suffix:
+// that goes in the CSV header once, which keeps each cell parseable as a date by
+// Excel. Falls back to the raw ISO string if the zone can't be formatted.
+function tsInZone(v, tz) {
+  const s = iso(v);
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  try {
+    const p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz || DEFAULT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {});
+    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+  } catch { return s; }
+}
+
 // Email address handling: stored lower-cased; a blank string means "no email".
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const normEmail = (v) => String(v == null ? '' : v).trim().toLowerCase();
@@ -2939,6 +2968,14 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   const employees = String(req.query.employees || '').split(',')
     .map(s => Number(s.trim())).filter(n => Number.isInteger(n) && n > 0);
 
+  // Timestamps export in the exporting user's region time zone — the same zone
+  // the portal renders them in (see the client's fmtDateTime) — so a CSV cell and
+  // the on-screen claim never disagree about the date. The offset goes in the
+  // column headers, which keeps the cells parseable as dates by Excel.
+  const { timezone } = await regionPrefsFor(req.user.region);
+  const ts = (v) => tsInZone(v, timezone);
+  const zone = tzOffsetLabel(timezone);
+
   const out = []; // { key: sortKey, cells: [...] }
 
   if (wantReimb) {
@@ -2986,7 +3023,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description,
         exportStatusLabel(r.status, r.current_step),
-        r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), ts(r.paid_at), ts(r.created_at)] });
     }
   }
 
@@ -3027,7 +3064,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description,
         exportStatusLabel(r.status, r.current_step),
-        r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), ts(r.paid_at), ts(r.created_at)] });
     }
   }
 
@@ -3084,7 +3121,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         'Cash advance', r.advance_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency,
-        r.description, advStatus, r.manager_comment, iso(r.first_approved_at), iso(r.decided_at), iso(r.paid_at), iso(r.created_at)] });
+        r.description, advStatus, r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), ts(r.paid_at), ts(r.created_at)] });
     }
   }
 
@@ -3092,13 +3129,14 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
 
   const headers = ['Type', 'Claim No', 'Submitted By', 'Claimant Name', 'Department',
     'Bank Name', 'Recipient Name', 'Bank Account No', 'Date', 'Category', 'Site', 'Amount',
-    'Currency', 'Description', 'Status', 'Manager Comment', 'First Approved At', 'Decided At', 'Paid At', 'Created At'];
+    'Currency', 'Description', 'Status', 'Manager Comment',
+    ...['First Approved At', 'Decided At', 'Paid At', 'Created At'].map(h => (zone ? h + ' (' + zone + ')' : h))];
   const lines = [headers.map(csvCell).join(',')];
   for (const r of out) lines.push(r.cells.map(csvCell).join(','));
 
   const csv = '\uFEFF' + lines.join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="claims-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="claims-${todayInZone(timezone)}.csv"`);
   res.send(csv);
 }));
 
