@@ -538,6 +538,10 @@ input[type="search"] { min-width: 220px; }
   box-shadow: 0 10px 30px -16px rgba(0,0,0,.5); }
 .ph-frame { position: relative; } /* exactly image-sized; crop shares its origin */
 .ph-canvas { display: block; width: 100%; height: 100%; border-radius: 4px; }
+/* The stamp band, previewed where it lands in the export: hung under the crop,
+   the same width, so it never sits on the picture. */
+.ph-stampbar { position: absolute; display: none; pointer-events: none;
+  border-radius: 0 0 4px 4px; }
 /* The crop rectangle: a moveable window whose big outer shadow dims everything
    outside it, so the kept area stands out. */
 .ph-crop { position: absolute; box-sizing: border-box; cursor: move; touch-action: none;

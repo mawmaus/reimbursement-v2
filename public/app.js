@@ -3253,18 +3253,17 @@ function wrapTextLines(ctx, text, maxWidth) {
   return out.length ? out : [''];
 }
 
-// Burn a bottom-anchored capture stamp into `box` (x,y,w,h) of `ctx`. `lines`
-// is [{ text, bold }]. Font sizes scale with box.w, so the preview (drawn into
-// the crop rectangle) and the export (drawn into the full-res crop) look the
-// same. Address lines are clamped to two rows so the band can't swallow the
-// photo.
-function drawCaptureStamp(ctx, box, lines) {
-  if (!lines || !lines.length) return;
-  const fs = Math.min(Math.max(box.w * 0.026, 12), 44);
+// Lay out the capture stamp for a band `w` px wide. `lines` is [{ text, bold }].
+// Font sizes scale with `w`, so the preview strip and the full-res export are
+// proportionally identical. Address lines are clamped to two rows so the band
+// stays a caption, not a paragraph. Returns null when there is nothing to draw.
+function measureCaptureStamp(ctx, w, lines) {
+  if (!lines || !lines.length) return null;
+  const fs = Math.min(Math.max(w * 0.026, 12), 44);
   const headFs = fs * 1.14;
-  const padX = fs * 0.85, padY = fs * 0.62, lineGap = fs * 0.34, accent = Math.max(3, fs * 0.24);
+  const padX = fs * 0.85, padY = fs * 0.62, accent = Math.max(3, fs * 0.24);
   const textLeft = padX + accent + fs * 0.5;
-  const maxTextW = box.w - textLeft - padX;
+  const maxTextW = w - textLeft - padX;
   // Expand logical lines into physical (wrapped) rows carrying their own font.
   const rows = [];
   lines.forEach(ln => {
@@ -3281,27 +3280,40 @@ function drawCaptureStamp(ctx, box, lines) {
     wrapped.forEach(txt => rows.push({ txt, size, bold: ln.bold }));
   });
   const rowH = fs * 1.32;
-  const bandH = padY * 2 + rows.length * rowH;
-  const bandY = box.y + box.h - bandH;
+  return { fs, padX, padY, accent, textLeft, rows, rowH, height: padY * 2 + rows.length * rowH };
+}
+
+// Height of the stamp band under a `w`-wide photo (0 when the stamp is off).
+function captureStampHeight(ctx, w, lines) {
+  const m = measureCaptureStamp(ctx, w, lines);
+  return m ? Math.ceil(m.height) : 0;
+}
+
+// Draw the capture stamp as a band of its own. It sits *below* the photo rather
+// than on top of it, so nothing in the picture is covered. (x, y) is the band's
+// top-left corner and `w` its width; returns the height it consumed.
+function drawCaptureStamp(ctx, x, y, w, lines) {
+  const m = measureCaptureStamp(ctx, w, lines);
+  if (!m) return 0;
+  const bandH = Math.ceil(m.height);
   ctx.save();
-  // Dark translucent band across the bottom of the crop.
-  ctx.fillStyle = 'rgba(18,18,20,0.58)';
-  ctx.fillRect(box.x, bandY, box.w, bandH);
+  // Solid dark caption band under the photo.
+  ctx.fillStyle = '#121214';
+  ctx.fillRect(x, y, w, bandH);
   // Brand accent bar on the left.
   ctx.fillStyle = '#f7982a';
-  ctx.fillRect(box.x + padX, bandY + padY, accent, bandH - padY * 2);
+  ctx.fillRect(x + m.padX, y + m.padY, m.accent, bandH - m.padY * 2);
   // Text.
   ctx.textBaseline = 'top';
-  ctx.shadowColor = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur = fs * 0.18;
-  let ty = bandY + padY;
-  rows.forEach(r => {
+  let ty = y + m.padY;
+  m.rows.forEach(r => {
     ctx.font = `${r.bold ? 700 : 500} ${r.size}px ${STAMP_FONT}`;
     ctx.fillStyle = r.bold ? '#ffffff' : 'rgba(255,255,255,0.92)';
-    ctx.fillText(r.txt, box.x + textLeft, ty + (rowH - r.size) / 2);
-    ty += rowH;
+    ctx.fillText(r.txt, x + m.textLeft, ty + (m.rowH - r.size) / 2);
+    ty += m.rowH;
   });
   ctx.restore();
+  return bandH;
 }
 
 // The editor itself. Resolves with a File (edited JPEG), the original file (on
@@ -3355,6 +3367,7 @@ function editImage(file) {
                 <span class="ph-handle ph-corner" data-h="nw"></span><span class="ph-handle ph-corner" data-h="ne"></span>
                 <span class="ph-handle ph-corner" data-h="sw"></span><span class="ph-handle ph-corner" data-h="se"></span>
               </div>
+              <canvas class="ph-stampbar" id="phStampBar"></canvas>
             </div>
           </div>
           <div class="ph-tools">
@@ -3398,9 +3411,14 @@ function editImage(file) {
         rc = rotatedImageCanvas(img, totalDeg());
         // Fit the rotated image into the available modal space (minus the gutter
         // that frames it, so handles at the image edge sit inside the stage).
-        const maxW = Math.min(stageEl.parentElement.clientWidth || 560, 620) - GUTTER * 2;
+        const maxW = Math.max(220, Math.min(stageEl.parentElement.clientWidth || 560, 620) - GUTTER * 2);
         const maxH = 420;
-        const scale = Math.min(maxW / rc.width, maxH / rc.height, 1);
+        // The stamp strip hangs below the photo, so the photo gets the stage
+        // height minus the room the strip needs — reserved whatever the stamp
+        // currently says, so nothing jumps when the location arrives.
+        const fitScale = h => Math.min(maxW / rc.width, h / rc.height, 1);
+        const probeW = Math.max(1, Math.round(rc.width * fitScale(maxH)));
+        const scale = fitScale(Math.max(140, maxH - bandReserve(probeW)));
         stageW = Math.max(1, Math.round(rc.width * scale));
         stageH = Math.max(1, Math.round(rc.height * scale));
         canvas.width = stageW; canvas.height = stageH;
@@ -3418,6 +3436,21 @@ function editImage(file) {
         crop.x = Math.max(0, Math.min(crop.x, stageW - crop.w));
         crop.y = Math.max(0, Math.min(crop.y, stageH - crop.h));
       }
+
+      // Worst case the strip can grow to at width `w`: timestamp + two wrapped
+      // address rows + coordinates. Reserved up front so the photo is fitted
+      // with the strip already accounted for.
+      const bandReserve = w => captureStampHeight(canvas.getContext('2d'), w,
+        [{ text: 'Ag', bold: true }, { text: 'Ag' }, { text: 'Ag' }, { text: 'Ag' }]);
+
+      // The modal's real width is only known once the browser has laid it out
+      // (and it changes when the window resizes), so re-fit whenever it moves.
+      let fittedTo = 0;
+      const stageRO = new ResizeObserver(() => {
+        const w = stageEl.parentElement.clientWidth;
+        if (w && Math.abs(w - fittedTo) > 1) { fittedTo = w; layout(true); }
+      });
+      stageRO.observe(stageEl.parentElement);
 
       // Current stamp lines (empty when the stamp is switched off).
       function stampLines() {
@@ -3438,13 +3471,32 @@ function editImage(file) {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, stageW, stageH);
         ctx.drawImage(rc, 0, 0, rc.width, rc.height, 0, 0, stageW, stageH);
-        // Preview the stamp inside the crop rectangle (same proportions as export).
-        drawCaptureStamp(ctx, { x: crop.x, y: crop.y, w: crop.w, h: crop.h }, stampLines());
+        drawStampBar();
         cropEl.style.left = crop.x + 'px';
         cropEl.style.top = crop.y + 'px';
         cropEl.style.width = crop.w + 'px';
         cropEl.style.height = crop.h + 'px';
         renderStampInfo();
+      }
+
+      // Preview the stamp as the strip that will sit *below* the cropped photo:
+      // same width as the crop, hung off its bottom edge, covering nothing.
+      function drawStampBar() {
+        const bar = $('#phStampBar');
+        const lines = stampLines();
+        const w = Math.max(1, Math.round(crop.w));
+        const h = captureStampHeight(bar.getContext('2d'), w, lines);
+        if (!h) { bar.style.display = 'none'; stageEl.style.paddingBottom = ''; return; }
+        bar.width = w; bar.height = h;
+        bar.style.display = 'block';
+        bar.style.width = w + 'px';
+        bar.style.height = h + 'px';
+        bar.style.left = Math.round(crop.x) + 'px';
+        bar.style.top = Math.round(crop.y + crop.h) + 'px';
+        drawCaptureStamp(bar.getContext('2d'), 0, 0, w, lines);
+        // Give the stage room when the strip hangs past the photo's bottom edge.
+        const spill = Math.max(0, Math.round(crop.y + crop.h) + h - stageH);
+        stageEl.style.paddingBottom = (GUTTER + spill) + 'px';
       }
 
       function renderStampInfo() {
@@ -3513,7 +3565,11 @@ function editImage(file) {
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
       // Tidy the document-level listeners when the editor closes.
-      const cleanup = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+      const cleanup = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        stageRO.disconnect();
+      };
 
       // -- Controls --
       const dial = $('#phDial'), knob = $('#phDialKnob'), dialVal = $('#phDialVal');
@@ -3568,10 +3624,14 @@ function editImage(file) {
           const sc = out.width / stageW;                   // stage px → full-res px
           const cw = Math.max(1, Math.round(crop.w * sc)), ch = Math.max(1, Math.round(crop.h * sc));
           const cnv = document.createElement('canvas');
-          cnv.width = cw; cnv.height = ch;
           const cx = cnv.getContext('2d');
+          const lines = stampLines();
+          // The stamp gets its own band beneath the crop, so the photo itself
+          // is never covered.
+          const bandH = captureStampHeight(cx, cw, lines);
+          cnv.width = cw; cnv.height = ch + bandH;
           cx.drawImage(out, crop.x * sc, crop.y * sc, crop.w * sc, crop.h * sc, 0, 0, cw, ch);
-          drawCaptureStamp(cx, { x: 0, y: 0, w: cw, h: ch }, stampLines());
+          drawCaptureStamp(cx, 0, ch, cw, lines);
           const blob = await new Promise(res => cnv.toBlob(res, 'image/jpeg', 0.92));
           if (!blob) throw new Error('encode failed');
           const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
@@ -3585,7 +3645,6 @@ function editImage(file) {
       layout(true);
       updateDial();
       ensureGeo();
-      window.addEventListener('resize', () => layout(false), { once: true });
     }
   });
 }
