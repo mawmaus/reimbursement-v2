@@ -85,6 +85,17 @@
       <div id="insightsBody"></div>
     </section>
 
+    <!-- Date-change requests, opened from a home tile. A claimant sees their
+         returned claims and can ask for the locked dates to be unlocked; a
+         Super Admin sees the queue and decides. -->
+    <section id="dcView" hidden>
+      <div class="list-head">
+        <button id="backHomeDc" class="btn btn-ghost btn-sm" type="button" data-i18n="← Menu">← Menu</button>
+        <h2 class="list-title" data-i18n="Request change of date">Request change of date</h2>
+      </div>
+      <div id="dcBody"></div>
+    </section>
+
     <!-- One claims list, opened from a home tile. -->
     <section id="listView" hidden>
       <div class="list-head">

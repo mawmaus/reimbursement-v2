@@ -559,18 +559,20 @@ async function consumeDateChange(type, claimId) {
       WHERE claim_type = $1 AND claim_id = $2 AND status = 'granted'`,
     [type, Number(claimId)]);
 }
-// Who can grant a date change in `region`: every super admin, plus the roles
-// that region's matrix gives manage_settings to. Used to address the request
-// email — the same audience that owns the claim window itself.
-async function dateChangeGrantors(region) {
-  const perms = await loadRolePermsForRegion(region);
-  const roles = EDITABLE_ROLES.filter(r => perms[r] && perms[r].manage_settings);
-  const rows = await q(
+// Unlocking a claim's dates is a super-admin decision — it overrides the claim
+// window itself, so it does not follow the per-region capability matrix.
+const canDecideDateChange = (user) => !!user && user.role === 'superadmin';
+function requireSuperadmin(req, res, next) {
+  if (!canDecideDateChange(req.user)) {
+    return res.status(403).json({ error: 'Only a Super Admin can decide a date change' });
+  }
+  next();
+}
+// Who the request email goes to: every active super admin with an address.
+async function dateChangeGrantors() {
+  return await q(
     `SELECT id, full_name, email FROM users
-      WHERE active = TRUE AND email <> ''
-        AND (role = 'superadmin' OR (role = ANY($1::text[]) AND (region = $2 OR region = $3)))`,
-    [roles, String(region || ''), ALL_REGIONS]);
-  return rows;
+      WHERE active = TRUE AND email <> '' AND role = 'superadmin'`);
 }
 // Response shape for the claim-date policy (shared by GET/PUT /api/claim-window),
 // for a given region.
@@ -1310,23 +1312,33 @@ app.post('/api/date-change-requests', requireAuth, ah(async (req, res) => {
     claimNo: inserted[0].claim_no, typeLabel: target.spec.label,
     claimantName: target.row.claimant_name || req.user.full_name, reason
   };
-  await notifyDateChangeRequested(await dateChangeGrantors(region), payload);
+  await notifyDateChangeRequested(await dateChangeGrantors(), payload);
   res.status(201).json({ date_change: dateChangeView(inserted[0]) });
 }));
 
-// The queue for grantors, scoped to a region like the rest of the settings
-// workspace. Pending first; recently decided rows follow for context.
-app.get('/api/date-change-requests', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
-  if (region === null) return res.status(400).json({ error: 'Invalid region' });
-  const scoped = region ? 'AND r.region = $1' : '';
-  const params = region ? [region] : [];
-  const rows = await q(
+// One list, two audiences: a super admin gets the whole queue to decide on
+// (optionally scoped to a region), and everyone else gets their own requests so
+// the Date changes page can show them where each one stands. `can_decide` tells
+// the client which of the two it is holding.
+app.get('/api/date-change-requests', requireAuth, ah(async (req, res) => {
+  const decider = canDecideDateChange(req.user);
+  const where = ["(r.status = 'pending' OR r.decided_at > now() - INTERVAL '90 days')"];
+  const params = [];
+  if (decider) {
+    const region = await resolveLookupRegion(req.user, req.query.region);
+    if (region === null) return res.status(400).json({ error: 'Invalid region' });
+    if (region) { params.push(region); where.push(`r.region = $${params.length}`); }
+  } else {
+    params.push(req.user.id);
+    where.push(`r.employee_id = $${params.length}`);
+  }
+  const rows = await dcrQuery(
     `SELECT r.*, u.full_name AS employee_name
        FROM date_change_requests r JOIN users u ON u.id = r.employee_id
-      WHERE (r.status = 'pending' OR r.decided_at > now() - INTERVAL '30 days') ${scoped}
+      WHERE ${where.join(' AND ')}
       ORDER BY (r.status = 'pending') DESC, r.created_at DESC LIMIT 200`, params);
   res.json({
+    can_decide: decider,
     requests: rows.map(r => ({
       ...dateChangeView(r),
       claim_type: r.claim_type, claim_id: Number(r.claim_id), claim_no: r.claim_no,
@@ -1336,15 +1348,12 @@ app.get('/api/date-change-requests', requireAuth, requireCap('manage_settings'),
   });
 }));
 
-app.post('/api/date-change-requests/:id/decide', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+app.post('/api/date-change-requests/:id/decide', requireAuth, requireSuperadmin, ah(async (req, res) => {
   const b = req.body || {};
   const rows = await q('SELECT * FROM date_change_requests WHERE id = $1', [req.params.id]);
   const row = rows[0];
   if (!row) return res.status(404).json({ error: 'Request not found' });
   if (row.status !== 'pending') return res.status(409).json({ error: 'This request has already been decided' });
-  if (!canEditLookupRegion(req.user, row.region)) {
-    return res.status(403).json({ error: 'You can only decide requests from your own region' });
-  }
   const grant = b.grant === true || b.grant === 'true';
   const note = String(b.note || '').trim().slice(0, 500);
   const updated = await q(

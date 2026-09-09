@@ -876,6 +876,9 @@ input[type="search"] { min-width: 220px; }
   font-size: .85rem; color: var(--ink-soft);
 }
 .date-ask .btn { flex: 0 0 auto; }
+.dc-wrap { max-width: 720px; }
+.dc-intro { margin: 0 0 18px; font-size: .9rem; }
+.dc-empty { margin: 0; font-size: .88rem; }
 .dc-head { margin: 0 0 10px; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
 .dc-count {
   display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 9px;

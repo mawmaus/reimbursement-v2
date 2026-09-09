@@ -31,7 +31,10 @@ const state = {
   // Top-bar region picker: which region an all-region viewer (Super Admin / VP /
   // '*' account) has scoped the dashboard to. '' = all regions. Region-locked
   // accounts ignore this (they only ever see their own region). Reset on login.
-  viewRegion: ''
+  viewRegion: '',
+  // How many date-change requests are waiting on a Super Admin — the badge on
+  // the "Request change of date" tile. Always 0 for everyone else. Reset on login.
+  dcPending: 0
 };
 const claimKey = (type, id) => `${type}:${id}`;
 
@@ -404,7 +407,9 @@ function showApp() {
   $('#homeView').hidden = false;
   $('#listView').hidden = true;
   $('#insightsView').hidden = true;
+  $('#dcView').hidden = true;
   state.insights = { year: '', month: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
+  state.dcPending = 0;
   // Reset the region scope on every login so a same-tab account switch never
   // carries the previous user's chosen region; then show/hide + fill the picker.
   state.viewRegion = '';
@@ -523,12 +528,13 @@ function renderClaimDateBox() {
   if (!box) return;
   box.innerHTML = claimDateBoxHtml();
   const btn = $('#dcAskBtn');
-  if (btn) btn.addEventListener('click', openDateChangeRequestModal);
+  // Wrapped: addEventListener would otherwise pass the click Event as onDone.
+  if (btn) btn.addEventListener('click', () => openDateChangeRequestModal());
 }
 // Ask for the locked dates to be unlocked. The reason is what the grantor reads,
 // so it is required. On success the box redraws as "waiting for approval" — the
 // dates only unlock once someone grants it and the form is reopened.
-function openDateChangeRequestModal() {
+function openDateChangeRequestModal(onDone) {
   const target = claimDateTarget;
   if (!target) return;
   openModal2(`
@@ -568,6 +574,7 @@ function openDateChangeRequestModal() {
       renderClaimDateBox();
       closeModal2();
       toast(t('Date change requested — you will be emailed when it is decided.'));
+      if (onDone) onDone();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
   });
 }
@@ -625,6 +632,17 @@ async function loadAll() {
   // The summary cards are derived from the loaded claims (see renderSummaryCards
   // in renderClaims), so loading the claims is all that's needed.
   await loadClaims();
+  await loadDcPending();
+}
+// The Super Admin's date-change queue depth, for the tile badge. Nobody else has
+// a queue, and a failure here must not cost anyone their menu.
+async function loadDcPending() {
+  if (!isSuperUser()) { state.dcPending = 0; return; }
+  try {
+    const r = await api('/date-change-requests');
+    state.dcPending = (r.requests || []).filter(x => x.status === 'pending').length;
+  } catch { state.dcPending = 0; }
+  renderHome();
 }
 
 // True when any filter narrows the ledger away from the full set.
@@ -1064,6 +1082,21 @@ function renderHome() {
   if (u.can_view_insights) {
     tiles.push({ key: 'insights', title: t('Insights'), desc: t('Expense trends by type, month and year'), link: t('View charts') });
   }
+  // Date changes. A Super Admin always gets it (they are the ones who decide,
+  // and the badge is their queue); everyone else only once they have a returned
+  // claim to ask about or a request already in flight — an empty tile on every
+  // employee's menu would be noise.
+  const dcMine = dateChangeCandidates();
+  const dcOpen = dcMine.filter(c => c.date_change && c.date_change.status === 'pending').length;
+  if (isSuperUser() || dcMine.length) {
+    tiles.push({
+      key: 'datechange',
+      title: t('Request change of date'),
+      desc: isSuperUser() ? t('Unlock the dates on a returned claim') : t('Ask to change the dates on a returned claim'),
+      count: isSuperUser() ? state.dcPending : dcOpen,
+      badge: true,
+      link: t('Open') });
+  }
   menu.innerHTML = tiles.map(tile => `
     <button class="home-tile${tile.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${tile.key}" type="button">
       ${tile.badge && tile.count > 0 ? `<span class="tile-badge" aria-label="${esc(t('{count} awaiting approval', { count: tile.count }))}">${tile.count > 99 ? '99+' : tile.count}</span>` : ''}
@@ -1073,7 +1106,9 @@ function renderHome() {
     </button>`).join('');
   $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.view;
-    if (v === 'insights') openInsights(); else openView(v);
+    if (v === 'insights') openInsights();
+    else if (v === 'datechange') openDateChanges();
+    else openView(v);
   }));
 }
 
@@ -1094,6 +1129,7 @@ function goHome() {
   const sf = $('#statusFilter'); if (sf) { sf.value = ''; if (sf._mselRefresh) sf._mselRefresh(); }
   $('#listView').hidden = true;
   const iv = $('#insightsView'); if (iv) iv.hidden = true;
+  const dv = $('#dcView'); if (dv) dv.hidden = true;
   $('#homeView').hidden = false;
   loadClaims(); // refetch unfiltered, then renderHome via loadClaims
 }
@@ -1102,6 +1138,7 @@ function goHome() {
 // Insights (expense charts)
 // ---------------------------------------------------------------------------
 $('#backHomeInsights').addEventListener('click', goHome);
+$('#backHomeDc').addEventListener('click', goHome);
 
 // Status presets offered in the Insights filter. "Approved + paid" is the
 // default — it reflects real outflow (money that's been committed or moved).
@@ -4837,7 +4874,6 @@ const SETTINGS_TABS = [
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
   { key: 'meal-rates', label: 'Meal allowance', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
-  { key: 'date-changes', label: 'Date changes', cap: 'manage_settings' },
   { key: 'region-prefs', label: 'Currency, time zone & bank', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
@@ -4994,7 +5030,6 @@ function renderSettingsTab() {
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
-  if (settingsState.tab === 'date-changes') return renderDateChangesTab();
   if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
   if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
@@ -5058,7 +5093,8 @@ async function renderClaimWindowTab() {
 // --- Date-change requests ----------------------------------------------------
 // A returned claim resubmits with its original dates locked. When the claimant
 // needs to re-date a line they ask here; unlocking it frees that claim's dates
-// for one resubmit. Same audience as the claim window, scoped to its region.
+// for one resubmit. Only a Super Admin decides — this overrides the claim window
+// itself, so it does not follow the per-region capability matrix.
 function dcStatusChip(status) {
   const label = { pending: t('Waiting'), granted: t('Unlocked'), declined: t('Declined'), used: t('Used') }[status] || status;
   return `<span class="dc-chip dc-${esc(status)}">${esc(label)}</span>`;
@@ -5112,32 +5148,114 @@ function openDeclineModal(onSend) {
     onSend(String(new FormData(e.target).get('note') || '').trim());
   });
 }
-async function renderDateChangesTab() {
-  const panel = $('#settingsPanel');
-  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
-  let list;
-  try { list = (await api('/date-change-requests' + regionQS)).requests || []; }
-  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+const isSuperUser = () => !!state.user && state.user.role === 'superadmin';
+// My claims that a date change could apply to: the returned ones I can resubmit.
+// Doubles as the tile's gate, so an employee with nothing to ask about never
+// sees an empty menu entry.
+function dateChangeCandidates() {
+  const me = state.user && state.user.id;
+  return state.claims.filter(c => c.employee_id === me && (c.status === 'rejected' || c.status === 'rejected_realize'));
+}
+// One of my returned claims, with either its request's state or the ask button.
+function dcMineRowHtml(c) {
+  const dc = c.date_change;
+  return `<div class="dc-card" data-mine="${esc(c.type)}:${c.id}">
+    <div class="dc-top">
+      <div class="dc-who">
+        <strong>${esc(c.claim_no)}</strong>
+        <span class="muted">${esc(claimTypeLabel(c))} · ${esc(t('Returned for changes'))}</span>
+      </div>
+      ${dc ? dcStatusChip(dc.status) : ''}
+    </div>
+    ${dc && dc.reason ? `<p class="dc-reason">${esc(dc.reason)}</p>` : ''}
+    ${dc && dc.decided_note ? `<p class="muted" style="margin:0 0 8px;font-size:.82rem">${esc(dc.decided_note)}</p>` : ''}
+    <div class="dc-foot">
+      <span class="muted">${esc(dc ? dcMineStatusLine(dc) : t('The dates on this claim are locked.'))}</span>
+      <div class="dc-actions">
+        ${dc ? '' : `<button type="button" class="btn btn-primary btn-sm" data-ask="${esc(c.type)}:${c.id}">${esc(t('Request a date change'))}</button>`}
+        ${dc && dc.status === 'granted' ? `<button type="button" class="btn btn-primary btn-sm" data-edit="${esc(c.type)}:${c.id}">${esc(t('Edit & resubmit'))}</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+const dcMineStatusLine = (dc) => ({
+  pending: t('Waiting for a Super Admin to decide.'),
+  granted: t('Unlocked — edit the dates and resubmit.'),
+  declined: t('Declined — resubmit with the original dates.'),
+  used: t('Already used on an earlier resubmit.')
+}[dc.status] || '');
+const claimTypeLabel = (c) => c.type === 'meal' ? t('meal allowance claim')
+  : c.type === 'advance' ? t('cash advance realization') : t('reimbursement claim');
+
+// The view behind the "Request change of date" tile. A Super Admin gets the
+// queue to decide on; everyone gets their own returned claims to ask about.
+function openDateChanges() {
+  state.view = 'datechange';
+  $('#homeView').hidden = true;
+  $('#listView').hidden = true;
+  const iv = $('#insightsView'); if (iv) iv.hidden = true;
+  $('#dcView').hidden = false;
+  renderDateChanges();
+}
+async function renderDateChanges() {
+  const body = $('#dcBody');
+  body.innerHTML = `<p class="muted" style="padding:28px 4px">${esc(t('Loading…'))}</p>`;
+  let list = [], canDecide = false;
+  try {
+    const r = await api('/date-change-requests');
+    list = r.requests || [];
+    canDecide = !!r.can_decide;
+  } catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const pending = list.filter(r => r.status === 'pending');
-  const rest = list.filter(r => r.status !== 'pending');
-  panel.innerHTML = `
-    <div class="settings-controls" style="max-width:680px">
-      <p class="muted" style="margin:0 0 18px;font-size:.9rem">${esc(t('A returned claim keeps the dates it was submitted with. When a claimant needs to change one, their request lands here — unlocking it lets them re-date that claim once, ignoring the claim window.'))}</p>
-      <h3 class="dc-head">${esc(t('Waiting for a decision'))}${pending.length ? ` <span class="dc-count">${pending.length}</span>` : ''}</h3>
-      ${pending.length ? pending.map(dcCardHtml).join('') : `<p class="muted" style="font-size:.88rem;margin:0">${esc(t('Nothing waiting.'))}</p>`}
-      ${rest.length ? `<h3 class="dc-head" style="margin-top:26px">${esc(t('Recently decided'))}</h3>${rest.map(dcCardHtml).join('')}` : ''}
+  state.dcPending = canDecide ? pending.length : 0;
+  const decided = list.filter(r => r.status !== 'pending');
+  const mine = dateChangeCandidates();
+  body.innerHTML = `
+    <div class="dc-wrap">
+      <p class="muted dc-intro">${esc(canDecide
+        ? t('A returned claim keeps the dates it was submitted with. Unlocking one lets that claimant re-date it once, ignoring the claim window.')
+        : t('A returned claim keeps the dates it was submitted with. If a date really needs to change, ask a Super Admin to unlock it — they can free that claim once, ignoring the claim window.'))}</p>
+      ${canDecide ? `
+        <h3 class="dc-head">${esc(t('Waiting for a decision'))}${pending.length ? ` <span class="dc-count">${pending.length}</span>` : ''}</h3>
+        ${pending.length ? pending.map(dcCardHtml).join('') : `<p class="muted dc-empty">${esc(t('Nothing waiting.'))}</p>`}` : ''}
+      ${mine.length ? `
+        <h3 class="dc-head"${canDecide ? ' style="margin-top:26px"' : ''}>${esc(t('Your returned claims'))}</h3>
+        ${mine.map(dcMineRowHtml).join('')}` : ''}
+      ${!canDecide && !mine.length ? `<p class="muted dc-empty">${esc(t('You have no returned claims right now.'))}</p>` : ''}
+      ${canDecide && decided.length ? `
+        <h3 class="dc-head" style="margin-top:26px">${esc(t('Recently decided'))}</h3>
+        ${decided.map(dcCardHtml).join('')}` : ''}
     </div>`;
   const send = async (id, grant, note) => {
     try {
       await api(`/date-change-requests/${id}/decide`, { method: 'POST', body: JSON.stringify({ grant, note: note || '' }) });
       toast(grant ? t('Dates unlocked — the claimant has been emailed.') : t('Request declined — the claimant has been emailed.'));
-      renderDateChangesTab();
+      await loadClaims();       // the decision changes what the claim payload carries
+      renderDateChanges();
     } catch (ex) { toast(ex.message, true); }
   };
-  $$('#settingsPanel [data-grant]').forEach(b =>
-    b.addEventListener('click', () => send(b.dataset.grant, true, '')));
-  $$('#settingsPanel [data-decline]').forEach(b =>
+  $$('#dcBody [data-grant]').forEach(b => b.addEventListener('click', () => send(b.dataset.grant, true, '')));
+  $$('#dcBody [data-decline]').forEach(b =>
     b.addEventListener('click', () => openDeclineModal(note => send(b.dataset.decline, false, note))));
+  // Asking from here targets the claim directly — no need to open its form first.
+  const claimFor = (key) => {
+    const [type, id] = String(key).split(':');
+    return state.claims.find(c => c.type === type && String(c.id) === id);
+  };
+  $$('#dcBody [data-ask]').forEach(b => b.addEventListener('click', () => {
+    const c = claimFor(b.dataset.ask);
+    if (!c) return;
+    claimDateTarget = { claim_type: dcrType(c.type), claim_id: c.id };
+    openDateChangeRequestModal(() => { renderDateChanges(); renderHome(); });
+  }));
+  $$('#dcBody [data-edit]').forEach(b => b.addEventListener('click', () => {
+    const c = claimFor(b.dataset.edit);
+    if (!c) return;
+    if (c.type === 'meal') openMealAllowanceModal(c);
+    else if (c.type === 'advance') openRealizeModal(c);
+    else openClaimModal(c);
+  }));
+  renderHome(); // keep the tile's badge in step with what we just fetched
 }
 
 // --- Meal allowance rates (per-region dropdown presets) ----------------------
