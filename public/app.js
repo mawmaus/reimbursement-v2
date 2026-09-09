@@ -459,21 +459,32 @@ const claimDateOk = (d) => {
   const e = claimEarliest();
   return !e || String(d || '') >= e || claimDateCarried.has(String(d || ''));
 };
-// `min` for a date picker. Dropped while dates are carried over, since native
-// validation would otherwise block the very rows we are letting through.
-const claimDateMin = () => (claimEarliest() && !claimDateCarried.size ? `min="${esc(claimEarliest())}"` : '');
+// `min` for a date picker. Only ever put on an editable row — a carried row's
+// input is disabled, which bars it from constraint validation entirely.
+const claimDateMin = () => (claimEarliest() ? `min="${esc(claimEarliest())}"` : '');
+// The date cell for a line. A line carried in from the rejected claim keeps the
+// date it was submitted with and cannot be re-dated; only rows added during the
+// edit get a live picker.
+function claimDateInput(name, value, locked) {
+  return locked
+    ? `<input name="${name}" type="date" value="${esc(value || '')}" disabled
+        title="${esc(t('Dates from the original claim cannot be changed.'))}" />`
+    : `<input name="${name}" type="date" ${claimDateMin()} value="${esc(value || '')}" />`;
+}
 // The message for a line dated outside the window, phrased for the situation.
 const claimDateError = () => claimDateCarried.size
   ? t('New expense lines must be dated {date} or later.', { date: claimEarliest() })
   : t('Expenses dated before {date} can no longer be claimed.', { date: claimEarliest() });
-// A small note under a date field stating the policy floor (blank when none).
+// A small note under a date field: the policy floor, the locked original dates,
+// or both. Blank when neither applies.
 function claimLimitNote() {
   const e = claimEarliest();
-  if (!e) return '';
-  const msg = claimDateCarried.size
-    ? t('Existing lines keep their dates; new lines must be dated {date} or later.', { date: e })
-    : t('Only expenses dated {date} or later can be claimed.', { date: e });
-  return `<p class="form-note" style="margin-top:4px">${esc(msg)}</p>`;
+  const locked = claimDateCarried.size > 0;
+  let msg = '';
+  if (locked && e) msg = t('Original dates are locked; new lines must be dated {date} or later.', { date: e });
+  else if (locked) msg = t('Dates from the original claim cannot be changed.');
+  else if (e) msg = t('Only expenses dated {date} or later can be claimed.', { date: e });
+  return msg ? `<p class="form-note" style="margin-top:4px">${esc(msg)}</p>` : '';
 }
 
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -2777,9 +2788,8 @@ function wireDbCells(scope) {
 }
 
 function claimRowHtml(r, i) {
-  const min = claimDateMin();
   return `<tr data-i="${i}">
-    <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
+    <td data-label="${esc(t('Date'))}">${claimDateInput('line_date', r.line_date, r.locked)}</td>
     <td data-label="${esc(t('DB No.'))}">${dbCellHtml(r.db_no)}</td>
     <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
     <td data-label="${esc(t('Amount'))}"><div class="rc-amt-wrap">
@@ -3035,6 +3045,8 @@ function openClaimModal(existing = null) {
     claimRows = (existing.lines || []).map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
+      // The date came in with the claim and is not re-datable on resubmit.
+      locked: true,
       files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
     }));
     if (!claimRows.length) claimRows = [blankClaimRow()];
@@ -3963,7 +3975,7 @@ function mealAmountSelect(val) {
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
-    <td data-label="${esc(t('Date'))}"><input name="date" type="date" ${claimDateMin()} value="${esc(r.date || '')}" /></td>
+    <td data-label="${esc(t('Date'))}">${claimDateInput('date', r.date, r.locked)}</td>
     <td data-label="${esc(t('DB Number Site'))}">${dbCellHtml(r.site)}</td>
     <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${esc(t('Install / Repair / Service…'))}" /></td>
     <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
@@ -3972,12 +3984,14 @@ function mealRowHtml(r, i) {
   </tr>`;
 }
 function readMealRows() {
+  // Rebuilt from the DOM, so `locked` (not a field) is carried over by index.
   mealRows = $$('#mealRows tr[data-i]').map(tr => ({
     date: tr.querySelector('[name="date"]').value,
     site: dbCellRead(tr),
     category: tr.querySelector('[name="category"]').value,
     amount: tr.querySelector('[name="amount"]').value,
-    desc: tr.querySelector('[name="desc"]').value
+    desc: tr.querySelector('[name="desc"]').value,
+    locked: !!(mealRows[+tr.dataset.i] || {}).locked
   }));
 }
 function mealTotal() { return mealRows.reduce((s, r) => s + mealAmount(r.amount), 0); }
@@ -4008,7 +4022,7 @@ async function openMealAllowanceModal(existing = null) {
     // Prefill from the claim being resubmitted.
     mealRows = (existing.lines || []).map(l => ({
       date: l.line_date, site: l.site, category: l.job_category,
-      amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description
+      amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description, locked: true
     }));
     if (!mealRows.length) mealRows = [{ date: '', site: '', category: '', amount: '', desc: '' }];
   } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
@@ -4243,6 +4257,7 @@ function openRealizeModal(advance) {
     claimRows = advance.lines.map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
+      locked: true,
       files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
     }));
     if (!claimRows.length) claimRows = [blankClaimRow(todayWIB())];
@@ -4261,6 +4276,7 @@ function openRealizeModal(advance) {
         </div>
         <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('Account for the advance: one row per expense, with that expense\'s receipts attached (PDF or images, up to 8 per row).'))}</p>
         <div id="advDiffWrap">${realizeDiffBanner(advance.amount)}</div>
+        ${claimLimitNote()}
         <p class="form-error" id="claimError" hidden></p>
         <div class="meal-scroll">
           <div class="meal-table-wrap">

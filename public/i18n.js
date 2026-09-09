@@ -426,7 +426,8 @@
       'South Korean won': 'Won Korea Selatan',
       'Expenses dated before {date} can no longer be claimed.': 'Pengeluaran bertanggal sebelum {date} tidak dapat lagi diklaim.',
       'New expense lines must be dated {date} or later.': 'Baris pengeluaran baru harus bertanggal {date} atau setelahnya.',
-      'Existing lines keep their dates; new lines must be dated {date} or later.': 'Baris yang sudah ada tetap dengan tanggalnya; baris baru harus bertanggal {date} atau setelahnya.',
+      'Original dates are locked; new lines must be dated {date} or later.': 'Tanggal asli terkunci; baris baru harus bertanggal {date} atau setelahnya.',
+      'Dates from the original claim cannot be changed.': 'Tanggal dari klaim asli tidak dapat diubah.',
       // Cash advances / realization
       'Cash advance': 'Uang muka',
       'New cash advance': 'Uang muka baru',
@@ -958,7 +959,8 @@
       'South Korean won': 'วอนเกาหลีใต้',
       'Expenses dated before {date} can no longer be claimed.': 'ค่าใช้จ่ายที่ลงวันที่ก่อน {date} ไม่สามารถเบิกได้อีกต่อไป',
       'New expense lines must be dated {date} or later.': 'รายการค่าใช้จ่ายใหม่ต้องลงวันที่ {date} หรือหลังจากนั้น',
-      'Existing lines keep their dates; new lines must be dated {date} or later.': 'รายการเดิมคงวันที่ไว้ได้ ส่วนรายการใหม่ต้องลงวันที่ {date} หรือหลังจากนั้น',
+      'Original dates are locked; new lines must be dated {date} or later.': 'วันที่เดิมถูกล็อกไว้ ส่วนรายการใหม่ต้องลงวันที่ {date} หรือหลังจากนั้น',
+      'Dates from the original claim cannot be changed.': 'ไม่สามารถเปลี่ยนวันที่จากคำเบิกเดิมได้',
       // Cash advances / realization
       'Cash advance': 'เงินทดรองจ่าย',
       'New cash advance': 'เงินทดรองจ่ายใหม่',
@@ -1490,7 +1492,8 @@
       'South Korean won': 'Won Hàn Quốc',
       'Expenses dated before {date} can no longer be claimed.': 'Các khoản chi có ngày trước {date} không còn được yêu cầu.',
       'New expense lines must be dated {date} or later.': 'Các dòng chi phí mới phải có ngày {date} trở về sau.',
-      'Existing lines keep their dates; new lines must be dated {date} or later.': 'Các dòng đã có giữ nguyên ngày; dòng mới phải có ngày {date} trở về sau.',
+      'Original dates are locked; new lines must be dated {date} or later.': 'Ngày gốc bị khóa; dòng mới phải có ngày {date} trở về sau.',
+      'Dates from the original claim cannot be changed.': 'Không thể thay đổi ngày từ yêu cầu gốc.',
       // Cash advances / realization
       'Cash advance': 'Tạm ứng',
       'New cash advance': 'Tạm ứng mới',
@@ -2022,7 +2025,8 @@
       'South Korean won': 'វ៉នកូរ៉េខាងត្បូង',
       'Expenses dated before {date} can no longer be claimed.': 'ការចំណាយដែលមានកាលបរិច្ឆេទមុន {date} មិនអាចស្នើសុំបានទៀតទេ។',
       'New expense lines must be dated {date} or later.': 'បន្ទាត់ចំណាយថ្មីត្រូវមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
-      'Existing lines keep their dates; new lines must be dated {date} or later.': 'បន្ទាត់ដែលមានស្រាប់រក្សាកាលបរិច្ឆេទរបស់វា ចំណែកបន្ទាត់ថ្មីត្រូវមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
+      'Original dates are locked; new lines must be dated {date} or later.': 'កាលបរិច្ឆេទដើមត្រូវបានចាក់សោ ចំណែកបន្ទាត់ថ្មីត្រូវមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
+      'Dates from the original claim cannot be changed.': 'កាលបរិច្ឆេទពីការស្នើសុំដើមមិនអាចផ្លាស់ប្ដូរបានទេ។',
       // Cash advances / realization
       'Cash advance': 'ប្រាក់បុរេប្រទាន',
       'New cash advance': 'ប្រាក់បុរេប្រទានថ្មី',
@@ -2554,7 +2558,8 @@
       'South Korean won': 'Won ng South Korea',
       'Expenses dated before {date} can no longer be claimed.': 'Ang mga gastos na may petsa bago ang {date} ay hindi na maaaring i-claim.',
       'New expense lines must be dated {date} or later.': 'Ang mga bagong linya ng gastos ay dapat may petsang {date} o mas bago.',
-      'Existing lines keep their dates; new lines must be dated {date} or later.': 'Pinapanatili ng mga dating linya ang petsa nila; ang mga bagong linya ay dapat may petsang {date} o mas bago.',
+      'Original dates are locked; new lines must be dated {date} or later.': 'Naka-lock ang mga orihinal na petsa; ang mga bagong linya ay dapat may petsang {date} o mas bago.',
+      'Dates from the original claim cannot be changed.': 'Hindi na mababago ang mga petsa mula sa orihinal na claim.',
       // Cash advances / realization
       'Cash advance': 'Cash advance',
       'New cash advance': 'Bagong cash advance',

@@ -857,6 +857,14 @@ input[type="search"] { min-width: 220px; }
 }
 .meal-table tbody input:focus,
 .meal-table tbody select:focus { background: var(--pine-tint); }
+/* A line carried in from a rejected claim keeps the date it was submitted with,
+   so its date box is disabled. Read it as deliberately locked — full-strength
+   text on the paper tint, no picker button — not as a greyed-out broken field. */
+.meal-table tbody input:disabled {
+  opacity: 1; color: var(--ink); -webkit-text-fill-color: var(--ink);
+  background: var(--paper); cursor: not-allowed;
+}
+.meal-table tbody input:disabled::-webkit-calendar-picker-indicator { display: none; }
 .meal-table tbody select { cursor: pointer; appearance: auto; -webkit-appearance: auto; }
 .meal-table tbody td:last-child { text-align: center; width: 34px; }
 .meal-table .meal-amt { font-variant-numeric: tabular-nums; }
