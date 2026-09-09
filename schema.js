@@ -458,6 +458,35 @@ const SCHEMA = [
     value      TEXT NOT NULL DEFAULT '',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // --- Date-change requests ---------------------------------------------------
+  // A rejected claim resubmits with its original line dates locked — they are
+  // grandfathered past a claim window that closed while the claim sat in review.
+  // When the claimant genuinely needs to re-date a line, they raise a request
+  // here; anyone who can manage settings grants it, and the grant unlocks the
+  // dates for exactly one resubmit (it is marked 'used' when that resubmit
+  // lands). One row serves all three claim types, so `claim_id` carries no
+  // foreign key — `claim_type` says which table it points into.
+  `CREATE TABLE IF NOT EXISTS date_change_requests (
+    id           SERIAL PRIMARY KEY,
+    claim_type   TEXT NOT NULL,
+    claim_id     INTEGER NOT NULL,
+    region       TEXT NOT NULL DEFAULT '',
+    employee_id  INTEGER NOT NULL REFERENCES users(id),
+    claim_no     TEXT NOT NULL DEFAULT '',
+    reason       TEXT NOT NULL DEFAULT '',
+    status       TEXT NOT NULL DEFAULT 'pending',
+    decided_by   INTEGER REFERENCES users(id),
+    decided_name TEXT NOT NULL DEFAULT '',
+    decided_note TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    decided_at   TIMESTAMPTZ,
+    used_at      TIMESTAMPTZ
+  )`,
+  // At most one live (pending or granted) request per claim, enforced in the
+  // database so two tabs can't open two.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_dcr_live ON date_change_requests(claim_type, claim_id)
+     WHERE status IN ('pending', 'granted')`,
+  `CREATE INDEX IF NOT EXISTS idx_dcr_queue ON date_change_requests(status, region)`,
   // --- Login throttling -------------------------------------------------------
   // Failed-login counter, keyed by client IP. Kept in the database (not just an
   // in-memory Map) so the limit holds across serverless instances, which each

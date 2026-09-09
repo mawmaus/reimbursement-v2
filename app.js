@@ -8,7 +8,8 @@ const bcrypt = require('bcryptjs');
 const { q, qq, transaction } = require('./db');
 const { uploadReceipt, deleteReceipt, presignReceiptUpload, statReceipt, RECEIPT_MAX_BYTES, BLOB_URL_RE } = require('./lib/blob');
 const { sendEmail, emailConfigured, appUrl, layout, button } = require('./lib/email');
-const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest } = require('./lib/notify');
+const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest,
+  notifyDateChangeRequested, notifyDateChangeDecided } = require('./lib/notify');
 
 const app = express();
 
@@ -494,6 +495,83 @@ async function carriedLineDates(sql, id) {
   const rows = await q(sql, [id]);
   return new Set(rows.map(r => String(r.line_date || '')).filter(isISODate));
 }
+
+// --- Date-change requests ---------------------------------------------------
+// Carried dates are locked on a resubmit (see above). When a claimant genuinely
+// needs to re-date a line, they raise a request; anyone with manage_settings
+// grants it, and the grant lifts the claim window for that one resubmit.
+// One row shape serves all three claim types; this table says how to reach each.
+const DCR_TYPES = {
+  claim:   { table: 'claims',        lineSql: 'SELECT line_date FROM claim_lines WHERE claim_id = $1',           label: 'reimbursement claim',  editable: ['rejected'] },
+  meal:    { table: 'meal_claims',   lineSql: 'SELECT line_date FROM meal_claim_lines WHERE meal_claim_id = $1', label: 'meal allowance claim', editable: ['rejected'] },
+  advance: { table: 'cash_advances', lineSql: 'SELECT line_date FROM cash_advance_lines WHERE advance_id = $1',  label: 'cash advance realization', editable: ['rejected_realize'] }
+};
+const LIVE_DCR = "status IN ('pending', 'granted')";
+// Schema changes here are applied by hand (scripts/migrate.js), so a deploy can
+// land before the table exists. The reads below sit on the claim-list path, and
+// a missing table must not take the whole ledger down with it — 42P01 alone is
+// swallowed (no requests can exist yet); every other error still throws.
+async function dcrQuery(sql, params) {
+  try { return await q(sql, params); }
+  catch (e) {
+    if (e && e.code === '42P01') {
+      console.warn('[date-change] table missing — run scripts/migrate.js');
+      return [];
+    }
+    throw e;
+  }
+}
+// The live (pending or granted) request for one claim, or null.
+async function liveDateChange(type, claimId) {
+  const rows = await dcrQuery(
+    `SELECT * FROM date_change_requests WHERE claim_type = $1 AND claim_id = $2 AND ${LIVE_DCR}`,
+    [type, Number(claimId)]);
+  return rows[0] || null;
+}
+// Live requests for many claims of one type, keyed by claim id — for the list
+// serializers, which must not fire a query per claim.
+async function liveDateChanges(type, ids) {
+  if (!ids.length) return {};
+  const ph = ids.map((_, i) => `$${i + 2}`).join(',');
+  const rows = await dcrQuery(
+    `SELECT * FROM date_change_requests WHERE claim_type = $1 AND claim_id IN (${ph}) AND ${LIVE_DCR}`,
+    [type, ...ids]);
+  const out = {};
+  for (const r of rows) out[r.claim_id] = dateChangeView(r);
+  return out;
+}
+// What the claim payload carries about its date lock: null when the dates are
+// simply locked, otherwise the live request's state.
+function dateChangeView(row) {
+  if (!row) return null;
+  return {
+    id: Number(row.id), status: row.status, reason: row.reason || '',
+    decided_name: row.decided_name || '', decided_note: row.decided_note || '',
+    created_at: iso(row.created_at), decided_at: iso(row.decided_at)
+  };
+}
+// Is this claim's date lock currently lifted?
+const dateChangeGranted = (dc) => !!dc && dc.status === 'granted';
+// Burn the grant once the resubmit it was issued for has landed.
+async function consumeDateChange(type, claimId) {
+  await q(
+    `UPDATE date_change_requests SET status = 'used', used_at = now()
+      WHERE claim_type = $1 AND claim_id = $2 AND status = 'granted'`,
+    [type, Number(claimId)]);
+}
+// Who can grant a date change in `region`: every super admin, plus the roles
+// that region's matrix gives manage_settings to. Used to address the request
+// email — the same audience that owns the claim window itself.
+async function dateChangeGrantors(region) {
+  const perms = await loadRolePermsForRegion(region);
+  const roles = EDITABLE_ROLES.filter(r => perms[r] && perms[r].manage_settings);
+  const rows = await q(
+    `SELECT id, full_name, email FROM users
+      WHERE active = TRUE AND email <> ''
+        AND (role = 'superadmin' OR (role = ANY($1::text[]) AND (region = $2 OR region = $3)))`,
+    [roles, String(region || ''), ALL_REGIONS]);
+  return rows;
+}
 // Response shape for the claim-date policy (shared by GET/PUT /api/claim-window),
 // for a given region.
 function claimWindowView(settings, region) {
@@ -671,7 +749,10 @@ async function serializeMany(rows) {
     const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
     for (const u of us) nameMap[u.id] = u.full_name;
   }
-  return rows.map(r => baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap));
+  // A live date-change request rides along so the edit form knows whether the
+  // line dates are locked, awaiting a decision, or unlocked.
+  const dc = await liveDateChanges('claim', ids);
+  return rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null }));
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -1177,6 +1258,108 @@ app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(asyn
   res.json(claimWindowView({ ...settings, claim_window_by_region: JSON.stringify(byRegion) }, region));
 }));
 
+// --- Date-change requests: raise, list, decide ------------------------------
+// The claimant asks for their locked dates to be unlocked; someone who can
+// manage settings grants or declines it. A grant lifts the claim window for
+// exactly one resubmit of that claim.
+
+// Load the claim a request is about, checking the caller owns it and that it is
+// actually sitting in an editable (rejected) state. Returns { row, spec } or
+// sends the error itself and returns null.
+async function loadDcrTarget(req, res, type, claimId) {
+  const spec = DCR_TYPES[type];
+  if (!spec) { res.status(400).json({ error: 'Unknown claim type' }); return null; }
+  const id = Number(claimId);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Unknown claim' }); return null; }
+  const rows = await q(`SELECT * FROM ${spec.table} WHERE id = $1`, [id]);
+  const row = rows[0];
+  if (!row) { res.status(404).json({ error: 'Claim not found' }); return null; }
+  if (Number(row.employee_id) !== req.user.id && req.user.role !== 'superadmin') {
+    res.status(403).json({ error: 'You can only request a date change on your own claim' }); return null;
+  }
+  if (!spec.editable.includes(row.status)) {
+    res.status(409).json({ error: 'Only a returned claim you are about to resubmit can have its dates unlocked' });
+    return null;
+  }
+  return { row, spec };
+}
+
+app.post('/api/date-change-requests', requireAuth, ah(async (req, res) => {
+  const b = req.body || {};
+  const type = String(b.claim_type || '');
+  const target = await loadDcrTarget(req, res, type, b.claim_id);
+  if (!target) return;
+  const reason = String(b.reason || '').trim();
+  if (!reason) return res.status(400).json({ error: 'Tell the approver why the dates need to change' });
+  if (reason.length > 500) return res.status(400).json({ error: 'Keep the reason under 500 characters' });
+  const existing = await liveDateChange(type, target.row.id);
+  if (existing) {
+    return res.status(409).json({
+      error: existing.status === 'granted'
+        ? 'The dates on this claim are already unlocked'
+        : 'A date change has already been requested for this claim',
+      date_change: dateChangeView(existing)
+    });
+  }
+  const region = String(target.row.region || '');
+  const inserted = await q(
+    `INSERT INTO date_change_requests (claim_type, claim_id, region, employee_id, claim_no, reason)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [type, Number(target.row.id), region, Number(target.row.employee_id), String(target.row.claim_no || target.row.advance_no || ''), reason]);
+  const payload = {
+    claimNo: inserted[0].claim_no, typeLabel: target.spec.label,
+    claimantName: target.row.claimant_name || req.user.full_name, reason
+  };
+  await notifyDateChangeRequested(await dateChangeGrantors(region), payload);
+  res.status(201).json({ date_change: dateChangeView(inserted[0]) });
+}));
+
+// The queue for grantors, scoped to a region like the rest of the settings
+// workspace. Pending first; recently decided rows follow for context.
+app.get('/api/date-change-requests', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+  const region = await resolveLookupRegion(req.user, req.query.region);
+  if (region === null) return res.status(400).json({ error: 'Invalid region' });
+  const scoped = region ? 'AND r.region = $1' : '';
+  const params = region ? [region] : [];
+  const rows = await q(
+    `SELECT r.*, u.full_name AS employee_name
+       FROM date_change_requests r JOIN users u ON u.id = r.employee_id
+      WHERE (r.status = 'pending' OR r.decided_at > now() - INTERVAL '30 days') ${scoped}
+      ORDER BY (r.status = 'pending') DESC, r.created_at DESC LIMIT 200`, params);
+  res.json({
+    requests: rows.map(r => ({
+      ...dateChangeView(r),
+      claim_type: r.claim_type, claim_id: Number(r.claim_id), claim_no: r.claim_no,
+      region: r.region, employee_name: r.employee_name,
+      type_label: (DCR_TYPES[r.claim_type] || {}).label || r.claim_type
+    }))
+  });
+}));
+
+app.post('/api/date-change-requests/:id/decide', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+  const b = req.body || {};
+  const rows = await q('SELECT * FROM date_change_requests WHERE id = $1', [req.params.id]);
+  const row = rows[0];
+  if (!row) return res.status(404).json({ error: 'Request not found' });
+  if (row.status !== 'pending') return res.status(409).json({ error: 'This request has already been decided' });
+  if (!canEditLookupRegion(req.user, row.region)) {
+    return res.status(403).json({ error: 'You can only decide requests from your own region' });
+  }
+  const grant = b.grant === true || b.grant === 'true';
+  const note = String(b.note || '').trim().slice(0, 500);
+  const updated = await q(
+    `UPDATE date_change_requests
+        SET status = $1, decided_by = $2, decided_name = $3, decided_note = $4, decided_at = now()
+      WHERE id = $5 AND status = 'pending' RETURNING *`,
+    [grant ? 'granted' : 'declined', req.user.id, req.user.full_name, note, row.id]);
+  if (!updated[0]) return res.status(409).json({ error: 'This request has already been decided' });
+  await notifyDateChangeDecided(Number(row.employee_id), {
+    claimNo: row.claim_no, typeLabel: (DCR_TYPES[row.claim_type] || {}).label || row.claim_type,
+    granted: grant, deciderName: req.user.full_name, note
+  });
+  res.json({ request: dateChangeView(updated[0]) });
+}));
+
 // Per-region default currency + time zone. Read by any signed-in user for their
 // own region (the claim form needs the default currency); a super admin may read
 // any region via ?region. Edited by Super Admins (any region) and Country
@@ -1623,10 +1806,14 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const parsed = normaliseClaimLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   // A rejected claim resubmits with the dates it already had, even if the claim
-  // window has closed since; only newly added dates face the policy.
-  const carried = await carriedLineDates('SELECT line_date FROM claim_lines WHERE claim_id = $1', row.id);
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
-  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  // window has closed since; only newly added dates face the policy. A granted
+  // date-change request lifts the window entirely for this one resubmit.
+  const grant = await liveDateChange('claim', row.id);
+  if (!dateChangeGranted(grant)) {
+    const carried = await carriedLineDates('SELECT line_date FROM claim_lines WHERE claim_id = $1', row.id);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
+    if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  }
 
   // Existing receipts, keyed by id, so kept ones can be re-linked (to the same
   // blob) onto the new lines. Each line carries keep_attachment_ids + new uploads.
@@ -1691,6 +1878,8 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
     // Only once committed do we bin the blobs of the removed receipts (a blob
     // delete can't be rolled back). A failure here must not reach the catch.
     for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+    // The grant covered this one resubmit; spend it so the next round re-locks.
+    if (dateChangeGranted(grant)) await consumeDateChange('claim', row.id);
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
     const first = currentApproverId(rows[0]);
     if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
@@ -1919,7 +2108,8 @@ async function serializeManyMeal(rows) {
     const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
     for (const u of us) nameMap[u.id] = u.full_name;
   }
-  return rows.map(r => baseMealClaim(r, l[r.id], h[r.id], nameMap));
+  const dc = await liveDateChanges('meal', ids);
+  return rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null }));
 }
 async function serializeOneMeal(row) { return (await serializeManyMeal([row]))[0]; }
 async function loadMealClaimOr404(req, res) {
@@ -2076,10 +2266,14 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   }
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  // Same exemption as reimbursement claims: a rejected meal claim keeps its dates.
-  const carried = await carriedLineDates('SELECT line_date FROM meal_claim_lines WHERE meal_claim_id = $1', row.id);
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
-  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  // Same exemption as reimbursement claims: a rejected meal claim keeps its
+  // dates, and a granted date-change request lifts the window outright.
+  const grant = await liveDateChange('meal', row.id);
+  if (!dateChangeGranted(grant)) {
+    const carried = await carriedLineDates('SELECT line_date FROM meal_claim_lines WHERE meal_claim_id = $1', row.id);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
+    if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  }
   // Bank details + approvers come from the claimant's account.
   const emp = (await q(
     'SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options FROM users WHERE id = $1',
@@ -2102,6 +2296,7 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
      VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
     [claimId, req.user.id, String(req.user.full_name || '').trim(), String((req.body && req.body.resubmit_note) || '').trim()]));
   await transaction(queries);
+  if (dateChangeGranted(grant)) await consumeDateChange('meal', row.id);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [row.id]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
@@ -2283,7 +2478,8 @@ async function serializeManyAdvance(rows) {
     const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
     for (const u of us) nameMap[u.id] = u.full_name;
   }
-  return rows.map(r => baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap));
+  const dc = await liveDateChanges('advance', ids);
+  return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null }));
 }
 async function serializeOneAdvance(row) { return (await serializeManyAdvance([row]))[0]; }
 async function loadAdvanceOr404(req, res) {
@@ -2462,12 +2658,16 @@ async function submitRealization(req, res, row) {
   const parsed = normaliseClaimLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   // Only a rejected realization carries its dates through; a first realization
-  // (from 'paid') is a fresh submit and faces the window in full.
-  const carried = row.status === 'rejected_realize'
-    ? await carriedLineDates('SELECT line_date FROM cash_advance_lines WHERE advance_id = $1', row.id)
-    : null;
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region, carried);
-  if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  // (from 'paid') is a fresh submit and faces the window in full. A granted
+  // date-change request lifts the window for one resubmit either way.
+  const grant = await liveDateChange('advance', row.id);
+  if (!dateChangeGranted(grant)) {
+    const carried = row.status === 'rejected_realize'
+      ? await carriedLineDates('SELECT line_date FROM cash_advance_lines WHERE advance_id = $1', row.id)
+      : null;
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region, carried);
+    if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+  }
   // Approver chain is re-resolved from the claimant's account, like a fresh submit.
   const emp = (await q(
     'SELECT approver_ids, approver1_options FROM users WHERE id = $1', [row.employee_id]))[0] || {};
@@ -2521,6 +2721,7 @@ async function submitRealization(req, res, row) {
        String(b.resubmit_note || '').trim()]));
     await transaction(queries);
     for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+    if (dateChangeGranted(grant)) await consumeDateChange('advance', advanceId);
     const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [advanceId]);
     const first = currentApproverId(rows[0]);
     if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));

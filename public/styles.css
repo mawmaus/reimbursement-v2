@@ -865,6 +865,44 @@ input[type="search"] { min-width: 220px; }
   background: var(--paper); cursor: not-allowed;
 }
 .meal-table tbody input:disabled::-webkit-calendar-picker-indicator { display: none; }
+
+/* --- Date changes ---------------------------------------------------------
+   The question offered under a locked date column on a resubmit, and the queue
+   of requests it feeds in Settings. */
+.date-ask {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin: 8px 0 2px; padding: 9px 12px;
+  border: 1px dashed var(--line); border-radius: 8px; background: var(--paper);
+  font-size: .85rem; color: var(--ink-soft);
+}
+.date-ask .btn { flex: 0 0 auto; }
+.dc-head { margin: 0 0 10px; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
+.dc-count {
+  display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 9px;
+  background: var(--pine); color: #fff; font-size: .72rem; text-align: center; letter-spacing: 0;
+}
+.dc-card {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  padding: 12px 14px; margin-bottom: 10px;
+}
+.dc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.dc-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: .9rem; }
+.dc-who .muted { font-size: .8rem; }
+.dc-reason {
+  margin: 10px 0; padding: 9px 11px; border-radius: 8px; background: var(--paper);
+  font-size: .87rem; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.dc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: .78rem; }
+.dc-outcome { overflow-wrap: anywhere; }
+.dc-actions { display: flex; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.dc-chip {
+  flex: 0 0 auto; padding: 2px 9px; border-radius: 999px;
+  font-size: .72rem; font-weight: 650; letter-spacing: .02em; white-space: nowrap;
+}
+.dc-pending  { background: var(--amber-tint); color: var(--amber); }
+.dc-granted  { background: var(--green-tint); color: var(--green); }
+.dc-declined { background: var(--red-tint); color: var(--red); }
+.dc-used     { background: var(--paper); color: var(--muted); }
 .meal-table tbody select { cursor: pointer; appearance: auto; -webkit-appearance: auto; }
 .meal-table tbody td:last-child { text-align: center; width: 34px; }
 .meal-table .meal-amt { font-variant-numeric: tabular-nums; }

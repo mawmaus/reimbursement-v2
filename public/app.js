@@ -454,14 +454,32 @@ let claimDateCarried = new Set();
 function setClaimDateCarried(lines) {
   claimDateCarried = new Set((lines || []).map(l => String(l.line_date || '')).filter(Boolean));
 }
-// Is this line date claimable — inside the window, or carried over from the claim?
+// The live date-change request on the claim being edited (null for a fresh
+// claim, or one whose dates are simply locked). A granted request lifts both the
+// lock and the claim window for this one resubmit.
+let claimDateChange = null;
+// What a request would be raised against: { claim_type, claim_id }, or null.
+let claimDateTarget = null;
+const claimDateUnlocked = () => !!claimDateChange && claimDateChange.status === 'granted';
+// Ledger rows carry a UI type ('reimbursement'); the API keys requests by 'claim'.
+const dcrType = (type) => (type === 'meal' ? 'meal' : type === 'advance' ? 'advance' : 'claim');
+// Seed everything the date column needs from the claim a form is opening on.
+function setClaimDateContext(existing, claimType) {
+  claimDateChange = (existing && existing.date_change) || null;
+  claimDateTarget = existing ? { claim_type: claimType, claim_id: existing.id } : null;
+  // Unlocked claims edit their dates freely, so nothing is carried or locked.
+  setClaimDateCarried(existing && !claimDateUnlocked() ? existing.lines : null);
+}
+// Is this line date claimable — inside the window, carried over from the claim,
+// or freed by a granted date change?
 const claimDateOk = (d) => {
   const e = claimEarliest();
-  return !e || String(d || '') >= e || claimDateCarried.has(String(d || ''));
+  return !e || claimDateUnlocked() || String(d || '') >= e || claimDateCarried.has(String(d || ''));
 };
 // `min` for a date picker. Only ever put on an editable row — a carried row's
-// input is disabled, which bars it from constraint validation entirely.
-const claimDateMin = () => (claimEarliest() ? `min="${esc(claimEarliest())}"` : '');
+// input is disabled, which bars it from constraint validation entirely. A
+// granted date change drops it, since the window no longer applies.
+const claimDateMin = () => (claimEarliest() && !claimDateUnlocked() ? `min="${esc(claimEarliest())}"` : '');
 // The date cell for a line. A line carried in from the rejected claim keeps the
 // date it was submitted with and cannot be re-dated; only rows added during the
 // edit get a live picker.
@@ -476,15 +494,82 @@ const claimDateError = () => claimDateCarried.size
   ? t('New expense lines must be dated {date} or later.', { date: claimEarliest() })
   : t('Expenses dated before {date} can no longer be claimed.', { date: claimEarliest() });
 // A small note under a date field: the policy floor, the locked original dates,
-// or both. Blank when neither applies.
+// the state of a date-change request, or nothing at all.
 function claimLimitNote() {
   const e = claimEarliest();
   const locked = claimDateCarried.size > 0;
+  const st = claimDateChange && claimDateChange.status;
   let msg = '';
-  if (locked && e) msg = t('Original dates are locked; new lines must be dated {date} or later.', { date: e });
+  if (st === 'granted') msg = t('A date change was approved — the dates on this claim are editable for this resubmit.');
+  else if (st === 'pending') msg = t('Original dates are locked. Your date change is waiting for approval.');
+  else if (locked && e) msg = t('Original dates are locked; new lines must be dated {date} or later.', { date: e });
   else if (locked) msg = t('Dates from the original claim cannot be changed.');
   else if (e) msg = t('Only expenses dated {date} or later can be claimed.', { date: e });
   return msg ? `<p class="form-note" style="margin-top:4px">${esc(msg)}</p>` : '';
+}
+// The note plus, when the dates are locked and nothing has been asked yet, the
+// question that lets the claimant ask for them to be unlocked. Rendered into
+// #claimDateBox so it can be redrawn in place once a request is raised.
+function claimDateBoxHtml() {
+  const askable = claimDateCarried.size > 0 && !claimDateChange && claimDateTarget;
+  return `${claimLimitNote()}
+    ${askable ? `<div class="date-ask">
+      <span>${esc(t('Need to change a date on this claim?'))}</span>
+      <button type="button" class="btn btn-ghost btn-sm" id="dcAskBtn">${esc(t('Request a date change'))}</button>
+    </div>` : ''}`;
+}
+function renderClaimDateBox() {
+  const box = $('#claimDateBox');
+  if (!box) return;
+  box.innerHTML = claimDateBoxHtml();
+  const btn = $('#dcAskBtn');
+  if (btn) btn.addEventListener('click', openDateChangeRequestModal);
+}
+// Ask for the locked dates to be unlocked. The reason is what the grantor reads,
+// so it is required. On success the box redraws as "waiting for approval" — the
+// dates only unlock once someone grants it and the form is reopened.
+function openDateChangeRequestModal() {
+  const target = claimDateTarget;
+  if (!target) return;
+  openModal2(`
+    <div class="modal-head">
+      <h2>${esc(t('Request a date change'))}</h2>
+      <button class="x-btn" id="dcCancelX" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="dcForm" class="form">
+        <p class="muted" style="margin:0 0 12px;font-size:.88rem">${esc(t('The dates on a returned claim are locked. Say why they need to change — someone who manages the claim window will review it, and if they agree the dates unlock for one resubmit.'))}</p>
+        <label class="full">${esc(t('Why do the dates need to change?'))}
+          <textarea name="reason" rows="4" maxlength="500" placeholder="${esc(t('e.g. the receipt is dated a day later than I entered'))}"></textarea>
+        </label>
+        <p class="form-error" id="dcErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="dcCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Send request'))}</button>
+        </div>
+      </form>
+    </div>`);
+  const close = () => closeModal2();
+  $('#dcCancel').addEventListener('click', close);
+  $('#dcCancelX').addEventListener('click', close);
+  $('#dcForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#dcErr'); err.hidden = true;
+    const reason = String(new FormData(e.target).get('reason') || '').trim();
+    if (!reason) { err.textContent = t('Please say why the dates need to change.'); err.hidden = false; return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    try {
+      const r = await api('/date-change-requests', { method: 'POST', body: JSON.stringify({ ...target, reason }) });
+      claimDateChange = r.date_change;
+      // Keep the ledger copy in step so reopening the form shows the same state.
+      const c = state.claims.find(x => x.id === target.claim_id && dcrType(x.type) === target.claim_type);
+      if (c) c.date_change = r.date_change;
+      renderClaimDateBox();
+      closeModal2();
+      toast(t('Date change requested — you will be emailed when it is decided.'));
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+  });
 }
 
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -3036,8 +3121,9 @@ function discardDraftAndClose(kind) { clearDraft(kind); modalCloseHook = null; c
 
 function openClaimModal(existing = null) {
   const isEdit = !!existing;
-  // A rejected claim resubmits with the dates it already had, even past the window.
-  setClaimDateCarried(isEdit ? existing.lines : null);
+  // A rejected claim resubmits with the dates it already had, even past the
+  // window — locked, unless a date change has been granted for it.
+  setClaimDateContext(isEdit ? existing : null, 'claim');
   claimEditId = isEdit ? existing.id : null;
   rcAttachBase = '/api/claims';
   const draft = isEdit ? null : loadDraft('claim');
@@ -3045,8 +3131,9 @@ function openClaimModal(existing = null) {
     claimRows = (existing.lines || []).map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
-      // The date came in with the claim and is not re-datable on resubmit.
-      locked: true,
+      // The date came in with the claim and is not re-datable on resubmit,
+      // unless a date change has been granted for it.
+      locked: !claimDateUnlocked(),
       files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
     }));
     if (!claimRows.length) claimRows = [blankClaimRow()];
@@ -3068,7 +3155,7 @@ function openClaimModal(existing = null) {
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
         </div>
-        ${claimLimitNote()}
+        <div id="claimDateBox"></div>
         <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).'))}</p>
         <p class="form-error" id="claimError" hidden></p>
         <div class="meal-scroll">
@@ -3104,6 +3191,7 @@ function openClaimModal(existing = null) {
     readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows();
   });
   $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
+  renderClaimDateBox();
   renderClaimRows();
   if (!isEdit) {
     // Preselect the draft's Approver 1 (the picker only renders when ≥2 choices).
@@ -4016,13 +4104,13 @@ async function openMealAllowanceModal(existing = null) {
   // saved amounts. A failure keeps whatever presets we already have.
   try { state.mealRates = (await api('/meal-rates')).rates || state.mealRates; } catch { /* keep current */ }
   const isEdit = !!existing;
-  setClaimDateCarried(isEdit ? existing.lines : null);
+  setClaimDateContext(isEdit ? existing : null, 'meal');
   const draft = isEdit ? null : loadDraft('meal');
   if (isEdit) {
     // Prefill from the claim being resubmitted.
     mealRows = (existing.lines || []).map(l => ({
       date: l.line_date, site: l.site, category: l.job_category,
-      amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description, locked: true
+      amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description, locked: !claimDateUnlocked()
     }));
     if (!mealRows.length) mealRows = [{ date: '', site: '', category: '', amount: '', desc: '' }];
   } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
@@ -4044,7 +4132,7 @@ async function openMealAllowanceModal(existing = null) {
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
-        ${claimLimitNote()}
+        <div id="claimDateBox"></div>
         <p class="form-error" id="mealError" hidden></p>
         <div class="meal-scroll">
           <div class="meal-table-wrap">
@@ -4077,6 +4165,7 @@ async function openMealAllowanceModal(existing = null) {
     readMealRows(); mealRows.push({ date: '', site: '', category: '', amount: '', desc: '' }); renderMealRows();
   });
   $('#mealForm').addEventListener('submit', e => submitMealClaim(e, existing));
+  renderClaimDateBox();
   renderMealRows();
   if (!isEdit) {
     if (draft && draft.data.approver1) {
@@ -4250,14 +4339,14 @@ function realizeDiffBanner(advanceAmount) {
 function openRealizeModal(advance) {
   const isEdit = advance.status === 'rejected_realize';
   // Only a rejected realization carries its dates through; a first one is fresh.
-  setClaimDateCarried(isEdit ? advance.lines : null);
+  setClaimDateContext(isEdit ? advance : null, 'advance');
   claimEditId = advance.id;
   rcAttachBase = '/api/cash-advances';
   if (isEdit && (advance.lines || []).length) {
     claimRows = advance.lines.map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
-      locked: true,
+      locked: !claimDateUnlocked(),
       files: [], kept: (l.attachments || []).map(a => ({ id: a.id, original_name: a.original_name }))
     }));
     if (!claimRows.length) claimRows = [blankClaimRow(todayWIB())];
@@ -4276,7 +4365,7 @@ function openRealizeModal(advance) {
         </div>
         <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('Account for the advance: one row per expense, with that expense\'s receipts attached (PDF or images, up to 8 per row).'))}</p>
         <div id="advDiffWrap">${realizeDiffBanner(advance.amount)}</div>
-        ${claimLimitNote()}
+        <div id="claimDateBox"></div>
         <p class="form-error" id="claimError" hidden></p>
         <div class="meal-scroll">
           <div class="meal-table-wrap">
@@ -4307,6 +4396,7 @@ function openRealizeModal(advance) {
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#cancelRealize').addEventListener('click', closeModal);
   $('#rcAddRow').addEventListener('click', () => { readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows(); });
+  renderClaimDateBox();
   // Refresh the difference banner whenever the line total changes.
   rcTotalHook = () => {
     const spent = claimTotal();
@@ -4747,6 +4837,7 @@ const SETTINGS_TABS = [
   { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
   { key: 'meal-rates', label: 'Meal allowance', cap: 'manage_settings' },
   { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
+  { key: 'date-changes', label: 'Date changes', cap: 'manage_settings' },
   { key: 'region-prefs', label: 'Currency, time zone & bank', regionPrefs: true },
   { key: 'roles', label: 'Roles', roleMatrix: true }
 ];
@@ -4903,6 +4994,7 @@ function renderSettingsTab() {
   panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
+  if (settingsState.tab === 'date-changes') return renderDateChangesTab();
   if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
   if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
@@ -4961,6 +5053,91 @@ async function renderClaimWindowTab() {
       renderClaimWindowTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
+}
+
+// --- Date-change requests ----------------------------------------------------
+// A returned claim resubmits with its original dates locked. When the claimant
+// needs to re-date a line they ask here; unlocking it frees that claim's dates
+// for one resubmit. Same audience as the claim window, scoped to its region.
+function dcStatusChip(status) {
+  const label = { pending: t('Waiting'), granted: t('Unlocked'), declined: t('Declined'), used: t('Used') }[status] || status;
+  return `<span class="dc-chip dc-${esc(status)}">${esc(label)}</span>`;
+}
+function dcCardHtml(r) {
+  const decided = r.status !== 'pending';
+  const outcome = r.decided_name ? t('Decided by {name}', { name: r.decided_name }) : '';
+  return `<div class="dc-card" data-id="${r.id}">
+    <div class="dc-top">
+      <div class="dc-who">
+        <strong>${esc(r.claim_no)}</strong>
+        <span class="muted">${esc(r.employee_name)} · ${esc(t(r.type_label))}</span>
+      </div>
+      ${dcStatusChip(r.status)}
+    </div>
+    <p class="dc-reason">${esc(r.reason)}</p>
+    <div class="dc-foot">
+      <span class="muted">${esc(fmtDateTime(r.created_at))}</span>
+      ${decided
+        ? `<span class="muted dc-outcome">${esc(outcome)}${r.decided_note ? ` — ${esc(r.decided_note)}` : ''}</span>`
+        : `<div class="dc-actions">
+             <button type="button" class="btn btn-ghost btn-sm" data-decline="${r.id}">${esc(t('Decline'))}</button>
+             <button type="button" class="btn btn-primary btn-sm" data-grant="${r.id}">${esc(t('Unlock dates'))}</button>
+           </div>`}
+    </div>
+  </div>`;
+}
+// Declining asks for an optional note, which the claimant sees in their email.
+function openDeclineModal(onSend) {
+  openModal2(`
+    <div class="modal-head">
+      <h2>${esc(t('Decline the date change'))}</h2>
+      <button class="x-btn" id="dcdX" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="dcdForm" class="form">
+        <label class="full">${esc(t('Note to the claimant (optional)'))}
+          <textarea name="note" rows="3" maxlength="500" placeholder="${esc(t('e.g. the original dates look right — resubmit as they are'))}"></textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="dcdCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Decline'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#dcdX').addEventListener('click', closeModal2);
+  $('#dcdCancel').addEventListener('click', closeModal2);
+  $('#dcdForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    closeModal2();
+    onSend(String(new FormData(e.target).get('note') || '').trim());
+  });
+}
+async function renderDateChangesTab() {
+  const panel = $('#settingsPanel');
+  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  let list;
+  try { list = (await api('/date-change-requests' + regionQS)).requests || []; }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const pending = list.filter(r => r.status === 'pending');
+  const rest = list.filter(r => r.status !== 'pending');
+  panel.innerHTML = `
+    <div class="settings-controls" style="max-width:680px">
+      <p class="muted" style="margin:0 0 18px;font-size:.9rem">${esc(t('A returned claim keeps the dates it was submitted with. When a claimant needs to change one, their request lands here — unlocking it lets them re-date that claim once, ignoring the claim window.'))}</p>
+      <h3 class="dc-head">${esc(t('Waiting for a decision'))}${pending.length ? ` <span class="dc-count">${pending.length}</span>` : ''}</h3>
+      ${pending.length ? pending.map(dcCardHtml).join('') : `<p class="muted" style="font-size:.88rem;margin:0">${esc(t('Nothing waiting.'))}</p>`}
+      ${rest.length ? `<h3 class="dc-head" style="margin-top:26px">${esc(t('Recently decided'))}</h3>${rest.map(dcCardHtml).join('')}` : ''}
+    </div>`;
+  const send = async (id, grant, note) => {
+    try {
+      await api(`/date-change-requests/${id}/decide`, { method: 'POST', body: JSON.stringify({ grant, note: note || '' }) });
+      toast(grant ? t('Dates unlocked — the claimant has been emailed.') : t('Request declined — the claimant has been emailed.'));
+      renderDateChangesTab();
+    } catch (ex) { toast(ex.message, true); }
+  };
+  $$('#settingsPanel [data-grant]').forEach(b =>
+    b.addEventListener('click', () => send(b.dataset.grant, true, '')));
+  $$('#settingsPanel [data-decline]').forEach(b =>
+    b.addEventListener('click', () => openDeclineModal(note => send(b.dataset.decline, false, note))));
 }
 
 // --- Meal allowance rates (per-region dropdown presets) ----------------------
