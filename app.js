@@ -471,14 +471,28 @@ function claimEarliestFrom(cw) {
   return bounds.reduce((a, b) => (a > b ? a : b));
 }
 // Reject a set of expense/line dates if any falls before the policy floor for the
-// submitter's `region`. Returns { earliest, error } on violation, or null when
-// all dates are allowed.
-async function claimDateViolation(dates, region) {
+// submitter's `region`. Dates in `carried` are exempt: a rejected claim keeps the
+// dates it already had when it is edited and resubmitted, so a window that closed
+// while it sat in review can't strand it. Returns { earliest, error } on
+// violation, or null when all dates are allowed.
+async function claimDateViolation(dates, region, carried) {
   const cw = claimWindowSettings(await loadAppSettings(), region);
   const earliest = claimEarliestFrom(cw);
   if (!earliest) return null;
-  const bad = dates.some(d => isISODate(d) && d < earliest);
-  return bad ? { earliest, error: `Expenses dated before ${earliest} can no longer be claimed.` } : null;
+  const kept = carried || new Set();
+  const bad = dates.some(d => isISODate(d) && d < earliest && !kept.has(d));
+  if (!bad) return null;
+  return {
+    earliest,
+    error: kept.size
+      ? `New expense lines must be dated ${earliest} or later.`
+      : `Expenses dated before ${earliest} can no longer be claimed.`
+  };
+}
+// The line dates a claim already carries, for the exemption above.
+async function carriedLineDates(sql, id) {
+  const rows = await q(sql, [id]);
+  return new Set(rows.map(r => String(r.line_date || '')).filter(isISODate));
 }
 // Response shape for the claim-date policy (shared by GET/PUT /api/claim-window),
 // for a given region.
@@ -1608,7 +1622,10 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const b = req.body || {};
   const parsed = normaliseClaimLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
+  // A rejected claim resubmits with the dates it already had, even if the claim
+  // window has closed since; only newly added dates face the policy.
+  const carried = await carriedLineDates('SELECT line_date FROM claim_lines WHERE claim_id = $1', row.id);
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
 
   // Existing receipts, keyed by id, so kept ones can be re-linked (to the same
@@ -2059,7 +2076,9 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   }
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
+  // Same exemption as reimbursement claims: a rejected meal claim keeps its dates.
+  const carried = await carriedLineDates('SELECT line_date FROM meal_claim_lines WHERE meal_claim_id = $1', row.id);
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   // Bank details + approvers come from the claimant's account.
   const emp = (await q(
@@ -2442,7 +2461,12 @@ async function submitRealization(req, res, row) {
   const b = req.body || {};
   const parsed = normaliseClaimLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region);
+  // Only a rejected realization carries its dates through; a first realization
+  // (from 'paid') is a fresh submit and faces the window in full.
+  const carried = row.status === 'rejected_realize'
+    ? await carriedLineDates('SELECT line_date FROM cash_advance_lines WHERE advance_id = $1', row.id)
+    : null;
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region, carried);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   // Approver chain is re-resolved from the claimant's account, like a fresh submit.
   const emp = (await q(

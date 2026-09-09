@@ -446,10 +446,34 @@ async function loadLookups() {
 }
 // The earliest expense date a claim may carry, or '' when unrestricted.
 const claimEarliest = () => (state.claimLimit && state.claimLimit.earliest) || '';
+// The dates already on the rejected claim currently being edited. A resubmit may
+// keep them even after the window has closed (the server grants the same
+// exemption), so a claim rejected late never becomes unfixable. Newly added lines
+// still have to fall inside the window. Empty for a fresh claim.
+let claimDateCarried = new Set();
+function setClaimDateCarried(lines) {
+  claimDateCarried = new Set((lines || []).map(l => String(l.line_date || '')).filter(Boolean));
+}
+// Is this line date claimable — inside the window, or carried over from the claim?
+const claimDateOk = (d) => {
+  const e = claimEarliest();
+  return !e || String(d || '') >= e || claimDateCarried.has(String(d || ''));
+};
+// `min` for a date picker. Dropped while dates are carried over, since native
+// validation would otherwise block the very rows we are letting through.
+const claimDateMin = () => (claimEarliest() && !claimDateCarried.size ? `min="${esc(claimEarliest())}"` : '');
+// The message for a line dated outside the window, phrased for the situation.
+const claimDateError = () => claimDateCarried.size
+  ? t('New expense lines must be dated {date} or later.', { date: claimEarliest() })
+  : t('Expenses dated before {date} can no longer be claimed.', { date: claimEarliest() });
 // A small note under a date field stating the policy floor (blank when none).
 function claimLimitNote() {
   const e = claimEarliest();
-  return e ? `<p class="form-note" style="margin-top:4px">${esc(t('Only expenses dated {date} or later can be claimed.', { date: e }))}</p>` : '';
+  if (!e) return '';
+  const msg = claimDateCarried.size
+    ? t('Existing lines keep their dates; new lines must be dated {date} or later.', { date: e })
+    : t('Only expenses dated {date} or later can be claimed.', { date: e });
+  return `<p class="form-note" style="margin-top:4px">${esc(msg)}</p>`;
 }
 
 $('#loginForm').addEventListener('submit', async (e) => {
@@ -2753,7 +2777,7 @@ function wireDbCells(scope) {
 }
 
 function claimRowHtml(r, i) {
-  const min = claimEarliest() ? `min="${esc(claimEarliest())}"` : '';
+  const min = claimDateMin();
   return `<tr data-i="${i}">
     <td data-label="${esc(t('Date'))}"><input name="line_date" type="date" ${min} value="${esc(r.line_date || '')}" /></td>
     <td data-label="${esc(t('DB No.'))}">${dbCellHtml(r.db_no)}</td>
@@ -3002,6 +3026,8 @@ function discardDraftAndClose(kind) { clearDraft(kind); modalCloseHook = null; c
 
 function openClaimModal(existing = null) {
   const isEdit = !!existing;
+  // A rejected claim resubmits with the dates it already had, even past the window.
+  setClaimDateCarried(isEdit ? existing.lines : null);
   claimEditId = isEdit ? existing.id : null;
   rcAttachBase = '/api/claims';
   const draft = isEdit ? null : loadDraft('claim');
@@ -3855,10 +3881,10 @@ async function submitClaim(e, existing) {
     if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
     if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
-  // Claim-date policy: block any row dated before the allowed floor.
-  const earliest = claimEarliest();
-  if (earliest && rows.some(r => String(r.line_date || '') < earliest)) {
-    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest });
+  // Claim-date policy: block any row dated before the allowed floor, except the
+  // dates this claim already carried in (see setClaimDateCarried).
+  if (rows.some(r => !claimDateOk(r.line_date))) {
+    err.textContent = claimDateError();
     err.hidden = false; return;
   }
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
@@ -3937,7 +3963,7 @@ function mealAmountSelect(val) {
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}">
-    <td data-label="${esc(t('Date'))}"><input name="date" type="date" ${claimEarliest() ? `min="${esc(claimEarliest())}"` : ''} value="${esc(r.date || '')}" /></td>
+    <td data-label="${esc(t('Date'))}"><input name="date" type="date" ${claimDateMin()} value="${esc(r.date || '')}" /></td>
     <td data-label="${esc(t('DB Number Site'))}">${dbCellHtml(r.site)}</td>
     <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${esc(t('Install / Repair / Service…'))}" /></td>
     <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
@@ -3976,6 +4002,7 @@ async function openMealAllowanceModal(existing = null) {
   // saved amounts. A failure keeps whatever presets we already have.
   try { state.mealRates = (await api('/meal-rates')).rates || state.mealRates; } catch { /* keep current */ }
   const isEdit = !!existing;
+  setClaimDateCarried(isEdit ? existing.lines : null);
   const draft = isEdit ? null : loadDraft('meal');
   if (isEdit) {
     // Prefill from the claim being resubmitted.
@@ -4066,10 +4093,9 @@ async function submitMealClaim(e, existing) {
     .filter(r => r.date || r.site || r.category || r.desc || mealAmount(r.amount))
     .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
   if (!lines.length) { err.textContent = t('Add at least one line with a date and amount'); err.hidden = false; return; }
-  // Claim-date policy: block any line dated before the allowed floor.
-  const earliest = claimEarliest();
-  if (earliest && lines.some(l => String(l.date || '') < earliest)) {
-    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest });
+  // Claim-date policy, with the same carry-over exemption as reimbursement claims.
+  if (lines.some(l => !claimDateOk(l.date))) {
+    err.textContent = claimDateError();
     err.hidden = false; return;
   }
   const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
@@ -4209,6 +4235,8 @@ function realizeDiffBanner(advanceAmount) {
 }
 function openRealizeModal(advance) {
   const isEdit = advance.status === 'rejected_realize';
+  // Only a rejected realization carries its dates through; a first one is fresh.
+  setClaimDateCarried(isEdit ? advance.lines : null);
   claimEditId = advance.id;
   rcAttachBase = '/api/cash-advances';
   if (isEdit && (advance.lines || []).length) {
@@ -4290,9 +4318,8 @@ async function submitRealization(e, advance) {
     if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
     if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
-  const earliest = claimEarliest();
-  if (earliest && rows.some(r => String(r.line_date || '') < earliest)) {
-    err.textContent = t('Expenses dated before {date} can no longer be claimed.', { date: earliest }); err.hidden = false; return;
+  if (rows.some(r => !claimDateOk(r.line_date))) {
+    err.textContent = claimDateError(); err.hidden = false; return;
   }
   const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
@@ -4888,7 +4915,7 @@ async function renderClaimWindowTab() {
     : t('No date limit is set — expenses of any date can be claimed.');
   panel.innerHTML = `
     <div class="settings-controls" style="max-width:560px">
-      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.'))}</p>
+      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.'))}</p>
       <form id="cwForm" class="form">
         <label>${esc(t('Maximum age (days)'))}
           <input name="max_age_days" type="number" min="0" max="3650" inputmode="numeric" placeholder="${esc(t('No limit'))}" value="${cw.max_age_days != null ? cw.max_age_days : ''}" />

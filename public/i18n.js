@@ -403,7 +403,7 @@
       'Password reset': 'Kata sandi direset',
       // Claim window
       'Claim window': 'Batas waktu klaim',
-      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'Atur seberapa lama ke belakang sebuah pengeluaran boleh bertanggal dan tetap dapat diklaim. Kedua aturan berlaku — tanggal paling awal yang efektif adalah yang lebih baru.',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.': 'Atur seberapa lama ke belakang sebuah pengeluaran boleh bertanggal dan tetap dapat diklaim. Kedua aturan berlaku — tanggal paling awal yang efektif adalah yang lebih baru. Klaim yang ditolak selalu dapat diajukan ulang dengan tanggal yang sudah ada.',
       'Maximum age (days)': 'Usia maksimum (hari)',
       'No limit': 'Tanpa batas',
       'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'Pengeluaran yang lebih lama dari jumlah hari ini tidak dapat diklaim. Kosongkan untuk tanpa batas.',
@@ -425,6 +425,8 @@
       'Malaysian ringgit': 'Ringgit Malaysia',
       'South Korean won': 'Won Korea Selatan',
       'Expenses dated before {date} can no longer be claimed.': 'Pengeluaran bertanggal sebelum {date} tidak dapat lagi diklaim.',
+      'New expense lines must be dated {date} or later.': 'Baris pengeluaran baru harus bertanggal {date} atau setelahnya.',
+      'Existing lines keep their dates; new lines must be dated {date} or later.': 'Baris yang sudah ada tetap dengan tanggalnya; baris baru harus bertanggal {date} atau setelahnya.',
       // Cash advances / realization
       'Cash advance': 'Uang muka',
       'New cash advance': 'Uang muka baru',
@@ -933,7 +935,7 @@
       'Password reset': 'รีเซ็ตรหัสผ่านแล้ว',
       // Claim window
       'Claim window': 'ช่วงเวลาการเบิก',
-      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'กำหนดว่าค่าใช้จ่ายย้อนหลังได้นานเพียงใดจึงยังเบิกได้ ใช้ทั้งสองกฎ — วันที่เริ่มต้นที่มีผลคือวันที่ที่ใหม่กว่า',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.': 'กำหนดว่าค่าใช้จ่ายย้อนหลังได้นานเพียงใดจึงยังเบิกได้ ใช้ทั้งสองกฎ — วันที่เริ่มต้นที่มีผลคือวันที่ที่ใหม่กว่า คำเบิกที่ถูกปฏิเสธสามารถส่งใหม่ด้วยวันที่เดิมได้เสมอ',
       'Maximum age (days)': 'อายุสูงสุด (วัน)',
       'No limit': 'ไม่จำกัด',
       'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'ค่าใช้จ่ายที่เก่ากว่าจำนวนวันนี้จะเบิกไม่ได้ เว้นว่างไว้เพื่อไม่จำกัด',
@@ -955,6 +957,8 @@
       'Malaysian ringgit': 'ริงกิตมาเลเซีย',
       'South Korean won': 'วอนเกาหลีใต้',
       'Expenses dated before {date} can no longer be claimed.': 'ค่าใช้จ่ายที่ลงวันที่ก่อน {date} ไม่สามารถเบิกได้อีกต่อไป',
+      'New expense lines must be dated {date} or later.': 'รายการค่าใช้จ่ายใหม่ต้องลงวันที่ {date} หรือหลังจากนั้น',
+      'Existing lines keep their dates; new lines must be dated {date} or later.': 'รายการเดิมคงวันที่ไว้ได้ ส่วนรายการใหม่ต้องลงวันที่ {date} หรือหลังจากนั้น',
       // Cash advances / realization
       'Cash advance': 'เงินทดรองจ่าย',
       'New cash advance': 'เงินทดรองจ่ายใหม่',
@@ -1463,7 +1467,7 @@
       'Password reset': 'Đã đặt lại mật khẩu',
       // Claim window
       'Claim window': 'Thời hạn yêu cầu',
-      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'Đặt khoảng thời gian tối đa mà một khoản chi vẫn có thể được yêu cầu hoàn. Cả hai quy tắc đều áp dụng — ngày sớm nhất có hiệu lực là ngày muộn hơn.',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.': 'Đặt khoảng thời gian tối đa mà một khoản chi vẫn có thể được yêu cầu hoàn. Cả hai quy tắc đều áp dụng — ngày sớm nhất có hiệu lực là ngày muộn hơn. Một yêu cầu bị từ chối luôn có thể gửi lại với các ngày sẵn có của nó.',
       'Maximum age (days)': 'Số ngày tối đa',
       'No limit': 'Không giới hạn',
       'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'Các khoản chi cũ hơn số ngày này không thể được yêu cầu. Để trống nếu không giới hạn.',
@@ -1485,6 +1489,8 @@
       'Malaysian ringgit': 'Ringgit Malaysia',
       'South Korean won': 'Won Hàn Quốc',
       'Expenses dated before {date} can no longer be claimed.': 'Các khoản chi có ngày trước {date} không còn được yêu cầu.',
+      'New expense lines must be dated {date} or later.': 'Các dòng chi phí mới phải có ngày {date} trở về sau.',
+      'Existing lines keep their dates; new lines must be dated {date} or later.': 'Các dòng đã có giữ nguyên ngày; dòng mới phải có ngày {date} trở về sau.',
       // Cash advances / realization
       'Cash advance': 'Tạm ứng',
       'New cash advance': 'Tạm ứng mới',
@@ -1993,7 +1999,7 @@
       'Password reset': 'បានកំណត់ពាក្យសម្ងាត់ឡើងវិញ',
       // Claim window
       'Claim window': 'រយៈពេលកំណត់សំណើ',
-      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'កំណត់ថាតើការចំណាយអាចមានកាលបរិច្ឆេទថយក្រោយប៉ុន្មាន ហើយនៅតែអាចស្នើសុំបាន។ ច្បាប់ទាំងពីរអនុវត្ត — កាលបរិច្ឆេទដំបូងបំផុតដែលមានប្រសិទ្ធភាពគឺកាលបរិច្ឆេទក្រោយជាង។',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.': 'កំណត់ថាតើការចំណាយអាចមានកាលបរិច្ឆេទថយក្រោយប៉ុន្មាន ហើយនៅតែអាចស្នើសុំបាន។ ច្បាប់ទាំងពីរអនុវត្ត — កាលបរិច្ឆេទដំបូងបំផុតដែលមានប្រសិទ្ធភាពគឺកាលបរិច្ឆេទក្រោយជាង។ ការស្នើសុំដែលត្រូវបានបដិសេធ អាចដាក់ស្នើឡើងវិញជាមួយកាលបរិច្ឆេទដើមរបស់វាបានជានិច្ច។',
       'Maximum age (days)': 'អាយុអតិបរមា (ថ្ងៃ)',
       'No limit': 'គ្មានកំណត់',
       'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'ការចំណាយដែលចាស់ជាងចំនួនថ្ងៃនេះមិនអាចស្នើសុំបានទេ។ ទុកទទេសម្រាប់គ្មានកំណត់។',
@@ -2015,6 +2021,8 @@
       'Malaysian ringgit': 'រីងហ្គីតម៉ាឡេស៊ី',
       'South Korean won': 'វ៉នកូរ៉េខាងត្បូង',
       'Expenses dated before {date} can no longer be claimed.': 'ការចំណាយដែលមានកាលបរិច្ឆេទមុន {date} មិនអាចស្នើសុំបានទៀតទេ។',
+      'New expense lines must be dated {date} or later.': 'បន្ទាត់ចំណាយថ្មីត្រូវមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
+      'Existing lines keep their dates; new lines must be dated {date} or later.': 'បន្ទាត់ដែលមានស្រាប់រក្សាកាលបរិច្ឆេទរបស់វា ចំណែកបន្ទាត់ថ្មីត្រូវមានកាលបរិច្ឆេទ {date} ឬក្រោយនេះ។',
       // Cash advances / realization
       'Cash advance': 'ប្រាក់បុរេប្រទាន',
       'New cash advance': 'ប្រាក់បុរេប្រទានថ្មី',
@@ -2523,7 +2531,7 @@
       'Password reset': 'Na-reset ang password',
       // Claim window
       'Claim window': 'Hangganan ng pag-claim',
-      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later.': 'Itakda kung gaano kalayo pabalik puwedeng ma-date ang isang gastos at ma-claim pa rin. Parehong nalalapat ang mga panuntunan — ang epektibong pinakamaagang petsa ay kung alin ang mas huli.',
+      'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.': 'Itakda kung gaano kalayo pabalik puwedeng ma-date ang isang gastos at ma-claim pa rin. Parehong nalalapat ang mga panuntunan — ang epektibong pinakamaagang petsa ay kung alin ang mas huli. Ang isang tinanggihang claim ay palaging puwedeng i-resubmit gamit ang mga petsang mayroon na ito.',
       'Maximum age (days)': 'Pinakamataas na edad (araw)',
       'No limit': 'Walang limitasyon',
       'Expenses older than this many days cannot be claimed. Leave blank for no limit.': 'Ang mga gastos na mas luma sa dami ng araw na ito ay hindi na maaaring i-claim. Iwanang blangko kung walang limitasyon.',
@@ -2545,6 +2553,8 @@
       'Malaysian ringgit': 'Ringgit ng Malaysia',
       'South Korean won': 'Won ng South Korea',
       'Expenses dated before {date} can no longer be claimed.': 'Ang mga gastos na may petsa bago ang {date} ay hindi na maaaring i-claim.',
+      'New expense lines must be dated {date} or later.': 'Ang mga bagong linya ng gastos ay dapat may petsang {date} o mas bago.',
+      'Existing lines keep their dates; new lines must be dated {date} or later.': 'Pinapanatili ng mga dating linya ang petsa nila; ang mga bagong linya ay dapat may petsang {date} o mas bago.',
       // Cash advances / realization
       'Cash advance': 'Cash advance',
       'New cash advance': 'Bagong cash advance',
