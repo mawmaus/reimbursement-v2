@@ -478,9 +478,17 @@ function claimEarliestFrom(cw) {
 // violation, or null when all dates are allowed.
 async function claimDateViolation(dates, region, carried) {
   const cw = claimWindowSettings(await loadAppSettings(), region);
+  const kept = carried || new Set();
+  // An expense that hasn't happened yet can never be claimed, so today in the
+  // region's own time zone is a hard ceiling — unlike the floor below, no policy
+  // setting and no granted date change lifts it. Carried dates stay exempt for
+  // the same reason they are exempt from the floor.
+  const latest = todayInZone(cw.timezone);
+  if (dates.some(d => isISODate(d) && d > latest && !kept.has(d))) {
+    return { latest, error: 'Expenses cannot be dated in the future.' };
+  }
   const earliest = claimEarliestFrom(cw);
   if (!earliest) return null;
-  const kept = carried || new Set();
   const bad = dates.some(d => isISODate(d) && d < earliest && !kept.has(d));
   if (!bad) return null;
   return {
@@ -582,7 +590,9 @@ function claimWindowView(settings, region) {
   return {
     max_age_days: Number.isFinite(days) && days > 0 ? days : null,
     earliest_date: isISODate(cw.claim_earliest_date) ? cw.claim_earliest_date : null,
-    earliest: claimEarliestFrom(cw)
+    earliest: claimEarliestFrom(cw),
+    // The ceiling every claim shares: no expense may be dated after today.
+    latest: todayInZone(cw.timezone)
   };
 }
 

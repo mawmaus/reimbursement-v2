@@ -481,10 +481,18 @@ const claimDateOk = (d) => {
   const e = claimEarliest();
   return !e || claimDateUnlocked() || String(d || '') >= e || claimDateCarried.has(String(d || ''));
 };
-// `min` for a date picker. Only ever put on an editable row — a carried row's
-// input is disabled, which bars it from constraint validation entirely. A
-// granted date change drops it, since the window no longer applies.
-const claimDateMin = () => (claimEarliest() && !claimDateUnlocked() ? `min="${esc(claimEarliest())}"` : '');
+// The latest date any expense may carry: today in the region's own time zone.
+// An expense that hasn't happened yet can't be claimed, so unlike the window
+// floor this ceiling is fixed — no policy setting or date change lifts it.
+const claimLatest = () => todayWIB();
+// Is this line date still in the future? Carried dates are exempt, so a claim
+// that somehow already holds one can still be fixed up and resubmitted.
+const claimDateFuture = (d) => String(d || '') > claimLatest() && !claimDateCarried.has(String(d || ''));
+// `min`/`max` for a date picker. Only ever put on an editable row — a carried
+// row's input is disabled, which bars it from constraint validation entirely. A
+// granted date change drops the min, since the window no longer applies; the max
+// stays, because a future expense is never claimable.
+const claimDateBounds = () => `${claimEarliest() && !claimDateUnlocked() ? `min="${esc(claimEarliest())}" ` : ''}max="${esc(claimLatest())}"`;
 // The date cell for a line. A line carried in from the rejected claim keeps the
 // date it was submitted with and cannot be re-dated; only rows added during the
 // edit get a live picker.
@@ -492,12 +500,20 @@ function claimDateInput(name, value, locked) {
   return locked
     ? `<input name="${name}" type="date" value="${esc(value || '')}" disabled
         title="${esc(t('Dates from the original claim cannot be changed.'))}" />`
-    : `<input name="${name}" type="date" ${claimDateMin()} value="${esc(value || '')}" />`;
+    : `<input name="${name}" type="date" ${claimDateBounds()} value="${esc(value || '')}" />`;
 }
 // The message for a line dated outside the window, phrased for the situation.
 const claimDateError = () => claimDateCarried.size
   ? t('New expense lines must be dated {date} or later.', { date: claimEarliest() })
   : t('Expenses dated before {date} can no longer be claimed.', { date: claimEarliest() });
+// The first problem among a claim's line dates, or null when all are claimable.
+// The future check comes first: it has its own message and applies even when no
+// claim window is set at all.
+function claimDatesError(dates) {
+  if (dates.some(d => claimDateFuture(d))) return t('Expenses cannot be dated in the future.');
+  if (dates.some(d => !claimDateOk(d))) return claimDateError();
+  return null;
+}
 // A small note under a date field: the policy floor, the locked original dates,
 // the state of a date-change request, or nothing at all.
 function claimLimitNote() {
@@ -4018,12 +4034,10 @@ async function submitClaim(e, existing) {
     if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
     if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
-  // Claim-date policy: block any row dated before the allowed floor, except the
-  // dates this claim already carried in (see setClaimDateCarried).
-  if (rows.some(r => !claimDateOk(r.line_date))) {
-    err.textContent = claimDateError();
-    err.hidden = false; return;
-  }
+  // Claim-date policy: block any row dated in the future, or before the allowed
+  // floor — except the dates this claim already carried in (setClaimDateCarried).
+  const dateErr = claimDatesError(rows.map(r => r.line_date));
+  if (dateErr) { err.textContent = dateErr; err.hidden = false; return; }
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
   if ((state.user.approver1_choices || []).length >= 2 && !approver1) {
     err.textContent = t('Please choose Approver 1.'); err.hidden = false; return;
@@ -4234,10 +4248,8 @@ async function submitMealClaim(e, existing) {
     .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
   if (!lines.length) { err.textContent = t('Add at least one line with a date and amount'); err.hidden = false; return; }
   // Claim-date policy, with the same carry-over exemption as reimbursement claims.
-  if (lines.some(l => !claimDateOk(l.date))) {
-    err.textContent = claimDateError();
-    err.hidden = false; return;
-  }
+  const dateErr = claimDatesError(lines.map(l => l.date));
+  if (dateErr) { err.textContent = dateErr; err.hidden = false; return; }
   const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
   if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
@@ -4461,9 +4473,8 @@ async function submitRealization(e, advance) {
     if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
     if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
   }
-  if (rows.some(r => !claimDateOk(r.line_date))) {
-    err.textContent = claimDateError(); err.hidden = false; return;
-  }
+  const dateErr = claimDatesError(rows.map(r => r.line_date));
+  if (dateErr) { err.textContent = dateErr; err.hidden = false; return; }
   const needsApprover1 = (state.user.approver1_choices || []).length >= 2;
   const approver1 = String((new FormData(e.target).get('approver1') || '')).trim();
   if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
