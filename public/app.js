@@ -1732,14 +1732,17 @@ async function revertPaidSelected() {
   const btn = $('#revertPaidSelBtn'); const orig = btn.textContent;
   btn.disabled = true; btn.textContent = t('Reverting…');
   try {
-    let done = 0;
-    for (const c of paid) {
-      const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
-      await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
-      done++;
-    }
+    // One request walks the whole selection back in a single transaction; the
+    // server reports how many were still paid and actually moved.
+    const items = paid.map(c => ({
+      type: c.type === 'meal' ? 'meal' : c.type === 'advance' ? 'advance' : 'claim',
+      id: c.id
+    }));
+    const { reverted } = await api('/claims/revert-paid-bulk', {
+      method: 'POST', body: JSON.stringify({ items })
+    });
     state.selected.clear();
-    toast(done === 1 ? t('Reverted 1 payment') : t('Reverted {n} payments', { n: done }));
+    toast(reverted === 1 ? t('Reverted 1 payment') : t('Reverted {n} payments', { n: reverted }));
     loadAll();
   } catch (ex) { toast(ex.message, true); }
   finally { btn.disabled = false; btn.textContent = orig; }
