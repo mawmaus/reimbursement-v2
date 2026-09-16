@@ -1790,14 +1790,17 @@ function openBulkPaidModal(claims, totalSelected) {
     if (!payment_date) return;
     confirmBtn.disabled = true; confirmBtn.textContent = t('Marking…');
     try {
-      let done = 0;
-      for (const c of claims) {
-        const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
-        await api(`${base}${c.id}/mark-paid`, { method: 'POST', body: JSON.stringify({ payment_date }) });
-        done++;
-      }
+      // One request settles the whole selection in a single transaction; the
+      // server reports how many were actually eligible to move.
+      const items = claims.map(c => ({
+        type: c.type === 'meal' ? 'meal' : c.type === 'advance' ? 'advance' : 'claim',
+        id: c.id
+      }));
+      const { paid } = await api('/claims/mark-paid-bulk', {
+        method: 'POST', body: JSON.stringify({ items, payment_date })
+      });
       state.selected.clear();
-      toast(done === 1 ? t('Marked 1 claim as paid') : t('Marked {n} claims as paid', { n: done }));
+      toast(paid === 1 ? t('Marked 1 claim as paid') : t('Marked {n} claims as paid', { n: paid }));
       closeModal(); loadAll();
     } catch (ex) {
       const el = $('#bulkPaidErr'); el.textContent = ex.message; el.hidden = false;
@@ -1827,20 +1830,36 @@ async function deleteSelected() {
   finally { btn.disabled = false; btn.textContent = orig; }
 }
 
+// Run fn over items with at most `limit` in flight at once, returning results
+// in the original order. Used to overlap the network round-trips the PDF export
+// needs, instead of queuing them one behind the other.
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 async function generatePdf() {
   const chosen = state.claims.filter(c => state.selected.has(claimKey(c.type, c.id)));
   if (!chosen.length) return;
   const btn = $('#genPdfBtn'); const orig = btn.textContent;
   btn.disabled = true; btn.textContent = t('Preparing…');
   try {
-    // Pull full details (approvers, history, attachment list) for each claim.
-    const detailed = [];
-    for (const c of chosen) {
+    // Pull full details (approvers, history, attachment list) for each claim —
+    // the requests overlap, but the selection's order is preserved.
+    const detailed = await mapLimit(chosen, 6, async (c) => {
       const path = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
       const { claim } = await api(path + c.id);
       claim.type = c.type;
-      detailed.push(claim);
-    }
+      return claim;
+    });
     const bytes = await buildClaimsPdf(detailed);
     const blob = new Blob([bytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -2168,17 +2187,25 @@ async function buildClaimsPdf(claims) {
   // 4-to-a-page as grids; PDFs and load failures break the batch and take their
   // own full page(s), preserving the original attachment order.
   const appendAttachments = async (c, atts) => {
-    let batch = [];
-    const flush = () => { for (let i = 0; i < batch.length; i += 4) drawImageGrid(c, batch.slice(i, i + 4)); batch = []; };
-    for (const att of atts) {
-      let bytes, mime = att.mime_type || '';
+    // Fetch every receipt's bytes up front, a few at a time, then embed them
+    // below in the original order — the requests overlap, the layout doesn't
+    // change. A failed fetch stays null and still gets its note page.
+    const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
+    const fetched = await mapLimit(atts, 4, async (att) => {
       try {
-        const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
         const res = await fetch(`/api${base}${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('http');
-        bytes = new Uint8Array(await res.arrayBuffer());
-        if (!mime) mime = res.headers.get('Content-Type') || '';
-      } catch { flush(); drawNotePage(c, att, 'Could not load this attachment from storage.'); continue; }
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        return { bytes, mime: att.mime_type || res.headers.get('Content-Type') || '' };
+      } catch { return null; }
+    });
+    let batch = [];
+    const flush = () => { for (let i = 0; i < batch.length; i += 4) drawImageGrid(c, batch.slice(i, i + 4)); batch = []; };
+    for (let i = 0; i < atts.length; i++) {
+      const att = atts[i];
+      const got = fetched[i];
+      if (!got) { flush(); drawNotePage(c, att, 'Could not load this attachment from storage.'); continue; }
+      const { bytes, mime } = got;
       if (/pdf/i.test(mime) || /\.pdf$/i.test(att.original_name)) {
         flush();
         try {

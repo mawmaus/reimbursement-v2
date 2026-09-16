@@ -2001,7 +2001,13 @@ app.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
 app.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+  // Mirrors GET /api/claims/:id exactly — region first, then ownership. Anyone
+  // who can open the claim must be able to fetch its receipts, or PDF export
+  // silently drops them; anyone who can't must not reach them out of region.
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own attachments' });
+  }
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own attachments' });
   }
@@ -2665,6 +2671,87 @@ app.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res) =>
   res.json({ claim: await serializeOneAdvance(rows[0]) });
 }));
 
+// --- Bulk mark-paid ---------------------------------------------------------
+// The client used to POST one /:id/mark-paid per ticked claim — N round trips
+// and N independent writes. This settles the whole selection in a single
+// transaction instead, with the same eligibility rule the single routes apply
+// (only 'approved' rows move) and the same history line and notification.
+const BULK_PAID_KINDS = {
+  claim:   { table: 'claims',        history: 'claim_history',        historyCol: 'claim_id',      notify: reimbNotify,   action: (d) => `marked paid — ${d}` },
+  meal:    { table: 'meal_claims',   history: 'meal_claim_history',   historyCol: 'meal_claim_id', notify: mealNotify,    action: (d) => `marked paid — ${d}` },
+  advance: { table: 'cash_advances', history: 'cash_advance_history', historyCol: 'advance_id',    notify: advanceNotify, action: (d) => `advance paid — ${d}` }
+};
+// One transaction is one HTTP round trip to Neon carrying two statements per
+// claim, so the selection is capped rather than sent unbounded.
+const BULK_PAID_MAX = 200;
+// Run fn over items with at most `limit` in flight — used for the notification
+// fan-out below, so a large batch can't serialise long enough to time out.
+async function mapLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) { const i = next++; results[i] = await fn(items[i], i); }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+app.post('/api/claims/mark-paid-bulk', requireAuth, ah(async (req, res) => {
+  if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark claims as paid' });
+  const paymentDate = String((req.body && req.body.payment_date) || '').trim();
+  if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
+  const comment = String((req.body && req.body.comment) || '').trim();
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+  if (items.length > BULK_PAID_MAX) {
+    return res.status(400).json({ error: `Mark at most ${BULK_PAID_MAX} claims as paid at a time` });
+  }
+
+  // Group the requested ids by kind, keeping only well-formed entries.
+  const idsByKind = { claim: [], meal: [], advance: [] };
+  for (const it of items) {
+    const kind = BULK_PAID_KINDS[it && it.type] ? it.type : null;
+    const id = Number(it && it.id);
+    if (kind && Number.isInteger(id) && id > 0) idsByKind[kind].push(id);
+  }
+
+  // One lookup per kind — not per claim — for the rows that are actually
+  // eligible. Anything else (missing, or not 'approved') is silently skipped
+  // and counted, the way the client's own pre-filter already expects.
+  const eligible = []; // { kind, row }
+  for (const kind of Object.keys(idsByKind)) {
+    const ids = idsByKind[kind];
+    if (!ids.length) continue;
+    const { table } = BULK_PAID_KINDS[kind];
+    const rows = await q(`SELECT * FROM ${table} WHERE id = ANY($1::int[]) AND status = 'approved'`,
+      [intArrayLiteral(ids)]);
+    for (const r of rows) eligible.push({ kind, row: r });
+  }
+  if (!eligible.length) return res.json({ paid: 0, skipped: items.length });
+
+  // One UPDATE + one history INSERT per eligible row, committed together: the
+  // whole selection moves to paid or none of it does.
+  const queries = [];
+  for (const { kind, row } of eligible) {
+    const { table, history, historyCol, action } = BULK_PAID_KINDS[kind];
+    queries.push(qq(`UPDATE ${table} SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`,
+      [req.user.id, paymentDate, row.id]));
+    queries.push(qq(
+      `INSERT INTO ${history} (${historyCol}, actor_id, actor_name, action, from_status, to_status, comment)
+       VALUES ($1,$2,$3,$4,'approved','paid',$5)`,
+      [row.id, req.user.id, req.user.full_name, action(paymentDate), comment]));
+  }
+  await transaction(queries);
+
+  // Notify from the rows already in hand — the three payload builders read only
+  // claim_no / claimant_name / amount / currency, none of which mark-paid
+  // touches, so there is nothing to re-read. notifyClaimantDecision swallows
+  // its own failures, so a dead mailbox can't unwind a committed payment.
+  await mapLimit(eligible, 4, ({ kind, row }) =>
+    notifyClaimantDecision(row.employee_id, BULK_PAID_KINDS[kind].notify(row), 'paid'));
+
+  res.json({ paid: eligible.length, skipped: items.length - eligible.length });
+}));
+
 // Submit or resubmit the realization (phase 2): the itemised actual transactions
 // with per-line receipts. Allowed from 'paid' (first realization) or
 // 'rejected_realize' (edit after a rejected realization). Rebuilds the lines +
@@ -2864,8 +2951,13 @@ app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
 app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && !userCan(req.user, 'view_all_claims')
-      && row.employee_id !== req.user.id && !asIntArray(row.approver_ids).includes(req.user.id)) {
+  // GET /api/cash-advances region-scopes the list via viewRegionFilter; without
+  // the same check here a direct id read reached advances from other regions.
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own cash advances' });
+  }
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
+      && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own cash advances' });
   }
   res.json({ claim: await serializeOneAdvance(row) });
@@ -2875,7 +2967,11 @@ app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
 app.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
-  if (req.user.role !== 'superadmin' && row.employee_id !== req.user.id
+  // Mirrors GET /api/cash-advances/:id (see the region note there).
+  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+    return res.status(403).json({ error: 'You can only view your own attachments' });
+  }
+  if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own attachments' });
   }
