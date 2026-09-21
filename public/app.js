@@ -2381,6 +2381,19 @@ function revertInfo(c) {
   if (c.status === 'submitted' && step > 1) return { label: t('Revert approval'), confirm: t('Revert your approval? The claim will return to the previous approver.') };
   return { label: t('Cancel to edit'), confirm: t('Cancel this submission so you can edit it? It will move to Rejected, ready to edit and resubmit.') };
 }
+// The claimant's Approver 1 candidates, but only for a revert that will leave
+// the document waiting on step 1 — the mirror of the server's
+// revertLandsOnApprover1. Anywhere else the first approver no longer decides
+// anything, so there is nothing to re-pick. A claimant's own "Cancel to edit"
+// is deliberately absent too: they get the same picker on the resubmit form.
+function revertApprover1Choices(c) {
+  const choices = c.approver1_choices || [];
+  if (choices.length < 2) return [];
+  const step = c.current_step || 0;
+  if ((c.status === 'approved' || c.status === 'realize_approved') && step === 1) return choices;
+  if ((c.status === 'submitted' || c.status === 'realize_submitted') && step === 2) return choices;
+  return [];
+}
 function buildActions(c, u, isOwner) {
   const btns = [];
   if (inApprovalStage(c) && canApprove(u, c)) {
@@ -2587,6 +2600,9 @@ async function handleAction(act, c) {
     } else if (act === 'settle') {
       return openSettleModal(c);
     } else if (act === 'revert') {
+      // A revert that hands the document back to Approver 1 opens a modal, so it
+      // can be re-routed on the way; every other revert stays a one-click confirm.
+      if (revertApprover1Choices(c).length) return openRevertModal(c);
       const info = revertInfo(c);
       if (!confirm(info.confirm)) return;
       await api(`${base}${c.id}/revert`, { method: 'POST', body: JSON.stringify({}) });
@@ -5377,6 +5393,57 @@ function openPaidModal(c) {
       toast(t('Marked as paid'));
       closeModal(); closeDrawer(); loadAll();
     } catch (ex) { const el = $('#paidErr'); el.textContent = ex.message; el.hidden = false; }
+  });
+}
+
+// Revert + re-route. When the revert leaves the document waiting on Approver 1
+// again, it doubles as the chance to hand it to a different one — the same
+// choice the claimant gets on the submit form. Only opened when there are two
+// or more candidates (revertApprover1Choices); otherwise revert is a confirm.
+function openRevertModal(c) {
+  const info = revertInfo(c);
+  const choices = revertApprover1Choices(c);
+  const cur = (c.approvers && c.approvers[0]) || null;
+  const curId = cur ? String(cur.id) : '';
+  // A first approver from outside the candidate pool (a fixed chain, or a pool
+  // edited since the claim was submitted) still needs a "leave it as it is"
+  // option — an empty value, which the server reads as "no change".
+  const inPool = choices.some(o => String(o.id) === curId);
+  const opts = (inPool ? '' : `<option value="" selected>${esc(cur ? cur.name : t('Choose an approver…'))}</option>`)
+    + choices.map(o => `<option value="${o.id}"${String(o.id) === curId ? ' selected' : ''}>${esc(o.name)}</option>`).join('');
+  openModal(`
+    <div class="modal-head"><h2>${esc(t('Revert {no}', { no: c.claim_no }))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button></div>
+    <div class="modal-body">
+      <form id="revertForm" class="form">
+        <p style="margin:0 0 6px">${esc(info.confirm)}</p>
+        <label class="full">${esc(t('Approver 1'))}
+          <select name="approver1">${opts}</select></label>
+        <p class="muted" style="margin:2px 0 0;font-size:.85rem">${esc(t('It goes back to this approver — keep the current one, or hand it to someone else.'))}</p>
+        <p class="form-error" id="revertErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="revertCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(info.label)}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#revertCancel').addEventListener('click', closeModal);
+  $('#revertForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const approver1 = String(new FormData(e.target).get('approver1') || '');
+    const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
+    const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
+    try {
+      const out = await api(`${base}${c.id}/revert`, {
+        method: 'POST',
+        body: JSON.stringify(approver1 ? { approver1: Number(approver1) } : {})
+      });
+      const next = (out && out.claim && (out.claim.approvers || [])[0]) || null;
+      toast(next && String(next.id) !== curId
+        ? t('Reverted — now with {name}', { name: next.name }) : t('Reverted'));
+      closeModal(); closeDrawer(); loadAll();
+    } catch (ex) { const el = $('#revertErr'); el.textContent = ex.message; el.hidden = false; btn.disabled = false; }
   });
 }
 

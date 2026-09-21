@@ -855,6 +855,61 @@ function planRevert(row, user) {
   return { error: `A ${row.status} claim cannot be reverted`, code: 409 };
 }
 
+// --- Re-picking Approver 1 on a revert ---------------------------------------
+// A revert that leaves a document waiting on step 1 is the one moment worth
+// re-opening the Approver 1 choice: it is about to sit with the first approver
+// again, so whoever reverts may hand it to a different one instead of the
+// claimant having to cancel and resubmit. (A claimant's own revert lands on
+// 'rejected', where the resubmit form already offers the same picker.)
+// 'unapprove-final' leaves current_step where it is — approving the last step
+// never advances it — so it lands on step 1 only for a one-approver chain or a
+// superadmin override at step 1; 'unapprove-step' lands there when it undoes
+// step 2. Every other kind ends up somewhere the first approver no longer
+// decides anything, so the chain is left exactly as it is.
+function revertLandsOnApprover1(kind, step) {
+  if (kind === 'unapprove-final') return (step || 0) === 1;
+  if (kind === 'unapprove-step') return (step || 0) === 2;
+  return false;
+}
+
+// Resolve the Approver 1 re-pick riding along with such a revert. Absent (or
+// unchanged) leaves the chain untouched — { ids: null }. A choice is validated
+// against the claimant's own still-active candidates, and only honoured when
+// there are two or more of them: exactly the rule the submit form's picker
+// follows. Only the first link changes; the rest keeps its order, with the new
+// approver pulled out of it so nobody appears in the chain twice.
+async function resolveRevertApprover1(row, kind, chosenRaw) {
+  if (chosenRaw === undefined || chosenRaw === null || chosenRaw === '') return { ids: null };
+  const chosen = Number(chosenRaw);
+  if (!Number.isInteger(chosen)) return { error: 'Choose a valid Approver 1' };
+  if (!revertLandsOnApprover1(kind, row.current_step)) {
+    return { error: 'Approver 1 can only be changed by a revert that sends this back to the first approver' };
+  }
+  const ids = asIntArray(row.approver_ids);
+  if (ids[0] === chosen) return { ids: null };
+  const emp = (await q('SELECT approver1_options FROM users WHERE id = $1', [row.employee_id]))[0] || {};
+  const pool = await activeApproverIds(emp.approver1_options);
+  if (pool.length < 2 || !pool.includes(chosen)) {
+    return { error: 'That account is not one of the claimant\'s Approver 1 choices' };
+  }
+  const named = await q('SELECT full_name, username FROM users WHERE id = $1', [chosen]);
+  const n = named[0] || {};
+  return {
+    ids: [chosen, ...ids.slice(1).filter(id => id !== chosen)],
+    chosen,
+    name: n.full_name || n.username || `User #${chosen}`
+  };
+}
+
+// The claimant's chooseable Approver 1 pool for one document, for the drawer to
+// render the revert picker with. Empty unless there are two or more candidates
+// — with one there is nothing to choose, same as on the submit form.
+async function claimantApprover1Choices(employeeId) {
+  const u = (await q('SELECT approver1_options FROM users WHERE id = $1', [employeeId]))[0];
+  const choices = u ? await approver1Choices(u.approver1_options) : [];
+  return choices.length >= 2 ? choices : [];
+}
+
 // --- Stale-approver guards --------------------------------------------------
 // Keep only the still-active approvers from a candidate list, preserving order.
 // Used when a claim is submitted/resubmitted so a new claim never routes to a
@@ -1600,7 +1655,11 @@ app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own claims' });
   }
-  res.json({ claim: await serializeOne(row) });
+  const claim = await serializeOne(row);
+  // The claimant's Approver 1 candidates ride along on the detail read so the
+  // drawer can offer a re-pick when a revert sends this back to step 1.
+  claim.approver1_choices = await claimantApprover1Choices(row.employee_id);
+  res.json({ claim });
 }));
 
 // Sequences backing claims.id / claim_lines.id, so later inserts in the same
@@ -1981,6 +2040,11 @@ app.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
   if (!row) return;
   const plan = planRevert(row, req.user);
   if (plan.error) return res.status(plan.code).json({ error: plan.error });
+  // A revert that lands back on step 1 may re-pick Approver 1 (see
+  // resolveRevertApprover1). Resolved before anything moves, so a bad choice
+  // fails cleanly instead of half-applying the revert.
+  const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
+  if (reroute.error) return res.status(400).json({ error: reroute.error });
   const step = row.current_step || 0;
   if (plan.kind === 'unpay') {
     await q(`UPDATE claims SET status='approved', paid_by=NULL, paid_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
@@ -1992,8 +2056,15 @@ app.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
     await q(`UPDATE claims SET status='rejected', manager_id=NULL, manager_comment=$1, decided_at=now(), updated_at=now() WHERE id=$2`,
       [plan.comment, row.id]);
   }
-  await logHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  if (reroute.ids) {
+    await q(`UPDATE claims SET approver_ids=$1::int[], updated_at=now() WHERE id=$2`, [intArrayLiteral(reroute.ids), row.id]);
+  }
+  await logHistory(row.id, req.user, plan.action, plan.from, plan.to,
+    reroute.ids ? `Approver 1 changed to ${reroute.name}` : (plan.comment || ''));
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
+  // A revert is silent, but a re-route hands the claim to someone who has no
+  // other way of knowing it is now theirs.
+  if (reroute.ids) await notifyPendingApprover(reroute.chosen, reimbNotify(rows[0]));
   res.json({ claim: await serializeOne(rows[0]) });
 }));
 
@@ -2201,7 +2272,11 @@ app.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own meal claims' });
   }
-  res.json({ claim: await serializeOneMeal(row) });
+  const claim = await serializeOneMeal(row);
+  // The claimant's Approver 1 candidates ride along on the detail read so the
+  // drawer can offer a re-pick when a revert sends this back to step 1.
+  claim.approver1_choices = await claimantApprover1Choices(row.employee_id);
+  res.json({ claim });
 }));
 
 // Delete a meal allowance claim outright (super admin only) — removes its line
@@ -2392,6 +2467,8 @@ app.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
   if (!row) return;
   const plan = planRevert(row, req.user);
   if (plan.error) return res.status(plan.code).json({ error: plan.error });
+  const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
+  if (reroute.error) return res.status(400).json({ error: reroute.error });
   const step = row.current_step || 0;
   if (plan.kind === 'unpay') {
     await q(`UPDATE meal_claims SET status='approved', paid_by=NULL, paid_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
@@ -2403,8 +2480,13 @@ app.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
     await q(`UPDATE meal_claims SET status='rejected', manager_id=NULL, manager_comment=$1, decided_at=now(), updated_at=now() WHERE id=$2`,
       [plan.comment, row.id]);
   }
-  await logMealHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  if (reroute.ids) {
+    await q(`UPDATE meal_claims SET approver_ids=$1::int[], updated_at=now() WHERE id=$2`, [intArrayLiteral(reroute.ids), row.id]);
+  }
+  await logMealHistory(row.id, req.user, plan.action, plan.from, plan.to,
+    reroute.ids ? `Approver 1 changed to ${reroute.name}` : (plan.comment || ''));
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
+  if (reroute.ids) await notifyPendingApprover(reroute.chosen, mealNotify(rows[0]));
   res.json({ claim: await serializeOneMeal(rows[0]) });
 }));
 
@@ -2931,39 +3013,48 @@ app.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) => {
   let plan = null;
   if (row.status === 'settled') {
     if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a settlement' });
-    plan = { sql: `status='realize_approved', settlement_cents=0, settlement_direction='', settlement_note='', settled_by=NULL, settled_at=NULL`,
+    plan = { kind: 'unsettle', sql: `status='realize_approved', settlement_cents=0, settlement_direction='', settlement_note='', settled_by=NULL, settled_at=NULL`,
       action: 'reverted settlement', from: 'settled', to: 'realize_approved' };
   } else if (row.status === 'realize_approved') {
     if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this realization can revert it' });
-    plan = { sql: `status='realize_submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted realization approval', from: 'realize_approved', to: 'realize_submitted' };
+    plan = { kind: 'unapprove-final', sql: `status='realize_submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted realization approval', from: 'realize_approved', to: 'realize_submitted' };
   } else if (row.status === 'realize_submitted') {
     if (step > 1) {
       if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
-      plan = { sql: `current_step=${step - 1}`, action: 'reverted realization approval', from: 'realize_submitted', to: 'realize_submitted' };
+      plan = { kind: 'unapprove-step', sql: `current_step=${step - 1}`, action: 'reverted realization approval', from: 'realize_submitted', to: 'realize_submitted' };
     } else {
       if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this realization' });
-      plan = { sql: `status='rejected_realize', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled realization to edit', from: 'realize_submitted', to: 'rejected_realize', comment: 'Reverted by the claimant to make changes' };
+      plan = { kind: 'cancel', sql: `status='rejected_realize', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled realization to edit', from: 'realize_submitted', to: 'rejected_realize', comment: 'Reverted by the claimant to make changes' };
     }
   } else if (row.status === 'paid') {
     if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a payment' });
-    plan = { sql: `status='approved', paid_by=NULL, paid_at=NULL`, action: 'reverted payment', from: 'paid', to: 'approved' };
+    plan = { kind: 'unpay', sql: `status='approved', paid_by=NULL, paid_at=NULL`, action: 'reverted payment', from: 'paid', to: 'approved' };
   } else if (row.status === 'approved') {
     if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this advance can revert the approval' });
-    plan = { sql: `status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted approval', from: 'approved', to: 'submitted' };
+    plan = { kind: 'unapprove-final', sql: `status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted approval', from: 'approved', to: 'submitted' };
   } else if (row.status === 'submitted') {
     if (step > 1) {
       if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
-      plan = { sql: `current_step=${step - 1}`, action: 'reverted approval', from: 'submitted', to: 'submitted' };
+      plan = { kind: 'unapprove-step', sql: `current_step=${step - 1}`, action: 'reverted approval', from: 'submitted', to: 'submitted' };
     } else {
       if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this submission' });
-      plan = { sql: `status='rejected', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected', comment: 'Reverted by the claimant to make changes' };
+      plan = { kind: 'cancel', sql: `status='rejected', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected', comment: 'Reverted by the claimant to make changes' };
     }
   } else {
     return res.status(409).json({ error: `A ${row.status} cash advance cannot be reverted` });
   }
+  // A revert that lands back on step 1 may re-pick Approver 1 (see
+  // resolveRevertApprover1) — resolved before anything moves.
+  const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
+  if (reroute.error) return res.status(400).json({ error: reroute.error });
   await q(`UPDATE cash_advances SET ${plan.sql}, updated_at=now() WHERE id=$1`, [row.id]);
-  await logAdvanceHistory(row.id, req.user, plan.action, plan.from, plan.to, plan.comment || '');
+  if (reroute.ids) {
+    await q(`UPDATE cash_advances SET approver_ids=$1::int[], updated_at=now() WHERE id=$2`, [intArrayLiteral(reroute.ids), row.id]);
+  }
+  await logAdvanceHistory(row.id, req.user, plan.action, plan.from, plan.to,
+    reroute.ids ? `Approver 1 changed to ${reroute.name}` : (plan.comment || ''));
   const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
+  if (reroute.ids) await notifyPendingApprover(reroute.chosen, advanceNotify(rows[0]));
   res.json({ claim: await serializeOneAdvance(rows[0]) });
 }));
 
@@ -3004,7 +3095,11 @@ app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
       && !asIntArray(row.approver_ids).includes(req.user.id)) {
     return res.status(403).json({ error: 'You can only view your own cash advances' });
   }
-  res.json({ claim: await serializeOneAdvance(row) });
+  const claim = await serializeOneAdvance(row);
+  // The claimant's Approver 1 candidates ride along on the detail read so the
+  // drawer can offer a re-pick when a revert sends this back to step 1.
+  claim.approver1_choices = await claimantApprover1Choices(row.employee_id);
+  res.json({ claim });
 }));
 
 // Download a realization receipt — auth-scoped, streamed from Blob.
