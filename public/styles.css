@@ -568,7 +568,32 @@ input[type="search"] { min-width: 220px; }
 .ph-edge[data-h="w"] { left: -8px; top: 50%; transform: translateY(-50%); width: 12px; height: 38px; cursor: ew-resize; }
 .ph-edge[data-h="e"] { right: -8px; top: 50%; transform: translateY(-50%); width: 12px; height: 38px; cursor: ew-resize; }
 
+/* Four-corner overlay for document mode. The quad outline and the dimming are
+   painted on the stage canvas; these are just the grab handles on top of it. */
+.ph-quad { position: absolute; inset: 0; pointer-events: none; }
+.ph-qh { pointer-events: auto; transform: translate(-50%, -50%); cursor: grab; }
+.ph-qh:active { cursor: grabbing; }
+/* Magnified view of the corner being dragged, parked away from the finger. */
+.ph-loupe { position: absolute; display: none; pointer-events: none; width: 132px; height: 132px;
+  border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,.45), 0 0 0 2px rgba(255,255,255,.9); }
+
 .ph-tools { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; }
+.ph-optgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ph-opt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ph-opt-label { font-size: .78rem; font-weight: 700; letter-spacing: .02em; color: var(--muted); }
+/* Segmented control: one pill split into equal, non-wrapping options. */
+.ph-seg { display: flex; padding: 3px; gap: 3px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper); }
+.ph-seg button { flex: 1 1 0; min-width: 0; padding: 7px 4px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--ink-soft); font: inherit; font-size: .84rem; font-weight: 650;
+  white-space: nowrap; cursor: pointer; }
+.ph-seg button:hover { color: var(--ink); }
+.ph-seg button.on { background: var(--surface); color: var(--ink);
+  box-shadow: 0 1px 3px rgba(23,38,32,.16); }
+.ph-seg button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
+.ph-docrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ph-docnote { flex: 1 1 180px; min-width: 0; font-size: .78rem; line-height: 1.35; color: var(--muted); }
+.ph-docnote.ok { color: var(--pine); font-weight: 600; }
 .ph-rotrow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .ph-dial-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .ph-dial { position: relative; width: 104px; height: 104px; border-radius: 50%; flex: none;
@@ -596,6 +621,11 @@ input[type="search"] { min-width: 220px; }
 @media (max-width: 560px) {
   .ph-foot .btn { flex: 1 1 0; }
   .ph-rotrow .btn { flex: 1 1 auto; }
+  /* Stack the two segmented controls rather than squeezing six labels across
+     a phone — each option keeps a full-width tap target. */
+  .ph-optgrid { grid-template-columns: 1fr; }
+  .ph-docrow .btn { flex: 1 1 0; }
+  .ph-docnote { flex: 1 0 100%; }
 }
 
 /* Amount field: fixed currency prefix + amount input + calculator toggle */
