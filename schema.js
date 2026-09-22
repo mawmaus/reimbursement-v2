@@ -410,8 +410,15 @@ const SCHEMA = [
   // Realization receipts attach to a cash-advance line (reusing the attachments
   // table + upload pipeline). Nullable so it coexists with claim/line receipts.
   `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS advance_line_id INTEGER REFERENCES cash_advance_lines(id) ON DELETE CASCADE`,
-  // A receipt now belongs to EITHER a claim or a cash-advance line, so claim_id
-  // can no longer be mandatory — realization receipts have advance_line_id only.
+  // Phase-1 supporting documents (a quotation, proforma invoice, booking
+  // confirmation…) hang off the advance itself rather than a line: at request
+  // time there are no lines yet. The browser normalises every pick — PDF or
+  // image — into a PDF before uploading, so these rows are always
+  // application/pdf.
+  `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS advance_id INTEGER REFERENCES cash_advances(id) ON DELETE CASCADE`,
+  // A receipt now belongs to EITHER a claim, a cash advance or one of its lines,
+  // so claim_id can no longer be mandatory — advance files carry only their own
+  // advance_id / advance_line_id.
   `ALTER TABLE attachments ALTER COLUMN claim_id DROP NOT NULL`,
   // Cash advance USED to be a third front-page purpose gated per department AND
   // job position, like New Claim / New Meal Allowance. It is now a PER-ACCOUNT
@@ -445,6 +452,7 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_adv_employee        ON cash_advances(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_adv_status          ON cash_advances(status)`,
   `CREATE INDEX IF NOT EXISTS idx_attach_adv_line     ON attachments(advance_line_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_attach_advance      ON attachments(advance_id)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_employee ON claims(employee_id)`,
   `CREATE INDEX IF NOT EXISTS idx_claims_status   ON claims(status)`,
   `CREATE INDEX IF NOT EXISTS idx_attach_claim    ON attachments(claim_id)`,

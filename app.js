@@ -2572,7 +2572,7 @@ function advanceNotify(row) {
   return { claimNo: row.advance_no, claimantName: row.claimant_name,
     typeLabel: 'cash advance', amount: Number(row.amount_cents) / 100, currency: row.currency };
 }
-function baseAdvance(row, lines, attByLine, history, nameMap) {
+function baseAdvance(row, lines, attByLine, history, nameMap, docs) {
   const attView = (a) => ({
     id: a.id, original_name: a.original_name, mime_type: a.mime_type,
     size_bytes: a.size_bytes, uploaded_at: iso(a.uploaded_at)
@@ -2599,6 +2599,9 @@ function baseAdvance(row, lines, attByLine, history, nameMap) {
     current_step: row.current_step || 0,
     decided_at: iso(row.decided_at), paid_at: iso(row.paid_at),
     created_at: iso(row.created_at), updated_at: iso(row.updated_at),
+    // Phase-1 supporting documents, attached to the request itself. The
+    // realization's receipts stay on their lines, below.
+    attachments: (docs || []).map(attView),
     lines: (lines || []).map(l => ({
       id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: Number(l.amount_cents) / 100, description: l.description,
@@ -2626,11 +2629,16 @@ async function serializeManyAdvance(rows) {
       `SELECT id, advance_line_id, original_name, mime_type, size_bytes, uploaded_at
        FROM attachments WHERE advance_line_id IN (${aph}) ORDER BY id`, lineIds);
   }
+  // Phase-1 supporting documents hang off the advance, not a line.
+  const docs = await q(
+    `SELECT id, advance_id, original_name, mime_type, size_bytes, uploaded_at
+     FROM attachments WHERE advance_id IN (${ph}) ORDER BY id`, ids);
   const hist = await q(
     `SELECT advance_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
      FROM cash_advance_history WHERE advance_id IN (${ph}) ORDER BY id`, ids);
   const l = groupBy(lines, 'advance_id');
   const attByLine = groupBy(atts, 'advance_line_id');
+  const docsByAdvance = groupBy(docs, 'advance_id');
   const h = groupBy(hist, 'advance_id');
   const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
   const nameMap = {};
@@ -2640,7 +2648,7 @@ async function serializeManyAdvance(rows) {
     for (const u of us) nameMap[u.id] = u.full_name;
   }
   const dc = await liveDateChanges('advance', ids);
-  return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null }));
+  return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap, docsByAdvance[r.id]), date_change: dc[r.id] || null }));
 }
 async function serializeOneAdvance(row) { return (await serializeManyAdvance([row]))[0]; }
 async function loadAdvanceOr404(req, res) {
@@ -2661,8 +2669,10 @@ function normaliseAdvanceRequest(body) {
 }
 
 // Create a cash-advance request (phase 1). No lines yet; those arrive at
-// realization. Retries on an advance_no collision (see createClaim).
-async function createCashAdvance(req, purpose, amountCents, currency, approverIds, region) {
+// realization — but the request can carry its own supporting documents, which
+// link straight to the advance. Retries on an advance_no collision (see
+// createClaim).
+async function createCashAdvance(req, purpose, amountCents, currency, approverIds, region, docs) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const advanceNo = await nextAdvanceNo();
     const queries = [qq(
@@ -2674,6 +2684,11 @@ async function createCashAdvance(req, purpose, amountCents, currency, approverId
        String(region || ''), String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
        String(req.user.bank_account_no || '').trim(), purpose, amountCents, currency,
        intArrayLiteral(approverIds), approverIds.length ? 1 : 0])];
+    for (const d of (docs || [])) {
+      queries.push(qq(
+        `INSERT INTO attachments (advance_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES (currval(${ADV_SEQ}),$1,$2,$3,$4,$5)`, [d.url, d.pathname, d.original_name, d.mime, d.size]));
+    }
     queries.push(qq(
       `INSERT INTO cash_advance_history (advance_id, actor_id, actor_name, action, from_status, to_status, comment)
        VALUES (currval(${ADV_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
@@ -2702,9 +2717,19 @@ app.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
+  // Supporting documents were uploaded straight to Blob by the browser; verify
+  // them here and roll them back if the insert fails, exactly as claims do.
+  const checked = await verifyAttachments((req.body || {}).attachments);
+  if (checked.error) return res.status(400).json({ error: checked.error });
   const region = String(req.user.region || '');
   const currency = parsed.currency || (await regionPrefsFor(region)).currency;
-  const id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, currency, built.ids, region);
+  let id;
+  try {
+    id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, currency, built.ids, region, checked.items);
+  } catch (e) {
+    for (const u of checked.items) await deleteReceipt(u.url);
+    throw e;
+  }
   const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [id]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
@@ -2728,16 +2753,40 @@ app.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
     [row.employee_id]))[0] || {};
   const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
-  await q(
-    `UPDATE cash_advances SET claimant_name=$1, department=$2, bank_name=$3, recipient_name=$4,
-       bank_account_no=$5, purpose=$6, amount_cents=$7, currency=$8, status='submitted',
-       manager_comment='', manager_id=NULL, decided_at=NULL, approver_ids=$9::int[], current_step=$10, updated_at=now()
-     WHERE id=$11`,
-    [String(emp.full_name || '').trim(), String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
-     String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
-     parsed.purpose, parsed.amountCents,
-     parsed.currency || row.currency || (await regionPrefsFor(row.region)).currency, intArrayLiteral(built.ids),
-     built.ids.length ? 1 : 0, row.id]);
+  // Supporting documents: whatever the form sends back as kept survives, the
+  // rest is dropped (blob and all) and any fresh upload is verified and linked.
+  const checked = await verifyAttachments((req.body || {}).attachments);
+  if (checked.error) return res.status(400).json({ error: checked.error });
+  const existingDocs = await q('SELECT id, blob_url FROM attachments WHERE advance_id = $1', [row.id]);
+  const keepIds = new Set(asIntArray((req.body || {}).keep_attachment_ids));
+  const droppedDocs = existingDocs.filter(a => !keepIds.has(Number(a.id)));
+  if (existingDocs.length - droppedDocs.length + checked.items.length > MAX_FILES) {
+    for (const u of checked.items) await deleteReceipt(u.url);
+    return res.status(400).json({ error: `Maximum ${MAX_FILES} files` });
+  }
+  const currency = parsed.currency || row.currency || (await regionPrefsFor(row.region)).currency;
+  try {
+    const queries = [qq(
+      `UPDATE cash_advances SET claimant_name=$1, department=$2, bank_name=$3, recipient_name=$4,
+         bank_account_no=$5, purpose=$6, amount_cents=$7, currency=$8, status='submitted',
+         manager_comment='', manager_id=NULL, decided_at=NULL, approver_ids=$9::int[], current_step=$10, updated_at=now()
+       WHERE id=$11`,
+      [String(emp.full_name || '').trim(), String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
+       String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
+       parsed.purpose, parsed.amountCents, currency, intArrayLiteral(built.ids),
+       built.ids.length ? 1 : 0, row.id])];
+    for (const a of droppedDocs) queries.push(qq('DELETE FROM attachments WHERE id = $1', [a.id]));
+    for (const d of checked.items) {
+      queries.push(qq(
+        `INSERT INTO attachments (advance_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+         VALUES ($1,$2,$3,$4,$5,$6)`, [row.id, d.url, d.pathname, d.original_name, d.mime, d.size]));
+    }
+    await transaction(queries);
+  } catch (e) {
+    for (const u of checked.items) await deleteReceipt(u.url);
+    throw e;
+  }
+  for (const a of droppedDocs) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
   await logAdvanceHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body || {}).resubmit_note || '').trim());
   const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [row.id]);
   const first = currentApproverId(rows[0]);
@@ -3168,7 +3217,9 @@ app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
   res.json({ claim });
 }));
 
-// Download a realization receipt — auth-scoped, streamed from Blob.
+// Download a cash-advance file — either a phase-1 supporting document (linked to
+// the advance) or a realization receipt (linked to one of its lines).
+// Auth-scoped, streamed from Blob.
 app.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
@@ -3181,8 +3232,11 @@ app.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (req,
     return res.status(403).json({ error: 'You can only view your own attachments' });
   }
   const rows = await q(
-    `SELECT a.* FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id
-      WHERE a.id = $1 AND l.advance_id = $2`, [req.params.attId, row.id]);
+    `SELECT a.* FROM attachments a
+      WHERE a.id = $1
+        AND (a.advance_id = $2
+             OR a.advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $2))`,
+    [req.params.attId, row.id]);
   const att = rows[0];
   if (!att) return res.status(404).json({ error: 'Attachment not found' });
   const r = await fetch(att.blob_url);
@@ -3193,16 +3247,19 @@ app.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (req,
   res.send(Buffer.from(await r.arrayBuffer()));
 }));
 
-// Delete a cash advance outright (super admin only) — clears its realization
-// receipts (blobs), lines and history first.
+// Delete a cash advance outright (super admin only) — clears its supporting
+// documents and realization receipts (blobs), lines and history first.
 app.delete('/api/cash-advances/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
   const atts = await q(
-    `SELECT a.blob_url FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id WHERE l.advance_id = $1`, [row.id]);
+    `SELECT a.blob_url FROM attachments a
+      WHERE a.advance_id = $1
+         OR a.advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [row.id]);
   const advanceId = Number(row.id);
   await transaction([
-    qq(`DELETE FROM attachments WHERE advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
+    qq(`DELETE FROM attachments WHERE advance_id = $1
+          OR advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
     qq('DELETE FROM cash_advance_lines WHERE advance_id = $1', [advanceId]),
     qq('DELETE FROM cash_advance_history WHERE advance_id = $1', [advanceId]),
     qq('DELETE FROM cash_advances WHERE id = $1', [advanceId])

@@ -1475,3 +1475,33 @@ body.no-scroll { overflow: hidden; }
 .adv-diff-even   .adv-diff-msg { color: var(--muted); }
 .adv-settle.note-box.adv-diff-topup  { border-color: var(--amber); background: var(--amber-tint); }
 .adv-settle.note-box.adv-diff-return { border-color: var(--green); background: var(--green-tint); }
+
+/* Supporting documents on the cash-advance request form: a bordered block that
+   reads as one field, with the Attach button on the label row so it never
+   crowds the chips below it. */
+.adv-docs { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 14px; background: var(--surface); }
+.adv-docs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.adv-docs-label { font-size: .85rem; font-weight: 560; color: var(--ink-soft); }
+.adv-docs-head .btn { flex: none; white-space: nowrap; }
+.adv-docs-hint { margin: 6px 0 0; font-size: .78rem; line-height: 1.45; }
+.adv-docs .file-chips { margin-top: 10px; }
+.adv-docs .file-chips:empty { display: none; }   /* no dangling gap before a pick */
+.file-chip-size { color: var(--pine-deep); opacity: .72; font-family: var(--mono); font-size: .74rem; }
+
+/* The same documents in the detail drawer: one openable row per file. */
+.adv-doc-list { display: flex; flex-direction: column; gap: 7px; }
+.adv-doc {
+  display: flex; align-items: center; gap: 9px; padding: 9px 12px; text-decoration: none;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink);
+  transition: border-color .14s, background .14s;
+}
+.adv-doc:hover { border-color: var(--pine); background: var(--pine-tint); }
+.adv-doc-icon { flex: none; }
+.adv-doc-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: .88rem; text-decoration: underline; text-underline-offset: 2px; }
+.adv-doc-size { flex: none; color: var(--muted); font-size: .78rem; font-family: var(--mono); }
+
+@media (max-width: 560px) {
+  .adv-docs-head { flex-direction: column; align-items: stretch; gap: 8px; }
+  .adv-docs-head .btn { width: 100%; }
+}

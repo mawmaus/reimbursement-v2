@@ -2025,6 +2025,33 @@ async function rasterToPng(bytes, mime) {
   } finally { URL.revokeObjectURL(url); }
 }
 
+// Wrap a picked image in a one-page PDF so a cash-advance request only ever
+// carries PDFs (see processAdvanceDocs). The page is A4 in whichever
+// orientation matches the photo and the image is scaled to fit inside a small
+// margin, so nothing is cropped and the result prints cleanly. A JPEG is
+// embedded byte-for-byte — no re-encode, so the file barely grows; anything
+// else is rasterised to PNG first, which covers png/webp/gif and whatever the
+// browser can decode. Returns a new File named "<original>.pdf".
+async function imageToPdfFile(file) {
+  const { PDFDocument } = await loadPdfLib();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const pdf = await PDFDocument.create();
+  const img = /^image\/jpe?g$/i.test(file.type || '')
+    ? await pdf.embedJpg(bytes)
+    : await pdf.embedPng((await rasterToPng(bytes, file.type)).bytes);
+  const A_LONG = 841.89, A_SHORT = 595.28, MARGIN = 18;
+  const landscape = img.width > img.height;
+  const pw = landscape ? A_LONG : A_SHORT;
+  const ph = landscape ? A_SHORT : A_LONG;
+  const page = pdf.addPage([pw, ph]);
+  const s = Math.min((pw - 2 * MARGIN) / img.width, (ph - 2 * MARGIN) / img.height);
+  const w = img.width * s, h = img.height * s;
+  page.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+  const out = await pdf.save();
+  const name = file.name.replace(/\.[^.]+$/, '') + '.pdf';
+  return new File([out], name, { type: 'application/pdf', lastModified: Date.now() });
+}
+
 // Helvetica is WinAnsi-only; drop anything it can't encode and normalise the
 // few smart-punctuation characters that show up in names/comments.
 function pdfSafe(s) {
@@ -2307,11 +2334,13 @@ async function buildClaimsPdf(claims) {
     drawDetails(c);
     drawApprovals(c);
     drawHistory(c);
-    // Claims expose a flat top-level list; cash advances keep receipts per line,
-    // so fall back to flattening the lines when there's no top-level list.
-    const atts = (c.attachments && c.attachments.length)
-      ? c.attachments
-      : (c.lines || []).flatMap(l => l.attachments || []);
+    // Claims expose a flat top-level list; cash advances can carry both — the
+    // request's supporting documents at the top level and the realization's
+    // receipts per line — so those are concatenated rather than preferred.
+    const lineAtts = (c.lines || []).flatMap(l => l.attachments || []);
+    const atts = c.type === 'advance'
+      ? (c.attachments || []).concat(lineAtts)
+      : ((c.attachments && c.attachments.length) ? c.attachments : lineAtts);
     if (atts.length) {
       section(`Attachments (${atts.length})`);
       atts.forEach(a => line(`- ${a.original_name}  (${fmtBytes(a.size_bytes)})`, { size: 9, gap: 3 }));
@@ -2578,6 +2607,17 @@ function advanceBody(c) {
     ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
     : `<span class="muted">${esc(t('—'))}</span>`;
   const hasLines = (c.lines || []).length > 0;
+  // Phase-1 supporting documents, shown between the request details and the
+  // realization so an approver reads the justification before the spend.
+  const docs = c.attachments || [];
+  const docsBox = docs.length ? `
+    <div class="section-label">${esc(t('Supporting documents'))}</div>
+    <div class="adv-doc-list">${docs.map(a => `
+      <a class="adv-doc" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">
+        <span class="adv-doc-icon" aria-hidden="true">📄</span>
+        <span class="adv-doc-name" title="${esc(a.original_name)}">${esc(a.original_name)}</span>
+        <span class="adv-doc-size">${esc(fmtBytes(a.size_bytes))}</span>
+      </a>`).join('')}</div>` : '';
   const linesTable = hasLines ? `
     <div class="section-label">${esc(t('Realization — actual transactions'))}</div>
     <div class="meal-table-wrap">
@@ -2624,6 +2664,7 @@ function advanceBody(c) {
       <dt>${esc(t('Purpose'))}</dt><dd>${esc(c.purpose)}</dd>
       <dt>${esc(t('Advance requested'))}</dt><dd><strong>${esc(money(c.amount, c.currency))}</strong></dd>
     </dl>
+    ${docsBox}
     ${linesTable}
     ${settleBox}`;
 }
@@ -4752,6 +4793,42 @@ async function processFiles(list, alreadyCount = 0) {
   }
   return out;
 }
+
+// Same intake as processFiles, but for a cash-advance request's supporting
+// documents: every accepted file leaves as a PDF. A PDF is taken as-is; an
+// image (including an iPhone HEIC) is converted, so finance receives one
+// format it can open, print and staple to the voucher regardless of what the
+// requester had on their phone. No photo editor here — these are documents
+// (a quotation, a proforma invoice), not receipts needing a capture stamp.
+async function processAdvanceDocs(list, alreadyCount = 0) {
+  const out = [];
+  for (const f of Array.from(list)) {
+    if (alreadyCount + out.length >= 8) { toast(t('Maximum 8 files'), true); break; }
+    if (!isAllowedUpload(f)) { toast(t('{name}: only PDF or image files are allowed', { name: f.name }), true); continue; }
+    let file = f;
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '')) {
+      if (file.size > MAX_UPLOAD) { toast(t('{name} exceeds 10 MB', { name: f.name }), true); continue; }
+      out.push(file);
+      continue;
+    }
+    if (isHeic(file)) {
+      try { file = await heicToJpeg(file); }
+      catch { toast(t("{name}: couldn't read this iPhone photo", { name: f.name }), true); continue; }
+    }
+    // Shrink before wrapping: embedJpg keeps the photo's own bytes, so a
+    // compressed photo is what keeps the PDF under the upload cap.
+    if (file.size > COMPRESS_TARGET && file.type !== 'image/gif') {
+      try { file = await compressImage(file, COMPRESS_TARGET); }
+      catch { toast(t("{name}: couldn't compress — please shrink it and retry", { name: f.name }), true); continue; }
+    }
+    toast(t('Converting {name} to PDF…', { name: f.name }));
+    try { file = await imageToPdfFile(file); }
+    catch { toast(t("{name}: couldn't be converted to PDF", { name: f.name }), true); continue; }
+    if (file.size > MAX_UPLOAD) { toast(t('{name} exceeds 10 MB', { name: f.name }), true); continue; }
+    out.push(file);
+  }
+  return out;
+}
 // Chips for the claim's receipts: the ones already saved (openable, so the
 // claimant can check what is there before replacing it) followed by the files
 // picked in this session. Removing either kind is what drops it from the claim.
@@ -5173,11 +5250,41 @@ $('#newMealBtn').addEventListener('click', () => {
 // (once paid): realize it by submitting the actual transactions as an itemised
 // line table with receipts — the same editor as a reimbursement claim.
 // ---------------------------------------------------------------------------
-// Stage 1 request form: purpose + amount (+ Approver 1 when chooseable). Reused
-// for editing a rejected request.
+// Supporting documents on the open request form. `advDocs` holds the files
+// picked in this session (already converted to PDF); `advKeptDocs` the ones
+// already saved on a rejected request that the claimant is keeping. Both live
+// outside the DOM so a re-render of the chips never loses them. A draft can't
+// carry either — localStorage holds no files — so a saved draft comes back with
+// the text fields only.
+let advDocs = [];
+let advKeptDocs = [];
+let advEditId = null;
+function advDocChips() {
+  const kept = advKeptDocs.map((a, i) =>
+    `<span class="file-chip file-chip-saved">` +
+    `<a href="/api/cash-advances/${advEditId}/attachments/${a.id}" target="_blank" rel="noopener">${esc(a.original_name)}</a>` +
+    `<button type="button" data-doc="kept" data-i="${i}" aria-label="${esc(t('Remove'))} ${esc(a.original_name)}">×</button></span>`);
+  const picked = advDocs.map((f, i) =>
+    `<span class="file-chip">${esc(f.name)} <span class="file-chip-size">${esc(fmtBytes(f.size))}</span>` +
+    `<button type="button" data-doc="new" data-i="${i}" aria-label="${esc(t('Remove'))} ${esc(f.name)}">×</button></span>`);
+  return kept.concat(picked).join('');
+}
+function renderAdvDocs() {
+  const wrap = $('#advDocChips'); if (!wrap) return;
+  wrap.innerHTML = advDocChips();
+  $$('#advDocChips button').forEach(b => b.addEventListener('click', () => {
+    (b.dataset.doc === 'kept' ? advKeptDocs : advDocs).splice(+b.dataset.i, 1);
+    renderAdvDocs();
+  }));
+}
+// Stage 1 request form: purpose + amount + supporting documents (+ Approver 1
+// when chooseable). Reused for editing a rejected request.
 function openAdvanceRequestModal(existing = null) {
   const isEdit = !!existing;
   const draft = isEdit ? null : loadDraft('advance');
+  advDocs = [];
+  advKeptDocs = isEdit ? (existing.attachments || []).map(a => ({ id: a.id, original_name: a.original_name })) : [];
+  advEditId = isEdit ? existing.id : null;
   // For a new request, seed the fields from the saved draft if there is one.
   const prePurpose = isEdit ? (existing.purpose || '') : (draft ? draft.data.purpose || '' : '');
   const preAmount = isEdit
@@ -5196,6 +5303,15 @@ function openAdvanceRequestModal(existing = null) {
           <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(prePurpose)}</textarea></label>
         <label class="full">${esc(t('Amount needed'))} <span style="color:var(--danger,#d33)">*</span>
           <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(preAmount)}" /></label>
+        <div class="full adv-docs">
+          <div class="adv-docs-head">
+            <span class="adv-docs-label">${esc(t('Supporting documents (optional)'))}</span>
+            <button type="button" class="btn btn-brand-soft btn-sm" id="advDocAdd">📎 ${esc(t('Attach file'))}</button>
+          </div>
+          <p class="adv-docs-hint muted">${esc(t('A quotation, proforma invoice or booking confirmation. Attach a PDF or a photo — photos are converted to PDF automatically. Up to 8 files, 10 MB each.'))}</p>
+          <div class="file-chips" id="advDocChips"></div>
+          <input type="file" id="advDocInput" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
+        </div>
         ${approver1PickerHtml(existing)}
         ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
           <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
@@ -5211,27 +5327,51 @@ function openAdvanceRequestModal(existing = null) {
   $('#advCancel').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('advance'));
   const amt = $('#advForm [name="amount"]');
   amt.addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
+  $('#advDocAdd').addEventListener('click', () => $('#advDocInput').click());
+  $('#advDocInput').addEventListener('change', async (ev) => {
+    const btn = $('#advDocAdd'), label = btn.innerHTML;
+    btn.disabled = true; btn.textContent = t('Converting…');
+    try {
+      advDocs = advDocs.concat(await processAdvanceDocs(ev.target.files, advDocs.length + advKeptDocs.length));
+    } finally {
+      btn.disabled = false; btn.innerHTML = label;
+      ev.target.value = ''; // so re-picking the same file fires change again
+      renderAdvDocs();
+    }
+  });
+  renderAdvDocs();
   $('#advForm').addEventListener('submit', e => submitAdvanceRequest(e, existing));
   if (!isEdit) {
     if (draft && draft.data.approver1) {
       const sel = $('#advForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
     }
-    $('#advSaveDraft').addEventListener('click', () => saveDraftAndClose('advance', collectAdvanceDraft));
-    armDraftAutosave('advance', collectAdvanceDraft);
+    $('#advSaveDraft').addEventListener('click', () => saveDraftAndClose('advance', collectAdvanceDraft, collectAdvanceDocFiles));
+    armDraftAutosave('advance', collectAdvanceDraft, collectAdvanceDocFiles);
     if (draft) wireDraftBanner('advance', () => openAdvanceRequestModal());
+    // Bring the draft's documents back from IndexedDB (they are already PDFs,
+    // so nothing is re-converted) and redraw the chips once they land.
+    if (draft) loadDraftFiles('advance').then(perRow => {
+      if (!perRow || !Array.isArray(perRow[0])) return;
+      advDocs = perRow[0];
+      renderAdvDocs();
+    });
   }
 }
-// Gather the cash-advance form's fields into a draft payload, or null when both
-// the purpose and the amount are empty.
+// Gather the cash-advance form's fields into a draft payload, or null when the
+// form is effectively empty. A document attached on its own is worth keeping,
+// so it counts as content even with no purpose or amount typed yet.
 function collectAdvanceDraft() {
   const f = $('#advForm'); if (!f) return null;
   const purpose = ((f.querySelector('[name="purpose"]') || {}).value || '').trim();
   const amountRaw = ((f.querySelector('[name="amount"]') || {}).value || '');
   const amount = String(amountRaw).replace(/[^0-9.]/g, '');
-  if (!purpose && !amount) return null;
+  if (!purpose && !amount && !advDocs.length) return null;
   const approver1 = ((f.querySelector('[name="approver1"]') || {}).value) || '';
   return { purpose, amount, approver1 };
 }
+// The supporting documents to persist alongside the draft. Shaped as the
+// per-"row" array saveDraftFiles expects; a cash advance has just the one.
+function collectAdvanceDocFiles() { return [advDocs.slice()]; }
 
 async function submitAdvanceRequest(e, existing) {
   e.preventDefault();
@@ -5245,12 +5385,19 @@ async function submitAdvanceRequest(e, existing) {
   const approver1 = String(fd.get('approver1') || '').trim();
   if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
   const btn = e.target.querySelector('button[type="submit"]');
+  const label = btn.textContent;
   btn.disabled = true;
   const payload = { purpose, amount, currency: regionCurrency() };
   if (needsApprover1) payload.approver1 = Number(approver1);
   try {
+    // Documents go to Blob first (same routing as receipts); the request itself
+    // then carries only their metadata.
+    if (advDocs.length) btn.textContent = t('Uploading documents…');
+    payload.attachments = advDocs.length ? await uploadReceipts(advDocs) : [];
+    btn.textContent = t('Submitting…');
     if (existing) {
       payload.resubmit_note = String(fd.get('resubmit_note') || '').trim();
+      payload.keep_attachment_ids = advKeptDocs.map(a => a.id);
       await api('/cash-advances/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
       toast(t('Cash advance resubmitted'));
     } else {
@@ -5260,7 +5407,7 @@ async function submitAdvanceRequest(e, existing) {
     }
     modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
-  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; btn.textContent = label; }
 }
 $('#newAdvanceBtn').addEventListener('click', () => openAdvanceRequestModal());
 
