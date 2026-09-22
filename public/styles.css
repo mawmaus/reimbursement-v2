@@ -780,21 +780,24 @@ input[type="search"] { min-width: 220px; }
 /* Accounts table: keep it inside the modal — long emails wrap instead of
    forcing a horizontal scroll, and the username sits under the name. */
 .utable td, .utable th { overflow-wrap: anywhere; }
-/* Seven columns (User, Email, Role, Region, Dept/Position, Active, Actions);
-   widths sum to 100% so table-layout:fixed never overflows its container. */
+/* Eight columns (User, Email, Role, Region, Dept/Position, Cash advance, Active,
+   Actions); widths sum to 100% so table-layout:fixed never overflows its
+   container. Below 900px the rows reflow into cards and these widths drop out. */
 .utable-users { table-layout: fixed; width: 100%; }
-.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 22%; }
-.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 20%; }
-.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 11%; }
-.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 12%; }
-.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 16%; }
-.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 8%; }
-.utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 11%; }
-/* Role/Region/Active hold single short words — don't let the global
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 20%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 17%; }
+.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 10%; }
+.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 10%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 14%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 11%; }
+.utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 7%; }
+.utable-users th:nth-child(8), .utable-users td:nth-child(8) { width: 11%; }
+/* Role/Region/Cash advance/Active hold single short words — don't let the global
    anywhere-break chop "Super Admin" / "Active" mid-word on narrower tablets. */
 .utable-users td:nth-child(3), .utable-users th:nth-child(3),
 .utable-users td:nth-child(4), .utable-users th:nth-child(4),
-.utable-users td:nth-child(6), .utable-users th:nth-child(6) { overflow-wrap: normal; }
+.utable-users td:nth-child(6), .utable-users th:nth-child(6),
+.utable-users td:nth-child(7), .utable-users th:nth-child(7) { overflow-wrap: normal; }
 /* Delegated "Manage accounts" table: wider actions column, and its cells must
    never break words (the buttons live here). Two column layouts: the default
    5-column (User, Email, Position, Active, Actions), and the 6-column variant

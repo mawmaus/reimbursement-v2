@@ -317,6 +317,14 @@ function uCan(cap) {
 function canPay(u) {
   return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
 }
+// Cash advance is a per-account grant (users.allow_advance) set by a super admin
+// in the account editor — not a department / job-position / role gate. Super
+// admins always hold it, whatever the stored flag says (mirrors the server's
+// computePurposes). Own access comes from purposes.advance; this reads OTHER
+// accounts' rows in the Settings list.
+function hasAdvanceGrant(u) {
+  return !!(u && (u.allow_advance || u.role === 'superadmin'));
+}
 // Advance oversight: Finance and CM/MD (admin) roles, plus super admin (who sits
 // above them) and Finance-AP (anyone who records payments — canPay). These track
 // every cash advance's disbursement vs settlement, so the Realized/Unrealized
@@ -1086,7 +1094,11 @@ function renderHome() {
   // Cash-advance realization tiles: disbursed-but-unrealized vs realized. Finance
   // and CM/MD (which track disbursement vs settlement across everyone) always see
   // them; other users only when cash advance is part of their menu, scoped to own.
-  if (seesAllAdvances(u) || (u.purposes && u.purposes.advance)) {
+  // …and, because the grant is per-account and revocable, whenever the account
+  // still holds advances of its own: revoking mid-flight must not hide an
+  // already-paid advance the holder still has to realize.
+  if (seesAllAdvances(u) || (u.purposes && u.purposes.advance)
+      || unrealizedQueue().length || realizedQueue().length) {
     tiles.push({ key: 'unrealized', title: t('Unrealized cash advances'), desc: t('Advances paid — awaiting realization'), count: unrealizedQueue().length });
     tiles.push({ key: 'realized', title: t('Realized cash advances'), desc: t('Advances with realization approved'), count: realizedQueue().length });
   }
@@ -6345,7 +6357,9 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   try { ({ items } = await api(cfg.path + regionQS)); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
 
-  const p = !!cfg.purposes;         // purpose gates (New claim / New meal allowance)
+  // Purpose gates — New claim / New meal allowance only. Cash advance is NOT one
+  // of them: it is a per-account grant in the account editor (see hasAdvanceGrant).
+  const p = !!cfg.purposes;
   const ranked = !!cfg.ranked;      // reorderable seniority ladder (job positions)
   const manage = !!cfg.manage;      // "Can manage accounts" delegation flag
   const noun = t(cfg.noun);         // localised singular noun for this lookup
@@ -6359,10 +6373,10 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
       </div></td>`;
   const headCols = (ranked ? `<th style="width:64px">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th><th>${esc(t('Active'))}</th>`
-    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th><th>${esc(t('New cash advance'))}</th>` : '')
+    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th>` : '')
     + (manage ? `<th>${esc(t('Manage accounts'))}</th>` : '')
     + '<th class="u-actions-h"></th>';
-  const colspan = 2 + (ranked ? 1 : 0) + (p ? 3 : 0) + (manage ? 1 : 0) + 1;
+  const colspan = 2 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="form" style="margin-bottom:10px">
@@ -6384,7 +6398,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
             ${ranked ? orderCell(it, i) : ''}
             <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
             <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
-            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) + flagCell(it, 'allow_advance', t('New cash advance')) : ''}
+            ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
             <td class="act-cell" data-label="${esc(t('Actions'))}">
               <div class="u-actions">
@@ -6488,7 +6502,9 @@ let accountsSort = { key: 'full_name', dir: 1 };
 // Sort a copy of the accounts by the active column, always tie-breaking on name.
 function sortAccounts(users) {
   const { key, dir } = accountsSort;
-  const val = (u) => key === 'active' ? (u.active ? 1 : 0) : String(u[key] || '').toLowerCase();
+  const val = (u) => key === 'allow_advance' ? (hasAdvanceGrant(u) ? 1 : 0)
+    : key === 'active' ? (u.active ? 1 : 0)
+    : String(u[key] || '').toLowerCase();
   const name = (u) => String(u.full_name || '').toLowerCase();
   return [...users].sort((a, b) => {
     const va = val(a), vb = val(b);
@@ -6601,7 +6617,7 @@ function paintAccounts() {
     </div>
     <div class="settings-list">
       <table class="utable utable-users">
-        <thead><tr>${th('full_name', t('User'))}${th('email', t('Email'))}${th('role', t('Role'))}${th('region', t('Region'))}${th('department', t('Dept / Position'))}${th('active', t('Active'))}<th></th></tr></thead>
+        <thead><tr>${th('full_name', t('User'))}${th('email', t('Email'))}${th('role', t('Role'))}${th('region', t('Region'))}${th('department', t('Dept / Position'))}${th('allow_advance', t('Cash advance'))}${th('active', t('Active'))}<th></th></tr></thead>
         <tbody>${sorted.map(u => `
           <tr>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
@@ -6609,6 +6625,7 @@ function paintAccounts() {
             <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${u.approval_limit_cents == null ? esc(t('Approves any amount')) : esc(t('Approves ≤ {amount}', { amount: money(u.approval_limit_cents / 100) }))}</div></td>
             <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
+            <td data-label="${esc(t('Cash advance'))}">${hasAdvanceGrant(u) ? esc(t('Yes')) : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
             <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'employee')
               ? `<div class="u-actions">
@@ -6813,6 +6830,8 @@ function renderUserForm(u) {
       ${state.user.role === 'superadmin' ? `
       <div class="section-label" style="margin-top:8px">${esc(t('Permissions'))}</div>
       <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>
+      <label class="perm-check"><input type="checkbox" name="allow_advance" ${isEdit && u.allow_advance ? 'checked' : ''} /> <span>${esc(t('Can request cash advances'))}</span></label>
+      <p class="muted" style="font-size:.82rem;margin:6px 0 0">${esc(t('Cash advance is granted per account — the department and job-position lists no longer control it.'))}</p>
       <div class="section-label" style="margin-top:8px">${esc(t('Approval limit'))}</div>
       <label class="perm-check"><input type="checkbox" name="approval_unlimited" ${(isEdit ? u.approval_limit_cents == null : true) ? 'checked' : ''} /> <span>${esc(t('Unlimited — can approve a claim of any amount'))}</span></label>
       <label id="apprLimitWrap" style="margin-top:8px">${esc(t('Maximum claim amount this account can approve'))}
@@ -6903,6 +6922,7 @@ function renderUserForm(u) {
     };
     if (state.user.role === 'superadmin') {
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
+      payload.allow_advance = fd.get('allow_advance') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
       payload.region = fd.get('region') || '';
       const unlimited = fd.get('approval_unlimited') === 'on';

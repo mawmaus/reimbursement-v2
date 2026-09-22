@@ -413,10 +413,33 @@ const SCHEMA = [
   // A receipt now belongs to EITHER a claim or a cash-advance line, so claim_id
   // can no longer be mandatory — realization receipts have advance_line_id only.
   `ALTER TABLE attachments ALTER COLUMN claim_id DROP NOT NULL`,
-  // Cash advance is a third front-page purpose, gated per department AND job
-  // position like New Claim / New Meal Allowance.
+  // Cash advance USED to be a third front-page purpose gated per department AND
+  // job position, like New Claim / New Meal Allowance. It is now a PER-ACCOUNT
+  // grant (users.allow_advance, below): neither department, job position nor role
+  // has any say, so two colleagues sharing both can differ. These two columns
+  // survive only so the one-time backfill below can read the old configuration —
+  // nothing else reads or writes them, and their Settings tick columns are gone.
   `ALTER TABLE departments   ADD COLUMN IF NOT EXISTS allow_advance BOOLEAN NOT NULL DEFAULT FALSE`,
   `ALTER TABLE job_positions ADD COLUMN IF NOT EXISTS allow_advance BOOLEAN NOT NULL DEFAULT FALSE`,
+  // The per-account grant, handed out by a super admin in the account editor.
+  // Added NULLABLE on purpose: the UPDATE right below claims exactly the rows
+  // that predate the column and carries over whoever could raise an advance under
+  // the old department-AND-position rule, so nobody loses access the day this
+  // ships. The SET NOT NULL that follows then makes that UPDATE a permanent
+  // no-op — a later migration run can never silently re-grant a revoked account.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS allow_advance BOOLEAN`,
+  `UPDATE users u SET allow_advance = (
+       u.role = 'superadmin'
+       OR (EXISTS (SELECT 1 FROM departments d
+                    WHERE lower(d.name) = lower(u.department) AND d.active AND d.allow_advance
+                      AND (u.region IN ('', '*') OR d.region = u.region))
+           AND
+           EXISTS (SELECT 1 FROM job_positions p
+                    WHERE lower(p.name) = lower(u.position) AND p.active AND p.allow_advance
+                      AND (u.region IN ('', '*') OR p.region = u.region)))
+     ) WHERE u.allow_advance IS NULL`,
+  `ALTER TABLE users ALTER COLUMN allow_advance SET DEFAULT FALSE`,
+  `ALTER TABLE users ALTER COLUMN allow_advance SET NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_adv_lines_advance   ON cash_advance_lines(advance_id)`,
   `CREATE INDEX IF NOT EXISTS idx_adv_history_advance ON cash_advance_history(advance_id)`,
   `CREATE INDEX IF NOT EXISTS idx_adv_employee        ON cash_advances(employee_id)`,

@@ -599,7 +599,7 @@ function claimWindowView(settings, region) {
 async function loadUser(req) {
   const id = req.session && req.session.userId;
   if (!id) return null;
-  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, language, region, active FROM users WHERE id = $1', [id]);
+  const rows = await q('SELECT id, username, full_name, email, role, department, position, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, language, region, active FROM users WHERE id = $1', [id]);
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
@@ -971,11 +971,18 @@ async function openClaimsAwaitingApprover(userId) {
 }
 
 // --- Front-page purposes ----------------------------------------------------
-// Which "purpose" buttons (New Claim / New Meal Allowance) a user may see. A
-// purpose is visible only when it is enabled on BOTH the user's department and
-// their job position (AND). Unknown/blank department or position => nothing.
+// Which "purpose" buttons (New Claim / New Meal Allowance / New Cash Advance) a
+// user may see.
+//   New Claim / New Meal Allowance are ORG gates: each is visible only when it is
+//     enabled on BOTH the user's department and their job position (AND), so an
+//     unknown/blank department or position offers neither.
+//   New Cash Advance is a PER-ACCOUNT grant (users.allow_advance) a super admin
+//     hands out in the account editor. Department, job position and role play no
+//     part — two colleagues sharing both can differ — so it also survives a blank
+//     department/position, unlike the two org gates.
 async function computePurposes(user) {
-  const empty = { claim: false, meal: false, advance: false };
+  const advance = user.role === 'superadmin' || user.allow_advance === true;
+  const empty = { claim: false, meal: false, advance };
   // Superadmins can do everything: always show all three purpose buttons,
   // regardless of their own department/position/region flags.
   if (user.role === 'superadmin') return { claim: true, meal: true, advance: true };
@@ -988,18 +995,18 @@ async function computePurposes(user) {
   const concrete = region && region !== ALL_REGIONS;
   const [drows, prows] = await Promise.all([
     concrete
-      ? q('SELECT allow_claim, allow_meal, allow_advance FROM departments   WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [dept, region])
-      : q('SELECT allow_claim, allow_meal, allow_advance FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
+      ? q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [dept, region])
+      : q('SELECT allow_claim, allow_meal FROM departments   WHERE lower(name) = lower($1) AND active = TRUE', [dept]),
     concrete
-      ? q('SELECT allow_claim, allow_meal, allow_advance FROM job_positions WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [pos, region])
-      : q('SELECT allow_claim, allow_meal, allow_advance FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
+      ? q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND region = $2 AND active = TRUE', [pos, region])
+      : q('SELECT allow_claim, allow_meal FROM job_positions WHERE lower(name) = lower($1) AND active = TRUE', [pos])
   ]);
   const d = drows[0], p = prows[0];
   if (!d || !p) return empty;
   return {
     claim: !!(d.allow_claim && p.allow_claim),
     meal: !!(d.allow_meal && p.allow_meal),
-    advance: !!(d.allow_advance && p.allow_advance)
+    advance
   };
 }
 
@@ -1207,6 +1214,7 @@ app.post('/api/login', ah(async (req, res) => {
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
+    allow_advance: !!user.allow_advance,
     language: normLang(user.language), region: user.region || '',
     ...(await regionPrefsFor(user.region)),
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
@@ -2638,6 +2646,12 @@ async function createCashAdvance(req, purpose, amountCents, currency, approverId
 }
 
 app.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
+  // The grant lives on the account and is enforced here, not merely hidden in the
+  // UI. Only CREATION is gated: an account whose grant is revoked mid-flight can
+  // still realize and settle advances it was already paid, so no money strands.
+  if (!(await computePurposes(req.user)).advance) {
+    return res.status(403).json({ error: 'You do not have permission to request a cash advance' });
+  }
   const parsed = normaliseAdvanceRequest(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
@@ -3727,7 +3741,7 @@ app.get('/api/users', requireAuth, ah(async (req, res) => {
   if (!isSuper && !hasDelegation(req.user, pos)) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, active, created_by, created_by_name, created_at';
+  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, active, created_by, created_by_name, created_at';
   let users;
   if (isSuper) {
     users = await q(`SELECT ${cols} FROM users ORDER BY id`);
@@ -3788,18 +3802,21 @@ app.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req
   if (are) return res.status(400).json({ error: are });
   // Only a super admin may grant the mark-paid permission.
   const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
+  // Same for the cash-advance grant: it is a per-account permission now, so a
+  // delegated creator's accounts start without it and a super admin grants it.
+  const allowAdvanceFlag = isSuper && isActive((req.body || {}).allow_advance);
   // Approval limit (cents; null = unlimited). Defaults to unlimited when the
   // caller omits both fields, preserving the historical any-amount behaviour.
   const limit = parseApprovalLimit(req.body || {});
   if (limit.error) return res.status(400).json({ error: limit.error });
   const rows = await q(
-    `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, approval_limit_cents, created_by, created_by_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16,$17) RETURNING id`,
+    `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, created_by, created_by_name)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16,$17,$18) RETURNING id`,
     [String(username).trim(), bcrypt.hashSync(String(password), 10), String(full_name).trim(), role,
      String(department || '').trim(), String(position || '').trim(), region, nextEmail,
      String(bank_name || '').trim(), String(recipient_name || '').trim(),
      String(bank_account_no || '').trim(), intArrayLiteral(apprIds),
-     intArrayLiteral(appr1Ids), canMarkPaidFlag, limit.cents,
+     intArrayLiteral(appr1Ids), canMarkPaidFlag, allowAdvanceFlag, limit.cents,
      req.user.id, req.user.full_name || req.user.username || '']);
   res.status(201).json({ id: rows[0].id });
 }));
@@ -3808,7 +3825,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
   const { username, full_name, role, department, position, region, active, password, email,
-    bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid } = req.body || {};
+    bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid,
+    allow_advance } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   let nextRegion = u.region;
   if (region !== undefined) {
@@ -3861,7 +3879,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
   }
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
-             can_mark_paid=$12, approver1_options=$14::int[], region=$15, approval_limit_cents=$16 WHERE id=$13`, [
+             can_mark_paid=$12, approver1_options=$14::int[], region=$15, approval_limit_cents=$16,
+             allow_advance=$17 WHERE id=$13`, [
     nextUsername,
     full_name != null ? String(full_name).trim() : u.full_name,
     role || u.role,
@@ -3877,7 +3896,8 @@ app.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req,
     u.id,
     intArrayLiteral(nextApprover1Options),
     nextRegion,
-    nextLimit
+    nextLimit,
+    allow_advance !== undefined ? isActive(allow_advance) : u.allow_advance
   ]);
   if (password) {
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -4069,8 +4089,11 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     res.json({ ok: true });
   }));
 }
-lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal', 'allow_advance'], { regional: true });
-lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'allow_advance', 'can_manage'], { ranked: true, regional: true });
+// `allow_advance` is deliberately absent from both flag lists: cash advance is a
+// per-account grant now (users.allow_advance), so these lookups neither return
+// nor accept it — the columns are inert leftovers the migration backfill read.
+lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true });
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true });
 lookupRoutes('expense-types', 'expense_types', [], { regional: true });
 lookupRoutes('regions', 'regions');
 
