@@ -72,6 +72,9 @@
     <!-- Clean landing after login: pick a list to open. -->
     <section id="homeView" class="home">
       <p class="home-greeting" id="homeGreeting"></p>
+      <!-- Why "New claim" / "New meal allowance" are greyed out, when they are:
+           an unrealized cash advance holds them. Filled by renderHome(). -->
+      <div class="home-notice" id="advanceHoldNotice" hidden></div>
       <div class="home-menu" id="homeMenu"></div>
     </section>
 

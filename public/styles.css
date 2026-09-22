@@ -175,6 +175,17 @@ input[type="search"] { min-width: 220px; }
 /* ---------- Home menu (clean landing) ---------- */
 .home { padding: 8px 0; }
 .home-greeting { color: var(--ink-soft); font-size: 1.05rem; margin: 6px 2px 20px; }
+/* The unrealized-advance hold, explained above the menu so the two disabled
+   "New …" buttons in the top bar are never a mystery. Wraps to its own line on
+   a phone, where the action button drops under the text. */
+.home-notice {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--amber-tint); color: var(--amber);
+  border-radius: 10px; padding: 11px 14px; margin: 0 2px 18px;
+  font-size: .88rem; line-height: 1.45;
+}
+.home-notice-txt { flex: 1 1 240px; }
+.home-notice .btn { flex: none; }
 .home-menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .home-tile {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;

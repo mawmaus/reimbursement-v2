@@ -317,6 +317,35 @@ function uCan(cap) {
 function canPay(u) {
   return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
 }
+// --- Unrealized-advance hold -------------------------------------------------
+// A disbursed cash advance that has not been realized puts this account's New
+// Claim / New Meal Allowance on hold (the server refuses those submissions too —
+// see heldByUnrealizedAdvance). The count is server-computed and deliberately
+// ignores the ledger filters, so a filtered view can never look like the hold
+// has lifted. Raising another cash advance is NOT held, and neither is
+// resubmitting a rejected claim.
+function advanceHold() {
+  return Math.max(0, Number(state.user && state.user.my_unrealized_advances) || 0);
+}
+function advanceHoldReason() {
+  const n = advanceHold();
+  return n === 1
+    ? t('Realize your outstanding cash advance first.')
+    : t('Realize your {n} outstanding cash advances first.', { n });
+}
+// Disabled, never hidden: a button that vanishes reads as a bug, and the title
+// says why it is greyed out. renderHome() puts the same reason on the page.
+function applyAdvanceHold() {
+  const n = advanceHold();
+  const why = advanceHoldReason();
+  for (const sel of ['#newClaimBtn', '#newMealBtn']) {
+    const btn = $(sel);
+    if (!btn) continue;
+    btn.disabled = n > 0;
+    if (n > 0) btn.title = why; else btn.removeAttribute('title');
+  }
+}
+
 // Cash advance is a per-account grant (users.allow_advance) set by a super admin
 // in the account editor — not a department / job-position / role gate. Super
 // admins always hold it, whatever the stored flag says (mirrors the server's
@@ -388,6 +417,14 @@ function showApp() {
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
   $('#newAdvanceBtn').hidden = !purposes.advance;
+  // An unrealized cash advance greys out New Claim / New Meal Allowance. The
+  // count arrives on the user payload, so this is right before the first fetch;
+  // loadClaims() refreshes it after every ledger load. The home notice is DOM,
+  // so clear it here too, or a previous account's hold lingers on screen through
+  // a same-tab login switch until the first renderHome().
+  const holdNotice = $('#advanceHoldNotice');
+  if (holdNotice) { holdNotice.hidden = true; holdNotice.innerHTML = ''; }
+  applyAdvanceHold();
   // Light up a "draft waiting" dot on any New button that has a saved draft.
   refreshDraftBadges();
   const isSuper = u.role === 'superadmin';
@@ -740,6 +777,12 @@ async function loadClaims() {
   const reimb = (r.claims || []).map(c => ({ ...c, type: 'reimbursement' }));
   const meal = (m.claims || []).map(c => ({ ...c, type: 'meal' }));
   const adv = (a.claims || []).map(c => ({ ...c, type: 'advance' }));
+  // Read the hold off the response rather than counting the rows just fetched:
+  // those are filtered, my_unrealized is not.
+  if (state.user && typeof a.my_unrealized === 'number') {
+    state.user.my_unrealized_advances = a.my_unrealized;
+  }
+  applyAdvanceHold();
   state.claims = [...reimb, ...meal, ...adv].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
   // Drop selections for claims no longer in the current view.
   const avail = new Set(state.claims.map(c => claimKey(c.type, c.id)));
@@ -1065,6 +1108,22 @@ function renderHome() {
   if (!menu || !state.user) return;
   const u = state.user;
   $('#homeGreeting').textContent = u.full_name ? t('Hi {name} — what would you like to open?', { name: u.full_name.split(' ')[0] }) : '';
+  // Two greyed-out buttons in the top bar need a reason on the page, plus a way
+  // straight to the advances that caused it.
+  const hold = advanceHold();
+  const notice = $('#advanceHoldNotice');
+  if (notice) {
+    notice.hidden = !hold;
+    if (hold) {
+      notice.innerHTML = `<span class="home-notice-txt">${esc(hold === 1
+          ? t('You have a cash advance waiting to be realized. New claims and meal allowances are on hold until it is settled.')
+          : t('You have {n} cash advances waiting to be realized. New claims and meal allowances are on hold until they are settled.', { n: hold }))}</span>
+        <button type="button" class="btn btn-amber-soft btn-sm" id="holdGo">${esc(t('Realize advance'))}</button>`;
+      $('#holdGo').addEventListener('click', () => openView('unrealized'));
+    } else {
+      notice.innerHTML = '';
+    }
+  }
   const need = approvalQueue().length;
   const mine = myClaims().length;
   const approved = approvedByMeQueue().length;
@@ -4899,7 +4958,13 @@ async function submitClaim(e, existing) {
   }
 }
 
-$('#newClaimBtn').addEventListener('click', () => openClaimModal());
+$('#newClaimBtn').addEventListener('click', () => {
+  // The button is disabled while held, so this is a backstop for any other way
+  // in (keyboard, an extension, a stale page). Only the NEW path is held —
+  // openClaimModal(existing) is edit-and-resubmit, which must always work.
+  if (advanceHold()) return toast(advanceHoldReason(), true);
+  openClaimModal();
+});
 
 // ---------------------------------------------------------------------------
 // New meal allowance — a line-item claim form mirroring the paper
@@ -5092,7 +5157,10 @@ async function submitMealClaim(e, existing) {
     closeModal(); closeDrawer(); loadAll();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
 }
-$('#newMealBtn').addEventListener('click', () => openMealAllowanceModal());
+$('#newMealBtn').addEventListener('click', () => {
+  if (advanceHold()) return toast(advanceHoldReason(), true);
+  openMealAllowanceModal();
+});
 
 // ---------------------------------------------------------------------------
 // Cash advance — a two-stage document. Stage 1: request the advance (purpose +

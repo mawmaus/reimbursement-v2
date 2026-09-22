@@ -970,6 +970,44 @@ async function openClaimsAwaitingApprover(userId) {
   return Number(reimb[0].n) + Number(meal[0].n) + Number(adv[0].n);
 }
 
+// --- Unrealized-advance hold -------------------------------------------------
+// Money is out of the door and the paperwork closing it is not approved yet, so
+// the holder may not start anything new: New Claim and New Meal Allowance are
+// refused while they owe a realization. The three states are exactly the set the
+// "Unrealized cash advances" tile counts —
+//   paid              disbursed; the realization has not been submitted
+//   realize_submitted realization submitted, still in the approver chain
+//   rejected_realize  realization returned; awaiting a resubmit
+// Deliberately NOT held: raising another cash advance (a separate decision), and
+// resubmitting an already-rejected claim or realization — blocking those would
+// strand documents the employee has no other way to close.
+const UNREALIZED_ADVANCE_STATES = ['paid', 'realize_submitted', 'rejected_realize'];
+// The states are fixed literals defined right above, never user input.
+const UNREALIZED_ADVANCE_SQL = UNREALIZED_ADVANCE_STATES.map((s) => `'${s}'`).join(',');
+
+async function unrealizedAdvanceCount(userId) {
+  const rows = await q(
+    `SELECT COUNT(*)::int AS n FROM cash_advances
+      WHERE employee_id = $1 AND status IN (${UNREALIZED_ADVANCE_SQL})`, [userId]);
+  return Number(rows[0].n);
+}
+
+// Guard for the two "new submission" routes. Answers the request itself and
+// returns true when the caller is on hold, so the route can bail on the spot —
+// before it parses lines or verifies receipts.
+async function heldByUnrealizedAdvance(req, res) {
+  const n = await unrealizedAdvanceCount(req.user.id);
+  if (!n) return false;
+  res.status(409).json({
+    code: 'unrealized_advance',
+    count: n,
+    error: n === 1
+      ? 'You have a cash advance that still needs to be realized. Realize it before submitting a new claim.'
+      : `You have ${n} cash advances that still need to be realized. Realize them before submitting a new claim.`
+  });
+  return true;
+}
+
 // --- Front-page purposes ----------------------------------------------------
 // Which "purpose" buttons (New Claim / New Meal Allowance / New Cash Advance) a
 // user may see.
@@ -1218,6 +1256,7 @@ app.post('/api/login', ah(async (req, res) => {
     language: normLang(user.language), region: user.region || '',
     ...(await regionPrefsFor(user.region)),
     purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
+    my_unrealized_advances: await unrealizedAdvanceCount(user.id),
     approver1_choices: await approver1Choices(user.approver1_options),
     can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
     sees_all_departments: accountsSeeAllDepts(user, pos),
@@ -1249,6 +1288,7 @@ app.get('/api/me', ah(async (req, res) => {
   const pos = await loadPositions(u.region);
   await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+    my_unrealized_advances: await unrealizedAdvanceCount(u.id),
     approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
     sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
@@ -1266,6 +1306,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     const pos = await loadPositions(u.region);
     await attachCaps(u);
     return res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u),
+      my_unrealized_advances: await unrealizedAdvanceCount(u.id),
       creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
       can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
       sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
@@ -1286,6 +1327,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   const pos = await loadPositions(u.region);
   await attachCaps(u);
   res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
+    my_unrealized_advances: await unrealizedAdvanceCount(u.id),
     approver1_choices: await approver1Choices(u.approver1_options),
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
     sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
@@ -1844,6 +1886,9 @@ app.get('/api/geocode', requireAuth, ah(async (req, res) => {
 }));
 
 app.post('/api/claims', requireAuth, ah(async (req, res) => {
+    // Checked first, before any parsing or receipt verification — there is no
+    // point doing that work for a submission that cannot be accepted.
+    if (await heldByUnrealizedAdvance(req, res)) return;
     const b = req.body || {};
     const parsed = normaliseClaimLines(b.lines);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
@@ -2347,6 +2392,7 @@ async function createMealClaim(req, lines, totalCents, approverIds, region) {
 }
 
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
+  if (await heldByUnrealizedAdvance(req, res)) return;
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
@@ -3094,7 +3140,13 @@ app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
   const rows = await q(
     `SELECT * FROM cash_advances ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      ORDER BY created_at DESC`, params);
-  res.json({ claims: await serializeManyAdvance(rows) });
+  // my_unrealized rides along deliberately unfiltered: the client refreshes the
+  // hold from it on every ledger load, and a status/department/search filter on
+  // this list must not be able to make the hold look lifted.
+  res.json({
+    claims: await serializeManyAdvance(rows),
+    my_unrealized: await unrealizedAdvanceCount(req.user.id)
+  });
 }));
 
 app.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
