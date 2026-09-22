@@ -1156,8 +1156,13 @@ function renderHome() {
   // …and, because the grant is per-account and revocable, whenever the account
   // still holds advances of its own: revoking mid-flight must not hide an
   // already-paid advance the holder still has to realize.
+  // advanceHold() leads deliberately — it is the server's UNFILTERED count, so an
+  // outstanding advance keeps its tiles even when the ledger is filtered down to
+  // nothing (a status/search filter, or an all-regions viewer scoped elsewhere).
+  // The queue lengths only add the already-realized-history case; the counts ON
+  // the tiles still follow the current view, which is what a count should do.
   if (seesAllAdvances(u) || (u.purposes && u.purposes.advance)
-      || unrealizedQueue().length || realizedQueue().length) {
+      || advanceHold() || unrealizedQueue().length || realizedQueue().length) {
     tiles.push({ key: 'unrealized', title: t('Unrealized cash advances'), desc: t('Advances paid — awaiting realization'), count: unrealizedQueue().length });
     tiles.push({ key: 'realized', title: t('Realized cash advances'), desc: t('Advances with realization approved'), count: realizedQueue().length });
   }
