@@ -368,6 +368,27 @@ input[type="search"] { min-width: 220px; }
 .toolbar-left #searchInput { flex: 1 1 260px; min-width: 200px; }
 .toolbar-left select.input { flex: 0 0 auto; }
 
+/* Payment-date range (Paid claims view): one field-looking group holding a
+   label and two borderless date pickers, so it sits in the filter row like
+   the selects do instead of reading as two loose inputs. */
+.date-range {
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 0 6px 0 12px; min-height: 40px; transition: border-color .14s, box-shadow .14s;
+}
+.date-range[hidden] { display: none; }
+.date-range:focus-within { border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.date-range.active { border-color: var(--pine); }
+.date-range-lab { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); white-space: nowrap; margin-right: 4px; }
+.toolbar-left .date-range .input { border: none; box-shadow: none; background: transparent;
+  padding: 7px 4px; width: 132px; min-width: 0; font-variant-numeric: tabular-nums; }
+.date-range-sep { color: var(--muted); }
+.date-range-clear { border: none; background: none; color: var(--muted); cursor: pointer;
+  font-size: 1.15rem; line-height: 1; width: 26px; height: 26px; border-radius: 6px; }
+.date-range-clear:hover { background: var(--paper); color: var(--ink); }
+.date-range-clear[hidden] { display: none; }
+
 /* ---------- Ledger ---------- */
 .ledger { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
   box-shadow: 0 1px 2px rgba(23,38,32,.05); }
@@ -376,6 +397,16 @@ input[type="search"] { min-width: 220px; }
   grid-template-columns: 4px 36px 130px 1.2fr 120px 1.2fr 110px 130px 120px;
   align-items: center; gap: 10px; padding: 0 16px 0 0;
 }
+/* "Paid on" column: only in the Paid claims view (.ledger.show-paid), which
+   adds its track right after Date. To pay for it, the fixed tracks shrink to
+   their content (dates are 10 mono chars; status is always the short PAID
+   pill here) so Claimant/Expense keep their room. */
+.col-paid { display: none; }
+.ledger.show-paid .col-paid { display: block; }
+.ledger.show-paid .ledger-head, .ledger.show-paid .ledger-row {
+  grid-template-columns: 4px 36px 120px 1.2fr 104px 1.2fr 94px 94px 130px 72px;
+}
+.ledger-row .col-paid { color: var(--ink-soft); font-size: .9rem; white-space: nowrap; }
 .col-check { display: grid; place-items: center; }
 .col-check input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--pine); }
 
@@ -1105,6 +1136,8 @@ input[type="search"] { min-width: 220px; }
   .container { padding: 20px 16px 48px; }
   .topbar { padding: 10px 16px; }
   .ledger-head, .ledger-row { grid-template-columns: 4px 32px 96px 1.2fr 96px 1fr 84px 96px 88px; }
+  .ledger.show-paid .ledger-head, .ledger.show-paid .ledger-row {
+    grid-template-columns: 4px 32px 96px 1.2fr 80px 1fr 84px 84px 96px 60px; }
 
   /* Mobile + tablet: shrink the summary cards and filter spacing so the frozen
      top block doesn't starve the scrolling claim list. (The shell height fix
@@ -1191,6 +1224,15 @@ input[type="search"] { min-width: 220px; }
   .ledger-row .col-type { grid-area: type; min-width: 0; font-size: .82rem; }
   .ledger-row .col-date { grid-area: date; text-align: right; font-size: .78rem; white-space: nowrap; align-self: end; }
   .col-db { display: none; }
+  /* Paid view: the payment date gets its own labelled line under the card. */
+  .ledger.show-paid .ledger-row { grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas: "check name amt" "check no status" "check type date" "check paid paid"; }
+  .ledger.show-paid .ledger-row .col-paid { grid-area: paid; font-size: .78rem; padding-top: 6px;
+    margin-top: 2px; border-top: 1px dashed var(--line); }
+  .ledger-row .col-paid::before { content: attr(data-label) ' · '; font-family: var(--sans, inherit);
+    color: var(--muted); font-weight: 600; }
+  .toolbar-left .date-range { flex: 1 1 100%; }
+  .toolbar-left .date-range .input { flex: 1 1 0; width: auto; }
   .grid2 { grid-template-columns: 1fr; }
   .kv { grid-template-columns: 1fr; gap: 2px; }
   .kv dd { margin-bottom: 8px; }

@@ -125,6 +125,14 @@
           </select>
           <select id="deptFilter" class="input"><option value="" data-i18n="All departments">All departments</option></select>
           <select id="claimantFilter" class="input" data-search="always"><option value="" data-i18n="All claimants">All claimants</option></select>
+          <!-- Paid-claims view only: narrow the list by payment date. -->
+          <div id="paidRange" class="date-range" hidden>
+            <span class="date-range-lab" data-i18n="Paid on">Paid on</span>
+            <input id="paidFrom" class="input" type="date" data-i18n-aria="Paid from" aria-label="Paid from" />
+            <span class="date-range-sep" aria-hidden="true">–</span>
+            <input id="paidTo" class="input" type="date" data-i18n-aria="Paid to" aria-label="Paid to" />
+            <button id="paidRangeClear" class="date-range-clear" type="button" hidden data-i18n-aria="Clear payment date filter" aria-label="Clear payment date filter">×</button>
+          </div>
         </div>
       </section>
 
@@ -148,6 +156,7 @@
           <span class="col-db" data-sort="db" role="button" tabindex="0" data-i18n="No DB">No DB</span>
           <span class="col-type" data-sort="type" role="button" tabindex="0" data-i18n="Expense">Expense</span>
           <span class="col-date" data-sort="date" role="button" tabindex="0" data-i18n="Date">Date</span>
+          <span class="col-paid" data-sort="paid" role="button" tabindex="0" data-i18n="Paid on">Paid on</span>
           <span class="col-amt" data-sort="amount" role="button" tabindex="0" data-i18n="Amount">Amount</span>
           <span class="col-status" data-sort="status" role="button" tabindex="0" data-i18n="Status">Status</span>
         </div>

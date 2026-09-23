@@ -6,7 +6,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const state = {
-  user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '' },
+  user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '', paidFrom: '', paidTo: '' },
   // Which list is open: 'home' (clean landing, no list), 'mine' (claims I
   // submitted), 'approval' (awaiting my decision), 'approved' (claims I approved
   // that I can still revert), or 'all' (super admin only).
@@ -709,7 +709,7 @@ async function loadDcPending() {
 // True when any filter narrows the ledger away from the full set.
 function anyFilterActive() {
   const f = state.filters;
-  return !!(f.status || f.department || f.q || f.claimant);
+  return !!(f.status || f.department || f.q || f.claimant || f.paidFrom || f.paidTo);
 }
 
 const totalCardLabel = () => anyFilterActive() ? t('Filtered total') : t('Total value');
@@ -1080,11 +1080,22 @@ function viewClaims() {
   return state.claims; // 'all' / 'home'
 }
 
-// Rows currently shown, after the client-side claimant filter.
+// The payment date Finance entered on "Mark as paid". It is stored as midnight
+// UTC (the DB session zone), so the ISO date part is exactly the picked date.
+const paidDate = c => String(c.paid_at || '').slice(0, 10);
+
+// Rows currently shown, after the client-side claimant + payment-date filters.
 function visibleClaims() {
-  const cl = state.filters.claimant;
-  const base = viewClaims();
-  return cl ? base.filter(c => c.claimant_name === cl) : base;
+  const { claimant: cl, paidFrom: pf, paidTo: pt } = state.filters;
+  let rows = viewClaims();
+  if (cl) rows = rows.filter(c => c.claimant_name === cl);
+  if (state.view === 'paid' && (pf || pt)) {
+    rows = rows.filter(c => {
+      const d = paidDate(c);
+      return d && (!pf || d >= pf) && (!pt || d <= pt);
+    });
+  }
+  return rows;
 }
 
 // --- Home menu (clean landing) ----------------------------------------------
@@ -1211,12 +1222,18 @@ function openView(key) {
   $('#homeView').hidden = true;
   $('#listView').hidden = false;
   $('#listTitle').textContent = viewLabel(key);
+  // The payment date column + range filter belong to the Paid claims view only.
+  const paid = key === 'paid';
+  $('#paidRange').hidden = !paid;
+  $('.ledger').classList.toggle('show-paid', paid);
+  if (!paid) setPaidRange('', '');
   renderClaims();
 }
 function goHome() {
   state.view = 'home';
   // Clean slate: clear filters so the menu counts reflect everything.
-  state.filters = { status: '', department: '', claimant: '', q: '' };
+  state.filters = { status: '', department: '', claimant: '', q: '', paidFrom: '', paidTo: '' };
+  setPaidRange('', '');
   const si = $('#searchInput'); if (si) si.value = '';
   const sf = $('#statusFilter'); if (sf) { sf.value = ''; if (sf._mselRefresh) sf._mselRefresh(); }
   $('#listView').hidden = true;
@@ -1651,6 +1668,7 @@ const SORT_VAL = {
   type: c => rowView(c).typeLabel || '',
   date: c => rowView(c).date || '',
   amount: c => Number(rowView(c).amount) || 0,
+  paid: c => paidDate(c),
   status: c => c.status === 'submitted' ? pendingReviewBase(c.current_step) : (STATUS_LABEL[c.status] || c.status || '')
 };
 function sortClaims(claims) {
@@ -1707,6 +1725,7 @@ function renderClaims() {
       <span class="col-db mono">${esc(dbFmt(v.db)) || '—'}</span>
       <span class="col-type">${esc(v.typeLabel)}</span>
       <span class="col-date mono">${esc(v.date)}</span>
+      <span class="col-paid mono" data-label="${esc(t('Paid on'))}">${esc(paidDate(c)) || '—'}</span>
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
       <span class="col-status"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></span>
     </div>`; }).join('');
@@ -1750,6 +1769,21 @@ $('#statusFilter').addEventListener('change', e => { state.filters.status = e.ta
 $('#deptFilter').addEventListener('change', e => { state.filters.department = e.target.value; loadClaims(); });
 // Claimant filter is client-side, so just re-render (no server round-trip).
 $('#claimantFilter').addEventListener('change', e => { state.filters.claimant = e.target.value; renderClaims(); });
+// Payment-date range (Paid claims view). Client-side like the claimant filter.
+// Each end bounds the other's picker so the range can't be entered backwards.
+function setPaidRange(from, to) {
+  state.filters.paidFrom = from;
+  state.filters.paidTo = to;
+  const f = $('#paidFrom'), tt = $('#paidTo');
+  f.value = from; tt.value = to;
+  f.max = to; tt.min = from;
+  $('#paidRange').classList.toggle('active', !!(from || to));
+  $('#paidRangeClear').hidden = !(from || to);
+}
+const onPaidRange = () => { setPaidRange($('#paidFrom').value, $('#paidTo').value); renderClaims(); };
+$('#paidFrom').addEventListener('change', onPaidRange);
+$('#paidTo').addEventListener('change', onPaidRange);
+$('#paidRangeClear').addEventListener('click', () => { setPaidRange('', ''); renderClaims(); });
 // Upgrade every native <select> in the app to the modern custom dropdown —
 // including ones added later by dynamic renders (modals, table rows). The
 // language + region pickers are enhanced too (they carry data-icon for their
