@@ -3577,6 +3577,11 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   const { timezone } = await regionPrefsFor(req.user.region);
   const ts = (v) => tsInZone(v, timezone);
   const zone = tzOffsetLabel(timezone);
+  // paid_at is the payment DATE Finance picked on "Mark as paid", stored as
+  // midnight UTC (the DB session zone). Export that date as-is: shifting it into
+  // the region zone would invent a time (07:00 in GMT+7) or, west of UTC, roll it
+  // back a day. Matches the portal's "Paid on" column.
+  const payDate = (v) => (iso(v) || '').slice(0, 10);
 
   const out = []; // { key: sortKey, cells: [...] }
 
@@ -3625,7 +3630,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description,
         exportStatusLabel(r.status, r.current_step),
-        r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), ts(r.paid_at), ts(r.created_at)] });
+        r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), payDate(r.paid_at), ts(r.created_at)] });
     }
   }
 
@@ -3666,7 +3671,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.job_category, r.site,
         (Number(r.amount_cents) / 100).toFixed(2), r.currency, r.description,
         exportStatusLabel(r.status, r.current_step),
-        r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), ts(r.paid_at), ts(r.created_at)] });
+        r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), payDate(r.paid_at), ts(r.created_at)] });
     }
   }
 
@@ -3723,7 +3728,7 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
         'Cash advance', r.advance_no, r.employee_username, r.claimant_name, r.department,
         r.bank_name, r.recipient_name, r.bank_account_no, r.line_date, r.expense_type, r.db_no || '',
         (Number(r.amount_cents) / 100).toFixed(2), r.currency,
-        r.description, advStatus, r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), ts(r.paid_at), ts(r.created_at)] });
+        r.description, advStatus, r.manager_comment, ts(r.first_approved_at), ts(r.decided_at), payDate(r.paid_at), ts(r.created_at)] });
     }
   }
 
@@ -3732,7 +3737,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
   const headers = ['Type', 'Claim No', 'Submitted By', 'Claimant Name', 'Department',
     'Bank Name', 'Recipient Name', 'Bank Account No', 'Date', 'Category', 'Site', 'Amount',
     'Currency', 'Description', 'Status', 'Manager Comment',
-    ...['First Approved At', 'Decided At', 'Paid At', 'Created At'].map(h => (zone ? h + ' (' + zone + ')' : h))];
+    ...['First Approved At', 'Decided At'].map(h => (zone ? h + ' (' + zone + ')' : h)),
+    'Payment Date', zone ? 'Created At (' + zone + ')' : 'Created At'];
   const lines = [headers.map(csvCell).join(',')];
   for (const r of out) lines.push(r.cells.map(csvCell).join(','));
 
