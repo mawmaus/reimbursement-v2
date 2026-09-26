@@ -207,6 +207,7 @@ function attachAmountGrouping(input) {
 // ---------------------------------------------------------------------------
 async function boot() {
   initLangUI();          // populate + wire the language switchers, apply chrome
+  initThemeUI();         // night-mode toggles (login card + top bar)
   try {
     const { user } = await api('/me');
     state.user = user;
@@ -235,6 +236,29 @@ function applyLangChrome() {
   I18N.applyStatic();
   syncLangSelectors();
   renderLoginHint();
+  syncThemeButtons();
+}
+
+// ---------------------------------------------------------------------------
+// Night mode — theme.js owns the state (device setting until the user picks;
+// the pick is remembered per device). These are just its two toggle buttons.
+// ---------------------------------------------------------------------------
+function initThemeUI() {
+  if (!window.Theme) return;
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn =>
+    btn.addEventListener('click', () => Theme.toggle()));
+  Theme.onChange(syncThemeButtons);
+  syncThemeButtons();
+}
+
+// Label each toggle with what it will do, in the active language.
+function syncThemeButtons() {
+  if (!window.Theme) return;
+  const label = Theme.get() === 'dark' ? t('Switch to light mode') : t('Switch to dark mode');
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+  });
 }
 
 function renderLoginHint() {

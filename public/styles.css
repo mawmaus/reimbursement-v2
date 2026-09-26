@@ -23,6 +23,18 @@
   --shadow-sm:  0 1px 2px rgba(23,38,32,.05);
   --shadow-md:  0 10px 26px -14px rgba(23,38,32,.30);
 
+  /* Role tokens: text on a solid accent fill, overlays, and the few surfaces
+     that used to be hard-coded white/black. Night mode redefines them below. */
+  --on-accent:  #ffffff;
+  --topbar-bg:  rgba(255,255,255,.85);
+  --scrim:      rgba(23,38,32,.42);
+  --tip-bg:     #2a2a2c;
+  --tip-ink:    #ffffff;
+  --veil:       rgba(0,0,0,.08);
+  --veil-hi:    rgba(255,255,255,.4);
+  --red-line:   #e8c5bf;
+  --seg-on:     #ffffff;
+
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
 }
@@ -57,17 +69,17 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 }
 .btn:active { transform: translateY(1px); }
 .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
-.btn-primary { background: var(--pine); color: #fff; border-color: var(--pine-deep);
+.btn-primary { background: var(--pine); color: var(--on-accent); border-color: var(--pine-deep);
   box-shadow: 0 6px 16px -9px rgba(222,132,17,.75); }
 .btn-primary:hover { background: var(--pine-deep); box-shadow: 0 9px 22px -9px rgba(222,132,17,.9); }
 .btn-ghost { background: var(--surface); border-color: var(--line); color: var(--ink-soft); }
 .btn-ghost:hover { background: var(--paper); border-color: var(--muted); color: var(--ink); }
 .btn-sm { padding: 6px 12px; font-size: .85rem; border-radius: 8px; }
 .btn-block { width: 100%; }
-.btn-danger { background: var(--red); color: #fff; border-color: var(--red);
+.btn-danger { background: var(--red); color: var(--on-accent); border-color: var(--red);
   box-shadow: 0 6px 16px -9px rgba(192,57,43,.7); }
 .btn-danger:hover { filter: brightness(.94); }
-.btn-approve { background: var(--green); color: #fff; border-color: var(--green);
+.btn-approve { background: var(--green); color: var(--on-accent); border-color: var(--green);
   box-shadow: 0 6px 16px -9px rgba(47,125,85,.7); }
 .btn-approve:hover { filter: brightness(.94); }
 .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
@@ -76,13 +88,13 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
    on hover. Used for topbar / toolbar utilities so they read as real, colourful
    buttons (echoing the Manage-accounts pills) without shouting. */
 .btn-brand-soft  { background: var(--pine-tint);   color: var(--pine-deep); border-color: transparent; }
-.btn-brand-soft:hover  { background: var(--pine);   color: #fff; border-color: var(--pine-deep); }
+.btn-brand-soft:hover  { background: var(--pine);   color: var(--on-accent); border-color: var(--pine-deep); }
 .btn-indigo-soft { background: var(--indigo-tint); color: var(--indigo);   border-color: transparent; }
-.btn-indigo-soft:hover { background: var(--indigo); color: #fff; }
+.btn-indigo-soft:hover { background: var(--indigo); color: var(--on-accent); }
 .btn-green-soft  { background: var(--green-tint);  color: var(--green);    border-color: transparent; }
-.btn-green-soft:hover  { background: var(--green);  color: #fff; }
+.btn-green-soft:hover  { background: var(--green);  color: var(--on-accent); }
 .btn-amber-soft  { background: var(--amber-tint);  color: var(--amber);    border-color: transparent; }
-.btn-amber-soft:hover  { background: var(--amber);  color: #fff; }
+.btn-amber-soft:hover  { background: var(--amber);  color: var(--on-accent); }
 
 .input, .form input, .form select, .form textarea {
   font: inherit; color: var(--ink); background: var(--surface);
@@ -110,7 +122,7 @@ input[type="search"] { min-width: 220px; }
 .brand { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
 .brand-mark, .topbar-mark {
   display: grid; place-items: center; width: 42px; height: 42px; flex: none;
-  background: var(--pine); color: #fff; border-radius: 11px; font-size: 1.3rem; font-weight: 700;
+  background: var(--pine); color: var(--on-accent); border-radius: 11px; font-size: 1.3rem; font-weight: 700;
 }
 /* Cibes brand logo (public/logo.svg) */
 .logo { flex: none; display: block; width: auto; user-select: none; }
@@ -140,7 +152,7 @@ input[type="search"] { min-width: 220px; }
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 8px;
-  padding: 11px 22px; background: rgba(255,255,255,.85); backdrop-filter: saturate(1.4) blur(8px);
+  padding: 11px 22px; background: var(--topbar-bg); backdrop-filter: saturate(1.4) blur(8px);
   border-bottom: 1px solid var(--line); box-shadow: var(--shadow-sm);
 }
 /* Brand pushes the action group + Sign out to the right; Sign out stays last. */
@@ -202,7 +214,7 @@ input[type="search"] { min-width: 220px; }
 /* Notification-style badge (like a phone app) for the approval queue. */
 .home-tile .tile-badge {
   position: absolute; top: 14px; right: 14px; min-width: 26px; height: 26px; padding: 0 7px;
-  display: grid; place-items: center; border-radius: 13px; background: var(--red); color: #fff;
+  display: grid; place-items: center; border-radius: 13px; background: var(--red); color: var(--on-accent);
   font-size: .82rem; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,.18);
 }
 
@@ -216,7 +228,7 @@ input[type="search"] { min-width: 220px; }
 .list-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .list-title { font-size: 1.25rem; font-weight: 650; margin: 0; }
 .refresh-btn { margin-left: auto; }
-.refresh-stamp { font-size: .78rem; color: var(--muted, #6b7280); white-space: nowrap; }
+.refresh-stamp { font-size: .78rem; color: var(--muted); white-space: nowrap; }
 .refresh-stamp + .refresh-btn { margin-left: 8px; }
 .refresh-icon { display: inline-block; }
 .refresh-btn.is-loading { opacity: .7; pointer-events: none; }
@@ -259,7 +271,7 @@ input[type="search"] { min-width: 220px; }
   font: inherit; font-size: .76rem; font-weight: 650; padding: 5px 12px; border-radius: 7px;
   transition: background .12s, color .12s;
 }
-.seg button.on { background: var(--surface); color: var(--pine-deep); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.seg button.on { background: var(--seg-on); color: var(--pine-deep); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 
 /* Spend-by-type horizontal bars (clickable: they drill into the type) */
 .type-bars { display: flex; flex-direction: column; gap: 5px; }
@@ -314,7 +326,7 @@ input[type="search"] { min-width: 220px; }
 .trend-svg .ax-max { text-anchor: start; fill: var(--muted); }
 .trend-tip {
   position: absolute; transform: translate(-50%, -120%); pointer-events: none; z-index: 2;
-  background: var(--ink); color: #fff; border-radius: 8px; padding: 6px 10px; white-space: nowrap;
+  background: var(--tip-bg); color: var(--tip-ink); border-radius: 8px; padding: 6px 10px; white-space: nowrap;
   box-shadow: 0 6px 18px -6px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 1px;
 }
 .trend-tip .tip-lab { font-size: .7rem; opacity: .75; }
@@ -468,7 +480,7 @@ input[type="search"] { min-width: 220px; }
 .pill.paid      { color: var(--indigo); background: var(--indigo-tint); }
 
 /* ---------- Drawer ---------- */
-.scrim { position: fixed; inset: 0; background: rgba(23,38,32,.42); z-index: 40; animation: fade .16s; }
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; animation: fade .16s; }
 @keyframes fade { from { opacity: 0; } }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(900px, 100%); z-index: 50;
@@ -517,9 +529,9 @@ input[type="search"] { min-width: 220px; }
   display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%;
   font-size: .78rem; font-weight: 700; background: var(--line-soft); color: var(--muted);
 }
-.cp.done .cp-dot { background: var(--green); color: #fff; }
-.cp.current .cp-dot { background: var(--amber); color: #fff; }
-.cp.rejected .cp-dot { background: var(--red); color: #fff; }
+.cp.done .cp-dot { background: var(--green); color: var(--on-accent); }
+.cp.current .cp-dot { background: var(--amber); color: var(--on-accent); }
+.cp.rejected .cp-dot { background: var(--red); color: var(--on-accent); }
 .cp-body { flex: 1; }
 .cp-label { font-weight: 560; font-size: .92rem; }
 .cp-pos { font-size: .78rem; color: var(--muted); }
@@ -528,7 +540,7 @@ input[type="search"] { min-width: 220px; }
 .cp.done .cp-state { color: var(--green); }
 .cp.rejected .cp-state { color: var(--red); }
 
-.note-box { background: var(--red-tint); border: 1px solid #e8c5bf; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+.note-box { background: var(--red-tint); border: 1px solid var(--red-line); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
 .note-box .nb-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--red); }
 .drawer-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
 
@@ -566,7 +578,7 @@ input[type="search"] { min-width: 220px; }
 .file-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
 .file-chip { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem; background: var(--pine-tint);
   color: var(--pine-deep); border-radius: 99px; padding: 4px 6px 4px 11px; }
-.file-chip button { border: none; background: rgba(0,0,0,.08); border-radius: 50%; width: 18px; height: 18px;
+.file-chip button { border: none; background: var(--veil); border-radius: 50%; width: 18px; height: 18px;
   cursor: pointer; line-height: 1; color: var(--pine-deep); flex: none; }
 /* A receipt already saved on the claim — its name opens the file. */
 .file-chip-saved a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
@@ -635,7 +647,7 @@ input[type="search"] { min-width: 220px; }
   background: transparent; color: var(--ink-soft); font: inherit; font-size: .84rem; font-weight: 650;
   white-space: nowrap; cursor: pointer; }
 .ph-seg button:hover { color: var(--ink); }
-.ph-seg button.on { background: var(--surface); color: var(--ink);
+.ph-seg button.on { background: var(--seg-on); color: var(--ink);
   box-shadow: 0 1px 3px rgba(23,38,32,.16); }
 .ph-seg button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
 .ph-docrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -748,7 +760,7 @@ input[type="search"] { min-width: 220px; }
 }
 @keyframes mselpop { from { opacity: 0; transform: translateY(-5px); } }
 .msel-search { position: sticky; top: -5px; background: var(--surface); padding: 1px 1px 6px; margin: -5px -5px 5px; border-bottom: 1px solid var(--line-soft); z-index: 1; }
-.msel-search input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: .88rem; }
+.msel-search input { width: 100%; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: .88rem; }
 .msel-search input:focus { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
 .msel-opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: .9rem; color: var(--ink); }
 .msel-opt .msel-lab { flex: 1; white-space: nowrap; }
@@ -775,7 +787,7 @@ input[type="search"] { min-width: 220px; }
 .calc-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 6px 6px 6px 11px; font-size: .9rem; }
 .calc-list li.calc-empty { justify-content: center; color: var(--muted); font-size: .82rem; border-style: dashed; }
-.calc-list li button { border: none; background: rgba(0,0,0,.07); border-radius: 50%; width: 20px; height: 20px;
+.calc-list li button { border: none; background: var(--veil); border-radius: 50%; width: 20px; height: 20px;
   cursor: pointer; line-height: 1; color: var(--ink-soft); flex: none; }
 .calc-list li button:hover { background: var(--red-tint); color: var(--red); }
 .calc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
@@ -879,7 +891,7 @@ input[type="search"] { min-width: 220px; }
 .utable-lookup th.u-actions-h { width: 1%; white-space: nowrap; }
 .utable-lookup td.act-cell .u-actions { flex-wrap: nowrap; }
 .btn-danger-ghost { background: var(--red-tint); color: var(--red); border-color: var(--red-tint); }
-.btn-danger-ghost:hover { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger-ghost:hover { background: var(--red); color: var(--on-accent); border-color: var(--red); }
 .pill.pill-on  { color: var(--green); background: var(--green-tint); }
 .pill.pill-off { color: var(--red); background: var(--red-tint); }
 .u-name { font-weight: 560; color: var(--ink); }
@@ -962,7 +974,7 @@ input[type="search"] { min-width: 220px; }
 .dc-head { margin: 0 0 10px; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); }
 .dc-count {
   display: inline-block; min-width: 18px; padding: 1px 6px; border-radius: 9px;
-  background: var(--pine); color: #fff; font-size: .72rem; text-align: center; letter-spacing: 0;
+  background: var(--pine); color: var(--on-accent); font-size: .72rem; text-align: center; letter-spacing: 0;
 }
 .dc-card {
   border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
@@ -1031,7 +1043,7 @@ input[type="search"] { min-width: 220px; }
 .draft-banner-txt { flex: 1 1 auto; font-size: .85rem; font-weight: 560; color: var(--amber); min-width: 0; }
 .draft-discard { flex: none; border: none; background: transparent; padding: 4px 8px; border-radius: 8px;
   font: inherit; font-size: .82rem; font-weight: 650; color: var(--pine-deep); cursor: pointer; }
-.draft-discard:hover { background: #fff6; text-decoration: underline; }
+.draft-discard:hover { background: var(--veil-hi); text-decoration: underline; }
 
 /* "Draft waiting" dot on a New… button whose form has an unsent saved draft. */
 .btn.has-draft { position: relative; }
@@ -1130,9 +1142,9 @@ input[type="search"] { min-width: 220px; }
 
 /* toast */
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 80;
-  background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 10px; box-shadow: var(--shadow);
+  background: var(--tip-bg); color: var(--tip-ink); padding: 11px 18px; border-radius: 10px; box-shadow: var(--shadow);
   font-size: .9rem; animation: pop .16s ease; max-width: 90vw; }
-.toast.err { background: var(--red); }
+.toast.err { background: var(--red); color: var(--on-accent); }
 
 /* ---------- Responsive ---------- */
 
@@ -1414,6 +1426,25 @@ input[type="search"] { min-width: 220px; }
   .topbar-ctl .msel-val { max-width: 120px; }
 }
 
+/* Night-mode toggle: a square icon button matching the pickers' height. Shows
+   the moon in light mode (switch to dark) and the sun in dark mode. */
+.theme-btn {
+  flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--surface);
+  color: var(--ink-soft); cursor: pointer;
+  transition: border-color .14s, color .14s, background .14s, box-shadow .14s;
+}
+.theme-btn:hover { border-color: var(--muted); color: var(--ink); }
+.theme-btn:focus-visible { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.theme-btn svg { width: 17px; height: 17px; display: block; }
+.theme-btn .ic-sun { display: none; }
+:root[data-theme="dark"] .theme-btn .ic-sun { display: block; color: var(--pine); }
+:root[data-theme="dark"] .theme-btn .ic-moon { display: none; }
+.login-lang { gap: 8px; align-items: center; }
+@media (max-width: 720px) {
+  .topbar-right .theme-btn { width: 30px; height: 30px; border-radius: 7px; }
+}
+
 /* --- Region workspace (Settings) ------------------------------------------ */
 /* Regions landing: the intro + cards + "Manage regions" label form a frozen
    header (flex:none) above the scrolling region table. */
@@ -1552,3 +1583,65 @@ body.no-scroll { overflow: hidden; }
   .adv-docs-head { flex-direction: column; align-items: stretch; gap: 8px; }
   .adv-docs-head .btn { width: 100%; }
 }
+
+/* ---------------------------------------------------------------------------
+   Night mode. theme.js sets <html data-theme="dark"> (from the user's toggle,
+   or the device setting until they choose). Only tokens change here — every
+   component reads them — plus the handful of spots that need a different
+   treatment on a dark canvas rather than just a different colour.
+   --------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;            /* native date pickers, scrollbars, selects */
+
+  --ink:        #ecebe8;
+  --ink-soft:   #bab9b5;
+  --muted:      #8f8e95;
+  --line:       #35353b;
+  --line-soft:  #29292e;
+  --paper:      #131315;
+  --surface:    #1c1c1f;
+  /* Brand orange stays; the "deep" shade (used as text on tints) lifts so it
+     reads on dark. Status colours brighten for the same reason, and their tints
+     become deep, low-glare washes. */
+  --pine:       #f7982a;
+  --pine-deep:  #ffb25e;
+  --pine-tint:  #3a2915;
+  --amber:      #e9b155;
+  --amber-tint: #352a16;
+  --green:      #62c490;
+  --green-tint: #17301f;
+  --red:        #f2786b;
+  --red-tint:   #3c1e1b;
+  --indigo:     #98abea;
+  --indigo-tint:#202744;
+  --shadow:     0 16px 40px -12px rgba(0,0,0,.72);
+  --shadow-sm:  0 1px 2px rgba(0,0,0,.45);
+  --shadow-md:  0 12px 28px -14px rgba(0,0,0,.85);
+
+  /* Solid accent fills are bright here, so their label is dark ink. */
+  --on-accent:  #17171a;
+  --topbar-bg:  rgba(28,28,31,.86);
+  --scrim:      rgba(0,0,0,.62);
+  --tip-bg:     #2e2e34;
+  --tip-ink:    #f2f1ee;
+  --veil:       rgba(255,255,255,.1);
+  --veil-hi:    rgba(255,255,255,.08);
+  --red-line:   #6b302a;
+  --seg-on:     #34343b;
+}
+/* Tooltips / toasts sit on a dark page, so give them an edge to lift off it. */
+:root[data-theme="dark"] .trend-tip,
+:root[data-theme="dark"] .toast { border: 1px solid var(--line); }
+:root[data-theme="dark"] .toast.err { border-color: transparent; }
+/* Soft coloured glows under primary/danger/approve buttons read as smudges on
+   dark — keep a plain drop shadow instead. */
+:root[data-theme="dark"] .btn-primary,
+:root[data-theme="dark"] .btn-danger,
+:root[data-theme="dark"] .btn-approve { box-shadow: 0 6px 16px -10px rgba(0,0,0,.8); }
+/* Ghost-button hover lifts instead of sinking into the (darker) paper. */
+:root[data-theme="dark"] .btn-ghost:hover { background: var(--line-soft); }
+/* A dark ring around the draft dot, not a white one. */
+:root[data-theme="dark"] .btn.has-draft::after { box-shadow: none; }
+
+/* Swap all colours in one frame when the theme changes (see theme.js). */
+.theme-switching, .theme-switching * { transition: none !important; }
