@@ -37,6 +37,20 @@
   --veil-hi:    rgba(255,255,255,.4);
   --red-line:   #e8c5bf;
   --seg-on:     #ffffff;
+  /* Button palette, derived from the Cibes logo orange: terracotta, pine, fjord
+     blue and sand sit beside it without clashing. Kept apart from the status
+     colours above (pills, dots), whose night shades go pastel for text use and
+     would wash solid buttons out. Every fill/label pair clears WCAG AA 4.5:1. */
+  --on-fill:          #ffffff;
+  --danger-fill:      #b4432f;  --danger-fill-hi:  #a03a28;
+  --danger-tint:      #f7e3de;  --danger-ink:      #9e3b29;
+  --approve-fill:     #2f6f5a;  --approve-fill-hi: #285f4d;
+  --approve-tint:     #e1ede7;  --approve-ink:     #285f4d;
+  --info-fill:        #3e6a8a;
+  --info-tint:        #e3ecf2;  --info-ink:        #335a76;
+  --sand-fill:        #d4a55a;   /* takes --on-brand */
+  --sand-tint:        #f6ecda;  --sand-ink:        #7d5a1c;
+  --focus-ring:       rgba(247,152,42,.55);
 
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -71,7 +85,7 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
   transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .05s;
 }
 .btn:active { transform: translateY(1px); }
-.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--pine-tint); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus-ring); }
 .btn-primary { background: var(--pine); color: var(--on-brand); border-color: var(--pine-hover);
   box-shadow: 0 6px 16px -9px rgba(222,132,17,.75); }
 .btn-primary:hover { background: var(--pine-hover); box-shadow: 0 9px 22px -9px rgba(222,132,17,.9); }
@@ -79,12 +93,12 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 .btn-ghost:hover { background: var(--paper); border-color: var(--muted); color: var(--ink); }
 .btn-sm { padding: 6px 12px; font-size: .85rem; border-radius: 8px; }
 .btn-block { width: 100%; }
-.btn-danger { background: var(--red); color: var(--on-accent); border-color: var(--red);
-  box-shadow: 0 6px 16px -9px rgba(192,57,43,.7); }
-.btn-danger:hover { filter: brightness(.94); }
-.btn-approve { background: var(--green); color: var(--on-accent); border-color: var(--green);
-  box-shadow: 0 6px 16px -9px rgba(47,125,85,.7); }
-.btn-approve:hover { filter: brightness(.94); }
+.btn-danger { background: var(--danger-fill); color: var(--on-fill); border-color: var(--danger-fill);
+  box-shadow: 0 6px 16px -9px rgba(180,67,47,.7); }
+.btn-danger:hover { background: var(--danger-fill-hi); border-color: var(--danger-fill-hi); }
+.btn-approve { background: var(--approve-fill); color: var(--on-fill); border-color: var(--approve-fill);
+  box-shadow: 0 6px 16px -9px rgba(47,111,90,.7); }
+.btn-approve:hover { background: var(--approve-fill-hi); border-color: var(--approve-fill-hi); }
 .btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
 /* Soft tinted variants — calm coloured fills that intensify to a solid colour
@@ -92,12 +106,12 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
    buttons (echoing the Manage-accounts pills) without shouting. */
 .btn-brand-soft  { background: var(--pine-tint);   color: var(--pine-deep); border-color: transparent; }
 .btn-brand-soft:hover  { background: var(--pine);   color: var(--on-brand); border-color: var(--pine-hover); }
-.btn-indigo-soft { background: var(--indigo-tint); color: var(--indigo);   border-color: transparent; }
-.btn-indigo-soft:hover { background: var(--indigo); color: var(--on-accent); }
-.btn-green-soft  { background: var(--green-tint);  color: var(--green);    border-color: transparent; }
-.btn-green-soft:hover  { background: var(--green);  color: var(--on-accent); }
-.btn-amber-soft  { background: var(--amber-tint);  color: var(--amber);    border-color: transparent; }
-.btn-amber-soft:hover  { background: var(--amber);  color: var(--on-accent); }
+.btn-indigo-soft { background: var(--info-tint);    color: var(--info-ink);    border-color: transparent; }
+.btn-indigo-soft:hover { background: var(--info-fill);    color: var(--on-fill); }
+.btn-green-soft  { background: var(--approve-tint); color: var(--approve-ink); border-color: transparent; }
+.btn-green-soft:hover  { background: var(--approve-fill); color: var(--on-fill); }
+.btn-amber-soft  { background: var(--sand-tint);    color: var(--sand-ink);    border-color: transparent; }
+.btn-amber-soft:hover  { background: var(--sand-fill);    color: var(--on-brand); }
 
 .input, .form input, .form select, .form textarea {
   font: inherit; color: var(--ink); background: var(--surface);
@@ -893,8 +907,8 @@ input[type="search"] { min-width: 220px; }
 .utable-lookup td.act-cell,
 .utable-lookup th.u-actions-h { width: 1%; white-space: nowrap; }
 .utable-lookup td.act-cell .u-actions { flex-wrap: nowrap; }
-.btn-danger-ghost { background: var(--red-tint); color: var(--red); border-color: var(--red-tint); }
-.btn-danger-ghost:hover { background: var(--red); color: var(--on-accent); border-color: var(--red); }
+.btn-danger-ghost { background: var(--danger-tint); color: var(--danger-ink); border-color: var(--danger-tint); }
+.btn-danger-ghost:hover { background: var(--danger-fill); color: var(--on-fill); border-color: var(--danger-fill); }
 .pill.pill-on  { color: var(--green); background: var(--green-tint); }
 .pill.pill-off { color: var(--red); background: var(--red-tint); }
 .u-name { font-weight: 560; color: var(--ink); }
@@ -1634,6 +1648,18 @@ body.no-scroll { overflow: hidden; }
   --veil-hi:    rgba(255,255,255,.08);
   --red-line:   #6b302a;
   --seg-on:     #34343b;
+  /* Buttons keep their day-mode depth at night (no pastel fills); labels are a
+     warm off-white. Hovers lighten, as the brand orange does. */
+  --on-fill:          #f4f1ee;
+  --danger-fill:      #a9432f;  --danger-fill-hi:  #b34a35;
+  --danger-tint:      #3a1f1a;  --danger-ink:      #f09a88;
+  --approve-fill:     #2f6f5a;  --approve-fill-hi: #347a63;
+  --approve-tint:     #162b23;  --approve-ink:     #86c7ad;
+  --info-fill:        #3e6a8a;
+  --info-tint:        #1b2a36;  --info-ink:        #9cc0db;
+  --sand-fill:        #d4a55a;
+  --sand-tint:        #352a16;  --sand-ink:        #e3bf82;
+  --focus-ring:       rgba(247,152,42,.6);
 }
 /* Tooltips / toasts sit on a dark page, so give them an edge to lift off it. */
 :root[data-theme="dark"] .trend-tip,
