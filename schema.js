@@ -528,7 +528,34 @@ const SCHEMA = [
     attempt_key TEXT PRIMARY KEY,
     fails       INTEGER NOT NULL DEFAULT 0,
     first_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`
+  )`,
+  // --- Per-line approval --------------------------------------------------------
+  // Any approver in the chain may reject individual lines while approving the
+  // rest. A rejected line stays on its document as history (rejected_at set) but
+  // drops out of the payable total, which is kept on the header (claims.amount_cents,
+  // meal_claims.total_cents, cash_advances.realized_total_cents). `rejected_step`
+  // is the chain step that rejected it, so reverting that step's approval can
+  // restore it. The claimant re-claims rejected lines on a NEW document;
+  // resubmitted_doc_no/id point the line at it so it can only be carried once.
+  // (Cash-advance lines are re-claimed as a reimbursement claim.)
+  ...['claim_lines', 'meal_claim_lines', 'cash_advance_lines'].flatMap(t => [
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rejected_at        TIMESTAMPTZ`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rejected_by_name   TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rejected_reason    TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS rejected_step      INTEGER`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS resubmitted_doc_id INTEGER`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS resubmitted_doc_no TEXT NOT NULL DEFAULT ''`
+  ]),
+  // A document raised from another one's rejected lines remembers where they came
+  // from (source_doc_no, shown as a link) and the moment its claim window is
+  // judged from (window_from: when the source was first submitted), so the
+  // carried lines aren't penalised for the time the source sat in review.
+  ...['claims', 'meal_claims'].flatMap(t => [
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS source_doc_type TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS source_doc_id   INTEGER`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS source_doc_no   TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS window_from     TIMESTAMPTZ`
+  ])
 ];
 
 module.exports = { SCHEMA };

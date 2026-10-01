@@ -2297,6 +2297,14 @@ async function buildClaimsPdf(claims) {
     y -= 6;
   };
 
+  // A rejected line still prints (it's part of the record) but bracketed, with
+  // its reason ahead of the description, and the total becomes the payable one.
+  const pdfAmt = (l, c) => lineRejected(l) ? `(${money(l.amount, c.currency)})` : money(l.amount, c.currency);
+  const pdfDesc = (l) => lineRejected(l)
+    ? [`REJECTED by ${l.rejected.by || 'approver'}: ${l.rejected.reason}`,
+       l.resubmitted_doc_no ? `re-claimed on ${l.resubmitted_doc_no}` : '', l.description || ''].filter(Boolean).join(' | ')
+    : (l.description || '');
+  const pdfTotal = (c, label) => (c.lines || []).some(lineRejected) ? (c.type === 'advance' ? 'COUNTED' : 'PAYABLE') : label;
   const drawDetails = (c) => {
     if (c.type === 'advance') {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
@@ -2310,9 +2318,9 @@ async function buildClaimsPdf(claims) {
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 350 }
       ];
       const lines = c.lines || [];
-      const rows = lines.map(l => [l.line_date, dbFmt(l.db_no), l.expense_type, money(l.amount, c.currency), l.description || '']);
+      const rows = lines.map(l => [l.line_date, dbFmt(l.db_no), l.expense_type, pdfAmt(l, c), pdfDesc(l)]);
       table(cols, rows.length ? rows : [['', '', 'No realization yet', '', '']],
-        [{ text: 'TOTAL SPENT', bold: true, span: 3 }, '', '', { text: money(c.realized_total, c.currency), bold: true }, '']);
+        [{ text: pdfTotal(c, 'TOTAL SPENT'), bold: true, span: 3 }, '', '', { text: money(c.realized_total, c.currency), bold: true }, '']);
       // Settlement summary: advance vs actual spend, and which way the balance goes.
       if (lines.length) {
         const diff = (c.realized_total || 0) - (c.amount || 0);
@@ -2334,9 +2342,9 @@ async function buildClaimsPdf(claims) {
         { title: 'Date', w: 66 }, { title: 'DB Number Site', w: 124 }, { title: 'Job Category', w: 90 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Description', w: CW - 360 }
       ];
-      const rows = (c.lines || []).map(l => [l.line_date, dbFmt(l.site), l.job_category, money(l.amount, c.currency), l.description]);
+      const rows = (c.lines || []).map(l => [l.line_date, dbFmt(l.site), l.job_category, pdfAmt(l, c), pdfDesc(l)]);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
-        [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.total_amount, c.currency), bold: true }, '']);
+        [{ text: pdfTotal(c, 'TOTAL'), bold: true, span: 3 }, '', '', { text: money(c.total_amount, c.currency), bold: true }, '']);
     } else {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
@@ -2351,9 +2359,9 @@ async function buildClaimsPdf(claims) {
         line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
         amount: c.amount, description: c.description
       }];
-      const rows = lines.map(l => [l.line_date, dbFmt(l.db_no), l.expense_type, money(l.amount, c.currency), l.description || '']);
+      const rows = lines.map(l => [l.line_date, dbFmt(l.db_no), l.expense_type, pdfAmt(l, c), pdfDesc(l)]);
       table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
-        [{ text: 'TOTAL', bold: true, span: 3 }, '', '', { text: money(c.amount, c.currency), bold: true }, '']);
+        [{ text: pdfTotal(c, 'TOTAL'), bold: true, span: 3 }, '', '', { text: money(c.amount, c.currency), bold: true }, '']);
     }
   };
 
@@ -2555,7 +2563,9 @@ const ACTION_LABEL = {
   'reverted approval': 'Reverted approval',
   'reverted payment': 'Reverted payment',
   'reverted realization approval': 'Reverted realization approval',
-  'reverted settlement': 'Reverted settlement'
+  'reverted settlement': 'Reverted settlement',
+  'line rejected': 'Line rejected', 'line restored': 'Line restored',
+  'lines re-claimed': 'Lines re-claimed'
 };
 const actionLabel = (a) => {
   const s = String(a || '');
@@ -2648,32 +2658,228 @@ function buildActions(c, u, isOwner) {
   if (isOwner && c.status === 'rejected') {
     btns.push(`<button class="btn btn-primary" data-act="edit">${esc(t('Edit & resubmit'))}</button>`);
   }
+  // Rejected lines are re-claimed on a new document (label set by syncLineActions).
+  if (isOwner && reclaimableLines(c).length) {
+    btns.push(`<button class="btn btn-brand-soft" data-act="reclaim">${esc(t('Re-claim rejected lines'))}</button>`);
+  }
   if (canRevert(c, u, isOwner)) {
     btns.push(`<button class="btn btn-ghost" data-act="revert">${esc(revertInfo(c).label)}</button>`);
   }
   return btns.join('\n            ');
 }
 
-// Body for a reimbursement claim: account/bank details + the itemised line table,
-// each line showing its own receipts.
-function reimbursementBody(c) {
+// --- Per-line approval ----------------------------------------------------------
+// An approver may reject single lines while approving the rest; a rejected line
+// stays on the document as history (struck through, with its reason) and leaves
+// the payable total. The claimant re-claims rejected lines on a new document.
+const lineRejected = (l) => !!(l && l.rejected);
+const activeLines = (c) => (c.lines || []).filter(l => !lineRejected(l));
+// Rejected lines not yet carried onto a new document.
+const reclaimableLines = (c) => (c.lines || []).filter(l => lineRejected(l) && !l.resubmitted_doc_id);
+// The viewer may reject single lines: it's their turn, the document has lines
+// (a cash advance only once realized), and at least two are still live — with
+// one, rejecting it is just "Reject & return".
+function canDecideLines(c, u) {
+  if (!inApprovalStage(c) || !canApprove(u, c)) return false;
+  if (c.type === 'advance' && c.status !== 'realize_submitted') return false;
+  return activeLines(c).length >= 2;
+}
+// Drawer-local choices, reset whenever the drawer opens: the lines the approver
+// has marked to reject (id -> reason typed so far) and the rejected lines the
+// claimant has ticked to re-claim.
+let lineMarks = new Map();
+let reclaimPicks = new Set();
+// The document's payable total (what the header carries), and the part of it the
+// approver's pending marks would take out.
+const payableOf = (c) => c.type === 'meal' ? (c.total_amount || 0) : c.type === 'advance' ? (c.realized_total || 0) : (c.amount || 0);
+const markedTotal = (c) => (c.lines || []).filter(l => lineMarks.has(l.id)).reduce((s, l) => s + (l.amount || 0), 0);
+// Which drawer a carried line / a source document opens in.
+const reclaimTargetType = (c) => c.type === 'meal' ? 'meal' : 'reimbursement';
+const sourceDrawerType = (k) => k === 'meal' ? 'meal' : k === 'advance' ? 'advance' : 'reimbursement';
+
+// Column set per document type. Amount is always the 4th column so the total
+// rows line up the same way for all three.
+function lineColumns(c) {
   const receiptLinks = (atts) => (atts && atts.length)
-    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/${c.type === 'advance' ? 'cash-advances' : 'claims'}/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
     : `<span class="muted">${esc(t('—'))}</span>`;
+  const dash = '<span class="muted">—</span>';
+  if (c.type === 'meal') return [
+    { h: 'Date', cls: 'mono', v: l => esc(l.line_date) },
+    { h: 'DB Number Site', v: l => l.site ? esc(dbFmt(l.site)) : dash },
+    { h: 'Job Category', v: l => l.job_category ? esc(l.job_category) : dash },
+    { h: 'Amount', cls: 'meal-amt', v: l => `<span class="amt-v">${esc(money(l.amount, c.currency))}</span>` },
+    { h: 'Additional Description', v: l => l.description ? esc(l.description) : dash }
+  ];
+  return [
+    { h: 'Date', cls: 'mono', v: l => esc(l.line_date) },
+    { h: 'DB No.', v: l => l.db_no ? esc(dbFmt(l.db_no)) : dash },
+    { h: 'Type of expense', v: l => esc(l.expense_type) },
+    { h: 'Amount', cls: 'meal-amt', v: l => `<span class="amt-v">${esc(money(l.amount, c.currency))}</span>` },
+    { h: 'Description / purpose', v: l => l.description ? esc(l.description) : dash },
+    { h: 'Receipts', cls: 'line-receipts', v: l => receiptLinks(l.attachments) }
+  ];
+}
+// The note under a rejected line: why and by whom, then where it went — re-claimed
+// on another document, or (for the claimant) a tick to include it in a re-claim.
+function rejectedNoteHtml(c, l, isOwner, pickable) {
+  const r = l.rejected;
+  const who = [r.by, r.at ? fmtDateTime(r.at) : ''].filter(Boolean).join(' · ');
+  let tail = '';
+  if (l.resubmitted_doc_id) {
+    tail = `<span class="lr-tail">${esc(t('Re-claimed on'))} <a href="#" data-open-doc="${l.resubmitted_doc_id}" data-doc-type="${reclaimTargetType(c)}">${esc(l.resubmitted_doc_no)}</a></span>`;
+  } else if (isOwner && pickable) {
+    tail = `<label class="lr-tail lr-pick"><input type="checkbox" data-reclaim="${l.id}" ${reclaimPicks.has(l.id) ? 'checked' : ''} /> ${esc(t('Include in re-claim'))}</label>`;
+  } else if (isOwner) {
+    tail = `<span class="lr-tail muted">${esc(t('Not paid on this claim — re-claim it on a new one.'))}</span>`;
+  }
+  return `<div class="lr-note">
+      <div class="lr-head"><span class="lr-badge">${esc(t('Line rejected'))}</span>${who ? `<span class="lr-who">${esc(who)}</span>` : ''}</div>
+      <div class="lr-reason">${esc(r.reason)}</div>
+      ${tail}
+    </div>`;
+}
+// The whole line table for the drawer, re-rendered in place as the approver
+// marks lines (see renderDrawerLines).
+function drawerLinesHtml(c) {
+  const u = state.user;
+  const isOwner = c.employee_id === u.id;
+  const cols = lineColumns(c);
+  const deciding = canDecideLines(c, u);
+  const pickable = reclaimableLines(c).length > 1;
+  const span = cols.length + (deciding ? 1 : 0);
+  const rows = (c.lines || []).map(l => {
+    const rejected = lineRejected(l);
+    const marked = !rejected && lineMarks.has(l.id);
+    const cls = rejected ? 'line-rejected' : marked ? 'line-marked' : '';
+    const sub = rejected || marked;
+    const cells = cols.map(col => `<td class="${col.cls || ''}" data-label="${esc(t(col.h))}">${col.v(l)}</td>`).join('');
+    const decide = deciding ? `<td class="line-decide">${rejected ? '' : marked
+      ? `<button type="button" class="btn btn-ghost btn-xs" data-unmark="${l.id}">${esc(t('Keep line'))}</button>`
+      : `<button type="button" class="btn btn-ghost btn-xs lr-reject-btn" data-mark="${l.id}">${esc(t('Reject line'))}</button>`}</td>` : '';
+    const main = `<tr class="${cls}${sub ? ' has-sub' : ''}">${cells}${decide}</tr>`;
+    if (rejected) return main + `<tr class="line-sub line-sub-rejected"><td colspan="${span}">${rejectedNoteHtml(c, l, isOwner, pickable)}</td></tr>`;
+    if (marked) return main + `<tr class="line-sub line-sub-marked"><td colspan="${span}">
+        <label class="lr-reason-field">${esc(t('Reason for rejecting this line'))}
+          <input data-reason="${l.id}" value="${esc(lineMarks.get(l.id) || '')}" maxlength="1000" placeholder="${esc(t('e.g. the receipt is unreadable'))}" /></label></td></tr>`;
+    return main;
+  }).join('');
+  const rejectedSum = (c.lines || []).filter(lineRejected).reduce((s, l) => s + (l.amount || 0), 0);
+  const pending = markedTotal(c);
+  const out = rejectedSum + pending;
+  const totalLabel = c.type === 'meal' ? 'TOTAL CLAIM MEAL ALLOWANCE' : c.type === 'advance' ? 'TOTAL SPENT' : 'TOTAL';
+  const rest = span - 4;
+  const footRow = (label, amount, cls) => `<tr class="${cls}">
+      <td colspan="3" class="meal-total-label">${esc(label)}</td>
+      <td class="meal-total">${esc(amount)}</td>${rest > 0 ? `<td colspan="${rest}"></td>` : ''}</tr>`;
+  const foot = (out ? footRow(t('Rejected lines'), '− ' + money(out, c.currency), 'lr-foot-rejected') : '')
+    + footRow(out ? t(c.type === 'advance' ? 'Counted against the advance' : 'Payable') : t(totalLabel), money(payableOf(c) - pending, c.currency), '');
+  const heading = c.type === 'meal' ? t('Meal allowance lines') : c.type === 'advance' ? t('Realization — actual transactions') : t('Expense lines');
+  const hint = deciding ? `<p class="lr-hint">${esc(t('To leave a line out, press "Reject line" on it and give a reason. The rest is approved without it, and the claimant re-claims that line on a new claim.'))}</p>` : '';
+  return `
+    <div class="section-label">${esc(heading)}</div>
+    ${hint}
+    <div class="meal-table-wrap">
+      <table class="meal-table rc-table drawer-lines${deciding ? ' is-deciding' : ''}">
+        <thead><tr>${cols.map(col => `<th>${esc(t(col.h))}</th>`).join('')}${deciding ? `<th><span class="sr-only">${esc(t('Decision'))}</span></th>` : ''}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${span}" class="muted" style="padding:12px">${esc(t('No lines.'))}</td></tr>`}</tbody>
+        <tfoot>${foot}</tfoot>
+      </table>
+    </div>`;
+}
+// Paint the line table and keep the action buttons in step with the marks.
+function renderDrawerLines(c) {
+  const box = $('#drawerLines');
+  if (!box) return;
+  box.innerHTML = drawerLinesHtml(c);
+  box.querySelectorAll('[data-mark]').forEach(b => b.addEventListener('click', () => {
+    lineMarks.set(Number(b.dataset.mark), ''); renderDrawerLines(c);
+    const inp = box.querySelector(`[data-reason="${b.dataset.mark}"]`); if (inp) inp.focus();
+  }));
+  box.querySelectorAll('[data-unmark]').forEach(b => b.addEventListener('click', () => {
+    lineMarks.delete(Number(b.dataset.unmark)); renderDrawerLines(c);
+  }));
+  box.querySelectorAll('[data-reason]').forEach(inp => inp.addEventListener('input', () => {
+    lineMarks.set(Number(inp.dataset.reason), inp.value); inp.classList.remove('invalid');
+  }));
+  box.querySelectorAll('[data-reclaim]').forEach(cb => cb.addEventListener('change', () => {
+    const id = Number(cb.dataset.reclaim);
+    if (cb.checked) reclaimPicks.add(id); else reclaimPicks.delete(id);
+    syncLineActions(c);
+  }));
+  wireDocLinks(box);
+  syncLineActions(c);
+}
+// Links to another document (a re-claim, or the claim it came from) open it in
+// the drawer.
+function wireDocLinks(root) {
+  root.querySelectorAll('[data-open-doc]').forEach(a => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    openDrawer(Number(a.dataset.openDoc), a.dataset.docType).catch(ex => toast(ex.message, true));
+  }));
+}
+// Approve / Re-claim button labels follow the marks and ticks.
+function syncLineActions(c) {
+  const ap = $('#drawer [data-act="approve"]');
+  if (ap) {
+    const live = activeLines(c).length;
+    const keep = live - lineMarks.size;
+    ap.textContent = lineMarks.size ? t('Approve {n} of {m} lines', { n: keep, m: live }) : t('Approve');
+    ap.disabled = lineMarks.size > 0 && keep < 1;
+    ap.title = ap.disabled ? t('Every line is marked — use "Reject & return" to send the whole claim back.') : '';
+  }
+  const rc = $('#drawer [data-act="reclaim"]');
+  if (rc) {
+    const n = reclaimableLines(c).filter(l => reclaimPicks.has(l.id)).length;
+    rc.textContent = n === 1 ? t('Re-claim 1 rejected line') : t('Re-claim {n} rejected lines', { n });
+    rc.disabled = n < 1;
+  }
+}
+// The approve call, carrying any lines this approver rejected. Every marked line
+// needs a reason; the first one missing gets focus instead of a round trip.
+async function approveWithLines(c, base) {
+  const missing = [...lineMarks].find(([, reason]) => !String(reason || '').trim());
+  if (missing) {
+    const inp = $(`#drawer [data-reason="${missing[0]}"]`);
+    if (inp) { inp.classList.add('invalid'); inp.focus(); }
+    toast(t('Give a reason for every rejected line'), true);
+    return false;
+  }
+  const rejected_lines = [...lineMarks].map(([id, reason]) => ({ id, reason: String(reason).trim() }));
+  if (rejected_lines.length) {
+    const ok = confirm(t('Approve {n} of {m} lines? The {k} rejected line(s) will not be paid on this claim.',
+      { n: activeLines(c).length - rejected_lines.length, m: activeLines(c).length, k: rejected_lines.length }));
+    if (!ok) return false;
+  }
+  await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({ rejected_lines }) });
+  toast(rejected_lines.length ? t('Approved — {k} line(s) rejected', { k: rejected_lines.length }) : t('Claim approved'));
+  return true;
+}
+// Open the right new-claim form prefilled with the ticked rejected lines.
+function startReclaim(c) {
+  const lines = reclaimableLines(c).filter(l => reclaimPicks.has(l.id));
+  if (!lines.length) return toast(t('Tick at least one rejected line to re-claim'), true);
+  const reclaim = {
+    type: c.type === 'advance' ? 'advance' : c.type === 'meal' ? 'meal' : 'claim',
+    id: c.id, no: c.claim_no, floor: c.reclaim_floor || '', lines
+  };
+  if (c.type === 'meal') return openMealAllowanceModal(null, reclaim);
+  return openClaimModal(null, reclaim);
+}
+// "Re-claims lines from RC-2026-0012" on a document raised from another's rejected lines.
+function sourceKvHtml(c) {
+  if (!c.source_doc_no) return '';
+  return `<dt>${esc(t('Re-claims lines from'))}</dt><dd><a href="#" data-open-doc="${c.source_doc_id}" data-doc-type="${sourceDrawerType(c.source_doc_type)}">${esc(c.source_doc_no)}</a></dd>`;
+}
+
+// Body for a reimbursement claim: account/bank details + the itemised line table
+// (painted into #drawerLines by renderDrawerLines), each line with its receipts.
+function reimbursementBody(c) {
   // Fall back to a single synthetic line for any legacy claim without lines.
-  const lines = (c.lines && c.lines.length) ? c.lines : [{
+  if (!(c.lines && c.lines.length)) c.lines = [{
     line_date: c.expense_date, db_no: c.db_no, expense_type: c.expense_type,
     amount: c.amount, description: c.description, attachments: c.attachments || []
   }];
-  const rows = lines.map(l => `
-    <tr>
-      <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
-      <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(dbFmt(l.db_no)) : '<span class="muted">—</span>'}</td>
-      <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
-      <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
-      <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
-      <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
-    </tr>`).join('');
   return `
     <dl class="kv">
       <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
@@ -2681,31 +2887,13 @@ function reimbursementBody(c) {
       <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
       <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
       <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      ${sourceKvHtml(c)}
     </dl>
-    <div class="section-label">${esc(t('Expense lines'))}</div>
-    <div class="meal-table-wrap">
-      <table class="meal-table rc-table">
-        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th><th>${esc(t('Receipts'))}</th></tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr>
-          <td colspan="3" class="meal-total-label">${esc(t('TOTAL'))}</td>
-          <td class="meal-total">${esc(money(c.amount, c.currency))}</td>
-          <td colspan="2"></td>
-        </tr></tfoot>
-      </table>
-    </div>`;
+    <div id="drawerLines"></div>`;
 }
 
 // Body for a meal allowance claim: account/bank details + the line-item table.
 function mealBody(c) {
-  const rows = (c.lines || []).map(l => `
-    <tr>
-      <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
-      <td data-label="${esc(t('DB Number Site'))}">${esc(dbFmt(l.site))}</td>
-      <td data-label="${esc(t('Job Category'))}">${esc(l.job_category)}</td>
-      <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
-      <td data-label="${esc(t('Additional Description'))}">${esc(l.description)}</td>
-    </tr>`).join('');
   return `
     <dl class="kv">
       <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
@@ -2713,27 +2901,14 @@ function mealBody(c) {
       <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
       <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
       <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
+      ${sourceKvHtml(c)}
     </dl>
-    <div class="section-label">${esc(t('Meal allowance lines'))}</div>
-    <div class="meal-table-wrap">
-      <table class="meal-table">
-        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB Number Site'))}</th><th>${esc(t('Job Category'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Additional Description'))}</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="5" class="muted" style="padding:12px">${esc(t('No lines.'))}</td></tr>`}</tbody>
-        <tfoot><tr>
-          <td colspan="3" class="meal-total-label">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))}</td>
-          <td class="meal-total">${esc(money(c.total_amount, c.currency))}</td>
-          <td></td>
-        </tr></tfoot>
-      </table>
-    </div>`;
+    <div id="drawerLines"></div>`;
 }
 
 // Body for a cash advance: account/bank details, the purpose + requested amount,
 // and — once realized — the itemised transactions with a settlement summary.
 function advanceBody(c) {
-  const receiptLinks = (atts) => (atts && atts.length)
-    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/cash-advances/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
-    : `<span class="muted">${esc(t('—'))}</span>`;
   const hasLines = (c.lines || []).length > 0;
   // Phase-1 supporting documents, shown between the request details and the
   // realization so an approver reads the justification before the spend.
@@ -2746,27 +2921,8 @@ function advanceBody(c) {
         <span class="adv-doc-name" title="${esc(a.original_name)}">${esc(a.original_name)}</span>
         <span class="adv-doc-size">${esc(fmtBytes(a.size_bytes))}</span>
       </a>`).join('')}</div>` : '';
-  const linesTable = hasLines ? `
-    <div class="section-label">${esc(t('Realization — actual transactions'))}</div>
-    <div class="meal-table-wrap">
-      <table class="meal-table rc-table">
-        <thead><tr><th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th><th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th><th>${esc(t('Receipts'))}</th></tr></thead>
-        <tbody>${c.lines.map(l => `
-          <tr>
-            <td class="mono" data-label="${esc(t('Date'))}">${esc(l.line_date)}</td>
-            <td data-label="${esc(t('DB No.'))}">${l.db_no ? esc(dbFmt(l.db_no)) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Type of expense'))}">${esc(l.expense_type)}</td>
-            <td class="meal-amt" data-label="${esc(t('Amount'))}">${esc(money(l.amount, c.currency))}</td>
-            <td data-label="${esc(t('Description / purpose'))}">${l.description ? esc(l.description) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Receipts'))}" class="line-receipts">${receiptLinks(l.attachments)}</td>
-          </tr>`).join('')}</tbody>
-        <tfoot><tr>
-          <td colspan="3" class="meal-total-label">${esc(t('TOTAL SPENT'))}</td>
-          <td class="meal-total">${esc(money(c.realized_total, c.currency))}</td>
-          <td colspan="2"></td>
-        </tr></tfoot>
-      </table>
-    </div>` : `<p class="muted" style="margin:10px 0">${esc(t('Realization not submitted yet.'))}</p>`;
+  const linesTable = hasLines ? '<div id="drawerLines"></div>'
+    : `<p class="muted" style="margin:10px 0">${esc(t('Realization not submitted yet.'))}</p>`;
   // Settlement summary: the recorded outcome once settled, otherwise a live preview.
   let settleBox = '';
   if (hasLines) {
@@ -2803,6 +2959,11 @@ async function openDrawer(id, type = 'reimbursement') {
   c.type = type;
   const u = state.user;
   const isOwner = c.employee_id === u.id;
+  // Fresh per-line choices for this document: no marks yet, and every rejected
+  // line the claimant can still re-claim starts ticked.
+  lineMarks = new Map();
+  reclaimPicks = new Set(reclaimableLines(c).map(l => l.id));
+  const rejectedCount = (c.lines || []).filter(lineRejected).length;
 
   const rejectedNote = (c.status === 'rejected' && c.manager_comment) ? `
     <div class="note-box"><div class="nb-label">${esc(t('Returned by manager'))}</div>
@@ -2812,7 +2973,8 @@ async function openDrawer(id, type = 'reimbursement') {
 
   $('#drawer').innerHTML = `
     <div class="drawer-head">
-      <div><h2>${esc(c.claim_no)} <span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></h2>
+      <div><h2>${esc(c.claim_no)} <span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span>${rejectedCount
+          ? ` <span class="pill lr-pill">${esc(rejectedCount === 1 ? t('1 line rejected') : t('{n} lines rejected', { n: rejectedCount }))}</span>` : ''}</h2>
         <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('Submitted {time}', { time: fmtDateTime(c.created_at) }))}</p></div>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
@@ -2826,6 +2988,8 @@ async function openDrawer(id, type = 'reimbursement') {
 
   $('#drawer .x-btn').addEventListener('click', closeDrawer);
   $$('#drawer [data-act]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.act, c)));
+  renderDrawerLines(c);
+  wireDocLinks($('#drawer .kv') || $('#drawer'));
 
   $('#drawerScrim').hidden = false;
   $('#drawer').hidden = false;
@@ -2836,8 +3000,9 @@ async function handleAction(act, c) {
   const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
   try {
     if (act === 'approve') {
-      await api(`${base}${c.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
-      toast(t('Claim approved'));
+      if (!(await approveWithLines(c, base))) return;
+    } else if (act === 'reclaim') {
+      return startReclaim(c);
     } else if (act === 'paid') {
       return openPaidModal(c);
     } else if (act === 'realize') {
@@ -3464,16 +3629,22 @@ function saveDraftAndClose(kind, collect, collectFiles) {
 // "Cancel": deliberate discard — drop any draft and close without saving.
 function discardDraftAndClose(kind) { clearDraft(kind); modalCloseHook = null; closeModal(); }
 
-function openClaimModal(existing = null) {
+// `reclaim` (see startReclaim) opens a NEW claim prefilled with another document's
+// rejected lines: { type: 'claim'|'advance', id, no, floor, lines }.
+function openClaimModal(existing = null, reclaim = null) {
   const isEdit = !!existing;
   // A rejected claim may keep the dates it already had, even past the window,
-  // or be re-dated within the window it was first submitted into.
-  setClaimDateContext(isEdit ? existing : null);
-  claimEditId = isEdit ? existing.id : null;
-  rcAttachBase = '/api/claims';
-  const draft = isEdit ? null : loadDraft('claim');
-  if (isEdit) {
-    claimRows = (existing.lines || []).map(l => ({
+  // or be re-dated within the window it was first submitted into. A re-claim is
+  // held to the window its source was first submitted into, the same way.
+  setClaimDateContext(isEdit ? existing : reclaim ? { date_floor: reclaim.floor, lines: reclaim.lines } : null);
+  claimEditId = isEdit ? existing.id : reclaim ? reclaim.id : null;
+  rcAttachBase = reclaim && reclaim.type === 'advance' ? '/api/cash-advances' : '/api/claims';
+  const fresh = !isEdit && !reclaim;
+  const draft = fresh ? loadDraft('claim') : null;
+  if (isEdit || reclaim) {
+    // An edit carries only the live lines (rejected ones stay on the claim as
+    // history); a re-claim carries exactly the rejected lines picked for it.
+    claimRows = (isEdit ? activeLines(existing) : reclaim.lines).map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
       // The date came in with the claim, so it may stay even if it now sits
@@ -3491,12 +3662,13 @@ function openClaimModal(existing = null) {
   }
   openModal(`
     <div class="modal-head">
-      <h2>${isEdit ? esc(t('Edit & resubmit claim')) : esc(t('New reimbursement claim'))}</h2>
+      <h2>${isEdit ? esc(t('Edit & resubmit claim')) : reclaim ? esc(t('Re-claim rejected lines')) : esc(t('New reimbursement claim'))}</h2>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
     <div class="modal-body">
       <form id="claimForm" class="form">
         ${draft ? draftBannerHtml() : ''}
+        ${reclaim ? reclaimNoteHtml(reclaim) : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -3524,21 +3696,21 @@ function openClaimModal(existing = null) {
         <div class="modal-actions meal-foot">
           <span class="meal-foot-total">${esc(t('TOTAL'))} <span class="meal-total" id="rcTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
-          ${isEdit ? '' : `<button type="button" class="btn btn-ghost" id="rcSaveDraft">${esc(t('Save draft'))}</button>`}
+          ${fresh ? `<button type="button" class="btn btn-ghost" id="rcSaveDraft">${esc(t('Save draft'))}</button>` : ''}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
   $('#modal').classList.add('modal-xwide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#cancelClaim').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('claim'));
+  $('#cancelClaim').addEventListener('click', fresh ? () => discardDraftAndClose('claim') : closeModal);
   $('#rcAddRow').addEventListener('click', () => {
     readClaimRows(); claimRows.push(blankClaimRow()); renderClaimRows();
   });
-  $('#claimForm').addEventListener('submit', e => submitClaim(e, existing));
+  $('#claimForm').addEventListener('submit', e => submitClaim(e, existing, reclaim));
   renderClaimDateBox();
   renderClaimRows();
-  if (!isEdit) {
+  if (fresh) {
     // Preselect the draft's Approver 1 (the picker only renders when ≥2 choices).
     if (draft && draft.data.approver1) {
       const sel = $('#claimForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
@@ -3558,6 +3730,13 @@ function openClaimModal(existing = null) {
       renderClaimRows();
     });
   }
+}
+// The banner on a re-claim form: where the lines came from and what happens.
+function reclaimNoteHtml(reclaim) {
+  const n = reclaim.lines.length;
+  return `<p class="form-note">${esc(n === 1
+    ? t('This line was rejected on {no}. Fix it if needed, then submit it as a new claim.', { no: reclaim.no })
+    : t('These {n} lines were rejected on {no}. Fix them if needed, then submit them as a new claim.', { n, no: reclaim.no }))}</p>`;
 }
 // Gather the claim form's typed fields into a draft payload, or null when the
 // form is effectively empty. Receipt File objects go to IndexedDB separately
@@ -5106,7 +5285,7 @@ async function uploadReceipts(files, onProgress) {
   return out;
 }
 
-async function submitClaim(e, existing) {
+async function submitClaim(e, existing, reclaim = null) {
   e.preventDefault();
   readClaimRows();
   const err = $('#claimError'); err.hidden = true;
@@ -5157,9 +5336,10 @@ async function submitClaim(e, existing) {
       await api('/claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
       toast(t('Claim resubmitted'));
     } else {
+      if (reclaim) payload.source = { type: reclaim.type, id: reclaim.id, line_ids: reclaim.lines.map(l => l.id) };
       await api('/claims', { method: 'POST', body: JSON.stringify(payload) });
       toast(t('Claim submitted'));
-      clearDraft('claim');
+      if (!reclaim) clearDraft('claim');
     }
     modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
@@ -5245,18 +5425,21 @@ function renderMealRows() {
   wireDbCells('#mealRows');
 }
 
-async function openMealAllowanceModal(existing = null) {
+// `reclaim` opens a NEW meal claim prefilled with another one's rejected lines.
+async function openMealAllowanceModal(existing = null, reclaim = null) {
   // Refresh the Amount-dropdown presets for the submitter's region every time the
   // form opens. state.mealRates is seeded at login but can be stale (e.g. an admin
   // just changed them in Settings), so re-fetch to keep the form connected to the
   // saved amounts. A failure keeps whatever presets we already have.
   try { state.mealRates = (await api('/meal-rates')).rates || state.mealRates; } catch { /* keep current */ }
   const isEdit = !!existing;
-  setClaimDateContext(isEdit ? existing : null);
-  const draft = isEdit ? null : loadDraft('meal');
-  if (isEdit) {
-    // Prefill from the claim being resubmitted.
-    mealRows = (existing.lines || []).map(l => ({
+  setClaimDateContext(isEdit ? existing : reclaim ? { date_floor: reclaim.floor, lines: reclaim.lines } : null);
+  const fresh = !isEdit && !reclaim;
+  const draft = fresh ? loadDraft('meal') : null;
+  if (isEdit || reclaim) {
+    // Prefill from the claim being resubmitted (its live lines only), or from
+    // the rejected lines being re-claimed.
+    mealRows = (isEdit ? activeLines(existing) : reclaim.lines).map(l => ({
       date: l.line_date, site: l.site, category: l.job_category,
       amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description, carried: !claimDateUnlocked()
     }));
@@ -5271,12 +5454,13 @@ async function openMealAllowanceModal(existing = null) {
   }
   openModal(`
     <div class="modal-head">
-      <h2>${isEdit ? esc(t('Edit & resubmit meal allowance')) : esc(t('Meal Allowance Claim Form'))}</h2>
+      <h2>${isEdit ? esc(t('Edit & resubmit meal allowance')) : reclaim ? esc(t('Re-claim rejected lines')) : esc(t('Meal Allowance Claim Form'))}</h2>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
     <div class="modal-body">
       <form id="mealForm" class="form">
         ${draft ? draftBannerHtml() : ''}
+        ${reclaim ? reclaimNoteHtml(reclaim) : ''}
         <div class="meal-topbar">
           <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
         </div>
@@ -5301,21 +5485,21 @@ async function openMealAllowanceModal(existing = null) {
         <div class="modal-actions meal-foot">
           <span class="meal-foot-total">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))} <span class="meal-total" id="mealTotal">0</span></span>
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
-          ${isEdit ? '' : `<button type="button" class="btn btn-ghost" id="mealSaveDraft">${esc(t('Save draft'))}</button>`}
+          ${fresh ? `<button type="button" class="btn btn-ghost" id="mealSaveDraft">${esc(t('Save draft'))}</button>` : ''}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
   $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
-  $('#mealCancel').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('meal'));
+  $('#mealCancel').addEventListener('click', fresh ? () => discardDraftAndClose('meal') : closeModal);
   $('#mealAddRow').addEventListener('click', () => {
     readMealRows(); mealRows.push({ date: '', site: '', category: '', amount: '', desc: '' }); renderMealRows();
   });
-  $('#mealForm').addEventListener('submit', e => submitMealClaim(e, existing));
+  $('#mealForm').addEventListener('submit', e => submitMealClaim(e, existing, reclaim));
   renderClaimDateBox();
   renderMealRows();
-  if (!isEdit) {
+  if (fresh) {
     if (draft && draft.data.approver1) {
       const sel = $('#mealForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1;
     }
@@ -5336,7 +5520,7 @@ function collectMealDraft() {
   return { rows, approver1 };
 }
 
-async function submitMealClaim(e, existing) {
+async function submitMealClaim(e, existing, reclaim = null) {
   e.preventDefault();
   readMealRows();
   const err = $('#mealError'); err.hidden = true;
@@ -5355,6 +5539,7 @@ async function submitMealClaim(e, existing) {
   const payload = { lines };
   if (needsApprover1) payload.approver1 = Number(approver1);
   if (existing) payload.resubmit_note = (new FormData(e.target).get('resubmit_note') || '').trim();
+  if (reclaim) payload.source = { type: reclaim.type, id: reclaim.id, line_ids: reclaim.lines.map(l => l.id) };
   try {
     if (existing) {
       await api('/meal-claims/' + existing.id, { method: 'PUT', body: JSON.stringify(payload) });
@@ -5362,7 +5547,7 @@ async function submitMealClaim(e, existing) {
     } else {
       await api('/meal-claims', { method: 'POST', body: JSON.stringify(payload) });
       toast(t('Meal claim submitted'));
-      clearDraft('meal');
+      if (!reclaim) clearDraft('meal');
     }
     modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
@@ -5561,8 +5746,9 @@ function openRealizeModal(advance) {
   setClaimDateContext(isEdit ? advance : null);
   claimEditId = advance.id;
   rcAttachBase = '/api/cash-advances';
-  if (isEdit && (advance.lines || []).length) {
-    claimRows = advance.lines.map(l => ({
+  if (isEdit && activeLines(advance).length) {
+    // Rejected lines stay on the advance as history; only the live ones are edited.
+    claimRows = activeLines(advance).map(l => ({
       line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: l.amount != null ? String(l.amount) : '', description: l.description || '',
       carried: !claimDateUnlocked(),

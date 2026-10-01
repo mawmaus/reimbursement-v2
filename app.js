@@ -8,7 +8,7 @@ const bcrypt = require('bcryptjs');
 const { q, qq, transaction } = require('./db');
 const { uploadReceipt, deleteReceipt, presignReceiptUpload, statReceipt, RECEIPT_MAX_BYTES, BLOB_URL_RE } = require('./lib/blob');
 const { sendEmail, emailConfigured, appUrl, layout, button } = require('./lib/email');
-const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision, sendReminderDigest,
+const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantLinesRejected, notifyClaimantDecision, sendReminderDigest,
   notifyDateChangeRequested, notifyDateChangeDecided } = require('./lib/notify');
 
 const app = express();
@@ -755,8 +755,13 @@ function baseClaim(row, attachments, lines, attByLine, history, nameMap) {
     lines: (lines || []).map(l => ({
       id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: Number(l.amount_cents) / 100, description: l.description,
-      attachments: ((attByLine && attByLine[l.id]) || []).map(attView)
+      attachments: ((attByLine && attByLine[l.id]) || []).map(attView),
+      ...lineDecision(l)
     })),
+    // Everything the claimant put in, rejected lines included; `amount` is what is
+    // actually payable.
+    claimed_amount: (lines || []).reduce((s, l) => s + Number(l.amount_cents), 0) / 100,
+    ...sourceView(row),
     history: (history || []).map(h => ({
       actor_id: h.actor_id == null ? null : Number(h.actor_id),
       actor_name: h.actor_name, action: h.action, from_status: h.from_status,
@@ -773,8 +778,7 @@ async function serializeMany(rows) {
     `SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
      FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids);
   const lines = await q(
-    `SELECT id, claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description
-     FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
+    `SELECT * FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
   const hist = await q(
     `SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
      FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids);
@@ -796,7 +800,10 @@ async function serializeMany(rows) {
   const dc = await liveDateChanges('claim', ids);
   const settings = await loadAppSettings();
   return rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null,
-    date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.created_at) : null }));
+    date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.window_from || r.created_at) : null,
+    // The floor a re-claim of this claim's rejected lines is held to (the window
+    // it was first submitted into — see resolveLineSource).
+    reclaim_floor: dateFloorFor(settings, r.region, r.window_from || r.created_at) }));
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -885,6 +892,16 @@ function planRevert(row, user) {
       comment: 'Reverted by the claimant to make changes' };
   }
   return { error: `A ${row.status} claim cannot be reverted`, code: 409 };
+}
+
+// The chain step whose approval a revert undoes — its line rejections are
+// undone with it (see restoreStepRejections). 0 when no approval is undone.
+// 'unapprove-final' leaves current_step on the final approver's own step;
+// 'unapprove-step' hands back to the previous one.
+function undoneApprovalStep(kind, step) {
+  if (kind === 'unapprove-final') return step || 0;
+  if (kind === 'unapprove-step') return (step || 0) - 1;
+  return 0;
 }
 
 // --- Re-picking Approver 1 on a revert ---------------------------------------
@@ -1744,6 +1761,222 @@ app.get('/api/claims/:id', requireAuth, ah(async (req, res) => {
   res.json({ claim });
 }));
 
+// ---------------------------------------------------------------------------
+// Per-line approval
+// An approver may reject individual lines while approving the rest. Rejected
+// lines stay on the document as history but leave its payable total; the
+// claimant re-claims them on a NEW document (see resolveLineSource). One table
+// describes how to reach each document type's lines.
+// ---------------------------------------------------------------------------
+const LINE_DOCS = {
+  claim: {
+    table: 'claims', lines: 'claim_lines', fk: 'claim_id', total: 'amount_cents', noCol: 'claim_no',
+    histTable: 'claim_history', typeLabel: 'reimbursement claim',
+    history: (...a) => logHistory(...a),
+    describe: (l) => [l.line_date, l.expense_type]
+  },
+  meal: {
+    table: 'meal_claims', lines: 'meal_claim_lines', fk: 'meal_claim_id', total: 'total_cents', noCol: 'claim_no',
+    histTable: 'meal_claim_history', typeLabel: 'meal allowance claim',
+    history: (...a) => logMealHistory(...a),
+    describe: (l) => [l.line_date, l.job_category || 'Meal allowance']
+  },
+  advance: {
+    table: 'cash_advances', lines: 'cash_advance_lines', fk: 'advance_id', total: 'realized_total_cents', noCol: 'advance_no',
+    histTable: 'cash_advance_history', typeLabel: 'cash advance realization',
+    history: (...a) => logAdvanceHistory(...a),
+    describe: (l) => [l.line_date, l.expense_type]
+  }
+};
+// "Line 2 · 2026-09-01 · Taxi · IDR 150,000" — how a line reads in history + email.
+function lineLabel(kind, l, n, currency) {
+  return [`Line ${n}`, ...LINE_DOCS[kind].describe(l).filter(Boolean), fmtMoney(l.amount_cents, currency)].join(' · ');
+}
+// The SQL that re-derives a header's payable total from its still-active lines.
+function payableTotalSql(kind) {
+  const d = LINE_DOCS[kind];
+  return `UPDATE ${d.table} SET ${d.total} = (SELECT COALESCE(SUM(amount_cents),0) FROM ${d.lines}
+            WHERE ${d.fk} = $1 AND rejected_at IS NULL), updated_at = now() WHERE id = $1`;
+}
+// A reimbursement claim's header mirrors its lines (type "Multiple", first DB
+// no…); keep that summary in step with the lines still being paid.
+async function refreshClaimHeader(claimId) {
+  const active = await q(
+    `SELECT line_date, db_no, expense_type, description FROM claim_lines
+      WHERE claim_id = $1 AND rejected_at IS NULL ORDER BY sort_order, id`, [claimId]);
+  if (!active.length) return;
+  const h = claimHeaderFromLines(active);
+  await q(`UPDATE claims SET expense_date=$1, expense_type=$2, db_no=$3, description=$4 WHERE id=$5`,
+    [h.expense_date, h.expense_type, h.db_no, h.description, claimId]);
+}
+
+// Validate the `rejected_lines` riding on an approve: [{ id, reason }]. Every
+// id must be a still-active line of this document and carry a reason, and at
+// least one line must survive — rejecting them all is "Reject & return".
+// Returns { picks: [{ line, n, reason }], remainingCents } or { error }.
+async function planLineRejections(kind, row, raw) {
+  const d = LINE_DOCS[kind];
+  const list = Array.isArray(raw) ? raw : [];
+  const lines = await q(`SELECT * FROM ${d.lines} WHERE ${d.fk} = $1 ORDER BY sort_order, id`, [row.id]);
+  const active = lines.filter(l => !l.rejected_at);
+  const activeCents = active.reduce((s, l) => s + Number(l.amount_cents), 0);
+  if (!list.length) return { picks: [], remainingCents: activeCents };
+  const byId = new Map(active.map(l => [Number(l.id), l]));
+  const seen = new Set();
+  const picks = [];
+  for (const r of list) {
+    const id = Number(r && r.id);
+    const reason = String((r && r.reason) || '').trim();
+    if (!byId.has(id)) return { error: 'One of the rejected lines is no longer on this claim — reload and try again' };
+    if (!reason) return { error: 'Give a reason for every rejected line' };
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const line = byId.get(id);
+    picks.push({ line, reason: reason.slice(0, 1000), n: lines.indexOf(line) + 1 });
+  }
+  if (picks.length >= active.length) {
+    return { error: 'Every line would be rejected — use "Reject & return" to send the whole claim back instead' };
+  }
+  const rejectedCents = picks.reduce((s, p) => s + Number(p.line.amount_cents), 0);
+  return { picks, remainingCents: activeCents - rejectedCents };
+}
+// Apply a validated plan: mark the lines rejected at this chain step, re-derive
+// the payable total, log one history row per line and email the claimant.
+async function applyLineRejections(kind, row, user, picks) {
+  if (!picks.length) return;
+  const d = LINE_DOCS[kind];
+  const step = row.current_step || 0;
+  const queries = picks.map(p => qq(
+    `UPDATE ${d.lines} SET rejected_at = now(), rejected_by_name = $1, rejected_reason = $2, rejected_step = $3
+      WHERE id = $4 AND ${d.fk} = $5 AND rejected_at IS NULL`,
+    [String(user.full_name || '').trim(), p.reason, step, p.line.id, row.id]));
+  queries.push(qq(payableTotalSql(kind), [row.id]));
+  await transaction(queries);
+  if (kind === 'claim') await refreshClaimHeader(row.id);
+  for (const p of picks) {
+    await d.history(row.id, user, 'line rejected', row.status, row.status,
+      `${lineLabel(kind, p.line, p.n, row.currency)} — ${p.reason}`);
+  }
+  const fresh = (await q(`SELECT * FROM ${d.table} WHERE id = $1`, [row.id]))[0];
+  await notifyClaimantLinesRejected(fresh.employee_id, {
+    claimNo: fresh[d.noCol], typeLabel: d.typeLabel,
+    amount: Number(fresh[d.total]) / 100, currency: fresh.currency
+  }, picks.map(p => ({ label: lineLabel(kind, p.line, p.n, row.currency), reason: p.reason })));
+}
+// Undoing a step's approval also undoes the line rejections that step made —
+// except lines the claimant already re-claimed elsewhere, which stay rejected.
+async function restoreStepRejections(kind, row, user, step) {
+  if (!step) return;
+  const d = LINE_DOCS[kind];
+  const restored = await q(
+    `UPDATE ${d.lines} SET rejected_at = NULL, rejected_by_name = '', rejected_reason = '', rejected_step = NULL
+      WHERE ${d.fk} = $1 AND rejected_step = $2 AND rejected_at IS NOT NULL AND resubmitted_doc_id IS NULL
+      RETURNING *`, [row.id, step]);
+  if (!restored.length) return;
+  await q(payableTotalSql(kind), [row.id]);
+  if (kind === 'claim') await refreshClaimHeader(row.id);
+  const order = await q(`SELECT id FROM ${d.lines} WHERE ${d.fk} = $1 ORDER BY sort_order, id`, [row.id]);
+  const pos = new Map(order.map((r, i) => [Number(r.id), i + 1]));
+  for (const l of restored) {
+    await d.history(row.id, user, 'line restored', row.status, row.status,
+      lineLabel(kind, l, pos.get(Number(l.id)) || 0, row.currency));
+  }
+}
+// A whole-document resubmit starts a fresh approval cycle; line rejections from
+// the old cycle become permanent so a later revert can't resurrect them.
+function freezeRejectionsQuery(kind, id) {
+  const d = LINE_DOCS[kind];
+  return qq(`UPDATE ${d.lines} SET rejected_step = NULL WHERE ${d.fk} = $1 AND rejected_at IS NOT NULL`, [id]);
+}
+// Removing a document frees any rejected lines that had been re-claimed on it,
+// so they can be re-claimed again.
+function releaseCarriedQueries(kinds, docNo) {
+  return kinds.map(k => qq(
+    `UPDATE ${LINE_DOCS[k].lines} SET resubmitted_doc_id = NULL, resubmitted_doc_no = '' WHERE resubmitted_doc_no = $1`,
+    [docNo]));
+}
+
+// Which source documents a new document may re-claim rejected lines from:
+// a reimbursement claim takes them from another claim or from a cash-advance
+// realization (same line shape); a meal claim only from another meal claim.
+const SOURCE_KINDS = { claim: ['claim', 'advance'], meal: ['meal'] };
+// Resolve `source: { type, id, line_ids }` on a new submission. The source must
+// be the caller's own, and every picked line must be rejected and not yet
+// re-claimed. Returns null when there is no source, else { kind, row, docNo,
+// lines, windowFrom, carried, atts } or { error }.
+async function resolveLineSource(req, target, raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const kind = String(raw.type || '');
+  if (!(SOURCE_KINDS[target] || []).includes(kind)) return { error: 'Those lines cannot be re-claimed on this kind of claim' };
+  const d = LINE_DOCS[kind];
+  const row = (await q(`SELECT * FROM ${d.table} WHERE id = $1`, [Number(raw.id) || 0]))[0];
+  if (!row) return { error: 'The original claim no longer exists' };
+  if (Number(row.employee_id) !== req.user.id) return { error: 'You can only re-claim lines from your own claims' };
+  const ids = [...new Set(asIntArray(raw.line_ids))];
+  if (!ids.length) return { error: 'Pick at least one rejected line to re-claim' };
+  const lines = await q(`SELECT * FROM ${d.lines} WHERE ${d.fk} = $1 AND id = ANY($2::int[])`, [row.id, intArrayLiteral(ids)]);
+  if (lines.length !== ids.length || lines.some(l => !l.rejected_at)) {
+    return { error: 'Only rejected lines can be re-claimed — reload and try again' };
+  }
+  const taken = lines.find(l => l.resubmitted_doc_id);
+  if (taken) return { error: `That line was already re-claimed on ${taken.resubmitted_doc_no}` };
+  // Judged by the window the source was first submitted into (for an advance:
+  // when its realization first went in), like a resubmit of the source itself.
+  const windowFrom = kind === 'advance' ? await firstRealizedAt(row.id) : (row.window_from || row.created_at);
+  let atts = [];
+  if (kind !== 'meal') {
+    const col = kind === 'advance' ? 'advance_line_id' : 'line_id';
+    atts = await q(`SELECT id, ${col} AS line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes
+                      FROM attachments WHERE ${col} = ANY($1::int[])`, [intArrayLiteral(ids)]);
+  }
+  return {
+    kind, row, docNo: row[d.noCol], lines, windowFrom, atts,
+    carried: new Set(lines.map(l => String(l.line_date || '')).filter(isISODate))
+  };
+}
+// The queries that stamp the source lines as re-claimed on the new document
+// (whose id is `newIdExpr`, a trusted currval() fragment) and log it on the source.
+function carryLinesQueries(src, user, newIdExpr, newNo) {
+  const d = LINE_DOCS[src.kind];
+  const n = src.lines.length;
+  return [
+    qq(`UPDATE ${d.lines} SET resubmitted_doc_id = ${newIdExpr}, resubmitted_doc_no = $1
+         WHERE id = ANY($2::int[]) AND resubmitted_doc_id IS NULL`,
+      [newNo, intArrayLiteral(src.lines.map(l => Number(l.id)))]),
+    qq(`INSERT INTO ${d.histTable} (${d.fk}, actor_id, actor_name, action, from_status, to_status, comment)
+        VALUES ($1,$2,$3,'lines re-claimed',$4,$4,$5)`,
+      [src.row.id, user.id, String(user.full_name || '').trim(), src.row.status,
+       `${n === 1 ? '1 rejected line' : `${n} rejected lines`} re-claimed on ${newNo}`])
+  ];
+}
+// Kept receipts on a re-claim point at the SAME blob as the source line's
+// receipt, so one blob may back more than one attachment row. Delete it only
+// once nothing references it any more.
+async function deleteReceiptIfUnused(url) {
+  const still = await q('SELECT 1 FROM attachments WHERE blob_url = $1 LIMIT 1', [url]);
+  if (still.length) return;
+  try { await deleteReceipt(url); } catch { /* ignore */ }
+}
+// Line fields every serializer exposes for per-line approval.
+function lineDecision(l) {
+  return {
+    rejected: l.rejected_at ? {
+      at: iso(l.rejected_at), by: l.rejected_by_name || '', reason: l.rejected_reason || '',
+      step: l.rejected_step == null ? null : Number(l.rejected_step)
+    } : null,
+    resubmitted_doc_id: l.resubmitted_doc_id == null ? null : Number(l.resubmitted_doc_id),
+    resubmitted_doc_no: l.resubmitted_doc_no || ''
+  };
+}
+// Header fields for a document raised from another's rejected lines.
+function sourceView(row) {
+  return {
+    source_doc_type: row.source_doc_type || '',
+    source_doc_id: row.source_doc_id == null ? null : Number(row.source_doc_id),
+    source_doc_no: row.source_doc_no || ''
+  };
+}
+
 // Sequences backing claims.id / claim_lines.id, so later inserts in the same
 // transaction can reference the just-created rows via currval().
 const CLAIM_SEQ = "pg_get_serial_sequence('claims','id')";
@@ -1794,8 +2027,10 @@ function claimHeaderFromLines(lines) {
 
 // Create an itemised claim — header, its lines, each line's receipts and the
 // initial history row — as one atomic transaction. `verifiedByLine[i]` is the
-// verified upload list for line i. Retries on a claim_no collision.
-async function createClaim(req, header, lines, verifiedByLine, totalCents, approverIds, region) {
+// verified upload list for line i. Retries on a claim_no collision. `src` (from
+// resolveLineSource) marks a re-claim of another document's rejected lines:
+// `keptByLine[i]` are that source's receipts line i keeps, re-linked to the same blob.
+async function createClaim(req, header, lines, verifiedByLine, totalCents, approverIds, region, src = null, keptByLine = []) {
   const h = claimHeaderFromLines(lines);
   // Default the currency to the region's configured default when the client
   // doesn't send one.
@@ -1806,20 +2041,27 @@ async function createClaim(req, header, lines, verifiedByLine, totalCents, appro
       `INSERT INTO claims
         (claim_no, employee_id, claimant_name, expense_date, department, db_no, bank_name,
          recipient_name, bank_account_no, expense_type, amount_cents, currency, description,
-         status, approver_ids, current_step, region)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15,$16)`,
+         status, approver_ids, current_step, region, source_doc_type, source_doc_id, source_doc_no, window_from)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'submitted',$14::int[],$15,$16,$17,$18,$19,$20)`,
       [claimNo, req.user.id, String(req.user.full_name || '').trim(), h.expense_date,
        String(req.user.department || '').trim(), h.db_no,
        String(req.user.bank_name || '').trim(),
        String(req.user.recipient_name || '').trim(), String(req.user.bank_account_no || '').trim(),
        h.expense_type, totalCents,
        String(header.currency || defaultCurrency).trim().slice(0, 8), h.description,
-       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || ''),
+       src ? src.kind : '', src ? src.row.id : null, src ? src.docNo : '', src ? src.windowFrom : null])];
     lines.forEach((l, i) => {
       queries.push(qq(
         `INSERT INTO claim_lines (claim_id, sort_order, line_date, db_no, expense_type, amount_cents, description)
          VALUES (currval(${CLAIM_SEQ}),$1,$2,$3,$4,$5,$6)`,
         [i, l.line_date, l.db_no, l.expense_type, l.amount_cents, l.description]));
+      for (const a of (keptByLine[i] || [])) {
+        queries.push(qq(
+          `INSERT INTO attachments (claim_id, line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
+           VALUES (currval(${CLAIM_SEQ}), currval(${LINE_SEQ}),$1,$2,$3,$4,$5)`,
+          [a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes]));
+      }
       for (const u of (verifiedByLine[i] || [])) {
         queries.push(qq(
           `INSERT INTO attachments (claim_id, line_id, blob_url, blob_pathname, original_name, mime_type, size_bytes)
@@ -1829,8 +2071,9 @@ async function createClaim(req, header, lines, verifiedByLine, totalCents, appro
     });
     queries.push(qq(
       `INSERT INTO claim_history (claim_id, actor_id, actor_name, action, from_status, to_status, comment)
-       VALUES (currval(${CLAIM_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
-      [req.user.id, String(req.user.full_name || '').trim()]));
+       VALUES (currval(${CLAIM_SEQ}),$1,$2,'submitted',NULL,'submitted',$3)`,
+      [req.user.id, String(req.user.full_name || '').trim(), src ? `Re-claims rejected lines from ${src.docNo}` : '']));
+    if (src) queries.push(...carryLinesQueries(src, req.user, `currval(${CLAIM_SEQ})`, claimNo));
     queries.push(qq(`SELECT currval(${CLAIM_SEQ})::int AS id`));
     try {
       const results = await transaction(queries);
@@ -1918,15 +2161,25 @@ app.get('/api/geocode', requireAuth, ah(async (req, res) => {
 }));
 
 app.post('/api/claims', requireAuth, ah(async (req, res) => {
-    // Checked first, before any parsing or receipt verification — there is no
-    // point doing that work for a submission that cannot be accepted.
-    if (await heldByUnrealizedAdvance(req, res)) return;
     const b = req.body || {};
+    // Re-claiming another document's rejected lines corrects an expense already
+    // submitted, so it isn't held back by an unrealized advance the way a brand
+    // new claim is. Both checks run before any parsing or receipt verification —
+    // no point doing that work for a doomed submission.
+    const src = await resolveLineSource(req, 'claim', b.source);
+    if (src && src.error) return res.status(400).json({ error: src.error });
+    if (!src && await heldByUnrealizedAdvance(req, res)) return;
     const parsed = normaliseClaimLines(b.lines);
     if (parsed.error) return res.status(400).json({ error: parsed.error });
-    // Enforce the claim-date policy across every line's date.
-    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
+    // Enforce the claim-date policy across every line's date. A re-claim keeps
+    // its source lines' dates and is judged by the window the source was first
+    // submitted into.
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region,
+      src ? src.carried : undefined, src ? src.windowFrom : undefined);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
+    // Receipts carried over from the source lines, re-linked rather than re-uploaded.
+    const srcAtts = new Map(((src && src.atts) || []).map(a => [Number(a.id), a]));
+    const keptByLine = parsed.lines.map(l => l.keepIds.filter(id => srcAtts.has(id)).map(id => srcAtts.get(id)));
     // Resolve the approver chain (validating the chosen Approver 1) before we
     // link any receipts, so a bad/missing choice fails cleanly.
     const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
@@ -1945,7 +2198,7 @@ app.post('/api/claims', requireAuth, ah(async (req, res) => {
     // Region is glued to the account — every claim inherits the submitter's.
     const claimRegion = String(req.user.region || '');
     try {
-      const claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion);
+      const claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion, src, keptByLine);
       const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
       const first = currentApproverId(rows[0]);
       if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
@@ -1974,14 +2227,18 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const grant = await liveDateChange('claim', row.id);
   if (!dateChangeGranted(grant)) {
     const carried = await carriedLineDates('SELECT line_date FROM claim_lines WHERE claim_id = $1', row.id);
-    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried, row.created_at);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried, row.window_from || row.created_at);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   }
 
   // Existing receipts, keyed by id, so kept ones can be re-linked (to the same
   // blob) onto the new lines. Each line carries keep_attachment_ids + new uploads.
+  // Lines an approver rejected aren't part of the edit: they stay on the claim as
+  // history (re-claimed on a new claim instead), receipts and all.
   const existingAtts = await q(
-    'SELECT id, blob_url, blob_pathname, original_name, mime_type, size_bytes FROM attachments WHERE claim_id = $1', [row.id]);
+    `SELECT id, blob_url, blob_pathname, original_name, mime_type, size_bytes FROM attachments
+      WHERE claim_id = $1 AND (line_id IS NULL OR line_id NOT IN
+        (SELECT id FROM claim_lines WHERE claim_id = $1 AND rejected_at IS NOT NULL))`, [row.id]);
   const byId = new Map(existingAtts.map(a => [Number(a.id), a]));
   const keptSet = new Set();
   const verifiedByLine = [];
@@ -2017,8 +2274,10 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
          String(emp.bank_account_no || '').trim(),
          h.expense_type, parsed.totalCents, String(b.currency || row.currency).trim().slice(0, 8),
          h.description, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, claimId]),
-      qq('DELETE FROM attachments WHERE claim_id = $1', [claimId]),
-      qq('DELETE FROM claim_lines WHERE claim_id = $1', [claimId])
+      qq(`DELETE FROM attachments WHERE claim_id = $1 AND (line_id IS NULL OR line_id NOT IN
+            (SELECT id FROM claim_lines WHERE claim_id = $1 AND rejected_at IS NOT NULL))`, [claimId]),
+      qq('DELETE FROM claim_lines WHERE claim_id = $1 AND rejected_at IS NULL', [claimId]),
+      freezeRejectionsQuery('claim', claimId)
     ];
     parsed.lines.forEach((l, i) => {
       queries.push(qq(
@@ -2040,7 +2299,7 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
     await transaction(queries);
     // Only once committed do we bin the blobs of the removed receipts (a blob
     // delete can't be rolled back). A failure here must not reach the catch.
-    for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+    for (const a of dropped) await deleteReceiptIfUnused(a.blob_url);
     // The grant covered this one resubmit; spend it so the next round re-locks.
     if (dateChangeGranted(grant)) await consumeDateChange('claim', row.id);
     const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
@@ -2060,8 +2319,12 @@ app.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (!userCanApprove(req.user, row)) {
     return res.status(403).json({ error: 'You are not the approver for this step' });
   }
-  const le = approvalLimitError(req.user, row.amount_cents, row.currency);
+  // Lines this approver rejects drop out first; the limit applies to what's left.
+  const plan = await planLineRejections('claim', row, req.body && req.body.rejected_lines);
+  if (plan.error) return res.status(400).json({ error: plan.error });
+  const le = approvalLimitError(req.user, plan.remainingCents, row.currency);
   if (le) return res.status(403).json({ error: le });
+  await applyLineRejections('claim', row, req.user, plan.picks);
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -2146,6 +2409,7 @@ app.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
   }
   await logHistory(row.id, req.user, plan.action, plan.from, plan.to,
     reroute.ids ? `Approver 1 changed to ${reroute.name}` : (plan.comment || ''));
+  await restoreStepRejections('claim', { ...row, status: plan.to }, req.user, undoneApprovalStep(plan.kind, step));
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   // A revert is silent, but a re-route hands the claim to someone who has no
   // other way of knowing it is now theirs.
@@ -2192,13 +2456,17 @@ app.delete('/api/claims/:id', requireAuth, requireCap('delete_claims'), ah(async
   // Remove the database rows atomically first; only once that commits do we
   // delete the blobs (which can't be rolled back). If the transaction fails the
   // blobs are untouched, so we never orphan a claim that points at missing files.
+  // Rejected lines that had been re-claimed on this claim become re-claimable.
   const claimId = Number(row.id);
   await transaction([
     qq('DELETE FROM attachments WHERE claim_id = $1', [claimId]),
     qq('DELETE FROM claim_history WHERE claim_id = $1', [claimId]),
-    qq('DELETE FROM claims WHERE id = $1', [claimId])
+    qq('DELETE FROM claims WHERE id = $1', [claimId]),
+    ...releaseCarriedQueries(['claim', 'advance'], row.claim_no)
   ]);
-  for (const a of atts) await deleteReceipt(a.blob_url);
+  // A receipt re-linked from (or onto) a re-claim shares its blob — keep it
+  // while the other claim still uses it.
+  for (const a of atts) await deleteReceiptIfUnused(a.blob_url);
   res.json({ ok: true });
 }));
 
@@ -2261,9 +2529,12 @@ function baseMealClaim(row, lines, history, nameMap) {
     decided_at: iso(row.decided_at), paid_at: iso(row.paid_at),
     created_at: iso(row.created_at), updated_at: iso(row.updated_at),
     lines: (lines || []).map(l => ({
-      line_date: l.line_date, site: l.site, job_category: l.job_category,
-      amount: Number(l.amount_cents) / 100, description: l.description
+      id: l.id, line_date: l.line_date, site: l.site, job_category: l.job_category,
+      amount: Number(l.amount_cents) / 100, description: l.description,
+      ...lineDecision(l)
     })),
+    claimed_amount: (lines || []).reduce((s, l) => s + Number(l.amount_cents), 0) / 100,
+    ...sourceView(row),
     history: (history || []).map(h => ({
       actor_id: h.actor_id == null ? null : Number(h.actor_id),
       actor_name: h.actor_name, action: h.action, from_status: h.from_status,
@@ -2292,7 +2563,8 @@ async function serializeManyMeal(rows) {
   const dc = await liveDateChanges('meal', ids);
   const settings = await loadAppSettings();
   return rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null,
-    date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.created_at) : null }));
+    date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.window_from || r.created_at) : null,
+    reclaim_floor: dateFloorFor(settings, r.region, r.window_from || r.created_at) }));
 }
 async function serializeOneMeal(row) { return (await serializeManyMeal([row]))[0]; }
 async function loadMealClaimOr404(req, res) {
@@ -2375,7 +2647,8 @@ app.delete('/api/meal-claims/:id', requireAuth, requireCap('delete_claims'), ah(
   await transaction([
     qq('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [claimId]),
     qq('DELETE FROM meal_claim_history WHERE meal_claim_id = $1', [claimId]),
-    qq('DELETE FROM meal_claims WHERE id = $1', [claimId])
+    qq('DELETE FROM meal_claims WHERE id = $1', [claimId]),
+    ...releaseCarriedQueries(['meal'], row.claim_no)
   ]);
   res.json({ ok: true });
 }));
@@ -2393,25 +2666,29 @@ function mealLineQuery(claimIdExpr, l, i) {
 }
 
 // Create a meal claim, its line items and initial history row as one atomic
-// transaction. Retries on a claim_no collision.
-async function createMealClaim(req, lines, totalCents, approverIds, region) {
+// transaction. Retries on a claim_no collision. `src` marks a re-claim of
+// another meal claim's rejected lines (see resolveLineSource).
+async function createMealClaim(req, lines, totalCents, approverIds, region, src = null) {
   const currency = (await regionPrefsFor(region)).currency;
   for (let attempt = 0; attempt < 4; attempt++) {
     const claimNo = await nextMealClaimNo();
     const queries = [qq(
       `INSERT INTO meal_claims
         (claim_no, employee_id, claimant_name, department, bank_name, recipient_name,
-         bank_account_no, total_cents, currency, status, approver_ids, current_step, region)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11,$12)`,
+         bank_account_no, total_cents, currency, status, approver_ids, current_step, region,
+         source_doc_type, source_doc_id, source_doc_no, window_from)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'submitted',$10::int[],$11,$12,$13,$14,$15,$16)`,
       [claimNo, req.user.id, String(req.user.full_name || '').trim(), String(req.user.department || '').trim(),
        String(req.user.bank_name || '').trim(), String(req.user.recipient_name || '').trim(),
        String(req.user.bank_account_no || '').trim(), totalCents, currency,
-       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || '')])];
+       intArrayLiteral(approverIds), approverIds.length ? 1 : 0, String(region || ''),
+       src ? src.kind : '', src ? src.row.id : null, src ? src.docNo : '', src ? src.windowFrom : null])];
     lines.forEach((l, i) => queries.push(mealLineQuery(`currval(${MEAL_SEQ})`, l, i)));
     queries.push(qq(
       `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
-       VALUES (currval(${MEAL_SEQ}),$1,$2,'submitted',NULL,'submitted','')`,
-      [req.user.id, String(req.user.full_name || '').trim()]));
+       VALUES (currval(${MEAL_SEQ}),$1,$2,'submitted',NULL,'submitted',$3)`,
+      [req.user.id, String(req.user.full_name || '').trim(), src ? `Re-claims rejected lines from ${src.docNo}` : '']));
+    if (src) queries.push(...carryLinesQueries(src, req.user, `currval(${MEAL_SEQ})`, claimNo));
     queries.push(qq(`SELECT currval(${MEAL_SEQ})::int AS id`));
     try {
       const results = await transaction(queries);
@@ -2426,17 +2703,22 @@ async function createMealClaim(req, lines, totalCents, approverIds, region) {
 }
 
 app.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
-  if (await heldByUnrealizedAdvance(req, res)) return;
-  const parsed = normaliseMealLines((req.body || {}).lines);
+  const b = req.body || {};
+  // A re-claim of rejected lines isn't a new claim (see POST /api/claims).
+  const src = await resolveLineSource(req, 'meal', b.source);
+  if (src && src.error) return res.status(400).json({ error: src.error });
+  if (!src && await heldByUnrealizedAdvance(req, res)) return;
+  const parsed = normaliseMealLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region,
+    src ? src.carried : undefined, src ? src.windowFrom : undefined);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, (req.body || {}).approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   const approverIds = built.ids;
   // Region is glued to the account — every claim inherits the submitter's.
   const claimRegion = String(req.user.region || '');
-  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds, claimRegion);
+  const claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, approverIds, claimRegion, src);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);
   if (first) await notifyPendingApprover(first, mealNotify(rows[0]));
@@ -2459,7 +2741,7 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const grant = await liveDateChange('meal', row.id);
   if (!dateChangeGranted(grant)) {
     const carried = await carriedLineDates('SELECT line_date FROM meal_claim_lines WHERE meal_claim_id = $1', row.id);
-    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried, row.created_at);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried, row.window_from || row.created_at);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   }
   // Bank details + approvers come from the claimant's account.
@@ -2477,7 +2759,9 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
     [parsed.totalCents, String(emp.department || '').trim(), String(emp.bank_name || '').trim(),
      String(emp.recipient_name || '').trim(), String(emp.bank_account_no || '').trim(),
      intArrayLiteral(approverIds), approverIds.length ? 1 : 0, claimId]),
-    qq('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [claimId])];
+    // Lines an approver rejected stay as history; only the live ones are rebuilt.
+    qq('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1 AND rejected_at IS NULL', [claimId]),
+    freezeRejectionsQuery('meal', claimId)];
   parsed.lines.forEach((l, i) => queries.push(mealLineQuery(claimId, l, i)));
   queries.push(qq(
     `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
@@ -2496,8 +2780,11 @@ app.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (!row) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a meal claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
-  const le = approvalLimitError(req.user, row.total_cents, row.currency);
+  const plan = await planLineRejections('meal', row, req.body && req.body.rejected_lines);
+  if (plan.error) return res.status(400).json({ error: plan.error });
+  const le = approvalLimitError(req.user, plan.remainingCents, row.currency);
   if (le) return res.status(403).json({ error: le });
+  await applyLineRejections('meal', row, req.user, plan.picks);
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -2573,6 +2860,7 @@ app.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
   }
   await logMealHistory(row.id, req.user, plan.action, plan.from, plan.to,
     reroute.ids ? `Approver 1 changed to ${reroute.name}` : (plan.comment || ''));
+  await restoreStepRejections('meal', { ...row, status: plan.to }, req.user, undoneApprovalStep(plan.kind, step));
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
   if (reroute.ids) await notifyPendingApprover(reroute.chosen, mealNotify(rows[0]));
   res.json({ claim: await serializeOneMeal(rows[0]) });
@@ -2639,8 +2927,12 @@ function baseAdvance(row, lines, attByLine, history, nameMap, docs) {
     lines: (lines || []).map(l => ({
       id: l.id, line_date: l.line_date, db_no: l.db_no || '', expense_type: l.expense_type,
       amount: Number(l.amount_cents) / 100, description: l.description,
-      attachments: ((attByLine && attByLine[l.id]) || []).map(attView)
+      attachments: ((attByLine && attByLine[l.id]) || []).map(attView),
+      ...lineDecision(l)
     })),
+    // Everything the realization listed, rejected lines included;
+    // `realized_total` is what counts against the advance.
+    claimed_realized_total: (lines || []).reduce((s, l) => s + Number(l.amount_cents), 0) / 100,
     history: (history || []).map(h => ({
       actor_id: h.actor_id == null ? null : Number(h.actor_id),
       actor_name: h.actor_name, action: h.action, from_status: h.from_status,
@@ -2653,8 +2945,7 @@ async function serializeManyAdvance(rows) {
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
   const lines = await q(
-    `SELECT id, advance_id, sort_order, line_date, db_no, expense_type, amount_cents, description
-     FROM cash_advance_lines WHERE advance_id IN (${ph}) ORDER BY sort_order, id`, ids);
+    `SELECT * FROM cash_advance_lines WHERE advance_id IN (${ph}) ORDER BY sort_order, id`, ids);
   const lineIds = lines.map(l => l.id);
   let atts = [];
   if (lineIds.length) {
@@ -2686,7 +2977,8 @@ async function serializeManyAdvance(rows) {
   // A returned realization is judged by when it first went in (see firstRealizedAt).
   const realizedAt = (id) => ((h[id] || []).find(x => x.action === 'realization submitted') || {}).created_at || null;
   return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap, docsByAdvance[r.id]), date_change: dc[r.id] || null,
-    date_floor: r.status === 'rejected_realize' ? dateFloorFor(settings, r.region, realizedAt(r.id)) : null }));
+    date_floor: r.status === 'rejected_realize' ? dateFloorFor(settings, r.region, realizedAt(r.id)) : null,
+    reclaim_floor: dateFloorFor(settings, r.region, realizedAt(r.id)) }));
 }
 async function serializeOneAdvance(row) { return (await serializeManyAdvance([row]))[0]; }
 async function loadAdvanceOr404(req, res) {
@@ -2842,9 +3134,17 @@ app.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) => {
     return res.status(409).json({ error: `Cannot approve a cash advance that is "${row.status}"` });
   }
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
-  const amountForLimit = realizing ? row.realized_total_cents : row.amount_cents;
+  // Only a realization has lines to reject; the request is a single amount.
+  const rejectedLines = req.body && req.body.rejected_lines;
+  if (!realizing && Array.isArray(rejectedLines) && rejectedLines.length) {
+    return res.status(400).json({ error: 'Lines can only be rejected on a realization' });
+  }
+  const plan = realizing ? await planLineRejections('advance', row, rejectedLines) : { picks: [] };
+  if (plan.error) return res.status(400).json({ error: plan.error });
+  const amountForLimit = realizing ? plan.remainingCents : row.amount_cents;
   const le = approvalLimitError(req.user, amountForLimit, row.currency);
   if (le) return res.status(403).json({ error: le });
+  await applyLineRejections('advance', row, req.user, plan.picks);
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
@@ -3056,9 +3356,11 @@ async function submitRealization(req, res, row) {
   const built = await resolveSubmitApprovers(emp.approver1_options, emp.approver_ids, b.approver1);
   if (built.error) return res.status(400).json({ error: built.error });
   // Existing realization receipts (keyed by id) so kept ones survive an edit.
+  // Lines an approver rejected aren't part of the edit — they stay as history.
   const existingAtts = await q(
     `SELECT a.id, a.blob_url, a.blob_pathname, a.original_name, a.mime_type, a.size_bytes
-       FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id WHERE l.advance_id = $1`, [row.id]);
+       FROM attachments a JOIN cash_advance_lines l ON a.advance_line_id = l.id
+      WHERE l.advance_id = $1 AND l.rejected_at IS NULL`, [row.id]);
   const byId = new Map(existingAtts.map(a => [Number(a.id), a]));
   const keptSet = new Set();
   const verifiedByLine = [];
@@ -3079,8 +3381,10 @@ async function submitRealization(req, res, row) {
             manager_comment='', manager_id=NULL, decided_at=NULL,
             approver_ids=$2::int[], current_step=$3, updated_at=now() WHERE id=$4`,
         [parsed.totalCents, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, advanceId]),
-      qq(`DELETE FROM attachments WHERE advance_line_id IN (SELECT id FROM cash_advance_lines WHERE advance_id = $1)`, [advanceId]),
-      qq('DELETE FROM cash_advance_lines WHERE advance_id = $1', [advanceId])
+      qq(`DELETE FROM attachments WHERE advance_line_id IN
+            (SELECT id FROM cash_advance_lines WHERE advance_id = $1 AND rejected_at IS NULL)`, [advanceId]),
+      qq('DELETE FROM cash_advance_lines WHERE advance_id = $1 AND rejected_at IS NULL', [advanceId]),
+      freezeRejectionsQuery('advance', advanceId)
     ];
     parsed.lines.forEach((l, i) => {
       queries.push(qq(
@@ -3102,7 +3406,7 @@ async function submitRealization(req, res, row) {
        resubmit ? 'realization resubmitted' : 'realization submitted', row.status,
        String(b.resubmit_note || '').trim()]));
     await transaction(queries);
-    for (const a of dropped) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+    for (const a of dropped) await deleteReceiptIfUnused(a.blob_url);
     if (dateChangeGranted(grant)) await consumeDateChange('advance', advanceId);
     const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [advanceId]);
     const first = currentApproverId(rows[0]);
@@ -3203,6 +3507,10 @@ app.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) => {
   }
   await logAdvanceHistory(row.id, req.user, plan.action, plan.from, plan.to,
     reroute.ids ? `Approver 1 changed to ${reroute.name}` : (plan.comment || ''));
+  // Realization approvals carry line rejections; undoing one restores them.
+  if (plan.from === 'realize_approved' || plan.from === 'realize_submitted') {
+    await restoreStepRejections('advance', { ...row, status: plan.to }, req.user, undoneApprovalStep(plan.kind, step));
+  }
   const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
   if (reroute.ids) await notifyPendingApprover(reroute.chosen, advanceNotify(rows[0]));
   res.json({ claim: await serializeOneAdvance(rows[0]) });
@@ -3305,7 +3613,8 @@ app.delete('/api/cash-advances/:id', requireAuth, requireCap('delete_claims'), a
     qq('DELETE FROM cash_advance_history WHERE advance_id = $1', [advanceId]),
     qq('DELETE FROM cash_advances WHERE id = $1', [advanceId])
   ]);
-  for (const a of atts) await deleteReceipt(a.blob_url);
+  // A realization receipt re-linked onto a re-claim keeps its blob for that claim.
+  for (const a of atts) await deleteReceiptIfUnused(a.blob_url);
   res.json({ ok: true });
 }));
 
@@ -3447,11 +3756,13 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
                 l.amount_cents AS cents, c.status, COALESCE(l.db_no,'') AS db, 'c' || c.id AS cid,
                 c.approver_ids AS appr, c.region, c.claim_no AS no, c.claimant_name AS claimant
            FROM claim_lines l JOIN claims c ON c.id = l.claim_id
+          WHERE l.rejected_at IS NULL
          UNION ALL
          SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
                 l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
                 m.approver_ids AS appr, m.region AS region, m.claim_no AS no, m.claimant_name AS claimant
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
+          WHERE l.rejected_at IS NULL
          UNION ALL
          -- Cash advances contribute their realization lines (actual transactions),
          -- which only exist once the advance is realized. The realization approval
@@ -3467,6 +3778,7 @@ app.get('/api/insights', requireAuth, ah(async (req, res) => {
                 COALESCE(l.db_no,'') AS db, 'a' || a.id AS cid,
                 a.approver_ids AS appr, a.region AS region, a.advance_no AS no, a.claimant_name AS claimant
            FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id
+          WHERE l.rejected_at IS NULL
        ) ev
       WHERE ${where.join(' AND ')}`, params);
 
@@ -3638,6 +3950,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
     }
     // Filter on the line's own date (like meal/advance), so a multi-line claim
     // contributes only the lines that fall in the range.
+    // Lines an approver rejected aren't payable here (they're re-claimed elsewhere).
+    where.push('l.rejected_at IS NULL');
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
@@ -3685,6 +3999,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
       employees.forEach(e => params.push(e));
       where.push(`m.employee_id IN (${ph})`);
     }
+    // Lines an approver rejected aren't payable here (they're re-claimed elsewhere).
+    where.push('l.rejected_at IS NULL');
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`m.region = $${params.length}`); }
@@ -3733,6 +4049,8 @@ app.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req,
       employees.forEach(e => params.push(e));
       where.push(`a.employee_id IN (${ph})`);
     }
+    // Lines an approver rejected aren't payable here (they're re-claimed elsewhere).
+    where.push('l.rejected_at IS NULL');
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }

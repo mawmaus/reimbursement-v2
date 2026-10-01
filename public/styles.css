@@ -1672,6 +1672,81 @@ body.no-scroll { overflow: hidden; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .line-receipt:hover { text-decoration: underline; }
 
+/* --- Per-line approval ------------------------------------------------------
+   In the detail drawer an approver can reject single lines; a rejected line
+   stays in the table, faded with its amount struck, and a note row under it
+   carries the reason and where the line went. Both rows share a red spine so
+   they read as one item, on desktop and as stacked cards on phones. */
+.btn-xs { padding: 4px 10px; font-size: .78rem; border-radius: 7px; white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.pill.lr-pill { color: var(--red); background: var(--red-tint); }
+.lr-hint { margin: -2px 0 8px; font-size: .82rem; color: var(--muted); line-height: 1.45; }
+
+/* tbody in the selector so it outranks the edit form's 34px .meal-table tbody td:last-child. */
+.drawer-lines tbody td.line-decide { width: 1%; white-space: nowrap; text-align: right; vertical-align: middle; }
+.drawer-lines .lr-reject-btn { color: var(--red); border-color: var(--red-line); }
+.drawer-lines .lr-reject-btn:hover { background: var(--red-tint); border-color: var(--red); color: var(--red); }
+
+.drawer-lines tr.line-rejected td { color: var(--muted); }
+/* Strike the figure only — on phones the cell also carries its label. */
+.drawer-lines tr.line-rejected td.meal-amt .amt-v { text-decoration: line-through; }
+.drawer-lines tr.line-rejected .line-receipt { color: var(--muted); }
+.drawer-lines tr.line-marked td { background: var(--red-tint); }
+.drawer-lines tr.line-rejected td:first-child,
+.drawer-lines tr.line-marked td:first-child,
+.drawer-lines tr.line-sub td { box-shadow: inset 3px 0 0 var(--red); }
+.drawer-lines tr.has-sub td { border-bottom-color: transparent; }
+.drawer-lines tr.line-sub td { padding: 0 10px 10px 14px; border-top-color: transparent; text-align: left; width: auto; }
+.drawer-lines tr.line-sub-marked td { background: var(--red-tint); }
+
+.lr-note { display: flex; flex-direction: column; gap: 3px; font-size: .82rem; line-height: 1.4; }
+.lr-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lr-badge { color: var(--red); font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.lr-who { color: var(--muted); font-size: .76rem; }
+.lr-reason { color: var(--ink); overflow-wrap: anywhere; }
+.lr-tail { font-size: .8rem; }
+/* Links to another document (a re-claim, or the claim it came from). */
+a[data-open-doc] { color: var(--pine-deep); font-weight: 650; text-decoration: none; }
+a[data-open-doc]:hover { text-decoration: underline; }
+.lr-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ink-soft); width: fit-content; }
+.drawer-lines .lr-pick input { width: 16px; height: 16px; padding: 0; accent-color: var(--pine, #f7982a); cursor: pointer; }
+
+.lr-reason-field { display: block; font-size: .72rem; font-weight: 650; color: var(--red);
+  text-transform: uppercase; letter-spacing: .04em; }
+.drawer-lines .lr-reason-field input {
+  display: block; width: 100%; margin-top: 4px; padding: 8px 10px;
+  border: 1px solid var(--red-line); border-radius: 7px; background: var(--surface);
+  font-size: .88rem; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink);
+}
+.drawer-lines .lr-reason-field input:focus { background: var(--surface); border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+.drawer-lines .lr-reason-field input.invalid { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+
+.drawer-lines tfoot tr.lr-foot-rejected td { color: var(--red); font-weight: 600; }
+.drawer-lines tfoot tr.lr-foot-rejected td.meal-total { font-weight: 650; }
+
+@media (max-width: 900px) {
+  /* The note row joins its line's card instead of standing as a card of its own. */
+  .drawer-lines tbody tr.has-sub { margin-bottom: 0; border-bottom: none;
+    border-bottom-left-radius: 0; border-bottom-right-radius: 0; padding-bottom: 6px; }
+  .drawer-lines tbody tr.line-sub { margin-top: 0; border-top: none; padding: 0 12px 12px;
+    border-top-left-radius: 0; border-top-right-radius: 0; }
+  .drawer-lines tbody tr.line-sub td { padding: 4px 0 0; box-shadow: none; background: transparent; }
+  .drawer-lines tbody tr.line-rejected td:first-child,
+  .drawer-lines tbody tr.line-marked td:first-child { box-shadow: none; }
+  .drawer-lines tbody tr.line-rejected, .drawer-lines tbody tr.line-sub-rejected,
+  .drawer-lines tbody tr.line-marked, .drawer-lines tbody tr.line-sub-marked { box-shadow: inset 3px 0 0 var(--red); }
+  .drawer-lines tbody tr.line-marked, .drawer-lines tbody tr.line-sub-marked { background: var(--red-tint); }
+  .drawer-lines tbody tr.line-marked td { background: transparent; }
+  /* The Reject / Keep button sits top-right of its card. */
+  .drawer-lines tbody td.line-decide { position: absolute; top: 8px; right: 10px; width: auto; padding: 0; }
+  .drawer-lines.is-deciding tbody tr:not(.line-sub) td:first-child { padding-right: 110px; }
+  /* Totals read as one panel, not a chip per cell. */
+  .drawer-lines tfoot { background: var(--paper); border-radius: 10px; padding: 2px 12px 10px; }
+  .drawer-lines tfoot td { background: transparent; }
+  .drawer-lines tfoot tr.lr-foot-rejected { padding-bottom: 0; }
+}
+
 /* "Locked" hint under a non-editable column header in the Roles matrix. */
 .role-locked {
   margin-top: 2px; font-size: .68rem; font-weight: 600; letter-spacing: .04em;

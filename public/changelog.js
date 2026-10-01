@@ -27,6 +27,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-01.5',
+    date: '2026-10-01',
+    items: [
+      { kind: 'new', text: {
+        en: 'Approvers can now reject single lines of a claim. Press "Reject line" on any line and give a reason. The rest of the claim is approved and paid without that line. This works for reimbursement claims, meal allowances and cash advance realizations.',
+        id: 'Penyetuju kini bisa menolak baris tertentu dari sebuah klaim. Tekan "Tolak baris" pada baris mana pun dan beri alasan. Sisa klaim disetujui dan dibayar tanpa baris itu. Ini berlaku untuk klaim penggantian, uang makan, dan realisasi uang muka.',
+        th: 'ผู้อนุมัติสามารถปฏิเสธบางรายการในคำขอเบิกได้แล้ว กด "ปฏิเสธรายการ" ที่รายการใดก็ได้และระบุเหตุผล ส่วนที่เหลือของคำขอจะได้รับอนุมัติและจ่ายโดยไม่มีรายการนั้น ใช้ได้กับการเบิกค่าใช้จ่าย ค่าอาหาร และการเคลียร์เงินทดรอง',
+        vi: 'Người duyệt giờ có thể từ chối từng dòng của một yêu cầu. Nhấn "Từ chối dòng" trên bất kỳ dòng nào và nêu lý do. Phần còn lại của yêu cầu được duyệt và thanh toán mà không có dòng đó. Áp dụng cho yêu cầu hoàn tiền, phụ cấp ăn và quyết toán tạm ứng.',
+        km: 'អ្នកអនុម័តឥឡូវអាចបដិសេធជួរនីមួយៗនៃការទាមទារបាន។ ចុច "បដិសេធជួរ" លើជួរណាមួយ ហើយផ្ដល់មូលហេតុ។ ផ្នែកដែលនៅសល់នៃការទាមទារត្រូវបានអនុម័ត និងបង់ដោយគ្មានជួរនោះ។ វាដំណើរការសម្រាប់ការទាមទារសំណង ប្រាក់អាហារ និងការទូទាត់ប្រាក់បុរេប្រទាន។',
+        fil: 'Puwede na ngayong tanggihan ng mga approver ang isang linya lang ng claim. Pindutin ang "Tanggihan ang linya" sa kahit anong linya at magbigay ng dahilan. Maaaprubahan at mababayaran ang natitirang claim nang wala ang linyang iyon. Gumagana ito sa reimbursement claim, meal allowance at realization ng cash advance.'
+      } },
+      { kind: 'new', audience: ['claim', 'meal', 'advance'], text: {
+        en: 'If a line of your claim is rejected, it stays on the claim with the reason, so you can always see what happened. To get paid for it, open the claim and press "Re-claim rejected lines". If several lines were rejected, tick the ones you want. They open in a new claim, receipts included, ready to fix and submit. The new claim follows the date window of the original claim.',
+        id: 'Jika sebuah baris klaim Anda ditolak, baris itu tetap ada di klaim beserta alasannya, jadi Anda selalu bisa melihat apa yang terjadi. Agar dibayar, buka klaim dan tekan "Klaim ulang baris yang ditolak". Jika ada beberapa baris yang ditolak, centang yang Anda inginkan. Baris-baris itu terbuka di klaim baru, lengkap dengan struknya, siap diperbaiki dan diajukan. Klaim baru mengikuti batas tanggal klaim aslinya.',
+        th: 'หากรายการใดในคำขอของคุณถูกปฏิเสธ รายการนั้นจะยังอยู่ในคำขอพร้อมเหตุผล คุณจึงเห็นได้เสมอว่าเกิดอะไรขึ้น หากต้องการรับเงิน ให้เปิดคำขอแล้วกด "เบิกรายการที่ถูกปฏิเสธใหม่" หากถูกปฏิเสธหลายรายการ ให้เลือกรายการที่ต้องการ รายการเหล่านั้นจะเปิดในคำขอใหม่พร้อมใบเสร็จ พร้อมให้แก้ไขและส่ง คำขอใหม่ใช้ช่วงวันที่เดียวกับคำขอเดิม',
+        vi: 'Nếu một dòng trong yêu cầu của bạn bị từ chối, dòng đó vẫn nằm trong yêu cầu kèm lý do, nên bạn luôn biết chuyện gì đã xảy ra. Để được thanh toán, hãy mở yêu cầu và nhấn "Yêu cầu lại các dòng bị từ chối". Nếu có nhiều dòng bị từ chối, hãy chọn những dòng bạn muốn. Chúng mở ra trong một yêu cầu mới, kèm cả hóa đơn, sẵn sàng để sửa và gửi. Yêu cầu mới theo khoảng thời gian của yêu cầu gốc.',
+        km: 'ប្រសិនបើជួរណាមួយនៃការទាមទាររបស់អ្នកត្រូវបានបដិសេធ វានៅតែស្ថិតលើការទាមទារជាមួយមូលហេតុ ដូច្នេះអ្នកតែងតែអាចមើលឃើញអ្វីដែលបានកើតឡើង។ ដើម្បីទទួលបានការបង់ប្រាក់ សូមបើកការទាមទារ ហើយចុច "ទាមទារឡើងវិញនូវជួរដែលបានបដិសេធ"។ ប្រសិនបើមានជួរជាច្រើនត្រូវបានបដិសេធ សូមជ្រើសរើសជួរដែលអ្នកចង់បាន។ ពួកវាបើកក្នុងការទាមទារថ្មី រួមទាំងបង្កាន់ដៃ ត្រៀមរួចសម្រាប់កែ និងដាក់ស្នើ។ ការទាមទារថ្មីអនុវត្តតាមចន្លោះកាលបរិច្ឆេទនៃការទាមទារដើម។',
+        fil: 'Kapag tinanggihan ang isang linya ng claim mo, mananatili ito sa claim kasama ang dahilan, kaya laging makikita mo ang nangyari. Para mabayaran ito, buksan ang claim at pindutin ang "I-claim muli ang mga tinanggihang linya". Kung ilang linya ang tinanggihan, piliin ang mga gusto mo. Bubukas ang mga ito sa bagong claim, kasama ang mga resibo, handang ayusin at isumite. Susundin ng bagong claim ang palugit ng petsa ng orihinal na claim.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-01.4',
     date: '2026-10-01',
     items: [
