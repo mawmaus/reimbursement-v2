@@ -268,20 +268,42 @@ function syncThemeButtons() {
 // newest release id the user has opened is remembered per device; until then
 // the top-bar button carries a dot.
 // ---------------------------------------------------------------------------
-const WHATSNEW_KEY = 'reimb.seenRelease';
-const releases = () => (Array.isArray(window.CHANGELOG) ? window.CHANGELOG : []);
+// Notes are only for the accounts they concern: an item's `audience` keys (see
+// changelog.js) must match the signed-in account, Super Admins see everything,
+// and a release with nothing left for this account is dropped whole.
+const NOTE_AUDIENCE = {
+  claim: (u) => !!(u.purposes && u.purposes.claim),
+  meal: (u) => !!(u.purposes && u.purposes.meal),
+  advance: (u) => !!(u.purposes && u.purposes.advance),
+  pay: (u) => canPay(u),
+  export: () => uCan('export_csv'),
+  view_all: () => uCan('view_all_claims'),
+  accounts: (u) => !!(u.can_manage_accounts || uCan('create_accounts')),
+  settings: (u) => !!(u.role === 'vp' || u.role === 'admin' || uCan('manage_settings')),
+  superadmin: () => false // covered by the Super Admin pass-through below
+};
+function noteFor(item, u) {
+  if (!u) return false;
+  if (u.role === 'superadmin' || !item.audience || !item.audience.length) return true;
+  return item.audience.some(k => NOTE_AUDIENCE[k] && NOTE_AUDIENCE[k](u));
+}
+const releases = () => (Array.isArray(window.CHANGELOG) ? window.CHANGELOG : [])
+  .map(r => ({ ...r, items: (r.items || []).filter(it => noteFor(it, state.user)) }))
+  .filter(r => r.items.length);
+// "Seen" is per account as well as per device: two people sharing a browser see
+// different notes, so one opening theirs mustn't clear the other's dot.
+const whatsNewKey = () => `reimb.seenRelease.${state.user ? state.user.id : ''}`;
 function syncWhatsNewDot() {
   const btn = $('#whatsNewBtn'); if (!btn) return;
   const latest = releases()[0];
+  btn.hidden = !latest;
   let seen = null;
-  try { seen = localStorage.getItem(WHATSNEW_KEY); } catch { /* private mode */ }
+  try { seen = localStorage.getItem(whatsNewKey()); } catch { /* private mode */ }
   btn.classList.toggle('has-unread', !!latest && seen !== latest.id);
 }
 function initWhatsNew() {
   const btn = $('#whatsNewBtn'); if (!btn) return;
-  btn.hidden = !releases().length;
   btn.addEventListener('click', openWhatsNew);
-  syncWhatsNewDot();
 }
 // "1 Oct 2026" in the active language's month names (Khmer/Thai read fine this way too).
 function releaseDate(iso) {
@@ -309,7 +331,7 @@ function openWhatsNew() {
     </div>
     <div class="modal-body wn-body">${body}</div>`);
   $('#modal .x-btn').addEventListener('click', closeModal);
-  if (list[0]) { try { localStorage.setItem(WHATSNEW_KEY, list[0].id); } catch { /* private mode */ } }
+  if (list[0]) { try { localStorage.setItem(whatsNewKey(), list[0].id); } catch { /* private mode */ } }
   syncWhatsNewDot();
 }
 
@@ -503,6 +525,8 @@ function showApp() {
   applyAdvanceHold();
   // Light up a "draft waiting" dot on any New button that has a saved draft.
   refreshDraftBadges();
+  // What's new: only this account's notes, and their unread dot.
+  syncWhatsNewDot();
   const isSuper = u.role === 'superadmin';
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');

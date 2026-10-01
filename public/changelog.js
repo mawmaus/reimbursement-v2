@@ -11,13 +11,26 @@
 // `id` identifies the release for the unread dot: bump it (a new entry at the
 // top) and everyone who hasn't opened the notes since sees the dot again.
 // `kind` is one of 'new' | 'improved' | 'fixed' (labels translated in i18n.js).
+//
+// `audience` (optional) limits an item to the accounts it concerns: it shows
+// when the account matches ANY listed key. Leave it off only for changes that
+// reach everyone. Super Admins see every item. A release none of whose items
+// match is hidden whole, and never lights the dot. Keys (app.js NOTE_AUDIENCE):
+//   claim / meal / advance  may raise that purpose (New claim / meal / advance)
+//   pay                     may mark claims paid (Finance AP)
+//   export                  may export CSV
+//   view_all                may open "View all claims"
+//   accounts                may manage accounts
+//   settings                may open Settings
+//   superadmin              Super Admins only
 // ---------------------------------------------------------------------------
+window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
     id: '2026-10-01.2',
     date: '2026-10-01',
     items: [
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
         en: 'Got a claim sent back to you? Now you can fix its dates yourself — no need to ask anyone. The rule is simple: if a date was allowed on the day you first sent the claim, it is still allowed now. If it was already too old back then, it can\'t be used.',
         id: 'Klaim Anda dikembalikan? Sekarang Anda bisa memperbaiki tanggalnya sendiri — tidak perlu minta izin siapa pun. Aturannya mudah: jika sebuah tanggal boleh dipakai pada hari Anda pertama kali mengirim klaim, tanggal itu tetap boleh dipakai sekarang. Jika saat itu tanggalnya sudah terlalu lama, tanggal itu tidak bisa dipakai.',
         th: 'รายการเบิกของคุณถูกส่งกลับมาใช่ไหม ตอนนี้คุณแก้วันที่เองได้เลย ไม่ต้องขอใคร กฎง่ายมาก: ถ้าวันที่นั้นใช้ได้ในวันที่คุณส่งรายการเบิกครั้งแรก ตอนนี้ก็ยังใช้ได้ แต่ถ้าตอนนั้นวันที่นั้นเก่าเกินไปแล้ว ก็จะใช้ไม่ได้',
@@ -67,7 +80,7 @@ window.CHANGELOG = [
     id: '2026-09-23',
     date: '2026-09-23',
     items: [
-      { kind: 'new', text: {
+      { kind: 'new', audience: ['pay'], text: {
         en: 'The Paid claims list shows when each claim was paid, and you can filter it by payment date.',
         id: 'Daftar klaim Dibayar menampilkan kapan setiap klaim dibayar, dan Anda dapat memfilternya berdasarkan tanggal bayar.',
         th: 'รายการเบิกที่จ่ายแล้วจะแสดงวันที่จ่ายของแต่ละรายการ และคุณสามารถกรองตามวันที่จ่ายได้',
@@ -75,7 +88,7 @@ window.CHANGELOG = [
         km: 'បញ្ជីសំណើដែលបានបង់ បង្ហាញថ្ងៃដែលសំណើនីមួយៗត្រូវបានបង់ ហើយអ្នកអាចតម្រងតាមថ្ងៃបង់បាន។',
         fil: 'Ipinapakita ng listahan ng mga bayad na claim kung kailan binayaran ang bawat isa, at maaari mo itong i-filter ayon sa petsa ng bayad.'
       } },
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['export'], text: {
         en: 'Export CSV now includes the payment date.',
         id: 'Ekspor CSV kini menyertakan tanggal bayar.',
         th: 'การส่งออก CSV มีวันที่จ่ายแล้ว',
@@ -97,7 +110,7 @@ window.CHANGELOG = [
     id: '2026-09-22',
     date: '2026-09-22',
     items: [
-      { kind: 'new', text: {
+      { kind: 'new', audience: ['advance'], text: {
         en: 'A cash advance request can carry supporting documents. They are always saved as PDF.',
         id: 'Permintaan uang muka dapat menyertakan dokumen pendukung. Dokumen selalu disimpan sebagai PDF.',
         th: 'คำขอเงินทดรองจ่ายสามารถแนบเอกสารประกอบได้ และจะบันทึกเป็น PDF เสมอ',
@@ -105,7 +118,7 @@ window.CHANGELOG = [
         km: 'សំណើប្រាក់បុរេប្រទានអាចភ្ជាប់ឯកសារគាំទ្របាន។ ឯកសារទាំងនោះតែងតែរក្សាទុកជា PDF។',
         fil: 'Maaari nang maglakip ng mga sumusuportang dokumento sa isang cash advance request. Palagi itong sine-save bilang PDF.'
       } },
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['advance'], text: {
         en: 'While you have a cash advance that is not yet realized, New claim and New meal allowance are on hold. The home page tells you why.',
         id: 'Selama Anda memiliki uang muka yang belum direalisasikan, Klaim baru dan Tunjangan makan baru ditahan. Halaman utama menjelaskan alasannya.',
         th: 'ระหว่างที่คุณมีเงินทดรองจ่ายที่ยังไม่ได้เคลียร์ การเบิกใหม่และการเบิกค่าอาหารใหม่จะถูกระงับไว้ หน้าแรกจะแจ้งเหตุผลให้ทราบ',
@@ -113,7 +126,7 @@ window.CHANGELOG = [
         km: 'នៅពេលអ្នកមានប្រាក់បុរេប្រទានដែលមិនទាន់ទូទាត់ សំណើថ្មី និងប្រាក់ឧបត្ថម្ភអាហារថ្មី នឹងត្រូវផ្អាក។ ទំព័រដើមនឹងប្រាប់អ្នកពីមូលហេតុ។',
         fil: 'Habang may cash advance kang hindi pa nare-realize, naka-hold ang Bagong claim at Bagong meal allowance. Sasabihin sa iyo ng home page kung bakit.'
       } },
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['claim'], text: {
         en: 'Receipt photos: the portal finds the receipt\'s edges, straightens the angle, and cleans up the image for you.',
         id: 'Foto bukti: portal menemukan tepi bukti, meluruskan sudutnya, dan merapikan gambarnya untuk Anda.',
         th: 'รูปใบเสร็จ: พอร์ทัลจะหาขอบของใบเสร็จ ปรับมุมให้ตรง และทำให้ภาพสะอาดขึ้นให้คุณ',
@@ -127,7 +140,7 @@ window.CHANGELOG = [
     id: '2026-09-16',
     date: '2026-09-16',
     items: [
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['pay'], text: {
         en: 'Mark as paid and Revert payment work on several selected claims in one go.',
         id: 'Tandai dibayar dan Batalkan pembayaran dapat dilakukan untuk beberapa klaim terpilih sekaligus.',
         th: 'ทำเครื่องหมายว่าจ่ายแล้วและย้อนการจ่ายเงินได้กับหลายรายการที่เลือกในครั้งเดียว',
@@ -135,7 +148,7 @@ window.CHANGELOG = [
         km: 'សម្គាល់ថាបានបង់ និងត្រឡប់ការបង់ប្រាក់ អាចធ្វើលើសំណើជាច្រើនដែលបានជ្រើសរើសក្នុងពេលតែមួយ។',
         fil: 'Gumagana na ang Markahang bayad na at I-revert ang bayad sa ilang napiling claim nang sabay-sabay.'
       } },
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['view_all'], text: {
         en: 'View all claims can open receipts and download PDFs for a whole selection.',
         id: 'Lihat semua klaim dapat membuka bukti dan mengunduh PDF untuk seluruh pilihan.',
         th: 'ดูรายการเบิกทั้งหมดสามารถเปิดใบเสร็จและดาวน์โหลด PDF ของรายการที่เลือกทั้งหมดได้',
@@ -149,7 +162,7 @@ window.CHANGELOG = [
     id: '2026-09-10',
     date: '2026-09-10',
     items: [
-      { kind: 'new', text: {
+      { kind: 'new', audience: ['superadmin'], text: {
         en: 'Request change of date: if a returned claim\'s dates are locked, ask from the home menu for them to be unlocked.',
         id: 'Minta perubahan tanggal: bila tanggal klaim yang dikembalikan terkunci, ajukan permintaan dari menu utama agar dibuka.',
         th: 'ขอเปลี่ยนวันที่: หากวันที่ของรายการเบิกที่ถูกส่งกลับถูกล็อก สามารถขอปลดล็อกได้จากเมนูหน้าแรก',
@@ -157,7 +170,7 @@ window.CHANGELOG = [
         km: 'ស្នើសុំប្ដូរកាលបរិច្ឆេទ៖ ប្រសិនបើកាលបរិច្ឆេទនៃសំណើដែលត្រូវបានបញ្ជូនត្រឡប់ត្រូវបានចាក់សោ សូមស្នើសុំដោះសោពីម៉ឺនុយទំព័រដើម។',
         fil: 'Humiling na palitan ang petsa: kung naka-lock ang mga petsa ng ibinalik na claim, humiling mula sa home menu na i-unlock ang mga ito.'
       } },
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
         en: 'A rejected claim keeps its original dates when you resubmit it, even if the claim window has since closed.',
         id: 'Klaim yang ditolak tetap memakai tanggal aslinya saat dikirim ulang, meskipun periode klaim sudah ditutup.',
         th: 'รายการเบิกที่ถูกปฏิเสธจะคงวันที่เดิมไว้เมื่อส่งใหม่ แม้ช่วงเวลาการเบิกจะปิดไปแล้วก็ตาม',
@@ -165,7 +178,7 @@ window.CHANGELOG = [
         km: 'សំណើដែលត្រូវបានបដិសេធ រក្សាកាលបរិច្ឆេទដើមរបស់វា នៅពេលអ្នកដាក់ស្នើម្ដងទៀត ទោះបីរយៈពេលដាក់សំណើបានបិទហើយក៏ដោយ។',
         fil: 'Pinapanatili ng tinanggihang claim ang orihinal nitong mga petsa kapag isinumite mo ulit, kahit sarado na ang claim window.'
       } },
-      { kind: 'fixed', text: {
+      { kind: 'fixed', audience: ['claim', 'meal', 'advance'], text: {
         en: 'Expense dates in the future are no longer accepted.',
         id: 'Tanggal pengeluaran di masa depan tidak lagi diterima.',
         th: 'ไม่รับวันที่ค่าใช้จ่ายที่เป็นวันในอนาคตอีกต่อไป',
@@ -193,7 +206,7 @@ window.CHANGELOG = [
     id: '2026-08-17',
     date: '2026-08-17',
     items: [
-      { kind: 'new', text: {
+      { kind: 'new', audience: ['claim'], text: {
         en: 'A photo editor for receipts: crop, rotate with a dial, and add a capture stamp before you attach the photo.',
         id: 'Editor foto untuk bukti: potong, putar dengan tombol putar, dan tambahkan cap waktu pengambilan sebelum melampirkan foto.',
         th: 'ตัวแก้ไขรูปใบเสร็จ: ครอบตัด หมุนด้วยแป้นหมุน และเพิ่มตราเวลาที่ถ่ายก่อนแนบรูป',
@@ -201,7 +214,7 @@ window.CHANGELOG = [
         km: 'កម្មវិធីកែរូបថតវិក្កយបត្រ៖ កាត់ បង្វិលដោយប្រើឌីស និងបន្ថែមត្រាពេលថត មុនពេលភ្ជាប់រូបថត។',
         fil: 'Photo editor para sa mga resibo: i-crop, i-rotate gamit ang dial, at magdagdag ng capture stamp bago ilakip ang larawan.'
       } },
-      { kind: 'improved', text: {
+      { kind: 'improved', audience: ['claim'], text: {
         en: 'A saved claim draft keeps its receipts too, so they are still there when you come back.',
         id: 'Draf klaim yang tersimpan juga menyimpan buktinya, jadi masih ada saat Anda kembali.',
         th: 'ฉบับร่างรายการเบิกที่บันทึกไว้จะเก็บใบเสร็จไว้ด้วย จึงยังอยู่ครบเมื่อคุณกลับมา',
@@ -209,7 +222,7 @@ window.CHANGELOG = [
         km: 'សេចក្ដីព្រាងសំណើដែលបានរក្សាទុក ក៏រក្សាវិក្កយបត្ររបស់វាដែរ ដូច្នេះវានៅតែមាននៅពេលអ្នកត្រឡប់មកវិញ។',
         fil: 'Pinapanatili rin ng naka-save na draft ng claim ang mga resibo nito, kaya nandoon pa rin ang mga ito pagbalik mo.'
       } },
-      { kind: 'fixed', text: {
+      { kind: 'fixed', audience: ['claim'], text: {
         en: 'The crop box can be dragged from every side on phones and tablets.',
         id: 'Kotak potong dapat diseret dari setiap sisi di ponsel dan tablet.',
         th: 'ลากกรอบครอบตัดได้จากทุกด้านบนโทรศัพท์และแท็บเล็ต',
