@@ -433,10 +433,12 @@ const isISODate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 // Today's date (YYYY-MM-DD) in a given time zone — matches the client's
 // todayWIB() so a late-evening submission doesn't roll to "tomorrow" via UTC.
 // Defaults to the global time zone; a region's own zone is passed in when known.
-function todayInZone(tz) {
+function todayInZone(tz) { return dateInZone(tz, new Date()); }
+// The calendar date (YYYY-MM-DD) a moment fell on in a given time zone.
+function dateInZone(tz, when) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: tz || DEFAULT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit'
-  }).format(new Date());
+  }).format(new Date(when));
 }
 // Subtract n whole days from a YYYY-MM-DD string (date-only arithmetic in UTC).
 function subDaysISO(dateStr, n) {
@@ -461,22 +463,36 @@ function claimWindowSettings(settings, region) {
   };
 }
 // The earliest expense date a claim may carry under a resolved policy, or null
-// when unrestricted. A rolling window (N days back from today) and an absolute
-// cutoff can both be set; the effective floor is the later (max) of the two.
-function claimEarliestFrom(cw) {
+// when unrestricted. A rolling window (N days back from today — or from `asOf`,
+// to ask what the window was on an earlier day) and an absolute cutoff can both
+// be set; the effective floor is the later (max) of the two.
+function claimEarliestFrom(cw, asOf) {
   const bounds = [];
   const days = parseInt(cw.claim_max_age_days, 10);
-  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(todayInZone(cw.timezone), days));
+  if (Number.isFinite(days) && days > 0) bounds.push(subDaysISO(asOf || todayInZone(cw.timezone), days));
   if (isISODate(cw.claim_earliest_date)) bounds.push(cw.claim_earliest_date);
   if (!bounds.length) return null;
   return bounds.reduce((a, b) => (a > b ? a : b));
 }
+// The floor a resubmitted claim's dates are held to. A claim is judged by the
+// window it was first submitted into, not the one it comes back to: any date
+// that was claimable on the day it first went in stays claimable now, however
+// long the claim sat in review. Whichever of the two floors is earlier wins, so
+// a date inside today's window always passes too. `firstSubmittedAt` is null for
+// a fresh submit, which just faces today's window.
+function resubmitEarliest(cw, firstSubmittedAt) {
+  const now = claimEarliestFrom(cw);
+  if (!now || !firstSubmittedAt) return now;
+  const then = claimEarliestFrom(cw, dateInZone(cw.timezone, firstSubmittedAt));
+  return then && then < now ? then : now;
+}
 // Reject a set of expense/line dates if any falls before the policy floor for the
-// submitter's `region`. Dates in `carried` are exempt: a rejected claim keeps the
-// dates it already had when it is edited and resubmitted, so a window that closed
-// while it sat in review can't strand it. Returns { earliest, error } on
-// violation, or null when all dates are allowed.
-async function claimDateViolation(dates, region, carried) {
+// submitter's `region`. On a resubmit, `firstSubmittedAt` relaxes that floor to
+// the window the claim was first submitted into (see resubmitEarliest), and dates
+// in `carried` are exempt outright: a rejected claim may always keep the dates it
+// already had. Returns { earliest, error } on violation, or null when all dates
+// are allowed.
+async function claimDateViolation(dates, region, carried, firstSubmittedAt) {
   const cw = claimWindowSettings(await loadAppSettings(), region);
   const kept = carried || new Set();
   // An expense that hasn't happened yet can never be claimed, so today in the
@@ -487,16 +503,30 @@ async function claimDateViolation(dates, region, carried) {
   if (dates.some(d => isISODate(d) && d > latest && !kept.has(d))) {
     return { latest, error: 'Expenses cannot be dated in the future.' };
   }
-  const earliest = claimEarliestFrom(cw);
+  const earliest = resubmitEarliest(cw, firstSubmittedAt);
   if (!earliest) return null;
   const bad = dates.some(d => isISODate(d) && d < earliest && !kept.has(d));
   if (!bad) return null;
   return {
     earliest,
-    error: kept.size
-      ? `New expense lines must be dated ${earliest} or later.`
+    error: firstSubmittedAt
+      ? `Dates on this claim must be ${earliest} or later — the claim window when it was first submitted.`
       : `Expenses dated before ${earliest} can no longer be claimed.`
   };
+}
+// When a cash advance's realization first went in — the moment its dates are
+// judged by on a resubmit. The advance row's created_at is the request itself.
+async function firstRealizedAt(advanceId) {
+  const rows = await q(
+    `SELECT MIN(created_at) AS at FROM cash_advance_history
+      WHERE advance_id = $1 AND action = 'realization submitted'`, [advanceId]);
+  return (rows[0] && rows[0].at) || null;
+}
+// The date floor a returned claim's edit form should use, shipped in the claim
+// payload so the client applies exactly the server's rule. Null when no window
+// is set.
+function dateFloorFor(settings, region, firstSubmittedAt) {
+  return resubmitEarliest(claimWindowSettings(settings, region), firstSubmittedAt);
 }
 // The line dates a claim already carries, for the exemption above.
 async function carriedLineDates(sql, id) {
@@ -764,7 +794,9 @@ async function serializeMany(rows) {
   // A live date-change request rides along so the edit form knows whether the
   // line dates are locked, awaiting a decision, or unlocked.
   const dc = await liveDateChanges('claim', ids);
-  return rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null }));
+  const settings = await loadAppSettings();
+  return rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null,
+    date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.created_at) : null }));
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -1936,13 +1968,13 @@ app.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const b = req.body || {};
   const parsed = normaliseClaimLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  // A rejected claim resubmits with the dates it already had, even if the claim
-  // window has closed since; only newly added dates face the policy. A granted
-  // date-change request lifts the window entirely for this one resubmit.
+  // A rejected claim may keep the dates it already had, and may be re-dated to
+  // anything that was inside the claim window when it was first submitted. A
+  // granted date-change request lifts the window entirely for this one resubmit.
   const grant = await liveDateChange('claim', row.id);
   if (!dateChangeGranted(grant)) {
     const carried = await carriedLineDates('SELECT line_date FROM claim_lines WHERE claim_id = $1', row.id);
-    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried, row.created_at);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   }
 
@@ -2258,7 +2290,9 @@ async function serializeManyMeal(rows) {
     for (const u of us) nameMap[u.id] = u.full_name;
   }
   const dc = await liveDateChanges('meal', ids);
-  return rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null }));
+  const settings = await loadAppSettings();
+  return rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null,
+    date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.created_at) : null }));
 }
 async function serializeOneMeal(row) { return (await serializeManyMeal([row]))[0]; }
 async function loadMealClaimOr404(req, res) {
@@ -2420,12 +2454,12 @@ app.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   }
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  // Same exemption as reimbursement claims: a rejected meal claim keeps its
-  // dates, and a granted date-change request lifts the window outright.
+  // Same rule as reimbursement claims: judged by the window it was first
+  // submitted into, and a granted date-change request lifts the window outright.
   const grant = await liveDateChange('meal', row.id);
   if (!dateChangeGranted(grant)) {
     const carried = await carriedLineDates('SELECT line_date FROM meal_claim_lines WHERE meal_claim_id = $1', row.id);
-    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region, carried, row.created_at);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   }
   // Bank details + approvers come from the claimant's account.
@@ -2648,7 +2682,11 @@ async function serializeManyAdvance(rows) {
     for (const u of us) nameMap[u.id] = u.full_name;
   }
   const dc = await liveDateChanges('advance', ids);
-  return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap, docsByAdvance[r.id]), date_change: dc[r.id] || null }));
+  const settings = await loadAppSettings();
+  // A returned realization is judged by when it first went in (see firstRealizedAt).
+  const realizedAt = (id) => ((h[id] || []).find(x => x.action === 'realization submitted') || {}).created_at || null;
+  return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap, docsByAdvance[r.id]), date_change: dc[r.id] || null,
+    date_floor: r.status === 'rejected_realize' ? dateFloorFor(settings, r.region, realizedAt(r.id)) : null }));
 }
 async function serializeOneAdvance(row) { return (await serializeManyAdvance([row]))[0]; }
 async function loadAdvanceOr404(req, res) {
@@ -2998,15 +3036,18 @@ async function submitRealization(req, res, row) {
   const b = req.body || {};
   const parsed = normaliseClaimLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  // Only a rejected realization carries its dates through; a first realization
-  // (from 'paid') is a fresh submit and faces the window in full. A granted
-  // date-change request lifts the window for one resubmit either way.
+  // Only a rejected realization carries its dates through and is judged by the
+  // window its realization first went into; a first realization (from 'paid') is
+  // a fresh submit and faces today's window. A granted date-change request lifts
+  // the window for one resubmit either way.
   const grant = await liveDateChange('advance', row.id);
   if (!dateChangeGranted(grant)) {
-    const carried = row.status === 'rejected_realize'
+    const again = row.status === 'rejected_realize';
+    const carried = again
       ? await carriedLineDates('SELECT line_date FROM cash_advance_lines WHERE advance_id = $1', row.id)
       : null;
-    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region, carried);
+    const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), row.region, carried,
+      again ? await firstRealizedAt(row.id) : null);
     if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   }
   // Approver chain is re-resolved from the claimant's account, like a fresh submit.
