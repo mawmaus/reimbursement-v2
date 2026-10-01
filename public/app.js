@@ -442,6 +442,9 @@ function applyAdvanceHold() {
     btn.disabled = n > 0;
     if (n > 0) btn.title = why; else btn.removeAttribute('title');
   }
+  // Same reason, spelled out inside the "+ New" menu (titles never show on touch).
+  const note = $('#newMenuNote');
+  if (note) { note.hidden = !(n > 0); note.textContent = n > 0 ? why : ''; }
 }
 
 // Cash advance is a per-account grant (users.allow_advance) set by a super admin
@@ -524,6 +527,8 @@ function showApp() {
   if (holdNotice) { holdNotice.hidden = true; holdNotice.innerHTML = ''; }
   applyAdvanceHold();
   // Light up a "draft waiting" dot on any New button that has a saved draft.
+  // This also syncs the "+ New" trigger (hidden when no purpose is allowed).
+  closeNewMenu(false);
   refreshDraftBadges();
   // What's new: only this account's notes, and their unread dot.
   syncWhatsNewDot();
@@ -703,6 +708,58 @@ $('#logoutBtn').addEventListener('click', async () => {
   window.location.replace('/');
 });
 $('#backHome').addEventListener('click', goHome);
+
+// ---- Top-bar "+ New" menu -------------------------------------------------
+// New claim / meal allowance / cash advance live in one dropdown. The items
+// keep their old ids, so everything that gates them (showApp, the advance hold,
+// draft dots) is untouched; syncNewMenu() derives the trigger's state from them.
+const NEW_ITEMS = ['#newClaimBtn', '#newMealBtn', '#newAdvanceBtn'];
+function newMenuItems(enabledOnly) {
+  return NEW_ITEMS.map(s => $(s)).filter(b => b && !b.hidden && !(enabledOnly && b.disabled));
+}
+function syncNewMenu() {
+  const items = newMenuItems(false);
+  $('#newMenuWrap').hidden = !items.length;
+  $('#newMenuBtn').classList.toggle('has-draft', items.some(b => b.classList.contains('has-draft')));
+  if (!items.length) closeNewMenu(false);
+}
+function openNewMenu(focusFirst) {
+  $('#newMenu').hidden = false;
+  $('#newMenuBtn').setAttribute('aria-expanded', 'true');
+  if (focusFirst) { const first = newMenuItems(true)[0]; if (first) first.focus(); }
+}
+function closeNewMenu(refocus) {
+  const menu = $('#newMenu');
+  if (menu.hidden) return;
+  menu.hidden = true;
+  $('#newMenuBtn').setAttribute('aria-expanded', 'false');
+  if (refocus) $('#newMenuBtn').focus();
+}
+$('#newMenuBtn').addEventListener('click', (e) => {
+  // detail === 0 means keyboard activation (Enter/Space): move focus into the menu.
+  if ($('#newMenu').hidden) openNewMenu(e.detail === 0); else closeNewMenu(false);
+});
+$('#newMenuBtn').addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); openNewMenu(true); }
+});
+$('#newMenu').addEventListener('click', (e) => {
+  // Picking an item closes the menu; the item's own handler opens its form.
+  if (e.target.closest('.new-item:not(:disabled)')) closeNewMenu(false);
+});
+$('#newMenu').addEventListener('keydown', (e) => {
+  const items = newMenuItems(true);
+  const i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!items.length) return;
+    const step = e.key === 'ArrowDown' ? 1 : -1;
+    items[(i + step + items.length) % items.length].focus();
+  } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeNewMenu(true); }
+  else if (e.key === 'Tab') closeNewMenu(false);
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#newMenuWrap')) closeNewMenu(false);
+});
 
 // Manual refresh: reload the ledger so statuses reflect any decisions made
 // elsewhere since the view was opened. Spins the icon while fetching and stamps
@@ -3362,6 +3419,7 @@ function refreshDraftBadges() {
     const btn = $(DRAFT_BTN[kind]); if (!btn) continue;
     btn.classList.toggle('has-draft', !!loadDraft(kind));
   }
+  syncNewMenu();
 }
 
 // The banner shown at the top of a form that was reopened from a saved draft.

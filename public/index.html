@@ -70,15 +70,55 @@
       <button type="button" id="whatsNewBtn" class="theme-btn whatsnew-btn" data-i18n-aria="What's new" data-i18n-title="What's new" aria-label="What's new" title="What's new">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
       </button>
-      <button id="newClaimBtn" class="btn btn-primary btn-sm" hidden data-i18n="New claim">New claim</button>
-      <button id="newMealBtn" class="btn btn-primary btn-sm" hidden data-i18n="New meal allowance">New meal allowance</button>
-      <button id="newAdvanceBtn" class="btn btn-primary btn-sm" hidden data-i18n="New cash advance">New cash advance</button>
-      <button id="exportBtn" class="btn btn-green-soft btn-sm" hidden data-i18n="Export CSV">Export CSV</button>
-      <button id="profileBtn" class="btn btn-indigo-soft btn-sm" data-i18n="Profile">Profile</button>
-      <button id="accountsBtn" class="btn btn-brand-soft btn-sm" hidden data-i18n="Manage accounts">Manage accounts</button>
-      <button id="settingsBtn" class="btn btn-brand-soft btn-sm" hidden data-i18n="Settings">Settings</button>
+      <span class="tb-sep" aria-hidden="true"></span>
+      <!-- The three "New …" purposes share one menu. Each item keeps the id the
+           old standalone button had, so gating (hidden), the cash-advance hold
+           (disabled + title) and draft dots still target it directly.
+           syncNewMenu() hides the trigger when every item is hidden and mirrors
+           any draft dot onto it. -->
+      <div class="new-menu-wrap" id="newMenuWrap" hidden>
+        <button type="button" id="newMenuBtn" class="btn btn-primary btn-sm new-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="newMenu">
+          <svg class="nm-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span data-i18n="New">New</span>
+          <svg class="nm-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="new-menu" id="newMenu" role="menu" hidden>
+          <button type="button" id="newClaimBtn" class="new-item" role="menuitem" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15h6"/></svg>
+            <span data-i18n="New claim">New claim</span>
+          </button>
+          <button type="button" id="newMealBtn" class="new-item" role="menuitem" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+            <span data-i18n="New meal allowance">New meal allowance</span>
+          </button>
+          <button type="button" id="newAdvanceBtn" class="new-item" role="menuitem" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+            <span data-i18n="New cash advance">New cash advance</span>
+          </button>
+          <!-- Why the claim / meal items are greyed out (cash-advance hold). A
+               title alone never shows on touch screens. -->
+          <p class="new-menu-note" id="newMenuNote" hidden></p>
+        </div>
+      </div>
+      <span class="tb-sep" aria-hidden="true"></span>
+      <!-- Icon-only actions: the translated aria-label doubles as the hover
+           tooltip (.icon-btn::after), so there is one string per button. -->
+      <button type="button" id="exportBtn" class="btn btn-green-soft btn-sm icon-btn" hidden data-i18n-aria="Export CSV" aria-label="Export CSV">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      </button>
+      <button type="button" id="profileBtn" class="btn btn-indigo-soft btn-sm icon-btn" data-i18n-aria="Profile" aria-label="Profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      </button>
+      <button type="button" id="accountsBtn" class="btn btn-brand-soft btn-sm icon-btn" hidden data-i18n-aria="Manage accounts" aria-label="Manage accounts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </button>
+      <button type="button" id="settingsBtn" class="btn btn-brand-soft btn-sm icon-btn" hidden data-i18n-aria="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
     </div>
-    <button id="logoutBtn" class="btn btn-danger-ghost btn-sm topbar-signout" data-i18n="Sign out">Sign out</button>
+    <button type="button" id="logoutBtn" class="btn btn-danger-ghost btn-sm icon-btn topbar-signout" data-i18n-aria="Sign out" aria-label="Sign out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
   </header>
 
   <main class="container">

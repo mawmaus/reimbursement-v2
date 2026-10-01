@@ -1461,8 +1461,67 @@ input[type="search"] { min-width: 220px; }
 :root[data-theme="dark"] .theme-btn .ic-sun { display: block; color: var(--pine); }
 :root[data-theme="dark"] .theme-btn .ic-moon { display: none; }
 .login-lang { gap: 8px; align-items: center; }
+
+/* Top-bar icon actions (Export, Profile, Accounts, Settings, Sign out): the
+   same 34px square as the theme toggle, keeping each button's colour family.
+   The translated aria-label doubles as a hover tooltip, so there's one string
+   per button. Hover-capable pointers only — on touch it would stick open. */
+.topbar .icon-btn {
+  position: relative; display: inline-grid; place-items: center; flex: none;
+  width: 34px; height: 34px; min-height: 0; padding: 0; border-radius: 9px;
+}
+.topbar .icon-btn svg { width: 17px; height: 17px; display: block; }
+@media (hover: hover) {
+  .topbar .icon-btn:hover::after, .topbar .icon-btn:focus-visible::after {
+    content: attr(aria-label); position: absolute; top: calc(100% + 8px); right: 50%;
+    transform: translateX(50%); z-index: 30; pointer-events: none; white-space: nowrap;
+    padding: 5px 9px; border-radius: 7px; font-size: .76rem; font-weight: 560; line-height: 1.3;
+    background: var(--ink); color: var(--surface); box-shadow: var(--shadow-sm);
+  }
+  /* Sign out sits at the right edge: anchor its tooltip there so it can't overflow. */
+  .topbar .topbar-signout:hover::after, .topbar .topbar-signout:focus-visible::after {
+    right: 0; transform: none;
+  }
+}
+.tb-sep { flex: none; width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+.new-menu-wrap[hidden] + .tb-sep { display: none; }
+
+/* "+ New" dropdown holding the three create actions. */
+.new-menu-wrap { position: relative; display: inline-flex; }
+.new-menu-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; }
+.new-menu-btn .nm-plus { width: 16px; height: 16px; flex: none; }
+.new-menu-btn .nm-caret { width: 13px; height: 13px; flex: none; transition: transform .15s; }
+.new-menu-btn[aria-expanded="true"] .nm-caret { transform: rotate(180deg); }
+.new-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  min-width: 220px; max-width: min(300px, calc(100vw - 32px)); padding: 5px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
+  box-shadow: 0 16px 32px -14px rgba(0,0,0,.35), var(--shadow-sm);
+}
+.new-menu[hidden] { display: none; }
+.new-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; position: relative;
+  padding: 9px 10px; border: 0; border-radius: 7px; background: none;
+  font: inherit; font-size: .88rem; font-weight: 520; color: var(--ink); text-align: left; cursor: pointer;
+}
+.new-item[hidden] { display: none; }
+.new-item svg { width: 17px; height: 17px; flex: none; color: var(--pine-deep); }
+.new-item:hover:not(:disabled), .new-item:focus-visible { background: var(--pine-tint); outline: none; }
+.new-item:disabled { color: var(--muted); cursor: not-allowed; }
+.new-item:disabled svg { color: var(--muted); }
+/* Draft dot: inline at the item's end instead of the button-corner badge. */
+.new-item.has-draft::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--pine-deep); flex: none; }
+.new-menu-note { margin: 4px 6px 4px; padding: 8px 4px 2px; border-top: 1px solid var(--line-soft);
+  font-size: .78rem; line-height: 1.4; color: var(--amber); }
+
 @media (max-width: 720px) {
-  .topbar-right .theme-btn { width: 30px; height: 30px; border-radius: 7px; }
+  /* Every top-bar control stays one 34px row height on phones too (they are
+     tap targets now, with no text to make them wider). */
+  .topbar .icon-btn { width: 34px; height: 34px; }
+  .topbar-right .new-menu-btn { height: 34px; min-height: 0; padding: 0 12px; font-size: .85rem; }
+  /* On phones the trigger sits near the left edge: open the menu rightwards. */
+  .new-menu { right: auto; left: 0; }
 }
 
 /* What's new: same square as the theme toggle, plus an unread dot. */

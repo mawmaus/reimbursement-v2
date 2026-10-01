@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-01.3',
+    date: '2026-10-01',
+    items: [
+      { kind: 'improved', text: {
+        en: 'A tidier top bar. New claim, New meal allowance and New cash advance are now under one "+ New" button, and Export CSV, Profile, Manage accounts, Settings and Sign out are icons. Hover over an icon to see its name.',
+        id: 'Bilah atas yang lebih rapi. Klaim baru, Uang makan baru, dan Uang muka baru kini ada di bawah satu tombol "+ Baru", sedangkan Ekspor CSV, Profil, Kelola akun, Pengaturan, dan Keluar menjadi ikon. Arahkan kursor ke ikon untuk melihat namanya.',
+        th: 'แถบด้านบนที่เป็นระเบียบขึ้น การสร้างการเบิกใหม่ ค่าอาหารใหม่ และเงินทดรองใหม่ รวมอยู่ในปุ่ม "+ ใหม่" ปุ่มเดียว ส่วนส่งออก CSV โปรไฟล์ จัดการบัญชี การตั้งค่า และออกจากระบบ เปลี่ยนเป็นไอคอน วางเมาส์บนไอคอนเพื่อดูชื่อ',
+        vi: 'Thanh trên cùng gọn gàng hơn. Yêu cầu mới, Phụ cấp ăn mới và Tạm ứng mới giờ nằm chung trong một nút "+ Mới", còn Xuất CSV, Hồ sơ, Quản lý tài khoản, Cài đặt và Đăng xuất trở thành biểu tượng. Di chuột lên biểu tượng để xem tên.',
+        km: 'របារខាងលើកាន់តែស្អាត។ សំណើថ្មី ប្រាក់អាហារថ្មី និងប្រាក់បុរេប្រទានថ្មី ឥឡូវនៅក្រោមប៊ូតុង "+ ថ្មី" តែមួយ ហើយនាំចេញ CSV ប្រវត្តិរូប គ្រប់គ្រងគណនី ការកំណត់ និងចាកចេញ ក្លាយជារូបតំណាង។ ដាក់ទស្សន៍ទ្រនិចលើរូបតំណាង ដើម្បីមើលឈ្មោះ។',
+        fil: 'Mas maayos na itaas na bar. Ang Bagong claim, Bagong meal allowance at Bagong cash advance ay nasa iisang "+ Bago" na button na, at ang Export CSV, Profile, Pamahalaan ang mga account, Settings at Sign out ay mga icon na. I-hover ang icon para makita ang pangalan nito.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-01.2',
     date: '2026-10-01',
     items: [
