@@ -14,6 +14,20 @@
 // ---------------------------------------------------------------------------
 window.CHANGELOG = [
   {
+    id: '2026-10-01.2',
+    date: '2026-10-01',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Got a claim sent back to you? Now you can fix its dates yourself — no need to ask anyone. The rule is simple: if a date was allowed on the day you first sent the claim, it is still allowed now. If it was already too old back then, it can\'t be used.',
+        id: 'Klaim Anda dikembalikan? Sekarang Anda bisa memperbaiki tanggalnya sendiri — tidak perlu minta izin siapa pun. Aturannya mudah: jika sebuah tanggal boleh dipakai pada hari Anda pertama kali mengirim klaim, tanggal itu tetap boleh dipakai sekarang. Jika saat itu tanggalnya sudah terlalu lama, tanggal itu tidak bisa dipakai.',
+        th: 'รายการเบิกของคุณถูกส่งกลับมาใช่ไหม ตอนนี้คุณแก้วันที่เองได้เลย ไม่ต้องขอใคร กฎง่ายมาก: ถ้าวันที่นั้นใช้ได้ในวันที่คุณส่งรายการเบิกครั้งแรก ตอนนี้ก็ยังใช้ได้ แต่ถ้าตอนนั้นวันที่นั้นเก่าเกินไปแล้ว ก็จะใช้ไม่ได้',
+        vi: 'Yêu cầu của bạn bị trả lại? Giờ bạn có thể tự sửa ngày — không cần xin ai cả. Quy tắc rất đơn giản: nếu một ngày được phép vào hôm bạn gửi yêu cầu lần đầu, thì bây giờ ngày đó vẫn được phép. Nếu khi đó ngày ấy đã quá cũ, thì không dùng được.',
+        km: 'សំណើរបស់អ្នកត្រូវបានបញ្ជូនត្រឡប់មកវិញមែនទេ? ឥឡូវនេះ អ្នកអាចកែកាលបរិច្ឆេទដោយខ្លួនឯងបាន — មិនចាំបាច់សុំនរណាម្នាក់ទេ។ ច្បាប់គឺសាមញ្ញ៖ ប្រសិនបើកាលបរិច្ឆេទមួយត្រូវបានអនុញ្ញាតនៅថ្ងៃដែលអ្នកផ្ញើសំណើលើកដំបូង វានៅតែត្រូវបានអនុញ្ញាតឥឡូវនេះ។ ប្រសិនបើនៅពេលនោះវាចាស់ពេកហើយ វាមិនអាចប្រើបានទេ។',
+        fil: 'Ibinalik ba sa iyo ang claim mo? Ikaw na mismo ang puwedeng mag-ayos ng mga petsa nito — hindi mo na kailangang humingi ng pahintulot. Simple lang ang patakaran: kung puwede ang isang petsa noong araw na una mong ipinadala ang claim, puwede pa rin ito ngayon. Kung masyado na itong luma noon pa, hindi na ito magagamit.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-01',
     date: '2026-10-01',
     items: [
