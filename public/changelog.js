@@ -61,12 +61,12 @@ window.CHANGELOG = [
         fil: 'Sa telepono, nakaayos na ngayon sa malilinis na hanay ang itaas na bar: ang pangalan mo at mabilis na settings sa itaas, ang pagpili ng rehiyon at wika sa ilalim nito, at saka ang "+ Bago" at iba pang button.'
       } },
       { kind: 'improved', text: {
-        en: 'Sign out now asks you to confirm first, so a mistaken tap no longer logs you out.',
-        id: 'Keluar kini meminta konfirmasi terlebih dahulu, jadi ketukan yang tidak sengaja tidak lagi membuat Anda keluar.',
-        th: 'การออกจากระบบจะถามยืนยันก่อน การแตะพลาดจึงไม่ทำให้คุณออกจากระบบอีกต่อไป',
-        vi: 'Đăng xuất giờ sẽ hỏi xác nhận trước, nên lỡ chạm nhầm sẽ không làm bạn bị đăng xuất nữa.',
-        km: 'ការចាកចេញឥឡូវសួរឱ្យអ្នកបញ្ជាក់ជាមុនសិន ដូច្នេះការចុចខុសនឹងមិនធ្វើឱ្យអ្នកចាកចេញទៀតទេ។',
-        fil: 'Magtatanong muna ngayon ang Sign out bago ka i-log out, kaya hindi ka na mala-log out dahil sa maling pindot.'
+        en: 'Sign out now opens a small window in the middle of the screen asking you to confirm, so a mistaken tap no longer logs you out.',
+        id: 'Keluar kini membuka jendela kecil di tengah layar untuk meminta konfirmasi, jadi ketukan yang tidak sengaja tidak lagi membuat Anda keluar.',
+        th: 'การออกจากระบบจะเปิดหน้าต่างเล็ก ๆ กลางหน้าจอเพื่อถามยืนยันก่อน การแตะพลาดจึงไม่ทำให้คุณออกจากระบบอีกต่อไป',
+        vi: 'Đăng xuất giờ sẽ mở một cửa sổ nhỏ ở giữa màn hình để hỏi xác nhận trước, nên lỡ chạm nhầm sẽ không làm bạn bị đăng xuất nữa.',
+        km: 'ការចាកចេញឥឡូវបើកផ្ទាំងតូចមួយនៅកណ្តាលអេក្រង់ ដើម្បីសួរឱ្យអ្នកបញ្ជាក់ជាមុនសិន ដូច្នេះការចុចខុសនឹងមិនធ្វើឱ្យអ្នកចាកចេញទៀតទេ។',
+        fil: 'Magbubukas na ngayon ang Sign out ng maliit na window sa gitna ng screen para magtanong muna bago ka i-log out, kaya hindi ka na mala-log out dahil sa maling pindot.'
       } }
     ]
   },

@@ -573,6 +573,9 @@ input[type="search"] { min-width: 220px; }
 }
 .modal.modal-wide { width: min(780px, calc(100% - 32px)); }
 .modal.modal-xwide { width: min(1040px, calc(100% - 32px)); }
+/* Small yes/no confirmation (e.g. Sign out). */
+.modal.modal-confirm { width: min(420px, calc(100% - 32px)); }
+.modal.modal-confirm .modal-actions .btn { min-width: 96px; }
 /* Stacked second modal (e.g. add/edit user over Settings) */
 .scrim.scrim-2 { z-index: 60; }
 .modal.modal-2 { z-index: 70; }

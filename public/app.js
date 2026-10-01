@@ -699,16 +699,34 @@ $('#loginForm').addEventListener('submit', async (e) => {
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
 
-$('#logoutBtn').addEventListener('click', async () => {
-  // It's an icon right beside other buttons, so a stray tap is easy — confirm first.
-  if (!confirm(t('Sign out of the portal?'))) return;
+$('#logoutBtn').addEventListener('click', () => {
+  // It's an icon right beside other buttons, so a stray tap is easy — confirm
+  // first, in the app's own centred window rather than the browser's confirm().
+  openModal(`
+    <div class="modal-head"><h2>${esc(t('Sign out of the portal?'))}</h2>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button></div>
+    <div class="modal-body">
+      <p style="margin:0">${esc(t("You'll need to sign in again to keep using the portal."))}</p>
+      <div class="modal-actions" style="margin-top:22px">
+        <button type="button" class="btn btn-ghost" id="signoutCancel">${esc(t('Cancel'))}</button>
+        <button type="button" class="btn btn-danger" id="signoutConfirm">${esc(t('Sign out'))}</button>
+      </div>
+    </div>`);
+  $('#modal').classList.add('modal-confirm');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#signoutCancel').addEventListener('click', closeModal);
+  $('#signoutConfirm').addEventListener('click', signOut);
+  $('#signoutCancel').focus();
+});
+async function signOut() {
+  $('#signoutConfirm').disabled = true;
   try { await api('/logout', { method: 'POST' }); } catch { /* clear the session locally regardless */ }
   // Hard reload on sign-out rather than a client-side view swap. This wipes all
   // in-memory DOM/state so nothing from the previous account (e.g. their Insights
   // charts) can linger into the next login, and it guarantees the next session
   // loads the latest app.js instead of running a stale bundle in the same tab.
   window.location.replace('/');
-});
+}
 $('#backHome').addEventListener('click', goHome);
 
 // ---- Top-bar "+ New" menu -------------------------------------------------
@@ -3059,7 +3077,7 @@ function openModal(html) {
 }
 function closeModal() {
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
-  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex');
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
   syncScrollLock();
 }
