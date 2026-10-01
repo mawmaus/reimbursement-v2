@@ -54,14 +54,20 @@
       <img class="logo logo-sm" src="logo.svg" alt="Cibes" />
       <span class="topbar-title" data-i18n="Reimbursement Portal">Reimbursement Portal</span>
     </div>
+    <!-- Grouped so phones can lay the header out as tidy rows (see the
+         ≤720px .topbar grid): who's signed in + quick prefs, then the region /
+         language context, then the create menu and the icon actions. -->
     <div class="topbar-right">
-      <div class="topbar-ctl" id="regionPicker" title="Region" hidden>
-        <select id="regionSelect" data-icon="📍" aria-label="Region"></select>
-      </div>
       <span id="userBadge" class="user-badge"></span>
-      <div class="topbar-ctl">
-        <select id="topLang" data-icon="🌐" aria-label="Language"></select>
+      <div class="tb-group tb-context">
+        <div class="topbar-ctl" id="regionPicker" title="Region" hidden>
+          <select id="regionSelect" data-icon="📍" aria-label="Region"></select>
+        </div>
+        <div class="topbar-ctl">
+          <select id="topLang" data-icon="🌐" aria-label="Language"></select>
+        </div>
       </div>
+      <div class="tb-group tb-prefs">
       <button type="button" id="topTheme" class="theme-btn" data-theme-toggle aria-label="Dark mode">
         <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z"/></svg>
         <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/></svg>
@@ -70,7 +76,9 @@
       <button type="button" id="whatsNewBtn" class="theme-btn whatsnew-btn" data-i18n-aria="What's new" data-i18n-title="What's new" aria-label="What's new" title="What's new">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
       </button>
+      </div>
       <span class="tb-sep" aria-hidden="true"></span>
+      <div class="tb-group tb-actions">
       <!-- The three "New …" purposes share one menu. Each item keeps the id the
            old standalone button had, so gating (hidden), the cash-advance hold
            (disabled + title) and draft dots still target it directly.
@@ -115,6 +123,7 @@
       <button type="button" id="settingsBtn" class="btn btn-brand-soft btn-sm icon-btn" hidden data-i18n-aria="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
+      </div>
     </div>
     <button type="button" id="logoutBtn" class="btn btn-danger-ghost btn-sm icon-btn topbar-signout" data-i18n-aria="Sign out" aria-label="Sign out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>

@@ -27,6 +27,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-01.4',
+    date: '2026-10-01',
+    items: [
+      { kind: 'improved', text: {
+        en: 'On phones, the top bar is now arranged in neat rows: your name and quick settings at the top, the region and language pickers below, then "+ New" and the other buttons.',
+        id: 'Di ponsel, bilah atas kini tersusun dalam baris yang rapi: nama Anda dan pengaturan cepat di atas, pilihan wilayah dan bahasa di bawahnya, lalu "+ Baru" dan tombol lainnya.',
+        th: 'บนโทรศัพท์ แถบด้านบนจัดเป็นแถวอย่างเป็นระเบียบแล้ว: ชื่อของคุณและการตั้งค่าด่วนอยู่ด้านบน ตัวเลือกภูมิภาคและภาษาอยู่ถัดลงมา แล้วจึงเป็นปุ่ม "+ ใหม่" และปุ่มอื่น ๆ',
+        vi: 'Trên điện thoại, thanh trên cùng giờ được sắp thành các hàng gọn gàng: tên bạn và cài đặt nhanh ở trên cùng, bộ chọn khu vực và ngôn ngữ ở dưới, rồi đến "+ Mới" và các nút khác.',
+        km: 'នៅលើទូរស័ព្ទ របារខាងលើឥឡូវត្រូវបានរៀបជាជួរយ៉ាងស្អាត៖ ឈ្មោះរបស់អ្នក និងការកំណត់រហ័សនៅខាងលើ ជម្រើសតំបន់ និងភាសានៅខាងក្រោម បន្ទាប់មក "+ ថ្មី" និងប៊ូតុងផ្សេងទៀត។',
+        fil: 'Sa telepono, nakaayos na ngayon sa malilinis na hanay ang itaas na bar: ang pangalan mo at mabilis na settings sa itaas, ang pagpili ng rehiyon at wika sa ilalim nito, at saka ang "+ Bago" at iba pang button.'
+      } },
+      { kind: 'improved', text: {
+        en: 'Sign out now asks you to confirm first, so a mistaken tap no longer logs you out.',
+        id: 'Keluar kini meminta konfirmasi terlebih dahulu, jadi ketukan yang tidak sengaja tidak lagi membuat Anda keluar.',
+        th: 'การออกจากระบบจะถามยืนยันก่อน การแตะพลาดจึงไม่ทำให้คุณออกจากระบบอีกต่อไป',
+        vi: 'Đăng xuất giờ sẽ hỏi xác nhận trước, nên lỡ chạm nhầm sẽ không làm bạn bị đăng xuất nữa.',
+        km: 'ការចាកចេញឥឡូវសួរឱ្យអ្នកបញ្ជាក់ជាមុនសិន ដូច្នេះការចុចខុសនឹងមិនធ្វើឱ្យអ្នកចាកចេញទៀតទេ។',
+        fil: 'Magtatanong muna ngayon ang Sign out bago ka i-log out, kaya hindi ka na mala-log out dahil sa maling pindot.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-01.3',
     date: '2026-10-01',
     items: [

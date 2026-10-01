@@ -700,6 +700,8 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 $('#logoutBtn').addEventListener('click', async () => {
+  // It's an icon right beside other buttons, so a stray tap is easy — confirm first.
+  if (!confirm(t('Sign out of the portal?'))) return;
   try { await api('/logout', { method: 'POST' }); } catch { /* clear the session locally regardless */ }
   // Hard reload on sign-out rather than a client-side view swap. This wipes all
   // in-memory DOM/state so nothing from the previous account (e.g. their Insights

@@ -1515,13 +1515,47 @@ input[type="search"] { min-width: 220px; }
 .new-menu-note { margin: 4px 6px 4px; padding: 8px 4px 2px; border-top: 1px solid var(--line-soft);
   font-size: .78rem; line-height: 1.4; color: var(--amber); }
 
+/* Control groups (see index.html). On desktop they're just inline runs in the
+   single top-bar row. */
+.tb-group { display: flex; align-items: center; gap: 8px; }
+
 @media (max-width: 720px) {
   /* Every top-bar control stays one 34px row height on phones too (they are
      tap targets now, with no text to make them wider). */
   .topbar .icon-btn { width: 34px; height: 34px; }
-  .topbar-right .new-menu-btn { height: 34px; min-height: 0; padding: 0 12px; font-size: .85rem; }
+  .topbar-right .new-menu-btn { height: 34px; min-height: 0; padding: 0 14px; font-size: .85rem; }
   /* On phones the trigger sits near the left edge: open the menu rightwards. */
   .new-menu { right: auto; left: 0; }
+
+  /* Phone header = three tidy rows instead of a wrapping heap:
+       1. logo · signed-in name ............ What's new · theme · Sign out
+       2. region picker | language picker (equal halves)
+       3. + New ................................ Export · Profile · Accounts · Settings
+     .topbar-right dissolves (display: contents) so its groups land in the grid. */
+  .topbar {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "logo who prefs out" "ctx ctx ctx ctx" "act act act act";
+    align-items: center; gap: 10px 8px;
+  }
+  .topbar-right { display: contents; }
+  .topbar-left { grid-area: logo; }
+  .user-badge { grid-area: who; flex-basis: auto; min-width: 0; margin: 0 0 0 2px; padding-left: 10px;
+    border-left: 1px solid var(--line); font-size: .8rem; font-weight: 560;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-prefs { grid-area: prefs; gap: 6px; }
+  .topbar-signout { grid-area: out; margin-left: 0; }
+  .topbar-right > .tb-sep { display: none; }
+
+  .tb-context { grid-area: ctx; }
+  .tb-context .topbar-ctl { flex: 1 1 0; min-width: 0; }
+  .tb-context .msel { width: 100%; }
+  .tb-context .topbar-ctl .msel-val { max-width: none; }
+
+  /* Actions row: a hairline above sets it apart as the "do something" toolbar;
+     the inner separator becomes a spacer pushing the icons to the right edge. */
+  .tb-actions { grid-area: act; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+  .tb-actions .tb-sep, .tb-actions .new-menu-wrap[hidden] + .tb-sep {
+    display: block; flex: 1 1 auto; background: none; margin: 0; }
 }
 
 /* What's new: same square as the theme toggle, plus an unread dot. */
