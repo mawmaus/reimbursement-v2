@@ -1671,7 +1671,11 @@ body.no-scroll { overflow: hidden; }
    ellipsised line (full name on hover via title=) so a long auto-generated
    name can't stretch the column or break one character per line. */
 .line-receipts { font-size: .82rem; }
-.line-receipt { display: block; max-width: 240px; margin: 0 0 2px; color: var(--pine-deep);
+/* A one-track minmax(0,1fr) grid gives the list a zero min-content width, so a
+   long filename ellipsises to whatever room the table has left instead of
+   widening the Receipts column and pushing the line's decision button off-screen. */
+.line-receipt-list { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 64px; }
+.line-receipt { display: block; max-width: 240px; margin: 0 0 2px; color: var(--pine-deep); text-decoration: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .line-receipt:hover { text-decoration: underline; }
 
@@ -1741,9 +1745,25 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .drawer-lines tbody tr.line-marked, .drawer-lines tbody tr.line-sub-marked { box-shadow: inset 3px 0 0 var(--red); }
   .drawer-lines tbody tr.line-marked, .drawer-lines tbody tr.line-sub-marked { background: var(--red-tint); }
   .drawer-lines tbody tr.line-marked td { background: transparent; }
-  /* The Reject / Keep button sits top-right of its card. */
-  .drawer-lines tbody td.line-decide { position: absolute; top: 8px; right: 10px; width: auto; padding: 0; }
-  .drawer-lines.is-deciding tbody tr:not(.line-sub) td:first-child { padding-right: 110px; }
+  /* Compact two-column card instead of one long label/value stack:
+       Date          | Reject / Keep
+       Type          | Amount
+       DB No. / Site | Receipts
+       Description (full width)
+     Amount is always the 4th column for every document type (see lineColumns). */
+  .drawer-lines tbody tr:not(.line-sub) {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; }
+  .drawer-lines tbody tr:not(.line-sub) td { min-width: 0; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(2) { grid-column: 1; grid-row: 3; }
+  .drawer-lines tbody tr:not(.line-sub) td.line-receipts { grid-column: 2; grid-row: 3; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(5) { grid-column: 1 / -1; grid-row: 4; }
+  .drawer-lines tbody td.meal-amt .amt-v { font-weight: 650; }
+  /* The Reject / Keep button sits top-right of its card, beside the date. */
+  .drawer-lines tbody td.line-decide { grid-column: 2; grid-row: 1; justify-self: end; align-self: start;
+    width: auto; padding: 4px 0 0; }
   /* Totals read as one panel, not a chip per cell. */
   .drawer-lines tfoot { background: var(--paper); border-radius: 10px; padding: 2px 12px 10px; }
   .drawer-lines tfoot td { background: transparent; }

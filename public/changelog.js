@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-01.6',
+    date: '2026-10-01',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The lines of a claim now fit the claim window without scrolling sideways, so the "Reject line" button is always in view. On phones, each line is a shorter card that shows two details side by side.',
+        id: 'Baris-baris klaim kini muat di jendela klaim tanpa perlu menggeser ke samping, jadi tombol "Tolak baris" selalu terlihat. Di ponsel, setiap baris menjadi kartu yang lebih pendek dengan dua keterangan berdampingan.',
+        th: 'รายการในคำขอเบิกตอนนี้พอดีกับหน้าต่างคำขอโดยไม่ต้องเลื่อนไปด้านข้าง ปุ่ม "ปฏิเสธรายการ" จึงมองเห็นได้เสมอ บนโทรศัพท์ แต่ละรายการเป็นการ์ดที่สั้นลงและแสดงข้อมูลสองอย่างเคียงกัน',
+        vi: 'Các dòng của yêu cầu giờ vừa với cửa sổ yêu cầu mà không cần cuộn ngang, nên nút "Từ chối dòng" luôn hiển thị. Trên điện thoại, mỗi dòng là một thẻ ngắn hơn, hiển thị hai thông tin cạnh nhau.',
+        km: 'ជួរនៃការទាមទារឥឡូវសមនឹងផ្ទាំងការទាមទារដោយមិនចាំបាច់រំកិលទៅចំហៀង ដូច្នេះប៊ូតុង "បដិសេធជួរ" តែងតែមើលឃើញ។ នៅលើទូរសព្ទ ជួរនីមួយៗជាកាតខ្លីជាងមុន ដែលបង្ហាញព័ត៌មានពីរនៅក្បែរគ្នា។',
+        fil: 'Kasya na ngayon ang mga linya ng claim sa window nang hindi na kailangang mag-scroll patagilid, kaya laging nakikita ang button na "Tanggihan ang linya". Sa phone, mas maikling card na ang bawat linya at magkatabi ang dalawang detalye.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-01.5',
     date: '2026-10-01',
     items: [

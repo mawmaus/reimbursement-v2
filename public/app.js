@@ -2719,7 +2719,7 @@ const sourceDrawerType = (k) => k === 'meal' ? 'meal' : k === 'advance' ? 'advan
 // rows line up the same way for all three.
 function lineColumns(c) {
   const receiptLinks = (atts) => (atts && atts.length)
-    ? atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/${c.type === 'advance' ? 'cash-advances' : 'claims'}/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join(' ')
+    ? `<div class="line-receipt-list">${atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/${c.type === 'advance' ? 'cash-advances' : 'claims'}/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join('')}</div>`
     : `<span class="muted">${esc(t('—'))}</span>`;
   const dash = '<span class="muted">—</span>';
   if (c.type === 'meal') return [
