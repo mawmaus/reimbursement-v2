@@ -1465,6 +1465,35 @@ input[type="search"] { min-width: 220px; }
   .topbar-right .theme-btn { width: 30px; height: 30px; border-radius: 7px; }
 }
 
+/* What's new: same square as the theme toggle, plus an unread dot. */
+.whatsnew-btn { position: relative; }
+.whatsnew-btn.has-unread { color: var(--pine-deep); }
+.whatsnew-btn.has-unread::after { content: ""; position: absolute; top: -3px; right: -3px;
+  width: 9px; height: 9px; border-radius: 50%; background: var(--pine-deep);
+  border: 2px solid var(--surface); }
+.wn-sub { margin: 3px 0 0; font-size: .84rem; color: var(--muted); }
+.wn-body { padding-top: 6px; }
+.wn-release { padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+.wn-release:last-child { border-bottom: none; padding-bottom: 4px; }
+.wn-date { margin: 0 0 10px; font-size: .95rem; font-weight: 650; color: var(--ink);
+  display: flex; align-items: center; gap: 8px; }
+.wn-latest { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--on-brand); background: var(--pine); padding: 2px 8px; border-radius: 99px; }
+.wn-items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto 1fr;
+  gap: 10px 12px; align-items: baseline; }
+/* Items join the list's grid, so the label column fits the widest label. */
+.wn-item { display: contents; }
+.wn-kind { justify-self: start; font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+  white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.wn-new { color: var(--pine-deep); background: var(--pine-tint); }
+.wn-improved { color: var(--indigo); background: var(--indigo-tint); }
+.wn-fixed { color: var(--green); background: var(--green-tint); }
+.wn-text { font-size: .9rem; line-height: 1.5; color: var(--ink-soft); }
+@media (max-width: 560px) {
+  .wn-items { grid-template-columns: 1fr; gap: 4px; }
+  .wn-text { margin-bottom: 8px; }
+}
+
 /* --- Region workspace (Settings) ------------------------------------------ */
 /* Regions landing: the intro + cards + "Manage regions" label form a frozen
    header (flex:none) above the scrolling region table. */

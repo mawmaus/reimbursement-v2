@@ -208,6 +208,7 @@ function attachAmountGrouping(input) {
 async function boot() {
   initLangUI();          // populate + wire the language switchers, apply chrome
   initThemeUI();         // night-mode toggles (login card + top bar)
+  initWhatsNew();        // release-notes button + its unread dot
   try {
     const { user } = await api('/me');
     state.user = user;
@@ -259,6 +260,57 @@ function syncThemeButtons() {
     btn.setAttribute('aria-label', label);
     btn.title = label;
   });
+}
+
+// ---------------------------------------------------------------------------
+// What's new — release notes from public/changelog.js, every item already
+// written in all six languages (scripts/check-changelog.js enforces that). The
+// newest release id the user has opened is remembered per device; until then
+// the top-bar button carries a dot.
+// ---------------------------------------------------------------------------
+const WHATSNEW_KEY = 'reimb.seenRelease';
+const releases = () => (Array.isArray(window.CHANGELOG) ? window.CHANGELOG : []);
+function syncWhatsNewDot() {
+  const btn = $('#whatsNewBtn'); if (!btn) return;
+  const latest = releases()[0];
+  let seen = null;
+  try { seen = localStorage.getItem(WHATSNEW_KEY); } catch { /* private mode */ }
+  btn.classList.toggle('has-unread', !!latest && seen !== latest.id);
+}
+function initWhatsNew() {
+  const btn = $('#whatsNewBtn'); if (!btn) return;
+  btn.hidden = !releases().length;
+  btn.addEventListener('click', openWhatsNew);
+  syncWhatsNewDot();
+}
+// "1 Oct 2026" in the active language's month names (Khmer/Thai read fine this way too).
+function releaseDate(iso) {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  return y && m && d ? `${d} ${I18N.months()[m - 1]} ${y}` : String(iso || '');
+}
+function openWhatsNew() {
+  const lang = I18N.getLang();
+  const kindLabel = { new: t('New'), improved: t('Improved'), fixed: t('Fixed') };
+  const list = releases();
+  const body = list.map((r, i) => `
+    <section class="wn-release">
+      <h3 class="wn-date">${esc(releaseDate(r.date))}${i === 0 ? ` <span class="wn-latest">${esc(t('Latest'))}</span>` : ''}</h3>
+      <ul class="wn-items">${(r.items || []).map(it => `
+        <li class="wn-item">
+          <span class="wn-kind wn-${esc(it.kind)}">${esc(kindLabel[it.kind] || kindLabel.new)}</span>
+          <span class="wn-text">${esc((it.text && (it.text[lang] || it.text.en)) || '')}</span>
+        </li>`).join('')}
+      </ul>
+    </section>`).join('');
+  openModal(`
+    <div class="modal-head">
+      <div><h2>${esc(t("What's new"))}</h2><p class="wn-sub">${esc(t('Recent changes and improvements to the portal.'))}</p></div>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body wn-body">${body}</div>`);
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  if (list[0]) { try { localStorage.setItem(WHATSNEW_KEY, list[0].id); } catch { /* private mode */ } }
+  syncWhatsNewDot();
 }
 
 function renderLoginHint() {
