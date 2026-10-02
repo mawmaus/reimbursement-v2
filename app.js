@@ -1027,6 +1027,11 @@ async function openClaimsAwaitingApprover(userId) {
 //   paid              disbursed; the realization has not been submitted
 //   realize_submitted realization submitted, still in the approver chain
 //   rejected_realize  realization returned; awaiting a resubmit
+//   realize_approved  …but only while the realization came in UNDER the advance:
+//                     the unused balance is still with the employee, so the
+//                     advance is not cleared until Finance AP settles it
+//                     (confirms the refund was received). A top-up or an even
+//                     realization is cleared on approval — nothing is owed back.
 // Deliberately NOT held: raising another cash advance (a separate decision), and
 // resubmitting an already-rejected claim or realization — blocking those would
 // strand documents the employee has no other way to close.
@@ -1037,7 +1042,8 @@ const UNREALIZED_ADVANCE_SQL = UNREALIZED_ADVANCE_STATES.map((s) => `'${s}'`).jo
 async function unrealizedAdvanceCount(userId) {
   const rows = await q(
     `SELECT COUNT(*)::int AS n FROM cash_advances
-      WHERE employee_id = $1 AND status IN (${UNREALIZED_ADVANCE_SQL})`, [userId]);
+      WHERE employee_id = $1 AND (status IN (${UNREALIZED_ADVANCE_SQL})
+         OR (status = 'realize_approved' AND realized_total_cents < amount_cents))`, [userId]);
   return Number(rows[0].n);
 }
 
@@ -1051,8 +1057,8 @@ async function heldByUnrealizedAdvance(req, res) {
     code: 'unrealized_advance',
     count: n,
     error: n === 1
-      ? 'You have a cash advance that still needs to be realized. Realize it before submitting a new claim.'
-      : `You have ${n} cash advances that still need to be realized. Realize them before submitting a new claim.`
+      ? 'You have a cash advance that is not cleared yet — it still needs to be realized, or its unused balance returned to Finance. Clear it before submitting a new claim.'
+      : `You have ${n} cash advances that are not cleared yet — they still need to be realized, or their unused balance returned to Finance. Clear them before submitting a new claim.`
   });
   return true;
 }

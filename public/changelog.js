@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-02.1',
+    date: '2026-10-02',
+    items: [
+      { kind: 'improved', audience: ['advance', 'pay'], text: {
+        en: 'A cash advance that was not fully spent now stays open until Finance confirms the unused balance was returned. Until then it shows as "Awaiting refund" under Unrealized cash advances, and new claims stay on hold. Finance closes it with the new "Confirm refund received" button.',
+        id: 'Uang muka yang tidak terpakai seluruhnya kini tetap terbuka sampai Finance mengonfirmasi sisa dana sudah dikembalikan. Sampai saat itu statusnya "Menunggu pengembalian dana" di Uang muka belum direalisasi, dan klaim baru tetap ditahan. Finance menutupnya dengan tombol baru "Konfirmasi pengembalian diterima".',
+        th: 'เงินทดรองที่ใช้ไม่หมดจะยังเปิดอยู่จนกว่าฝ่ายการเงินจะยืนยันว่าได้รับเงินส่วนที่เหลือคืนแล้ว ระหว่างนั้นจะแสดงเป็น "รอคืนเงิน" ในเงินทดรองที่ยังไม่เคลียร์ และคำขอเบิกใหม่จะยังถูกระงับ ฝ่ายการเงินปิดรายการได้ด้วยปุ่มใหม่ "ยืนยันว่าได้รับเงินคืนแล้ว"',
+        vi: 'Khoản tạm ứng chưa dùng hết giờ vẫn mở cho đến khi Tài chính xác nhận số dư chưa dùng đã được hoàn trả. Trong thời gian đó, khoản này hiển thị là "Chờ hoàn trả" trong mục tạm ứng chưa quyết toán, và yêu cầu mới vẫn bị tạm giữ. Tài chính đóng khoản này bằng nút mới "Xác nhận đã nhận hoàn trả".',
+        km: 'ប្រាក់បុរេប្រទានដែលមិនបានចំណាយអស់ ឥឡូវនៅតែបើករហូតដល់ផ្នែកហិរញ្ញវត្ថុបញ្ជាក់ថាសមតុល្យដែលមិនបានប្រើត្រូវបានសងវិញ។ រហូតដល់ពេលនោះ វាបង្ហាញជា "កំពុងរង់ចាំការសងប្រាក់វិញ" ក្នុងប្រាក់បុរេប្រទានមិនទាន់ទូទាត់ ហើយសំណើថ្មីនៅតែត្រូវបានផ្អាក។ ផ្នែកហិរញ្ញវត្ថុបិទវាដោយប៊ូតុងថ្មី "បញ្ជាក់ថាបានទទួលប្រាក់សងវិញ"។',
+        fil: 'Ang cash advance na hindi naubos ay mananatiling bukas hanggang kumpirmahin ng Finance na naibalik ang hindi nagamit na balanse. Hanggang doon, "Naghihintay ng refund" ang status nito sa Unrealized cash advances, at naka-hold pa rin ang mga bagong claim. Isinasara ito ng Finance gamit ang bagong button na "Kumpirmahing natanggap ang refund".'
+      } }
+    ]
+  },
+  {
     id: '2026-10-01.6',
     date: '2026-10-01',
     items: [

@@ -164,6 +164,12 @@ const ADV_STATUS_LABEL = {
   settled: 'Settled'
 };
 const ADV_PILL_BASE = { realize_submitted: 'submitted', realize_approved: 'approved', rejected_realize: 'rejected', settled: 'paid' };
+// An approved realization that came in UNDER the advance leaves the unused
+// balance with the employee: the advance is not cleared (it stays unrealized,
+// and keeps the new-claim hold — see unrealizedAdvanceCount on the server)
+// until Finance AP settles it, i.e. confirms the refund was received.
+const owesRefund = (c) => !!(c && c.type === 'advance' && c.status === 'realize_approved'
+  && (c.realized_total || 0) < (c.amount || 0));
 const statusLabel = (s) => t(STATUS_LABEL[s] || s || '');
 // "Pending review" splits by which approver is next: step 1 is still with the
 // department Manager; once they approve, the claim advances to step >= 2, where it
@@ -174,12 +180,14 @@ const pendingReviewBase = (step) => (Number(step) || 0) >= 2
 const pendingReviewLabel = (step) => t(pendingReviewBase(step));
 // Status label that knows the row type (advances relabel some shared statuses).
 function statusLabelFor(c) {
+  if (owesRefund(c)) return t('Awaiting refund');
   if (c && c.type === 'advance' && ADV_STATUS_LABEL[c.status]) return t(ADV_STATUS_LABEL[c.status]);
   if (c && c.status === 'submitted') return pendingReviewLabel(c.current_step);
   return statusLabel(c ? c.status : '');
 }
 // CSS pill class for a status — maps advance-only statuses onto a base colour.
-const pillClass = (c) => (c && c.type === 'advance' && ADV_PILL_BASE[c.status]) || (c ? c.status : '');
+const pillClass = (c) => owesRefund(c) ? 'submitted'
+  : (c && c.type === 'advance' && ADV_PILL_BASE[c.status]) || (c ? c.status : '');
 
 // Group an amount's integer part with thousands separators for readability as
 // the user types, e.g. "1000000" → "1,000,000". Commas are stripped again by
@@ -428,8 +436,8 @@ function advanceHold() {
 function advanceHoldReason() {
   const n = advanceHold();
   return n === 1
-    ? t('Realize your outstanding cash advance first.')
-    : t('Realize your {n} outstanding cash advances first.', { n });
+    ? t('Clear your outstanding cash advance first.')
+    : t('Clear your {n} outstanding cash advances first.', { n });
 }
 // Disabled, never hidden: a button that vanishes reads as a bug, and the title
 // says why it is greyed out. renderHome() puts the same reason on the page.
@@ -1170,7 +1178,8 @@ const paidQueue = () => state.claims.filter(c => c.status === 'paid');
 // Cash-advance realization tiles. A disbursed advance ('paid') is UNREALIZED
 // until its realization is approved; once approved (and through settlement) it
 // is REALIZED. A returned realization ('rejected_realize') is still unrealized
-// (the claimant must resubmit). Request-stage advances (submitted/approved/
+// (the claimant must resubmit), and so is an approved one with an unused
+// balance still to be refunded (owesRefund) — it clears when Finance settles. Request-stage advances (submitted/approved/
 // rejected — not yet disbursed) belong to the claim queues, not here.
 const ADV_UNREALIZED = ['paid', 'realize_submitted', 'rejected_realize'];
 const ADV_REALIZED = ['realize_approved', 'settled'];
@@ -1180,8 +1189,8 @@ function advanceScope() {
   const all = seesAllAdvances(u);
   return state.claims.filter(c => c.type === 'advance' && (all || c.employee_id === (u && u.id)));
 }
-const unrealizedQueue = () => advanceScope().filter(c => ADV_UNREALIZED.includes(c.status));
-const realizedQueue = () => advanceScope().filter(c => ADV_REALIZED.includes(c.status));
+const unrealizedQueue = () => advanceScope().filter(c => ADV_UNREALIZED.includes(c.status) || owesRefund(c));
+const realizedQueue = () => advanceScope().filter(c => ADV_REALIZED.includes(c.status) && !owesRefund(c));
 
 // Claims for the open view, before the client-side claimant filter.
 function viewClaims() {
@@ -1242,9 +1251,9 @@ function renderHome() {
     notice.hidden = !hold;
     if (hold) {
       notice.innerHTML = `<span class="home-notice-txt">${esc(hold === 1
-          ? t('You have a cash advance waiting to be realized. New claims and meal allowances are on hold until it is settled.')
-          : t('You have {n} cash advances waiting to be realized. New claims and meal allowances are on hold until they are settled.', { n: hold }))}</span>
-        <button type="button" class="btn btn-amber-soft btn-sm" id="holdGo">${esc(t('Realize advance'))}</button>`;
+          ? t('You have a cash advance that is not cleared yet. New claims and meal allowances are on hold until it is realized and any unused balance is returned.')
+          : t('You have {n} cash advances that are not cleared yet. New claims and meal allowances are on hold until they are realized and any unused balance is returned.', { n: hold }))}</span>
+        <button type="button" class="btn btn-amber-soft btn-sm" id="holdGo">${esc(t('View cash advances'))}</button>`;
       $('#holdGo').addEventListener('click', () => openView('unrealized'));
     } else {
       notice.innerHTML = '';
@@ -1289,7 +1298,7 @@ function renderHome() {
   // the tiles still follow the current view, which is what a count should do.
   if (seesAllAdvances(u) || (u.purposes && u.purposes.advance)
       || advanceHold() || unrealizedQueue().length || realizedQueue().length) {
-    tiles.push({ key: 'unrealized', title: t('Unrealized cash advances'), desc: t('Advances paid — awaiting realization'), count: unrealizedQueue().length });
+    tiles.push({ key: 'unrealized', title: t('Unrealized cash advances'), desc: t('Advances paid — awaiting realization or refund'), count: unrealizedQueue().length });
     tiles.push({ key: 'realized', title: t('Realized cash advances'), desc: t('Advances with realization approved'), count: realizedQueue().length });
   }
   if (uCan('view_all_claims')) tiles.push({ key: 'all', title: t('All activities'), desc: t('Every claim in the system'), count: state.claims.length });
@@ -2305,8 +2314,8 @@ async function buildClaimsPdf(claims) {
     else page.drawText('Cibes', { x: M, y: H - M - 20, size: 22, font: bold, color: orange });
     const rx = M + 128;
     page.drawText(title, { x: rx, y: H - M - 8, size: 16, font: bold, color: ink });
-    const stText = (c.type === 'advance' && ADV_STATUS_LABEL[c.status]) || STATUS_LABEL[c.status] || c.status;
-    const stKey = (c.type === 'advance' && ADV_PILL_BASE[c.status]) || c.status;
+    const stText = owesRefund(c) ? 'Awaiting refund' : (c.type === 'advance' && ADV_STATUS_LABEL[c.status]) || STATUS_LABEL[c.status] || c.status;
+    const stKey = pillClass(c);
     page.drawText(`${pdfSafe(c.claim_no)}   ${String(stText).toUpperCase()}`,
       { x: rx, y: H - M - 26, size: 9.5, font: bold, color: stColor[stKey] || muted });
     page.drawText(`Submitted ${fmtDateTime(c.created_at)}`, { x: rx, y: H - M - 40, size: 8.5, font, color: muted });
@@ -2345,7 +2354,7 @@ async function buildClaimsPdf(claims) {
         const dir = c.status === 'settled' ? c.settlement_direction : (diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even');
         const amt = c.status === 'settled' ? c.settlement : Math.abs(diff);
         const msg = dir === 'topup' ? 'Top-up owed to employee: ' + money(amt, c.currency)
-          : dir === 'return' ? 'Balance to be returned by employee: ' + money(amt, c.currency)
+          : dir === 'return' ? (c.status === 'settled' ? 'Refund received from employee: ' : 'Balance to be returned by employee: ') + money(amt, c.currency)
           : 'Advance and actual spend match exactly.';
         section(c.status === 'settled' ? 'Settlement' : 'Settlement (pending)');
         line(msg, { size: 10 });
@@ -2670,7 +2679,7 @@ function buildActions(c, u, isOwner) {
       btns.push(`<button class="btn btn-primary" data-act="realize">${esc(c.status === 'paid' ? t('Realize advance') : t('Edit & resubmit realization'))}</button>`);
     }
     if (canPay(u) && c.status === 'realize_approved') {
-      btns.push(`<button class="btn btn-primary" data-act="settle">${esc(t('Settle'))}</button>`);
+      btns.push(`<button class="btn btn-primary" data-act="settle">${esc(owesRefund(c) ? t('Confirm refund received') : t('Settle'))}</button>`);
     }
   }
   if (isOwner && c.status === 'rejected') {
@@ -2948,11 +2957,14 @@ function advanceBody(c) {
     const dir = c.status === 'settled' ? c.settlement_direction : (diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even');
     const amt = c.status === 'settled' ? c.settlement : Math.abs(diff);
     const msg = dir === 'topup' ? t('Top-up owed to employee: {amt}', { amt: money(amt, c.currency) })
-      : dir === 'return' ? t('Balance to be returned by employee: {amt}', { amt: money(amt, c.currency) })
+      : dir === 'return' ? (c.status === 'settled'
+        ? t('Refund received from employee: {amt}', { amt: money(amt, c.currency) })
+        : t('Balance to be returned by employee: {amt}', { amt: money(amt, c.currency) }))
       : t('Advance and actual spend match exactly.');
     settleBox = `<div class="note-box adv-settle adv-diff-${dir}">
       <div class="nb-label">${esc(c.status === 'settled' ? t('Settlement') : t('Settlement (pending)'))}</div>
       <div>${esc(msg)}</div>
+      ${owesRefund(c) ? `<div class="muted" style="margin-top:4px">${esc(t('This advance stays open — and new claims stay on hold — until Finance confirms the refund was received.'))}</div>` : ''}
       ${c.status === 'settled' && c.settlement_note ? `<div class="muted" style="margin-top:4px">${esc(c.settlement_note)}</div>` : ''}
     </div>`;
   }
@@ -5885,7 +5897,7 @@ async function submitRealization(e, advance) {
 function openSettleModal(c) {
   const diff = (c.realized_total || 0) - (c.amount || 0);
   const line = diff > 0 ? t('A top-up of {amt} is owed to the employee.', { amt: money(diff, c.currency) })
-    : diff < 0 ? t('The employee returns {amt}.', { amt: money(-diff, c.currency) })
+    : diff < 0 ? t('Confirm that the employee has returned the unused {amt}. The cash advance is cleared once you confirm.', { amt: money(-diff, c.currency) })
     : t('The advance and the actual spend match exactly.');
   openModal(`
     <div class="modal-head"><h2>${esc(t('Settle {no}', { no: c.advance_no }))}</h2><button class="x-btn">×</button></div>
@@ -5902,7 +5914,7 @@ function openSettleModal(c) {
         <p class="form-error" id="settleErr" hidden></p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="settleCancel">${esc(t('Cancel'))}</button>
-          <button type="submit" class="btn btn-primary">${esc(t('Confirm settlement'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(diff < 0 ? t('Confirm refund received') : t('Confirm settlement'))}</button>
         </div>
       </form>
     </div>`);
@@ -5914,7 +5926,7 @@ function openSettleModal(c) {
     const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true;
     try {
       await api('/cash-advances/' + c.id + '/settle', { method: 'POST', body: JSON.stringify({ note }) });
-      toast(t('Cash advance settled'));
+      toast(diff < 0 ? t('Refund confirmed — cash advance cleared') : t('Cash advance settled'));
       closeModal(); closeDrawer(); loadAll();
     } catch (ex) { const el = $('#settleErr'); el.textContent = ex.message; el.hidden = false; btn.disabled = false; }
   });
