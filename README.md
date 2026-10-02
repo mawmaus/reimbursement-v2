@@ -99,6 +99,19 @@ npm start          # http://localhost:3000
 
 The local server talks to the same Neon database and Blob store over the network.
 
+### Tests
+
+```bash
+npm test
+```
+
+Unit tests for the business rules: amounts and claim lines, the claim-date window,
+the approval chain and reverts, cash-advance settlement, account/role permissions
+and the claim-list window (`tests/*.test.js`, Node's built-in runner, no extra
+dependencies). They exercise the pure rule functions `app.js` exposes as
+`module.exports.rules` and never touch the database. The Vercel build runs them
+first, so a deploy that breaks one of these rules fails instead of going live.
+
 ## Notes & limits
 
 - **Upload size:** files go through the function, which on Vercel caps request

@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-02.4',
+    date: '2026-10-02',
+    items: [
+      { kind: 'fixed', audience: ['accounts', 'settings'], text: {
+        en: 'An approval limit that isn\'t a valid amount (for example a typo with letters) is now refused with a message, instead of being saved as 0, which stopped that account from approving anything.',
+        id: 'Batas persetujuan yang bukan jumlah yang valid (misalnya salah ketik berisi huruf) kini ditolak dengan pesan, bukan disimpan sebagai 0 yang membuat akun tersebut tidak bisa menyetujui apa pun.',
+        th: 'วงเงินอนุมัติที่ไม่ใช่จำนวนเงินที่ถูกต้อง (เช่น พิมพ์ผิดเป็นตัวอักษร) จะถูกปฏิเสธพร้อมข้อความแจ้ง แทนที่จะถูกบันทึกเป็น 0 ซึ่งทำให้บัญชีนั้นอนุมัติอะไรไม่ได้เลย',
+        vi: 'Hạn mức phê duyệt không phải là số tiền hợp lệ (ví dụ gõ nhầm có chữ cái) giờ sẽ bị từ chối kèm thông báo, thay vì được lưu thành 0 khiến tài khoản đó không thể phê duyệt gì.',
+        km: 'ដែនកំណត់អនុម័តដែលមិនមែនជាចំនួនទឹកប្រាក់ត្រឹមត្រូវ (ឧទាហរណ៍ វាយខុសជាអក្សរ) ឥឡូវត្រូវបានបដិសេធជាមួយសារ ជំនួសឱ្យការរក្សាទុកជា 0 ដែលធ្វើឱ្យគណនីនោះមិនអាចអនុម័តអ្វីបាន។',
+        fil: 'Ang approval limit na hindi wastong halaga (halimbawa, typo na may mga letra) ay tinatanggihan na ngayon na may mensahe, sa halip na ma-save bilang 0 na pumipigil sa account na mag-apruba ng kahit ano.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-02.3',
     date: '2026-10-02',
     items: [

@@ -691,9 +691,14 @@ function requireCap(cap) {
   };
 }
 
+// An amount as typed or sent ("150,000", "IDR 75,000.50", 150000) into cents.
+// Commas are thousands separators, matching the client's groupAmount(). Text
+// with no digits at all is invalid (null), not zero: Number('') is 0, which used
+// to let a typo like "abc" save an approval limit of 0.
 function parseAmountToCents(input) {
-  if (typeof input === 'number') return Math.round(input * 100);
+  if (typeof input === 'number') return Number.isFinite(input) && input >= 0 ? Math.round(input * 100) : null;
   const cleaned = String(input).replace(/[^0-9.,-]/g, '').replace(/,/g, '');
+  if (!/\d/.test(cleaned)) return null;
   const num = Number(cleaned);
   if (!Number.isFinite(num) || num < 0) return null;
   return Math.round(num * 100);
@@ -3492,22 +3497,28 @@ app.put('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
   return submitRealization(req, res, row);
 }));
 
-// Settle a fully-approved realization (phase 2 → settled). Records the direction:
-// actual > advance → top-up owed to the employee; actual < advance → balance the
-// employee returns; equal → even. Same permission as marking paid.
+// How an approved realization settles against the advance: actual > advance →
+// top-up owed to the employee; actual < advance → balance the employee returns;
+// equal → even. `cents` is always the positive amount that changes hands.
+function settlementFor(row) {
+  const diff = Number(row.realized_total_cents) - Number(row.amount_cents);
+  return { direction: diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even', cents: Math.abs(diff) };
+}
+
+// Settle a fully-approved realization (phase 2 → settled), recording the
+// direction from settlementFor. Same permission as marking paid.
 app.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) => {
   if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to settle cash advances' });
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
   if (row.status !== 'realize_approved') return res.status(409).json({ error: 'Only an approved realization can be settled' });
-  const diff = Number(row.realized_total_cents) - Number(row.amount_cents);
-  const direction = diff > 0 ? 'topup' : diff < 0 ? 'return' : 'even';
+  const { direction, cents } = settlementFor(row);
   const note = String((req.body && req.body.note) || '').trim();
   await q(`UPDATE cash_advances SET status='settled', settlement_cents=$1, settlement_direction=$2,
             settlement_note=$3, settled_by=$4, settled_at=now(), updated_at=now() WHERE id=$5`,
-    [Math.abs(diff), direction, note, req.user.id, row.id]);
-  const label = direction === 'topup' ? `settled — top-up ${fmtMoney(Math.abs(diff), row.currency)} to employee`
-    : direction === 'return' ? `settled — ${fmtMoney(Math.abs(diff), row.currency)} returned by employee`
+    [cents, direction, note, req.user.id, row.id]);
+  const label = direction === 'topup' ? `settled — top-up ${fmtMoney(cents, row.currency)} to employee`
+    : direction === 'return' ? `settled — ${fmtMoney(cents, row.currency)} returned by employee`
     : 'settled — balanced';
   await logAdvanceHistory(row.id, req.user, label, 'realize_approved', 'settled', note);
   const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
@@ -3516,47 +3527,55 @@ app.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) => {
 }));
 
 // Revert one step of a cash advance's lifecycle (mirrors planRevert, doubled for
-// the realization phase). Only the actor who owns a node may undo it.
+// the realization phase). Only the actor who owns a node may undo it. Returns a
+// plan { kind, sql, action, from, to, comment? } or a refusal { error, code }.
+function planAdvanceRevert(row, u) {
+  const ids = asIntArray(row.approver_ids);
+  const step = row.current_step || 0;
+  const isSuper = u.role === 'superadmin';
+  const deny = (error) => ({ error, code: 403 });
+  if (row.status === 'settled') {
+    if (!canMarkPaid(u)) return deny('You do not have permission to revert a settlement');
+    return { kind: 'unsettle', sql: `status='realize_approved', settlement_cents=0, settlement_direction='', settlement_note='', settled_by=NULL, settled_at=NULL`,
+      action: 'reverted settlement', from: 'settled', to: 'realize_approved' };
+  }
+  if (row.status === 'realize_approved') {
+    if (!isSuper && Number(row.manager_id) !== u.id) return deny('Only the approver who approved this realization can revert it');
+    return { kind: 'unapprove-final', sql: `status='realize_submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted realization approval', from: 'realize_approved', to: 'realize_submitted' };
+  }
+  if (row.status === 'realize_submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== u.id) return deny('Only the approver of the previous step can revert it');
+      return { kind: 'unapprove-step', sql: `current_step=${step - 1}`, action: 'reverted realization approval', from: 'realize_submitted', to: 'realize_submitted' };
+    }
+    if (!isSuper && Number(row.employee_id) !== u.id) return deny('Only the claimant can revert this realization');
+    return { kind: 'cancel', sql: `status='rejected_realize', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled realization to edit', from: 'realize_submitted', to: 'rejected_realize', comment: 'Reverted by the claimant to make changes' };
+  }
+  if (row.status === 'paid') {
+    if (!canMarkPaid(u)) return deny('You do not have permission to revert a payment');
+    return { kind: 'unpay', sql: `status='approved', paid_by=NULL, paid_at=NULL`, action: 'reverted payment', from: 'paid', to: 'approved' };
+  }
+  if (row.status === 'approved') {
+    if (!isSuper && Number(row.manager_id) !== u.id) return deny('Only the approver who approved this advance can revert the approval');
+    return { kind: 'unapprove-final', sql: `status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted approval', from: 'approved', to: 'submitted' };
+  }
+  if (row.status === 'submitted') {
+    if (step > 1) {
+      if (!isSuper && ids[step - 2] !== u.id) return deny('Only the approver of the previous step can revert it');
+      return { kind: 'unapprove-step', sql: `current_step=${step - 1}`, action: 'reverted approval', from: 'submitted', to: 'submitted' };
+    }
+    if (!isSuper && Number(row.employee_id) !== u.id) return deny('Only the claimant can revert this submission');
+    return { kind: 'cancel', sql: `status='rejected', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected', comment: 'Reverted by the claimant to make changes' };
+  }
+  return { error: `A ${row.status} cash advance cannot be reverted`, code: 409 };
+}
+
 app.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
-  const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
-  const isSuper = req.user.role === 'superadmin';
-  const u = req.user;
-  let plan = null;
-  if (row.status === 'settled') {
-    if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a settlement' });
-    plan = { kind: 'unsettle', sql: `status='realize_approved', settlement_cents=0, settlement_direction='', settlement_note='', settled_by=NULL, settled_at=NULL`,
-      action: 'reverted settlement', from: 'settled', to: 'realize_approved' };
-  } else if (row.status === 'realize_approved') {
-    if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this realization can revert it' });
-    plan = { kind: 'unapprove-final', sql: `status='realize_submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted realization approval', from: 'realize_approved', to: 'realize_submitted' };
-  } else if (row.status === 'realize_submitted') {
-    if (step > 1) {
-      if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
-      plan = { kind: 'unapprove-step', sql: `current_step=${step - 1}`, action: 'reverted realization approval', from: 'realize_submitted', to: 'realize_submitted' };
-    } else {
-      if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this realization' });
-      plan = { kind: 'cancel', sql: `status='rejected_realize', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled realization to edit', from: 'realize_submitted', to: 'rejected_realize', comment: 'Reverted by the claimant to make changes' };
-    }
-  } else if (row.status === 'paid') {
-    if (!canMarkPaid(u)) return res.status(403).json({ error: 'You do not have permission to revert a payment' });
-    plan = { kind: 'unpay', sql: `status='approved', paid_by=NULL, paid_at=NULL`, action: 'reverted payment', from: 'paid', to: 'approved' };
-  } else if (row.status === 'approved') {
-    if (!isSuper && Number(row.manager_id) !== u.id) return res.status(403).json({ error: 'Only the approver who approved this advance can revert the approval' });
-    plan = { kind: 'unapprove-final', sql: `status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL`, action: 'reverted approval', from: 'approved', to: 'submitted' };
-  } else if (row.status === 'submitted') {
-    if (step > 1) {
-      if (!isSuper && ids[step - 2] !== u.id) return res.status(403).json({ error: 'Only the approver of the previous step can revert it' });
-      plan = { kind: 'unapprove-step', sql: `current_step=${step - 1}`, action: 'reverted approval', from: 'submitted', to: 'submitted' };
-    } else {
-      if (!isSuper && Number(row.employee_id) !== u.id) return res.status(403).json({ error: 'Only the claimant can revert this submission' });
-      plan = { kind: 'cancel', sql: `status='rejected', manager_id=NULL, decided_at=now()`, action: 'reverted — cancelled to edit', from: 'submitted', to: 'rejected', comment: 'Reverted by the claimant to make changes' };
-    }
-  } else {
-    return res.status(409).json({ error: `A ${row.status} cash advance cannot be reverted` });
-  }
+  const plan = planAdvanceRevert(row, req.user);
+  if (plan.error) return res.status(plan.code).json({ error: plan.error });
   // A revert that lands back on step 1 may re-pick Approver 1 (see
   // resolveRevertApprover1) — resolved before anything moves.
   const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
@@ -4710,3 +4729,16 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+// The pure business rules (money, dates, approval chain, permissions), exposed
+// for the unit tests in tests/ (`npm test`). None of these touch the database.
+module.exports.rules = {
+  parseAmountToCents, fmtMoney, parseApprovalLimit, approvalLimitError,
+  normaliseClaimLines, claimHeaderFromLines, normaliseMealLines, normaliseAdvanceRequest,
+  settlementFor, subDaysISO, dateInZone, todayInZone, claimWindowSettings, claimEarliestFrom,
+  resubmitEarliest, dateFloorFor, currentApproverId, userCanApprove, canMarkPaid,
+  planRevert, planAdvanceRevert, undoneApprovalStep, revertLandsOnApprover1,
+  fillMatrix, capsFor, userCan, editableRolesFor, hasDelegation, creatablePositions,
+  canManageAccount, insightsCanView, insightsSeeAll, accountsSeeAllDepts,
+  applyListStatusFilter, applyLedgerWindow, slimForList,
+  OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL, CAPABILITIES
+};

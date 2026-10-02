@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "node scripts/stamp-assets.js",
+  "buildCommand": "npm test && node scripts/stamp-assets.js",
   "outputDirectory": "public",
   "redirects": [
     {
