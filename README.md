@@ -99,6 +99,22 @@ npm start          # http://localhost:3000
 
 The local server talks to the same Neon database and Blob store over the network.
 
+### Code layout
+
+- `app.js` — the Express app: security headers, sessions, body parsing, mounting
+  the routers below, static files (local dev) and the error handler.
+- `routes/*.js` — one router per area: `auth`, `settings`, `date-changes`,
+  `claims`, `uploads`, `meals`, `advances`, `bulk-payments`, `cron`, `reports`,
+  `users`, `lookups`.
+- `lib/*.js` — the shared logic the routes use, layered so nothing depends on a
+  route and there are no circular requires: `settings` at the bottom, then
+  `util` and `documents`; `permissions`, `money`, `claim-window`, `date-changes`, `auth`,
+  `uploads`, `workflow` and `lines` above them; `claims`, `meals` and `advances`
+  on top. `lib/blob.js`, `lib/email.js` and `lib/notify.js` talk to Blob storage
+  and email.
+- `schema.js` (tables, applied by `scripts/migrate.js`), `db.js` (Neon client),
+  `public/` (the single-page frontend).
+
 ### Tests
 
 ```bash
