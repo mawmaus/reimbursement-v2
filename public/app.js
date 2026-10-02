@@ -1163,6 +1163,8 @@ const approvedByMeQueue = () => state.claims.filter(approvedByMe);
 // current state, so a Refresh reflects any change others have made since.
 function reviewedByMe(c) {
   if (!state.user) return false;
+  // List rows arrive without history; the server works this out for them.
+  if (typeof c.reviewed_by_me === 'boolean') return c.reviewed_by_me;
   const uid = state.user.id;
   return (c.history || []).some(h =>
     h.actor_id === uid && /\b(approved|rejected)\b/.test(String(h.action)));

@@ -3,6 +3,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
+const compression = require('compression');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const { q, qq, transaction } = require('./db');
@@ -71,6 +72,10 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
   next();
 });
+// Compress responses here, not just at the CDN: Vercel caps what a function may
+// return at 4.5 MB, and that cap counts the bytes the function sends. The claim
+// ledger is JSON that compresses ~10x, so this is what keeps it well clear.
+app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(cookieSession({
@@ -806,18 +811,38 @@ async function approverNames(rows) {
   for (const u of await q(`SELECT id, full_name FROM users WHERE id IN (${ph})`, ids)) nameMap[u.id] = u.full_name;
   return nameMap;
 }
-// Batch-load lines, attachments + history for many claims.
-async function serializeMany(rows) {
+// List views get a slim shape: no history and no receipt metadata (the drawer,
+// edit forms and PDF all re-fetch the full record by id). Of the history, a list
+// only needs whether the viewer decided on the claim (the "Reviewed by me"
+// filter), so that comes back as `reviewed_by_me` instead. Without this the
+// ledger outgrows Vercel's 4.5 MB function-response cap within months.
+const REVIEW_ACTION_RE = /\b(approved|rejected)\b/;
+async function reviewedByViewer(table, fk, ids, ph, viewerId) {
+  const rows = await q(
+    `SELECT ${fk} AS doc_id, action FROM ${table} WHERE ${fk} IN (${ph}) AND actor_id = $${ids.length + 1}`,
+    [...ids, viewerId]);
+  return new Set(rows.filter(r => REVIEW_ACTION_RE.test(String(r.action))).map(r => r.doc_id));
+}
+function slimForList(doc, reviewed) {
+  const { history, attachments, ...rest } = doc;
+  return { ...rest, lines: (rest.lines || []).map(({ attachments: _a, ...l }) => l), reviewed_by_me: reviewed.has(doc.id) };
+}
+
+// Batch-load lines, attachments + history for many claims. `listFor` (the
+// viewing user) selects the slim list shape described above.
+async function serializeMany(rows, { listFor = null } = {}) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
   // Every lookup below is independent, so they go out together rather than as
   // six back-to-back round-trips to the database.
   const [atts, lines, hist, nameMap, dc, settings] = await Promise.all([
-    q(`SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
+    listFor ? [] : q(`SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
        FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids),
     q(`SELECT * FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids),
-    q(`SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+    listFor
+      ? reviewedByViewer('claim_history', 'claim_id', ids, ph, listFor.id)
+      : q(`SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
        FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids),
     approverNames(rows),
     // A live date-change request rides along so the edit form knows whether the
@@ -828,12 +853,13 @@ async function serializeMany(rows) {
   const a = groupBy(atts, 'claim_id');
   const attByLine = groupBy(atts, 'line_id');
   const l = groupBy(lines, 'claim_id');
-  const h = groupBy(hist, 'claim_id');
-  return rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null,
+  const h = listFor ? {} : groupBy(hist, 'claim_id');
+  const out = rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null,
     date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.window_from || r.created_at) : null,
     // The floor a re-claim of this claim's rejected lines is held to (the window
     // it was first submitted into — see resolveLineSource).
     reclaim_floor: dateFloorFor(settings, r.region, r.window_from || r.created_at) }));
+  return listFor ? out.map(c => slimForList(c, hist)) : out;
 }
 async function serializeOne(row) {
   return (await serializeMany([row]))[0];
@@ -1746,7 +1772,7 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
   const rows = await q(
     `SELECT * FROM claims ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      ORDER BY created_at DESC, id DESC`, params);
-  res.json({ claims: await serializeMany(rows) });
+  res.json({ claims: await serializeMany(rows, { listFor: req.user }) });
 }));
 
 app.get('/api/claims/summary', requireAuth, ah(async (req, res) => {
@@ -2568,23 +2594,27 @@ function baseMealClaim(row, lines, history, nameMap) {
     }))
   };
 }
-async function serializeManyMeal(rows) {
+// `listFor`: the slim list shape, as for serializeMany.
+async function serializeManyMeal(rows, { listFor = null } = {}) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
   const [lines, hist, nameMap, dc, settings] = await Promise.all([
     q(`SELECT * FROM meal_claim_lines WHERE meal_claim_id IN (${ph}) ORDER BY sort_order, id`, ids),
-    q(`SELECT meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+    listFor
+      ? reviewedByViewer('meal_claim_history', 'meal_claim_id', ids, ph, listFor.id)
+      : q(`SELECT meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
        FROM meal_claim_history WHERE meal_claim_id IN (${ph}) ORDER BY id`, ids),
     approverNames(rows),
     liveDateChanges('meal', ids),
     loadAppSettings()
   ]);
   const l = groupBy(lines, 'meal_claim_id');
-  const h = groupBy(hist, 'meal_claim_id');
-  return rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null,
+  const h = listFor ? {} : groupBy(hist, 'meal_claim_id');
+  const out = rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null,
     date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.window_from || r.created_at) : null,
     reclaim_floor: dateFloorFor(settings, r.region, r.window_from || r.created_at) }));
+  return listFor ? out.map(c => slimForList(c, hist)) : out;
 }
 async function serializeOneMeal(row) { return (await serializeManyMeal([row]))[0]; }
 async function loadMealClaimOr404(req, res) {
@@ -2617,7 +2647,7 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const rows = await q(
     `SELECT * FROM meal_claims ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
      ORDER BY created_at DESC, id DESC`, params);
-  res.json({ claims: await serializeManyMeal(rows) });
+  res.json({ claims: await serializeManyMeal(rows, { listFor: req.user }) });
 }));
 
 app.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
