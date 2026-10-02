@@ -243,6 +243,11 @@ function adoptAccountLang(user) {
   applyLangChrome();
 }
 
+// Translations are fetched per language (i18n.js). A switch, or adopting the
+// account's language at sign-in, can render before that table arrives; re-run
+// the translation of whatever is on screen once it does.
+window.addEventListener('i18n:changed', () => { applyLangChrome(); rerenderDynamic(); });
+
 // Re-translate the static chrome (top bar, list head, filters, login) and keep
 // both switchers showing the active language.
 function applyLangChrome() {

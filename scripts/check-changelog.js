@@ -18,6 +18,11 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(pub, 'i18n.js'), 'utf8'), sandbox);
+// The per-language tables (public/i18n/<code>.js) register through the global I18N.
+sandbox.I18N = sandbox.window.I18N;
+for (const f of fs.readdirSync(path.join(pub, 'i18n')).filter(f => f.endsWith('.js'))) {
+  vm.runInContext(fs.readFileSync(path.join(pub, 'i18n', f), 'utf8'), sandbox);
+}
 vm.runInContext(fs.readFileSync(path.join(pub, 'changelog.js'), 'utf8'), sandbox);
 
 const { I18N, CHANGELOG } = sandbox.window;
@@ -62,7 +67,7 @@ let prev = null;
 // The modal's labels must be in every non-English dictionary (English is the key).
 for (const l of langs.filter(c => c !== 'en')) {
   I18N.setLangLocal(l);
-  for (const k of UI_KEYS) if (I18N.t(k) === k) errors.push(`i18n.js: "${k}" has no "${l}" translation`);
+  for (const k of UI_KEYS) if (I18N.t(k) === k) errors.push(`i18n/${l}.js: "${k}" has no translation`);
 }
 
 if (errors.length) {
