@@ -46,6 +46,8 @@ app.use((req, res, next) => {
 // served from this origin (plus data:/blob: for client-generated PDFs). Inline
 // styles are still used in the markup, so style-src allows 'unsafe-inline';
 // scripts do not, so script-src stays strict ('self' with no inline).
+// On Vercel the pages are served by the CDN, not this function, so the same
+// headers are repeated in vercel.json — keep the two in step.
 const CSP = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -63,6 +65,9 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Content-Security-Policy', CSP);
+  // API answers are per-user; nothing in between may keep a copy. (A route can
+  // still override this, e.g. for a receipt download.)
+  if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
   next();
 });
 app.use(express.json({ limit: '1mb' }));
@@ -96,25 +101,28 @@ async function verifyAttachments(list) {
   if (list == null) return { items: [] };
   if (!Array.isArray(list)) return { error: 'Invalid receipts' };
   if (list.length > MAX_FILES) return { error: `Maximum ${MAX_FILES} files` };
-  const items = [];
   for (const a of list) {
-    const url = String((a && a.url) || '');
-    if (!BLOB_URL_RE.test(url)) return { error: 'A receipt reference is invalid — please re-attach it' };
+    if (!BLOB_URL_RE.test(String((a && a.url) || ''))) return { error: 'A receipt reference is invalid — please re-attach it' };
+  }
+  // HEAD every blob at once; the first problem (in list order) is reported.
+  const checked = await Promise.all(list.map(async (a) => {
+    const url = String(a.url);
     let info;
     try { info = await statReceipt(url); }
     catch { return { error: 'A receipt upload could not be verified — please re-attach it and retry' }; }
     if (info.size > RECEIPT_MAX_BYTES) return { error: 'A receipt exceeds the size limit' };
     const mime = String(info.contentType || '').toLowerCase();
     if (!ALLOWED_MIME.has(mime)) return { error: `File type not allowed: ${info.contentType || 'unknown'}` };
-    items.push({
+    return { item: {
       url,
       pathname: info.pathname,
-      original_name: String((a && a.original_name) || info.pathname.split('/').pop() || 'file').slice(0, 200),
+      original_name: String(a.original_name || info.pathname.split('/').pop() || 'file').slice(0, 200),
       mime,
       size: info.size
-    });
-  }
-  return { items };
+    } };
+  }));
+  const bad = checked.find(c => c.error);
+  return bad ? { error: bad.error } : { items: checked.map(c => c.item) };
 }
 
 // async route wrapper
@@ -218,17 +226,35 @@ async function viewRegionFilter(req) {
 }
 
 // --- App-wide settings (key/value store) -----------------------------------
-async function loadAppSettings() {
-  const rows = await q('SELECT key, value FROM app_settings');
-  const out = {};
-  for (const r of rows) out[r.key] = r.value;
-  return out;
+// Every authenticated request needs these (for the role matrix), so they are
+// held in memory briefly instead of re-read on each call. A save on this
+// instance drops the copy at once; other warm instances pick a change up within
+// SETTINGS_TTL_MS. Read-modify-write handlers pass { fresh: true } so they never
+// build an update on top of a stale copy and overwrite someone else's change.
+const SETTINGS_TTL_MS = 30 * 1000;
+let settingsCache = null; // { at, promise }
+async function loadAppSettings({ fresh = false } = {}) {
+  if (fresh || !settingsCache || Date.now() - settingsCache.at > SETTINGS_TTL_MS) {
+    const promise = q('SELECT key, value FROM app_settings').then(rows => {
+      const out = {};
+      for (const r of rows) out[r.key] = r.value;
+      return out;
+    });
+    const entry = { at: Date.now(), promise };
+    settingsCache = entry;
+    // A failed read must not stay cached.
+    promise.catch(() => { if (settingsCache === entry) settingsCache = null; });
+  }
+  // Callers get their own copy, so nothing can mutate the shared one.
+  return { ...(await settingsCache.promise) };
 }
 async function setAppSetting(key, value) {
+  settingsCache = null;
   await q(
     `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, now())
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
     [key, String(value == null ? '' : value)]);
+  settingsCache = null;
 }
 
 // --- Per-region defaults: currency + time zone ------------------------------
@@ -415,9 +441,9 @@ function capsFor(user, perms) {
 // Attach the computed capability map to a user object so the sync helpers below
 // and the client payload can read it; returns the map. Caps come from the
 // account's own region matrix (falling back to the global defaults).
-async function attachCaps(user) {
+async function attachCaps(user, settings) {
   if (!user) return {};
-  user.caps = capsFor(user, await loadRolePermsForRegion(user.region));
+  user.caps = capsFor(user, await loadRolePermsForRegion(user.region, settings));
   return user.caps;
 }
 // Does this user hold a capability? Relies on caps being attached (attachCaps /
@@ -633,9 +659,10 @@ async function loadUser(req) {
   return rows[0] || null;
 }
 const requireAuth = ah(async (req, res, next) => {
-  const u = await loadUser(req);
+  // The settings don't depend on who the user is, so both reads go out at once.
+  const [u, settings] = await Promise.all([loadUser(req), loadAppSettings()]);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  await attachCaps(u);
+  await attachCaps(u, settings);
   req.user = u;
   next();
 });
@@ -769,36 +796,38 @@ function baseClaim(row, attachments, lines, attByLine, history, nameMap) {
     }))
   };
 }
+// { id: full_name } for every distinct approver referenced across the rows.
+async function approverNames(rows) {
+  const ids = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
+  const nameMap = {};
+  if (!ids.length) return nameMap;
+  const ph = ids.map((_, i) => `$${i + 1}`).join(',');
+  for (const u of await q(`SELECT id, full_name FROM users WHERE id IN (${ph})`, ids)) nameMap[u.id] = u.full_name;
+  return nameMap;
+}
 // Batch-load lines, attachments + history for many claims.
 async function serializeMany(rows) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
-  const atts = await q(
-    `SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
-     FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids);
-  const lines = await q(
-    `SELECT * FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
-  const hist = await q(
-    `SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
-     FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids);
+  // Every lookup below is independent, so they go out together rather than as
+  // six back-to-back round-trips to the database.
+  const [atts, lines, hist, nameMap, dc, settings] = await Promise.all([
+    q(`SELECT id, claim_id, line_id, original_name, mime_type, size_bytes, uploaded_at
+       FROM attachments WHERE claim_id IN (${ph}) ORDER BY id`, ids),
+    q(`SELECT * FROM claim_lines WHERE claim_id IN (${ph}) ORDER BY sort_order, id`, ids),
+    q(`SELECT claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+       FROM claim_history WHERE claim_id IN (${ph}) ORDER BY id`, ids),
+    approverNames(rows),
+    // A live date-change request rides along so the edit form knows whether the
+    // line dates are locked, awaiting a decision, or unlocked.
+    liveDateChanges('claim', ids),
+    loadAppSettings()
+  ]);
   const a = groupBy(atts, 'claim_id');
   const attByLine = groupBy(atts, 'line_id');
   const l = groupBy(lines, 'claim_id');
   const h = groupBy(hist, 'claim_id');
-
-  // Batch-load the names for every distinct approver referenced across claims.
-  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
-  const nameMap = {};
-  if (approverIds.length) {
-    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
-    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
-    for (const u of us) nameMap[u.id] = u.full_name;
-  }
-  // A live date-change request rides along so the edit form knows whether the
-  // line dates are locked, awaiting a decision, or unlocked.
-  const dc = await liveDateChanges('claim', ids);
-  const settings = await loadAppSettings();
   return rows.map(r => ({ ...baseClaim(r, a[r.id], l[r.id], attByLine, h[r.id], nameMap), date_change: dc[r.id] || null,
     date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.window_from || r.created_at) : null,
     // The floor a re-claim of this claim's rejected lines is held to (the window
@@ -1302,20 +1331,11 @@ app.post('/api/login', ah(async (req, res) => {
   }
   await clearLoginFails(req);
   req.session.userId = user.id;
-  const pos = await loadPositions(user.region);
-  await attachCaps(user);
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
-    allow_advance: !!user.allow_advance,
-    language: normLang(user.language), region: user.region || '',
-    ...(await regionPrefsFor(user.region)),
-    purposes: await computePurposes(user), creatable_positions: creatablePositions(user, pos),
-    my_unrealized_advances: await unrealizedAdvanceCount(user.id),
-    approver1_choices: await approver1Choices(user.approver1_options),
-    can_manage_accounts: hasDelegation(user, pos), can_view_insights: insightsCanView(user, pos),
-    sees_all_departments: accountsSeeAllDepts(user, pos),
-    caps: user.caps
+    allow_advance: !!user.allow_advance, region: user.region || '',
+    ...(await sessionExtras(user))
   } });
 }));
 
@@ -1337,16 +1357,27 @@ async function approver1Choices(optionsRaw) {
   });
 }
 
+// The per-session extras the client needs alongside the account (region
+// defaults, what it may submit, what it may manage, its caps). Shared by sign-in,
+// /api/me and the profile saves; the lookups are independent so they run
+// together. Attaches u.caps as a side effect.
+async function sessionExtras(u) {
+  const [pos, prefs, purposes, unrealized, approver1] = await Promise.all([
+    loadPositions(u.region), regionPrefsFor(u.region), computePurposes(u),
+    unrealizedAdvanceCount(u.id), approver1Choices(u.approver1_options), attachCaps(u)
+  ]);
+  return {
+    language: normLang(u.language), ...prefs, purposes, creatable_positions: creatablePositions(u, pos),
+    my_unrealized_advances: unrealized, approver1_choices: approver1,
+    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
+    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps
+  };
+}
+
 app.get('/api/me', ah(async (req, res) => {
   const u = await loadUser(req);
   if (!u || !u.active) return res.status(401).json({ error: 'Not signed in' });
-  const pos = await loadPositions(u.region);
-  await attachCaps(u);
-  res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
-    my_unrealized_advances: await unrealizedAdvanceCount(u.id),
-    approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
-    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
+  res.json({ user: { ...u, ...(await sessionExtras(u)) } });
 }));
 
 // Self-service profile: a user may edit their own bank / payout details (but
@@ -1358,13 +1389,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
   if (Object.prototype.hasOwnProperty.call(body, 'language') && Object.keys(body).length === 1) {
     await q('UPDATE users SET language = $1 WHERE id = $2', [normLang(body.language), req.user.id]);
     const u = await loadUser(req);
-    const pos = await loadPositions(u.region);
-    await attachCaps(u);
-    return res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u),
-      my_unrealized_advances: await unrealizedAdvanceCount(u.id),
-      creatable_positions: creatablePositions(u, pos), approver1_choices: await approver1Choices(u.approver1_options),
-      can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
-      sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
+    return res.json({ user: { ...u, ...(await sessionExtras(u)) } });
   }
   const { bank_name, recipient_name, bank_account_no, email } = body;
   const nextEmail = normEmail(email);
@@ -1379,13 +1404,7 @@ app.put('/api/me', requireAuth, ah(async (req, res) => {
     String(bank_name || '').trim(), String(recipient_name || '').trim(),
     String(bank_account_no || '').trim(), nextEmail, nextLang, req.user.id]);
   const u = await loadUser(req);
-  const pos = await loadPositions(u.region);
-  await attachCaps(u);
-  res.json({ user: { ...u, language: normLang(u.language), ...(await regionPrefsFor(u.region)), purposes: await computePurposes(u), creatable_positions: creatablePositions(u, pos),
-    my_unrealized_advances: await unrealizedAdvanceCount(u.id),
-    approver1_choices: await approver1Choices(u.approver1_options),
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
-    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps } });
+  res.json({ user: { ...u, ...(await sessionExtras(u)) } });
 }));
 
 // Claim-date policy: how far back an expense may be dated and still be claimable.
@@ -1421,7 +1440,7 @@ app.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(asyn
     earliest = String(b.earliest_date).trim();
   }
   // Persist under the region's key, layered over the global defaults.
-  const settings = await loadAppSettings();
+  const settings = await loadAppSettings({ fresh: true });
   let byRegion = {};
   try { byRegion = settings.claim_window_by_region ? JSON.parse(settings.claim_window_by_region) : {}; }
   catch { byRegion = {}; }
@@ -1575,7 +1594,7 @@ app.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
   if (!Number.isFinite(bankFee) || bankFee < 0 || bankFee > MAX_BANK_FEE) {
     return res.status(400).json({ error: 'Enter a valid bank fee (0 or more)' });
   }
-  const settings = await loadAppSettings();
+  const settings = await loadAppSettings({ fresh: true });
   const byRegion = regionPrefsMap(settings);
   byRegion[region] = { currency, timezone, bank, bankFee };
   await setAppSetting('region_prefs_by_region', JSON.stringify(byRegion));
@@ -1606,7 +1625,7 @@ app.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(async 
     }
     rates.push(amount);
   }
-  const settings = await loadAppSettings();
+  const settings = await loadAppSettings({ fresh: true });
   const byRegion = mealRatesMap(settings);
   byRegion[region] = rates;
   await setAppSetting('meal_rates_by_region', JSON.stringify(byRegion));
@@ -2552,22 +2571,16 @@ async function serializeManyMeal(rows) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
-  const lines = await q(
-    `SELECT * FROM meal_claim_lines WHERE meal_claim_id IN (${ph}) ORDER BY sort_order, id`, ids);
-  const hist = await q(
-    `SELECT meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
-     FROM meal_claim_history WHERE meal_claim_id IN (${ph}) ORDER BY id`, ids);
+  const [lines, hist, nameMap, dc, settings] = await Promise.all([
+    q(`SELECT * FROM meal_claim_lines WHERE meal_claim_id IN (${ph}) ORDER BY sort_order, id`, ids),
+    q(`SELECT meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+       FROM meal_claim_history WHERE meal_claim_id IN (${ph}) ORDER BY id`, ids),
+    approverNames(rows),
+    liveDateChanges('meal', ids),
+    loadAppSettings()
+  ]);
   const l = groupBy(lines, 'meal_claim_id');
   const h = groupBy(hist, 'meal_claim_id');
-  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
-  const nameMap = {};
-  if (approverIds.length) {
-    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
-    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
-    for (const u of us) nameMap[u.id] = u.full_name;
-  }
-  const dc = await liveDateChanges('meal', ids);
-  const settings = await loadAppSettings();
   return rows.map(r => ({ ...baseMealClaim(r, l[r.id], h[r.id], nameMap), date_change: dc[r.id] || null,
     date_floor: r.status === 'rejected' ? dateFloorFor(settings, r.region, r.window_from || r.created_at) : null,
     reclaim_floor: dateFloorFor(settings, r.region, r.window_from || r.created_at) }));
@@ -2950,36 +2963,26 @@ async function serializeManyAdvance(rows) {
   if (!rows.length) return [];
   const ids = rows.map(r => r.id);
   const ph = ids.map((_, i) => `$${i + 1}`).join(',');
-  const lines = await q(
-    `SELECT * FROM cash_advance_lines WHERE advance_id IN (${ph}) ORDER BY sort_order, id`, ids);
-  const lineIds = lines.map(l => l.id);
-  let atts = [];
-  if (lineIds.length) {
-    const aph = lineIds.map((_, i) => `$${i + 1}`).join(',');
-    atts = await q(
-      `SELECT id, advance_line_id, original_name, mime_type, size_bytes, uploaded_at
-       FROM attachments WHERE advance_line_id IN (${aph}) ORDER BY id`, lineIds);
-  }
-  // Phase-1 supporting documents hang off the advance, not a line.
-  const docs = await q(
-    `SELECT id, advance_id, original_name, mime_type, size_bytes, uploaded_at
-     FROM attachments WHERE advance_id IN (${ph}) ORDER BY id`, ids);
-  const hist = await q(
-    `SELECT advance_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
-     FROM cash_advance_history WHERE advance_id IN (${ph}) ORDER BY id`, ids);
+  const [lines, atts, docs, hist, nameMap, dc, settings] = await Promise.all([
+    q(`SELECT * FROM cash_advance_lines WHERE advance_id IN (${ph}) ORDER BY sort_order, id`, ids),
+    // Line receipts, reached through the lines in one query rather than a
+    // second round-trip after the lines come back.
+    q(`SELECT a.id, a.advance_line_id, a.original_name, a.mime_type, a.size_bytes, a.uploaded_at
+       FROM attachments a JOIN cash_advance_lines cl ON cl.id = a.advance_line_id
+       WHERE cl.advance_id IN (${ph}) ORDER BY a.id`, ids),
+    // Phase-1 supporting documents hang off the advance, not a line.
+    q(`SELECT id, advance_id, original_name, mime_type, size_bytes, uploaded_at
+       FROM attachments WHERE advance_id IN (${ph}) ORDER BY id`, ids),
+    q(`SELECT advance_id, actor_id, actor_name, action, from_status, to_status, comment, created_at
+       FROM cash_advance_history WHERE advance_id IN (${ph}) ORDER BY id`, ids),
+    approverNames(rows),
+    liveDateChanges('advance', ids),
+    loadAppSettings()
+  ]);
   const l = groupBy(lines, 'advance_id');
   const attByLine = groupBy(atts, 'advance_line_id');
   const docsByAdvance = groupBy(docs, 'advance_id');
   const h = groupBy(hist, 'advance_id');
-  const approverIds = [...new Set(rows.flatMap(r => asIntArray(r.approver_ids)))];
-  const nameMap = {};
-  if (approverIds.length) {
-    const aph = approverIds.map((_, i) => `$${i + 1}`).join(',');
-    const us = await q(`SELECT id, full_name FROM users WHERE id IN (${aph})`, approverIds);
-    for (const u of us) nameMap[u.id] = u.full_name;
-  }
-  const dc = await liveDateChanges('advance', ids);
-  const settings = await loadAppSettings();
   // A returned realization is judged by when it first went in (see firstRealizedAt).
   const realizedAt = (id) => ((h[id] || []).find(x => x.action === 'realization submitted') || {}).created_at || null;
   return rows.map(r => ({ ...baseAdvance(r, l[r.id], attByLine, h[r.id], nameMap, docsByAdvance[r.id]), date_change: dc[r.id] || null,
@@ -4618,7 +4621,7 @@ app.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
   if (!editableRolesFor(req.user).includes(role)) return res.status(400).json({ error: 'This role is not editable' });
   if (!CAPABILITY_KEYS.has(cap)) return res.status(400).json({ error: 'Invalid capability' });
 
-  const settings = await loadAppSettings();
+  const settings = await loadAppSettings({ fresh: true });
   let byRegion = {};
   try { byRegion = settings.role_permissions_by_region ? JSON.parse(settings.role_permissions_by_region) : {}; }
   catch { byRegion = {}; }
@@ -4633,6 +4636,8 @@ app.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
 // ---------------------------------------------------------------------------
 // Static frontend + error handling
 // ---------------------------------------------------------------------------
+// Local dev only: on Vercel public/ is served straight from the CDN (see
+// vercel.json, which also versions the asset URLs) and never reaches here.
 app.use(express.static(path.join(__dirname, 'public'), {
   // The client bundles (app.js / i18n.js) and the app shell change on every
   // deploy but keep the same filenames. `no-cache` lets the browser keep a copy

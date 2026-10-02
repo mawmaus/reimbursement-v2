@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-02.2',
+    date: '2026-10-02',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The portal now opens, and loads claim lists and details, noticeably faster.',
+        id: 'Portal kini terbuka, serta memuat daftar dan detail klaim, jauh lebih cepat.',
+        th: 'พอร์ทัลเปิดได้เร็วขึ้น และโหลดรายการและรายละเอียดคำขอเบิกได้เร็วขึ้นอย่างเห็นได้ชัด',
+        vi: 'Cổng thông tin giờ mở nhanh hơn, và tải danh sách cũng như chi tiết yêu cầu nhanh hơn rõ rệt.',
+        km: 'ផតថលឥឡូវបើកបានលឿនជាងមុន ហើយផ្ទុកបញ្ជី និងព័ត៌មានលម្អិតនៃសំណើបានលឿនជាងមុនគួរឱ្យកត់សម្គាល់។',
+        fil: 'Mas mabilis na ngayong magbukas ang portal, at mag-load ng mga listahan at detalye ng claim.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-02.1',
     date: '2026-10-02',
     items: [
