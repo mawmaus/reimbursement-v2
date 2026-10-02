@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-02.3',
+    date: '2026-10-02',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Claim lists now show everything still open plus anything active in the last 90 days, so they stay quick as history grows. Use "Show all history" under the filters to see older claims. Searching, or picking an older payment date, always looks through all history.',
+        id: 'Daftar klaim kini menampilkan semua yang masih terbuka ditambah semua aktivitas dalam 90 hari terakhir, sehingga tetap cepat meski riwayat terus bertambah. Gunakan "Tampilkan semua riwayat" di bawah filter untuk melihat klaim lama. Pencarian, atau memilih tanggal pembayaran yang lebih lama, selalu mencari di seluruh riwayat.',
+        th: 'รายการคำขอเบิกจะแสดงทุกรายการที่ยังดำเนินการอยู่ และรายการที่มีความเคลื่อนไหวใน 90 วันที่ผ่านมา เพื่อให้โหลดได้รวดเร็วแม้ประวัติจะเพิ่มขึ้น ใช้ "แสดงประวัติทั้งหมด" ใต้ตัวกรองเพื่อดูรายการเก่า การค้นหาหรือการเลือกวันที่ชำระเงินที่เก่ากว่าจะค้นจากประวัติทั้งหมดเสมอ',
+        vi: 'Danh sách yêu cầu giờ hiển thị mọi mục còn mở cùng các mục có hoạt động trong 90 ngày qua, nên vẫn tải nhanh khi lịch sử ngày càng nhiều. Dùng "Hiển thị toàn bộ lịch sử" bên dưới bộ lọc để xem các yêu cầu cũ hơn. Khi tìm kiếm hoặc chọn ngày thanh toán cũ hơn, hệ thống luôn tìm trong toàn bộ lịch sử.',
+        km: 'បញ្ជីសំណើឥឡូវបង្ហាញអ្វីៗដែលនៅបើក និងអ្វីៗដែលមានសកម្មភាពក្នុងរយៈពេល ៩០ ថ្ងៃចុងក្រោយ ដូច្នេះវានៅតែលឿន ទោះប្រវត្តិកើនឡើង។ ប្រើ "បង្ហាញប្រវត្តិទាំងអស់" នៅក្រោមតម្រង ដើម្បីមើលសំណើចាស់ៗ។ ការស្វែងរក ឬការជ្រើសកាលបរិច្ឆេទទូទាត់ចាស់ជាងនេះ តែងតែស្វែងរកក្នុងប្រវត្តិទាំងអស់។',
+        fil: 'Ipinapakita na ngayon ng mga listahan ng claim ang lahat ng bukas pa at lahat ng may aktibidad sa nakaraang 90 araw, kaya nananatiling mabilis kahit dumarami ang kasaysayan. Gamitin ang "Ipakita ang buong kasaysayan" sa ilalim ng mga filter para makita ang mas lumang claim. Ang paghahanap, o pagpili ng mas lumang petsa ng bayad, ay laging naghahanap sa buong kasaysayan.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-02.2',
     date: '2026-10-02',
     items: [

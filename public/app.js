@@ -7,6 +7,10 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
 
 const state = {
   user: null, claims: [], filters: { status: '', department: '', claimant: '', q: '', paidFrom: '', paidTo: '' },
+  // The ledger loads open items + the last LEDGER_WINDOW_DAYS by default;
+  // "Show all history" sets ledgerAll. ledgerLoadedAll records what the last
+  // load actually fetched (a search or an old payment-date range widens it too).
+  ledgerAll: false, ledgerLoadedAll: false,
   // Which list is open: 'home' (clean landing, no list), 'mine' (claims I
   // submitted), 'approval' (awaiting my decision), 'approved' (claims I approved
   // that I can still revert), or 'all' (super admin only).
@@ -533,6 +537,8 @@ function showApp() {
   // a same-tab login switch until the first renderHome().
   const holdNotice = $('#advanceHoldNotice');
   if (holdNotice) { holdNotice.hidden = true; holdNotice.innerHTML = ''; }
+  // A new session starts on the recent window, not the last account's choice.
+  state.ledgerAll = false;
   applyAdvanceHold();
   // Light up a "draft waiting" dot on any New button that has a saved draft.
   // This also syncs the "+ New" trigger (hidden when no purpose is allowed).
@@ -886,11 +892,56 @@ function setStatusFilter(status) {
   loadClaims();
 }
 
+// --- Ledger window ------------------------------------------------------------
+// By default the ledger holds every open item (anything still waiting on
+// someone, whatever its age) plus whatever was active in the last 90 days, so
+// it stays quick as years of history pile up. The server applies the rule
+// (?since=); see applyLedgerWindow in the server's app.js.
+const LEDGER_WINDOW_DAYS = 90;
+function ledgerSince() {
+  const d = new Date();
+  d.setDate(d.getDate() - LEDGER_WINDOW_DAYS);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// Full history is needed when asked for, when searching (finding an old claim
+// number is the point of a search), or when the payment-date range reaches back
+// past the window — otherwise those would silently miss older claims.
+function needsAllHistory() {
+  const { q, paidFrom, paidTo } = state.filters;
+  const since = ledgerSince();
+  return state.ledgerAll || !!q || (!!paidFrom && paidFrom < since) || (!!paidTo && paidTo < since);
+}
+// The one-line note under the filters saying what the list covers, with the
+// switch. Hidden while a search / old date range has already widened the load.
+function renderLedgerScope() {
+  const el = $('#ledgerScope');
+  if (!el) return;
+  const auto = state.ledgerLoadedAll && !state.ledgerAll;
+  el.hidden = auto;
+  if (auto) return;
+  el.innerHTML = state.ledgerAll
+    ? `<span>${esc(t('Showing all history.'))}</span>
+       <button type="button" class="link-btn" data-scope="recent">${esc(t('Show the last 90 days only'))}</button>`
+    : `<span>${esc(t('Showing open claims and anything active in the last 90 days.'))}</span>
+       <button type="button" class="link-btn" data-scope="all">${esc(t('Show all history'))}</button>`;
+}
+$('#ledgerScope').addEventListener('click', e => {
+  const b = e.target.closest('[data-scope]');
+  if (!b) return;
+  const prev = state.ledgerAll;
+  state.ledgerAll = b.dataset.scope === 'all';
+  b.disabled = true;
+  // On failure, put the switch back so the note matches what is on screen.
+  loadClaims().catch(err => { state.ledgerAll = prev; renderLedgerScope(); throw err; });
+});
+
 async function loadClaims() {
   const p = new URLSearchParams();
   if (state.filters.status) p.set('status', state.filters.status);
   if (state.filters.department) p.set('department', state.filters.department);
   if (state.filters.q) p.set('q', state.filters.q);
+  const loadAll = needsAllHistory();
+  if (!loadAll) p.set('since', ledgerSince());
   // All-region viewers may scope the ledger (and thus the home tiles) to one region.
   if (state.viewRegion) p.set('region', state.viewRegion);
   const qs = p.toString();
@@ -907,6 +958,7 @@ async function loadClaims() {
   }
   applyAdvanceHold();
   state.claims = [...reimb, ...meal, ...adv].sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+  state.ledgerLoadedAll = loadAll; // renderClaims() below redraws the scope note
   // Drop selections for claims no longer in the current view.
   const avail = new Set(state.claims.map(c => claimKey(c.type, c.id)));
   [...state.selected].forEach(k => { if (!avail.has(k)) state.selected.delete(k); });
@@ -1356,6 +1408,7 @@ function goHome() {
   state.view = 'home';
   // Clean slate: clear filters so the menu counts reflect everything.
   state.filters = { status: '', department: '', claimant: '', q: '', paidFrom: '', paidTo: '' };
+  state.ledgerAll = false; // back to the recent window, like the filters
   setPaidRange('', '');
   const si = $('#searchInput'); if (si) si.value = '';
   const sf = $('#statusFilter'); if (sf) { sf.value = ''; if (sf._mselRefresh) sf._mselRefresh(); }
@@ -1826,6 +1879,7 @@ $$('.ledger-head [data-sort]').forEach(h => {
 });
 
 function renderClaims() {
+  renderLedgerScope();
   const wrap = $('#claimRows');
   const claims = sortClaims(visibleClaims());
   if (!claims.length) {
@@ -1903,10 +1957,13 @@ function setPaidRange(from, to) {
   $('#paidRange').classList.toggle('active', !!(from || to));
   $('#paidRangeClear').hidden = !(from || to);
 }
-const onPaidRange = () => { setPaidRange($('#paidFrom').value, $('#paidTo').value); renderClaims(); };
+// A range reaching back past the ledger window fetches the full history first;
+// otherwise the claims already loaded cover it.
+const rerenderForPaidRange = () => (needsAllHistory() && !state.ledgerLoadedAll ? loadClaims() : renderClaims());
+const onPaidRange = () => { setPaidRange($('#paidFrom').value, $('#paidTo').value); rerenderForPaidRange(); };
 $('#paidFrom').addEventListener('change', onPaidRange);
 $('#paidTo').addEventListener('change', onPaidRange);
-$('#paidRangeClear').addEventListener('click', () => { setPaidRange('', ''); renderClaims(); });
+$('#paidRangeClear').addEventListener('click', () => { setPaidRange('', ''); rerenderForPaidRange(); });
 // Upgrade every native <select> in the app to the modern custom dropdown —
 // including ones added later by dynamic renders (modals, table rows). The
 // language + region pickers are enhanced too (they carry data-icon for their

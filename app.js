@@ -1095,6 +1095,24 @@ const UNREALIZED_ADVANCE_STATES = ['paid', 'realize_submitted', 'rejected_realiz
 // The states are fixed literals defined right above, never user input.
 const UNREALIZED_ADVANCE_SQL = UNREALIZED_ADVANCE_STATES.map((s) => `'${s}'`).join(',');
 
+// --- Ledger window ------------------------------------------------------------
+// The list endpoints take ?since=YYYY-MM-DD: the client asks for "open items plus
+// anything active in the last 90 days" by default, and drops it for "Show all
+// history". Open = still waiting on someone, whatever its age, so no queue ever
+// loses an item: a claim pending approval or payment; an advance not yet closed
+// (incl. an under-spent one awaiting its refund — same rule as the hold). Every
+// state change stamps updated_at, so a paid/rejected/settled document stays in
+// view for 90 days after it was last touched. A search always spans everything.
+const OPEN_CLAIM_SQL = `status IN ('submitted','approved')`;
+const OPEN_ADVANCE_SQL = `(status IN ('submitted','approved',${UNREALIZED_ADVANCE_SQL})
+  OR (status = 'realize_approved' AND realized_total_cents < amount_cents))`;
+function applyLedgerWindow(req, search, openSql, where, params) {
+  const since = String((req.query && req.query.since) || '');
+  if (search || !isISODate(since)) return;
+  params.push(since);
+  where.push(`(${openSql} OR COALESCE(updated_at, created_at) >= $${params.length}::date)`);
+}
+
 async function unrealizedAdvanceCount(userId) {
   const rows = await q(
     `SELECT COUNT(*)::int AS n FROM cash_advances
@@ -1763,6 +1781,7 @@ app.get('/api/claims', requireAuth, ah(async (req, res) => {
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   applyListStatusFilter(status, where, add);
   if (department) add('department = $$', department);
+  applyLedgerWindow(req, search, OPEN_CLAIM_SQL, where, params);
   if (search) {
     const like = `%${search}%`;
     params.push(like);
@@ -2637,6 +2656,7 @@ app.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   applyListStatusFilter(status, where, add);
   if (department) add('department = $$', department);
+  applyLedgerWindow(req, search, OPEN_CLAIM_SQL, where, params);
   if (search) {
     params.push(`%${search}%`);
     const p = `$${params.length}`;
@@ -3570,6 +3590,7 @@ app.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
   applyListStatusFilter(status, where, add);
   if (department) add('department = $$', department);
+  applyLedgerWindow(req, search, OPEN_ADVANCE_SQL, where, params);
   if (search) {
     params.push(`%${search}%`);
     const p = `$${params.length}`;
