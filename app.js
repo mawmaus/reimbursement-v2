@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const express = require('express');
 const compression = require('compression');
 const cookieSession = require('cookie-session');
+const { errorHandler } = require('./lib/errors');
 const {
   parseAmountToCents, fmtMoney, parseApprovalLimit, approvalLimitError
 } = require('./lib/money');
@@ -135,13 +136,9 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-app.use((err, req, res, next) => {
-  if (err) {
-    console.error(err);
-    return res.status(400).json({ error: err.message || 'Request failed' });
-  }
-  next();
-});
+// Thrown errors: deliberate 4xx keep their message; anything else is a logged
+// 500 with a generic message (see lib/errors.js).
+app.use(errorHandler);
 
 module.exports = app;
 // The pure business rules (money, dates, approval chain, permissions), exposed
