@@ -1,0 +1,5 @@
+﻿local
+*.xlsx
+*.csv
+*.pptx
+*.docx

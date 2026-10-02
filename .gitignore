@@ -6,3 +6,12 @@ node_modules/
 
 .vercel
 .env*
+
+# Local-only material: one-off DB scripts, data exports (employee data — never
+# commit), decks and user guides. Run the scripts from the repo root.
+local/
+*.xlsx
+*.xls
+*.csv
+*.pptx
+*.docx
