@@ -6,7 +6,7 @@
     {
       "source": "/(.*)",
       "has": [{ "type": "host", "value": "reimbursement-mawan.vercel.app" }],
-      "destination": "https://clid-internalportal.vercel.app/$1",
+      "destination": "https://clapac-internalportal.vercel.app/$1",
       "statusCode": 308
     }
   ],
