@@ -555,7 +555,15 @@ const SCHEMA = [
     `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS source_doc_id   INTEGER`,
     `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS source_doc_no   TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS window_from     TIMESTAMPTZ`
-  ])
+  ]),
+  // --- Ledger read paths (2026-10-02) ------------------------------------------
+  // The list endpoints filter by region and return newest first; "Reviewed by
+  // me" looks up the viewer's own decisions in the history. Placed last because
+  // `region` arrives via the ALTERs above.
+  `CREATE INDEX IF NOT EXISTS idx_claims_region_created ON claims(region, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_meal_claims_region_created ON meal_claims(region, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_history_actor ON claim_history(actor_id, claim_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_meal_history_actor ON meal_claim_history(actor_id, meal_claim_id)`
 ];
 
 module.exports = { SCHEMA };
