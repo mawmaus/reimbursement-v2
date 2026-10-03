@@ -1180,6 +1180,24 @@ input[type="search"] { min-width: 220px; }
   font-size: .9rem; animation: pop .16s ease; max-width: 90vw; }
 .toast.err { background: var(--red); color: var(--on-accent); }
 
+/* iOS "Add to Home Screen" hint: a card pinned above the home indicator. It
+   sits under modals (z 40+) and lifts the toast clear of itself. */
+.ios-hint { position: fixed; z-index: 30; left: 12px; right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  max-width: 460px; margin: 0 auto; display: flex; align-items: center; gap: 12px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 8px 12px 12px; box-shadow: var(--shadow); animation: ios-hint-in .25s ease; }
+@keyframes ios-hint-in { from { opacity: 0; transform: translateY(12px); } }
+.ios-hint[hidden] { display: none; }
+.ios-hint-icon { width: 40px; height: 40px; border-radius: 10px; flex: none; }
+.ios-hint-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: .86rem; line-height: 1.35; }
+.ios-hint-body strong { font-size: .92rem; }
+.ios-hint-steps { color: var(--ink-soft); }
+.ios-hint-share { width: 16px; height: 16px; vertical-align: -3px; margin: 0 1px; color: var(--pine); }
+.ios-hint-close { flex: none; align-self: flex-start; }
+body.has-ios-hint { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+
 /* ---------- Responsive ---------- */
 
 /* Tablet — keep the desktop grid but tighten spacing and let controls flow. */

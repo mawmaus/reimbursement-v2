@@ -659,5 +659,10 @@ I18N.addDict('vi', {
   'Reverted payment': 'Đã hoàn tác thanh toán',
   'Reverted realization approval': 'Đã hoàn tác duyệt quyết toán',
   'Reverted settlement': 'Đã hoàn tác tất toán',
-  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'Đặt các mức tiền có sẵn mà biểu mẫu Phụ cấp ăn cung cấp trong danh sách Số tiền.'
+  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'Đặt các mức tiền có sẵn mà biểu mẫu Phụ cấp ăn cung cấp trong danh sách Số tiền.',
+
+  // iPhone "Add to Home Screen" hint
+  'Install this app on your iPhone': 'Cài ứng dụng này trên iPhone của bạn',
+  'Tap Share, then “Add to Home Screen”.': 'Chạm Chia sẻ, rồi chọn “Thêm vào MH chính”.',
+  'Dismiss': 'Đóng'
 });

@@ -221,6 +221,7 @@ async function boot() {
   initLangUI();          // populate + wire the language switchers, apply chrome
   initThemeUI();         // night-mode toggles (login card + top bar)
   initWhatsNew();        // release-notes button + its unread dot
+  initIosInstallHint();  // "Add to Home Screen" card for iPhone/iPad
   try {
     const { user } = await api('/me');
     state.user = user;
@@ -318,6 +319,29 @@ function syncWhatsNewDot() {
   try { seen = localStorage.getItem(whatsNewKey()); } catch { /* private mode */ }
   btn.classList.toggle('has-unread', !!latest && seen !== latest.id);
 }
+// iOS never offers an install prompt (Android/desktop Chrome do, via sw.js and
+// the manifest), so iPhone/iPad users get a one-time card explaining Share →
+// Add to Home Screen. Not shown inside the installed app, and gone for good on
+// this device once dismissed.
+const IOS_HINT_KEY = 'reimb.iosInstallHint';
+function initIosInstallHint() {
+  const el = $('#iosInstallHint'); if (!el) return;
+  const ua = navigator.userAgent;
+  // iPadOS reports itself as a Mac; touch support tells them apart.
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const installed = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(IOS_HINT_KEY) === 'dismissed'; } catch { /* storage blocked: show it */ }
+  if (!ios || installed || dismissed) return;
+  el.hidden = false;
+  document.body.classList.add('has-ios-hint');
+  $('#iosInstallHintClose').addEventListener('click', () => {
+    el.hidden = true;
+    document.body.classList.remove('has-ios-hint');
+    try { localStorage.setItem(IOS_HINT_KEY, 'dismissed'); } catch { /* fine: hidden for this visit */ }
+  });
+}
+
 function initWhatsNew() {
   const btn = $('#whatsNewBtn'); if (!btn) return;
   btn.addEventListener('click', openWhatsNew);

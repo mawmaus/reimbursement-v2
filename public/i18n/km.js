@@ -659,5 +659,10 @@ I18N.addDict('km', {
   'Reverted payment': 'បានត្រឡប់ការបង់ប្រាក់វិញ',
   'Reverted realization approval': 'បានត្រឡប់ការអនុម័តការទូទាត់វិញ',
   'Reverted settlement': 'បានត្រឡប់ការទូទាត់បញ្ចប់វិញ',
-  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'កំណត់ចំនួនប្រាក់សម្រេចជាមុនដែលទម្រង់ប្រាក់ឧបត្ថម្ភអាហារផ្ដល់ជូននៅក្នុងបញ្ជីទម្លាក់ចំនួនប្រាក់។'
+  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'កំណត់ចំនួនប្រាក់សម្រេចជាមុនដែលទម្រង់ប្រាក់ឧបត្ថម្ភអាហារផ្ដល់ជូននៅក្នុងបញ្ជីទម្លាក់ចំនួនប្រាក់។',
+
+  // iPhone "Add to Home Screen" hint
+  'Install this app on your iPhone': 'ដំឡើងកម្មវិធីនេះនៅលើ iPhone របស់អ្នក',
+  'Tap Share, then “Add to Home Screen”.': 'ចុច Share រួចជ្រើស “Add to Home Screen”។',
+  'Dismiss': 'បិទ'
 });

@@ -659,5 +659,10 @@ I18N.addDict('th', {
   'Reverted payment': 'ย้อนกลับการจ่าย',
   'Reverted realization approval': 'ย้อนกลับการอนุมัติการเคลียร์',
   'Reverted settlement': 'ย้อนกลับการปิดยอด',
-  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'กำหนดจำนวนเงินที่ตั้งไว้ล่วงหน้าซึ่งแบบฟอร์มค่าอาหารจะแสดงในเมนูจำนวนเงิน'
+  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'กำหนดจำนวนเงินที่ตั้งไว้ล่วงหน้าซึ่งแบบฟอร์มค่าอาหารจะแสดงในเมนูจำนวนเงิน',
+
+  // iPhone "Add to Home Screen" hint
+  'Install this app on your iPhone': 'ติดตั้งแอปนี้บน iPhone ของคุณ',
+  'Tap Share, then “Add to Home Screen”.': 'แตะ แชร์ แล้วเลือก “เพิ่มไปยังหน้าจอโฮม”',
+  'Dismiss': 'ปิด'
 });

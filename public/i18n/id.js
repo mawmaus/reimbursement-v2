@@ -682,5 +682,10 @@ I18N.addDict('id', {
   'Reverted payment': 'Pembayaran dibatalkan',
   'Reverted realization approval': 'Persetujuan realisasi dibatalkan',
   'Reverted settlement': 'Penyelesaian dibatalkan',
-  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'Atur jumlah preset yang ditawarkan formulir Tunjangan Makan pada dropdown Jumlah.'
+  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'Atur jumlah preset yang ditawarkan formulir Tunjangan Makan pada dropdown Jumlah.',
+
+  // iPhone "Add to Home Screen" hint
+  'Install this app on your iPhone': 'Pasang aplikasi ini di iPhone Anda',
+  'Tap Share, then “Add to Home Screen”.': 'Ketuk Bagikan, lalu “Tambah ke Layar Utama”.',
+  'Dismiss': 'Tutup'
 });

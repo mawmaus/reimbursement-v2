@@ -37,6 +37,14 @@ window.CHANGELOG = [
         vi: 'Giờ đây bạn có thể cài đặt cổng thông tin như một ứng dụng trên điện thoại hoặc máy tính. Trong Chrome, mở menu và chọn "Cài đặt ứng dụng" (hoặc "Thêm vào màn hình chính"); trên iPhone, dùng Chia sẻ → "Thêm vào MH chính". Ứng dụng mở toàn màn hình với biểu tượng riêng.',
         km: 'ឥឡូវនេះ វិបផតថលអាចដំឡើងជាកម្មវិធីនៅលើទូរស័ព្ទ ឬកុំព្យូទ័ររបស់អ្នក។ នៅក្នុង Chrome សូមបើកម៉ឺនុយ ហើយជ្រើស "ដំឡើងកម្មវិធី" (ឬ "បញ្ចូលទៅអេក្រង់ដើម"); នៅលើ iPhone សូមប្រើ ចែករំលែក → "Add to Home Screen"។ វាបើកពេញអេក្រង់ជាមួយរូបតំណាងផ្ទាល់ខ្លួន។',
         fil: 'Maaari mo nang i-install ang portal bilang app sa iyong telepono o computer. Sa Chrome, buksan ang menu at piliin ang "I-install ang app" (o "Idagdag sa Home screen"); sa iPhone, gamitin ang Share → "Add to Home Screen". Bubukas ito nang full-screen na may sariling icon.'
+      } },
+      { kind: 'new', text: {
+        en: 'On iPhone and iPad, a small card at the bottom of the screen now shows how to install the app. Close it with × and it won\'t appear again on that device.',
+        id: 'Di iPhone dan iPad, kartu kecil di bagian bawah layar kini menunjukkan cara memasang aplikasi. Tutup dengan × dan kartu tidak akan muncul lagi di perangkat itu.',
+        th: 'บน iPhone และ iPad จะมีการ์ดเล็ก ๆ ที่ด้านล่างของหน้าจอแสดงวิธีติดตั้งแอป ปิดด้วย × แล้วจะไม่แสดงอีกบนอุปกรณ์นั้น',
+        vi: 'Trên iPhone và iPad, một thẻ nhỏ ở cuối màn hình giờ hướng dẫn cách cài ứng dụng. Đóng bằng × và thẻ sẽ không hiện lại trên thiết bị đó.',
+        km: 'នៅលើ iPhone និង iPad កាតតូចមួយនៅខាងក្រោមអេក្រង់ឥឡូវបង្ហាញពីរបៀបដំឡើងកម្មវិធី។ បិទវាដោយ × ហើយវានឹងមិនបង្ហាញម្តងទៀតនៅលើឧបករណ៍នោះទេ។',
+        fil: 'Sa iPhone at iPad, may maliit na card sa ibaba ng screen na nagpapakita kung paano i-install ang app. Isara ito gamit ang × at hindi na ito lalabas muli sa device na iyon.'
       } }
     ]
   },

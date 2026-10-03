@@ -659,5 +659,10 @@ I18N.addDict('fil', {
   'Reverted payment': 'Ni-revert ang bayad',
   'Reverted realization approval': 'Ni-revert ang pag-apruba ng liquidation',
   'Reverted settlement': 'Ni-revert ang settlement',
-  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'Itakda ang mga preset na halaga na inaalok ng form ng Meal Allowance sa Amount dropdown nito.'
+  'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.': 'Itakda ang mga preset na halaga na inaalok ng form ng Meal Allowance sa Amount dropdown nito.',
+
+  // iPhone "Add to Home Screen" hint
+  'Install this app on your iPhone': 'I-install ang app na ito sa iyong iPhone',
+  'Tap Share, then “Add to Home Screen”.': 'I-tap ang Share, saka ang “Add to Home Screen”.',
+  'Dismiss': 'Isara'
 });

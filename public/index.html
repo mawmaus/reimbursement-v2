@@ -252,6 +252,21 @@
 
 <div id="toast" class="toast" hidden></div>
 
+<!-- iPhone/iPad "Add to Home Screen" hint — iOS has no install prompt, so we
+     explain it. Shown by initIosInstallHint() only on iOS, outside the
+     installed app, until dismissed. -->
+<aside id="iosInstallHint" class="ios-hint" hidden role="note">
+  <img class="ios-hint-icon" src="icons/icon-192.png" alt="" />
+  <div class="ios-hint-body">
+    <strong data-i18n="Install this app on your iPhone">Install this app on your iPhone</strong>
+    <span class="ios-hint-steps">
+      <svg class="ios-hint-share" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span data-i18n="Tap Share, then “Add to Home Screen”.">Tap Share, then “Add to Home Screen”.</span>
+    </span>
+  </div>
+  <button type="button" class="x-btn ios-hint-close" id="iosInstallHintClose" data-i18n-aria="Dismiss" aria-label="Dismiss">×</button>
+</aside>
+
 <script src="i18n.js"></script>
 <script src="changelog.js"></script>
 <script src="app.js"></script>
