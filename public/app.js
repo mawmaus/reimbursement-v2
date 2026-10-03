@@ -7662,3 +7662,10 @@ function renderResetPasswordForm(u) {
 }
 
 boot();
+
+// Installable app (Chrome "Install app" / Add to Home screen): see sw.js.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => { /* not installable here; the site works the same */ });
+  });
+}

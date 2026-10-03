@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Cibes Reimbursement Portal",
+  "short_name": "Reimbursement",
+  "description": "Submit, approve, and process reimbursement claims.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f4f2",
+  "theme_color": "#f5f4f2",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

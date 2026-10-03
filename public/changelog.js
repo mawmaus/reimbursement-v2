@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-03.1',
+    date: '2026-10-03',
+    items: [
+      { kind: 'new', text: {
+        en: 'The portal can now be installed as an app on your phone or computer. In Chrome, open the menu and choose "Install app" (or "Add to Home screen"); on iPhone, use Share → "Add to Home Screen". It opens full-screen with its own icon.',
+        id: 'Portal kini dapat dipasang sebagai aplikasi di ponsel atau komputer Anda. Di Chrome, buka menu dan pilih "Instal aplikasi" (atau "Tambahkan ke layar utama"); di iPhone, gunakan Bagikan → "Tambah ke Layar Utama". Aplikasi terbuka layar penuh dengan ikonnya sendiri.',
+        th: 'ตอนนี้ติดตั้งพอร์ทัลเป็นแอปบนโทรศัพท์หรือคอมพิวเตอร์ได้แล้ว ใน Chrome ให้เปิดเมนูแล้วเลือก "ติดตั้งแอป" (หรือ "เพิ่มลงในหน้าจอหลัก") บน iPhone ให้ใช้ แชร์ → "เพิ่มไปยังหน้าจอโฮม" แอปจะเปิดแบบเต็มหน้าจอพร้อมไอคอนของตัวเอง',
+        vi: 'Giờ đây bạn có thể cài đặt cổng thông tin như một ứng dụng trên điện thoại hoặc máy tính. Trong Chrome, mở menu và chọn "Cài đặt ứng dụng" (hoặc "Thêm vào màn hình chính"); trên iPhone, dùng Chia sẻ → "Thêm vào MH chính". Ứng dụng mở toàn màn hình với biểu tượng riêng.',
+        km: 'ឥឡូវនេះ វិបផតថលអាចដំឡើងជាកម្មវិធីនៅលើទូរស័ព្ទ ឬកុំព្យូទ័ររបស់អ្នក។ នៅក្នុង Chrome សូមបើកម៉ឺនុយ ហើយជ្រើស "ដំឡើងកម្មវិធី" (ឬ "បញ្ចូលទៅអេក្រង់ដើម"); នៅលើ iPhone សូមប្រើ ចែករំលែក → "Add to Home Screen"។ វាបើកពេញអេក្រង់ជាមួយរូបតំណាងផ្ទាល់ខ្លួន។',
+        fil: 'Maaari mo nang i-install ang portal bilang app sa iyong telepono o computer. Sa Chrome, buksan ang menu at piliin ang "I-install ang app" (o "Idagdag sa Home screen"); sa iPhone, gamitin ang Share → "Add to Home Screen". Bubukas ito nang full-screen na may sariling icon.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-02.4',
     date: '2026-10-02',
     items: [
