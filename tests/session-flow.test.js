@@ -40,8 +40,10 @@ function device(port) {
   let cookie = '';
   return (method, p, body) => new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
+    // As Vercel's proxy does: with VERCEL=1 (e.g. in the build) the app trusts
+    // the proxy and issues Secure-only cookies, which need an HTTPS request.
     const req = http.request({ host: '127.0.0.1', port, method, path: p,
-      headers: { ...(data ? { 'content-type': 'application/json' } : {}), ...(cookie ? { cookie } : {}) } }, res => {
+      headers: { 'x-forwarded-proto': 'https', ...(data ? { 'content-type': 'application/json' } : {}), ...(cookie ? { cookie } : {}) } }, res => {
       const set = res.headers['set-cookie'];
       if (set) cookie = set.map(c => c.split(';')[0]).join('; ');
       let b = ''; res.on('data', c => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, body: b ? JSON.parse(b) : null }));
