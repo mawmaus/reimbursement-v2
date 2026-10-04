@@ -7,7 +7,7 @@ const express = require('express');
 const { q, qq, transaction } = require('../db');
 const { deleteReceipt } = require('../lib/blob');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } = require('../lib/notify');
-const { requireAuth, requireCap } = require('../lib/auth');
+const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE } = require('../lib/util');
 const {
   computePurposes, resolveSubmitApprovers, currentApproverId, userCanApprove,
@@ -69,6 +69,7 @@ router.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
 router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'You can only edit your own cash advances' });
   }
@@ -128,6 +129,7 @@ router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
 router.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const realizing = row.status === 'realize_submitted';
   if (row.status !== 'submitted' && !realizing) {
     return res.status(409).json({ error: `Cannot approve a cash advance that is "${row.status}"` });
@@ -168,6 +170,7 @@ router.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) =
 router.post('/api/cash-advances/:id/reject', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const comment = String((req.body && req.body.comment) || '').trim();
   if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a cash advance' });
   const realizing = row.status === 'realize_submitted';
@@ -189,6 +192,7 @@ router.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res)
   if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark cash advances as paid' });
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved cash advances can be marked as paid' });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a cash advance as paid' });
@@ -295,6 +299,7 @@ async function submitRealization(req, res, row) {
 router.post('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'paid') return res.status(409).json({ error: 'The advance must be paid before it can be realized' });
   return submitRealization(req, res, row);
 }));
@@ -302,6 +307,7 @@ router.post('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) =
 router.put('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'rejected_realize') return res.status(409).json({ error: 'Only a rejected realization can be edited and resubmitted' });
   return submitRealization(req, res, row);
 }));
@@ -312,6 +318,7 @@ router.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) =>
   if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to settle cash advances' });
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'realize_approved') return res.status(409).json({ error: 'Only an approved realization can be settled' });
   const { direction, cents } = settlementFor(row);
   const note = String((req.body && req.body.note) || '').trim();
@@ -330,6 +337,7 @@ router.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) =>
 router.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const step = row.current_step || 0;
   const plan = planAdvanceRevert(row, req.user);
   if (plan.error) return res.status(plan.code).json({ error: plan.error });
@@ -438,6 +446,7 @@ router.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (r
 router.delete('/api/cash-advances/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const atts = await q(
     `SELECT a.blob_url FROM attachments a
       WHERE a.advance_id = $1

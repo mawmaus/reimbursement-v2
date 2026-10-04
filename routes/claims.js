@@ -7,7 +7,7 @@ const express = require('express');
 const { q, qq, transaction } = require('../db');
 const { deleteReceipt } = require('../lib/blob');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } = require('../lib/notify');
-const { requireAuth, requireCap } = require('../lib/auth');
+const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
 const { viewRegionFilter, seesAllRegions } = require('../lib/settings');
@@ -152,6 +152,7 @@ router.post('/api/claims', requireAuth, ah(async (req, res) => {
 router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'You can only edit your own claims' });
   }
@@ -255,6 +256,7 @@ router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
 router.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) {
     return res.status(403).json({ error: 'You are not the approver for this step' });
@@ -294,6 +296,7 @@ router.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
 router.post('/api/claims/:id/reject', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const comment = String((req.body && req.body.comment) || '').trim();
   if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a claim' });
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot reject a claim that is "${row.status}"` });
@@ -312,6 +315,7 @@ router.post('/api/claims/:id/mark-paid', requireAuth, ah(async (req, res) => {
   if (!canMarkPaid(req.user)) return res.status(403).json({ error: 'You do not have permission to mark claims as paid' });
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved claims can be marked as paid' });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
@@ -326,6 +330,7 @@ router.post('/api/claims/:id/mark-paid', requireAuth, ah(async (req, res) => {
 router.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const plan = planRevert(row, req.user);
   if (plan.error) return res.status(plan.code).json({ error: plan.error });
   // A revert that lands back on step 1 may re-pick Approver 1 (see
@@ -392,6 +397,7 @@ router.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res
 router.delete('/api/claims/:id', requireAuth, requireCap('delete_claims'), ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
+  if (refuseOutOfRegion(req, res, row)) return;
   const atts = await q('SELECT blob_url FROM attachments WHERE claim_id = $1', [row.id]);
   // Remove the database rows atomically first; only once that commits do we
   // delete the blobs (which can't be rolled back). If the transaction fails the

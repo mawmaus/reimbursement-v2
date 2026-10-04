@@ -8,7 +8,7 @@ const { notifyClaimantDecision } = require('../lib/notify');
 const { reimbNotify, mealNotify, canMarkPaid } = require('../lib/workflow');
 const { advanceNotify } = require('../lib/advances');
 const { intArrayLiteral, ah, DATE_RE } = require('../lib/util');
-const { requireAuth } = require('../lib/auth');
+const { requireAuth, inUserRegion } = require('../lib/auth');
 
 const router = express.Router();
 
@@ -41,7 +41,8 @@ async function mapLimit(items, limit, fn) {
 // status in SQL is also what keeps a stale client honest: a row someone else
 // has already moved simply isn't eligible, rather than being walked to whatever
 // its new status happens to allow.
-async function loadBulkEligible(items, requiredStatus) {
+// Documents from outside `user`'s region are never eligible (see inUserRegion).
+async function loadBulkEligible(items, requiredStatus, user) {
   const idsByKind = { claim: [], meal: [], advance: [] };
   for (const it of items) {
     const kind = BULK_PAID_KINDS[it && it.type] ? it.type : null;
@@ -55,7 +56,7 @@ async function loadBulkEligible(items, requiredStatus) {
     const { table } = BULK_PAID_KINDS[kind];
     const rows = await q(`SELECT * FROM ${table} WHERE id = ANY($1::int[]) AND status = $2`,
       [intArrayLiteral(ids), requiredStatus]);
-    for (const r of rows) eligible.push({ kind, row: r });
+    for (const r of rows) if (inUserRegion(user, r)) eligible.push({ kind, row: r });
   }
   return eligible;
 }
@@ -89,7 +90,7 @@ router.post('/api/claims/mark-paid-bulk', requireAuth, ah(async (req, res) => {
 
   // Only 'approved' rows move; anything else is silently skipped and counted,
   // the way the client's own pre-filter already expects.
-  const eligible = await loadBulkEligible(items, 'approved');
+  const eligible = await loadBulkEligible(items, 'approved', req.user);
   if (!eligible.length) return res.json({ paid: 0, skipped: items.length });
 
   await commitBulkTransition(eligible, req.user, {
@@ -125,7 +126,7 @@ router.post('/api/claims/revert-paid-bulk', requireAuth, ah(async (req, res) => 
   // whatever status it finds, so a selection made stale by someone else's edit
   // could walk a claim back a step nobody asked for; requiring 'paid' here
   // means such a row is skipped instead.
-  const eligible = await loadBulkEligible(items, 'paid');
+  const eligible = await loadBulkEligible(items, 'paid', req.user);
   if (!eligible.length) return res.json({ reverted: 0, skipped: items.length });
 
   await commitBulkTransition(eligible, req.user, {
