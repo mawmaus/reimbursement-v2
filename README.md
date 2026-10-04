@@ -47,9 +47,11 @@ git push -u origin main
 ### 2. Import the repo into Vercel
 
 In the Vercel dashboard: **Add New → Project**, pick the repo, and deploy. (The
-included `vercel.json` serves `public/` from Vercel's CDN, versioning asset URLs
-via `scripts/stamp-assets.js` at build time, and rewrites everything else to the
-Express app.)
+included `vercel.json` serves `public/` from Vercel's CDN, minifying the scripts
+and stylesheet (with source maps) and versioning their URLs via
+`scripts/stamp-assets.js --minify` at build time, and rewrites everything else
+to the Express app. The files in git stay readable; only the deployed copy is
+minified.)
 
 ### 3. Add the database — Neon
 
