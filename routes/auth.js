@@ -15,7 +15,7 @@ const {
 } = require('../lib/permissions');
 const { regionPrefsFor } = require('../lib/settings');
 const { computePurposes, unrealizedAdvanceCount, approver1Choices } = require('../lib/workflow');
-const { loadUser, requireAuth } = require('../lib/auth');
+const { loadUser, requireAuth, SET_PASSWORD_SQL, startSession } = require('../lib/auth');
 
 const router = express.Router();
 
@@ -73,7 +73,7 @@ router.post('/api/login', ah(async (req, res) => {
     return res.status(401).json({ error: 'Incorrect username or password' });
   }
   await clearLoginFails(req);
-  req.session.userId = user.id;
+  startSession(req, user);
   res.json({ user: {
     id: user.id, username: user.username, full_name: user.full_name, role: user.role, email: user.email,
     department: user.department, position: user.position, can_mark_paid: !!user.can_mark_paid,
@@ -143,7 +143,9 @@ router.post('/api/me/password', requireAuth, ah(async (req, res) => {
   if (!bcrypt.compareSync(String(current_password || ''), rows[0].password_hash)) {
     return res.status(400).json({ error: 'Current password is incorrect' });
   }
-  await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(new_password), 10), req.user.id]);
+  // Signs out the account's other sessions; this one stays signed in.
+  const [{ session_version }] = await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(new_password), 10), req.user.id]);
+  startSession(req, { id: req.user.id, session_version });
   res.json({ ok: true });
 }));
 
@@ -201,7 +203,8 @@ router.post('/api/reset-password', ah(async (req, res) => {
      ORDER BY id DESC LIMIT 1`, [sha256(String(token))]);
   const rec = rows[0];
   if (!rec) return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
-  await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(new_password), 10), rec.user_id]);
+  // Signs out every existing session of the account.
+  await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(new_password), 10), rec.user_id]);
   await q('UPDATE password_resets SET used_at = now() WHERE id = $1', [rec.id]);
   res.json({ ok: true });
 }));

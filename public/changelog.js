@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-04.1',
+    date: '2026-10-04',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Changing your password now signs you out on your other devices, so an old sign-in (on a shared computer, say) can no longer be used. You stay signed in where you made the change. A password reset by an administrator or a reset link signs the account out everywhere.',
+        id: 'Mengganti kata sandi kini mengeluarkan Anda dari perangkat lain, sehingga sesi lama (misalnya di komputer bersama) tidak bisa dipakai lagi. Anda tetap masuk di perangkat tempat Anda menggantinya. Reset kata sandi oleh administrator atau lewat tautan reset mengeluarkan akun dari semua perangkat.',
+        th: 'การเปลี่ยนรหัสผ่านจะออกจากระบบบนอุปกรณ์อื่นของคุณ ทำให้การเข้าสู่ระบบเดิม (เช่น บนคอมพิวเตอร์ที่ใช้ร่วมกัน) ใช้ไม่ได้อีกต่อไป คุณยังคงอยู่ในระบบบนอุปกรณ์ที่ใช้เปลี่ยนรหัสผ่าน การรีเซ็ตรหัสผ่านโดยผู้ดูแลระบบหรือผ่านลิงก์รีเซ็ตจะออกจากระบบบัญชีนั้นบนทุกอุปกรณ์',
+        vi: 'Đổi mật khẩu giờ sẽ đăng xuất bạn trên các thiết bị khác, nên phiên đăng nhập cũ (ví dụ trên máy tính dùng chung) không thể dùng được nữa. Bạn vẫn đăng nhập trên thiết bị đã đổi mật khẩu. Khi quản trị viên đặt lại mật khẩu hoặc dùng liên kết đặt lại, tài khoản sẽ bị đăng xuất ở mọi nơi.',
+        km: 'ការប្ដូរពាក្យសម្ងាត់ ឥឡូវនឹងចាកចេញពីឧបករណ៍ផ្សេងទៀតរបស់អ្នក ដូច្នេះការចូលចាស់ (ឧ. នៅលើកុំព្យូទ័រប្រើរួម) មិនអាចប្រើបានទៀតទេ។ អ្នកនៅតែចូលនៅលើឧបករណ៍ដែលអ្នកប្ដូរ។ ការកំណត់ពាក្យសម្ងាត់ឡើងវិញដោយអ្នកគ្រប់គ្រង ឬតាមតំណកំណត់ឡើងវិញ នឹងចាកចេញគណនីនោះពីគ្រប់ទីកន្លែង។',
+        fil: 'Kapag pinalitan mo ang password, masa-sign out ka na sa iba mo pang device, kaya hindi na magagamit ang lumang sign-in (halimbawa, sa shared na computer). Mananatili kang naka-sign in kung saan mo ito pinalitan. Ang pag-reset ng password ng administrator o sa pamamagitan ng reset link ay magsa-sign out sa account kahit saan.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-03.1',
     date: '2026-10-03',
     items: [

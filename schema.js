@@ -54,6 +54,10 @@ const SCHEMA = [
   // claims.amount_cents / meal_claims.total_cents) this account may approve. NULL
   // means unlimited — the default, so existing accounts keep approving any amount.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_limit_cents BIGINT`,
+  // Bumped whenever the account's password changes (by its owner, a reset link
+  // or an admin). A session cookie records the version it was issued under, so
+  // a password change signs out every other session of that account.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`,
   `CREATE TABLE IF NOT EXISTS claims (
     id              SERIAL PRIMARY KEY,
     claim_no        TEXT NOT NULL UNIQUE,

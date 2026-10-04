@@ -34,7 +34,7 @@ async function main() {
   const sql = neon(process.env.DATABASE_URL);
   const hash = bcrypt.hashSync(String(newPassword), 10);
   const rows = await sql.query(
-    'UPDATE users SET password_hash = $1 WHERE username = $2 RETURNING id, username, role',
+    'UPDATE users SET password_hash = $1, session_version = session_version + 1 WHERE username = $2 RETURNING id, username, role',
     [hash, username]);
   if (!rows[0]) { console.error(`No user found with username "${username}".`); process.exit(1); }
   console.log(`Password reset for "${rows[0].username}" (role: ${rows[0].role}, id: ${rows[0].id}).`);

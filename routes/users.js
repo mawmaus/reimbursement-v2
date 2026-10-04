@@ -7,7 +7,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { q } = require('../db');
 const { sendEmail, emailConfigured, layout, button } = require('../lib/email');
-const { requireAuth, requireRole, requireCap } = require('../lib/auth');
+const { requireAuth, requireRole, requireCap, SET_PASSWORD_SQL, startSession } = require('../lib/auth');
 const {
   ah, normEmail, EMAIL_RE, escHtml, baseUrl, intArrayLiteral, asIntArray, iso,
   isActive
@@ -257,7 +257,9 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
   ]);
   if (password) {
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    await q('UPDATE users SET password_hash=$1 WHERE id=$2', [bcrypt.hashSync(String(password), 10), u.id]);
+    // Signs the account out everywhere (keeping the admin signed in if it is their own).
+    const [{ session_version }] = await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(password), 10), u.id]);
+    if (u.id === req.user.id) startSession(req, { id: u.id, session_version });
   }
   res.json({ ok: true });
 }));
@@ -275,7 +277,9 @@ router.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) =>
   }
   const password = (req.body && req.body.password) || '';
   if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  await q('UPDATE users SET password_hash = $1 WHERE id = $2', [bcrypt.hashSync(String(password), 10), target.id]);
+  // Signs the account out everywhere (keeping the admin signed in if it is their own).
+  const [{ session_version }] = await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(password), 10), target.id]);
+  if (target.id === req.user.id) startSession(req, { id: target.id, session_version });
   res.json({ ok: true });
 }));
 

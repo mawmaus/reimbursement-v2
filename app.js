@@ -6,6 +6,7 @@ const express = require('express');
 const compression = require('compression');
 const cookieSession = require('cookie-session');
 const { errorHandler } = require('./lib/errors');
+const { sessionCurrent, startSession } = require('./lib/auth');
 const {
   parseAmountToCents, fmtMoney, parseApprovalLimit, approvalLimitError
 } = require('./lib/money');
@@ -152,5 +153,5 @@ module.exports.rules = {
   fillMatrix, capsFor, userCan, editableRolesFor, hasDelegation, creatablePositions,
   canManageAccount, insightsCanView, insightsSeeAll, accountsSeeAllDepts,
   applyListStatusFilter, applyLedgerWindow, slimForList,
-  OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL, CAPABILITIES
+  OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL, CAPABILITIES, sessionCurrent, startSession
 };
