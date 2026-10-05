@@ -511,12 +511,12 @@ input[type="search"] { min-width: 220px; }
 .pill.paid      { color: var(--indigo); background: var(--indigo-tint); }
 
 /* ---------- Drawer ---------- */
-.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; animation: fade .16s; }
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 40; animation: fade .22s ease; }
 @keyframes fade { from { opacity: 0; } }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(900px, 100%); z-index: 50;
   background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow);
-  overflow-y: auto; animation: slidein .2s ease;
+  overflow-y: auto; animation: slidein .32s var(--ease-out);
 }
 @keyframes slidein { from { transform: translateX(100%); } }
 /* When the claim drawer is opened from the insights drill-down window, it floats
@@ -580,7 +580,7 @@ input[type="search"] { min-width: 220px; }
   position: fixed; z-index: 50; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: min(640px, calc(100% - 32px)); max-height: 90vh; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
-  animation: pop .16s ease;
+  animation: pop .22s var(--ease-out);
 }
 .modal.modal-wide { width: min(780px, calc(100% - 32px)); }
 .modal.modal-xwide { width: min(1040px, calc(100% - 32px)); }
@@ -594,7 +594,7 @@ input[type="search"] { min-width: 220px; }
    frozen top bar (controls / actions) sits above a scrolling list. */
 .modal.modal-flex { display: flex; flex-direction: column; overflow: hidden; }
 .modal.modal-flex .modal-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-@keyframes pop { from { transform: translate(-50%, -48%) scale(.98); opacity: 0; } }
+@keyframes pop { from { transform: translate(-50%, -47%) scale(.97); opacity: 0; } }
 .modal-head { position: sticky; top: 0; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; }
 .modal-body { padding: 22px; }
@@ -1177,7 +1177,7 @@ input[type="search"] { min-width: 220px; }
 /* toast */
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 80;
   background: var(--tip-bg); color: var(--tip-ink); padding: 11px 18px; border-radius: 10px; box-shadow: var(--shadow);
-  font-size: .9rem; animation: pop .16s ease; max-width: 90vw; }
+  font-size: .9rem; animation: toast-in .26s var(--ease-out); max-width: 90vw; }
 .toast.err { background: var(--red); color: var(--on-accent); }
 
 /* iOS "Add to Home Screen" hint: a card pinned above the home indicator. It
@@ -1926,3 +1926,64 @@ a[data-open-doc]:hover { text-decoration: underline; }
 
 /* Swap all colours in one frame when the theme changes (see theme.js). */
 .theme-switching, .theme-switching * { transition: none !important; }
+
+/* ---------------------------------------------------------------------------
+   Motion. One vocabulary for the whole app: things arrive by rising a few
+   pixels while fading in (ease-out), and leave quicker than they came
+   (ease-in). The prefers-reduced-motion block above switches all of it off.
+   --------------------------------------------------------------------------- */
+:root {
+  --ease-out: cubic-bezier(.22, .8, .24, 1);
+  --ease-in: cubic-bezier(.45, 0, .9, .4);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes view-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* Screens: whichever view just un-hid eases in (display:none → block restarts
+   the animation, so no JS is needed). */
+.container > section:not([hidden]) { animation: view-in .28s var(--ease-out); }
+#appView:not([hidden]) { animation: fade .24s ease; }
+#loginView:not([hidden]) .login-card { animation: rise .42s var(--ease-out); }
+
+/* Staggered entrance for lists of cards / rows. app.js's playEnter() adds
+   .entering for a moment; re-renders inside that window pass a negative
+   --enter-offset so fresh nodes continue the same clock instead of replaying. */
+.entering > * {
+  animation: rise .34s var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 32ms + var(--enter-offset, 0ms));
+}
+.entering > :nth-child(2)  { --i: 1; }
+.entering > :nth-child(3)  { --i: 2; }
+.entering > :nth-child(4)  { --i: 3; }
+.entering > :nth-child(5)  { --i: 4; }
+.entering > :nth-child(6)  { --i: 5; }
+.entering > :nth-child(7)  { --i: 6; }
+.entering > :nth-child(8)  { --i: 7; }
+.entering > :nth-child(9)  { --i: 8; }
+.entering > :nth-child(10) { --i: 9; }
+.entering > :nth-child(11) { --i: 10; }
+.entering > :nth-child(n+12) { --i: 11; }
+
+/* Panels closing: app.js hides the real panel at once and leaves an inert copy
+   (.leaving) to play these, then removes it. */
+.leaving { pointer-events: none; }
+.drawer.leaving { animation: slideout .22s var(--ease-in) forwards; }
+@keyframes slideout { to { transform: translateX(100%); } }
+.modal.leaving { animation: pop-out .15s var(--ease-in) forwards; }
+@keyframes pop-out { to { transform: translate(-50%, -49%) scale(.97); opacity: 0; } }
+.scrim.leaving { animation: fade-out .2s ease forwards; }
+@keyframes fade-out { to { opacity: 0; } }
+
+/* Toast: rises from the bottom edge, sinks away. (Its transform is X-only, so
+   it can't share the modal's pop keyframes.) */
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px) scale(.98); } }
+.toast.toast-out { animation: toast-out .18s var(--ease-in) forwards; }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, 8px); } }
+
+/* "+ New" menu drops open from its button. */
+.new-menu:not([hidden]) { animation: menu-in .16s var(--ease-out); transform-origin: top right; }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
+
+/* Theme switch: the new theme spreads out from the toggle as a circle (see
+   theme.js). Turn off the default cross-fade so only the clip animates. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }

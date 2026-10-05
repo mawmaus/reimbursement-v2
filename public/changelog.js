@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-05.1',
+    date: '2026-10-05',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The portal now moves more smoothly: screens and lists ease in, claim details and windows slide or fade away when closed, and switching between light and dark mode spreads out from the button. If your device is set to reduce motion, all of this stays off.',
+        id: 'Portal kini bergerak lebih halus: layar dan daftar muncul perlahan, detail klaim dan jendela bergeser atau memudar saat ditutup, dan pergantian mode terang/gelap menyebar dari tombolnya. Jika perangkat Anda diatur untuk mengurangi gerakan, semua ini tetap nonaktif.',
+        th: 'พอร์ทัลเคลื่อนไหวได้ลื่นไหลขึ้น: หน้าจอและรายการค่อย ๆ ปรากฏ รายละเอียดคำขอเบิกและหน้าต่างจะเลื่อนหรือจางหายเมื่อปิด และการสลับโหมดสว่าง/มืดจะแผ่ออกจากปุ่ม หากอุปกรณ์ของคุณตั้งค่าให้ลดการเคลื่อนไหว เอฟเฟกต์ทั้งหมดนี้จะปิดอยู่',
+        vi: 'Cổng thông tin giờ chuyển động mượt mà hơn: màn hình và danh sách hiện ra nhẹ nhàng, chi tiết yêu cầu và cửa sổ trượt hoặc mờ dần khi đóng, và việc chuyển chế độ sáng/tối lan ra từ nút bấm. Nếu thiết bị của bạn được đặt giảm chuyển động, tất cả hiệu ứng này sẽ tắt.',
+        km: 'វិបផតថលឥឡូវមានចលនារលូនជាងមុន៖ អេក្រង់ និងបញ្ជីលេចឡើងបន្តិចម្ដងៗ ព័ត៌មានលម្អិតនៃការទាមទារ និងផ្ទាំងរអិល ឬរសាត់បាត់ពេលបិទ ហើយការប្ដូររវាងរបៀបភ្លឺ និងងងឹតរីករាលចេញពីប៊ូតុង។ ប្រសិនបើឧបករណ៍របស់អ្នកកំណត់ឱ្យកាត់បន្ថយចលនា ចលនាទាំងនេះនឹងនៅបិទ។',
+        fil: 'Mas maayos na ang galaw ng portal: dahan-dahang lumalabas ang mga screen at listahan, dumudulas o naglalaho ang detalye ng claim at mga window kapag isinara, at kumakalat mula sa button ang paglipat sa light at dark mode. Kung naka-set ang iyong device na bawasan ang motion, mananatiling naka-off ang lahat ng ito.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-04.1',
     date: '2026-10-04',
     items: [

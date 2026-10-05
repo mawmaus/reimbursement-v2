@@ -84,7 +84,57 @@ function toast(msg, isErr = false) {
   t.className = 'toast' + (isErr ? ' err' : '');
   t.hidden = false;
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => { t.hidden = true; }, 3200);
+  toast._t = setTimeout(() => {
+    t.classList.add('toast-out');
+    toast._t = setTimeout(() => { t.hidden = true; }, reducedMotion() ? 0 : 180);
+  }, 3200);
+}
+
+// ---------------------------------------------------------------------------
+// Motion helpers (the keyframes live in the Motion section of styles.css)
+// ---------------------------------------------------------------------------
+const motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+function reducedMotion() { return !!(motionQuery && motionQuery.matches); }
+
+// Staggered entrance for a container's children (.entering). Call when a list
+// first comes into view, and enterKeep() right before re-rendering it: a
+// re-render inside the window then continues the running animation instead of
+// replaying it or snapping half-faded rows to full.
+const ENTER_MS = 800;
+function playEnter(el) {
+  if (!el || reducedMotion()) return;
+  el._enterAt = performance.now();
+  el.style.setProperty('--enter-offset', '0ms');
+  el.classList.remove('entering');
+  void el.offsetWidth; // restart the animations on the existing children
+  el.classList.add('entering');
+  clearTimeout(el._enterT);
+  el._enterT = setTimeout(() => el.classList.remove('entering'), ENTER_MS);
+}
+function enterKeep(el) {
+  if (el && el.classList.contains('entering')) {
+    el.style.setProperty('--enter-offset', `${-Math.round(performance.now() - el._enterAt)}ms`);
+  }
+}
+
+// Exit animation that never delays the real close: the panel itself hides at
+// once (so close→reopen sequences stay synchronous), while an inert copy with
+// no ids or names plays the .leaving animation on top and then removes itself.
+function leaveGhost(el) {
+  if (!el || el.hidden || reducedMotion()) return;
+  const g = el.cloneNode(true);
+  g.removeAttribute('id');
+  g.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  g.querySelectorAll('[name]').forEach(n => n.removeAttribute('name'));
+  g.querySelectorAll('iframe').forEach(n => n.remove());
+  g.inert = true;
+  g.setAttribute('aria-hidden', 'true');
+  g.classList.add('leaving');
+  el.after(g);
+  g.scrollTop = el.scrollTop;
+  const done = () => g.remove();
+  g.addEventListener('animationend', e => { if (e.target === g) done(); });
+  setTimeout(done, 400); // in case animationend never fires
 }
 
 // ---------------------------------------------------------------------------
@@ -265,9 +315,27 @@ function applyLangChrome() {
 function initThemeUI() {
   if (!window.Theme) return;
   document.querySelectorAll('[data-theme-toggle]').forEach(btn =>
-    btn.addEventListener('click', () => Theme.toggle()));
+    btn.addEventListener('click', () => toggleThemeFrom(btn)));
   Theme.onChange(syncThemeButtons);
   syncThemeButtons();
+}
+
+// The new theme spreads out from the button as a growing circle (View
+// Transitions); browsers without it, or reduced motion, just switch.
+function toggleThemeFrom(btn) {
+  if (!document.startViewTransition || reducedMotion()) { Theme.toggle(); return; }
+  // Rect and viewport sizes are visual px, but the pseudo-element inherits the
+  // :root zoom, which multiplies the clip-path lengths: divide it back out.
+  const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  const r = btn.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const at = `at ${x / z}px ${y / z}px`;
+  const vt = document.startViewTransition(() => Theme.toggle());
+  vt.ready.then(() => document.documentElement.animate(
+    { clipPath: [`circle(0px ${at})`, `circle(${radius / z}px ${at})`] },
+    { duration: 480, easing: 'cubic-bezier(.22, .8, .24, 1)', pseudoElement: '::view-transition-new(root)' }
+  )).catch(() => { /* transition skipped */ });
 }
 
 // Label each toggle with what it will do, in the active language.
@@ -608,6 +676,7 @@ function showApp() {
   state.viewRegion = '';
   renderRegionPicker();
   loadLookups();
+  playEnter($('#homeMenu'));
   loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
 
@@ -894,6 +963,7 @@ function renderSummaryCards() {
     // billions; the exact figure sits just below for anyone who needs it.
     { k: 'total', l: totalCardLabel(), n: moneyShort(total, regionCurrency()), sub: money(total, regionCurrency()) }
   ];
+  enterKeep($('#summaryCards'));
   $('#summaryCards').innerHTML = cards.map(c => {
     if (!c.status) {
       const sub = c.sub ? `<div class="card-sub">${esc(c.sub)}</div>` : '';
@@ -1404,6 +1474,7 @@ function renderHome() {
       badge: true,
       link: t('Open') });
   }
+  enterKeep(menu);
   menu.innerHTML = tiles.map(tile => `
     <button class="home-tile${tile.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${tile.key}" type="button">
       ${tile.badge && tile.count > 0 ? `<span class="tile-badge" aria-label="${esc(t('{count} awaiting approval', { count: tile.count }))}">${tile.count > 99 ? '99+' : tile.count}</span>` : ''}
@@ -1425,6 +1496,8 @@ function openView(key) {
   state.selected.clear();
   $('#homeView').hidden = true;
   $('#listView').hidden = false;
+  playEnter($('#summaryCards'));
+  playEnter($('#claimRows'));
   $('#listTitle').textContent = viewLabel(key);
   // The payment date column + range filter belong to the Paid claims view only.
   const paid = key === 'paid';
@@ -1445,6 +1518,7 @@ function goHome() {
   const iv = $('#insightsView'); if (iv) iv.hidden = true;
   const dv = $('#dcView'); if (dv) dv.hidden = true;
   $('#homeView').hidden = false;
+  playEnter($('#homeMenu'));
   loadClaims(); // refetch unfiltered, then renderHome via loadClaims
 }
 
@@ -1919,6 +1993,7 @@ function renderClaims() {
     updateSelectionUI(); renderSummaryCards(); return;
   }
   $('#emptyState').hidden = true;
+  enterKeep(wrap);
   wrap.innerHTML = claims.map(c => {
     const v = rowView(c);
     const checked = state.selected.has(claimKey(c.type, c.id)) ? 'checked' : '';
@@ -2615,6 +2690,7 @@ function approvalActionDate(c, name, action) {
 // Drawer (claim detail + actions)
 // ---------------------------------------------------------------------------
 function closeDrawer() {
+  leaveGhost($('#drawer')); leaveGhost($('#drawerScrim'));
   $('#drawer').hidden = true; $('#drawerScrim').hidden = true;
   $('#drawer').classList.remove('over-modal'); $('#drawerScrim').classList.remove('over-modal');
   syncScrollLock();
@@ -3176,6 +3252,7 @@ function openModal(html) {
   syncScrollLock();
 }
 function closeModal() {
+  leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
   $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
@@ -3202,7 +3279,7 @@ function openModal2(html) {
   $('#modal2').hidden = false;
   syncScrollLock();
 }
-function closeModal2() { $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); syncScrollLock(); }
+function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
