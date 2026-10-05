@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-05.2',
+    date: '2026-10-05',
+    items: [
+      { kind: 'new', text: {
+        en: 'A new Modern look: softer rounded cards, filled fields, a frosted top bar and blue accents. Choose it under Profile → Appearance; it works in both light and dark mode, and Classic stays the default. Your choice is remembered on each device.',
+        id: 'Tampilan Modern baru: kartu membulat yang lebih lembut, kolom isian berlatar, bilah atas buram, dan aksen biru. Pilih di Profil → Tampilan; berfungsi di mode terang maupun gelap, dan Klasik tetap menjadi bawaan. Pilihan Anda diingat di setiap perangkat.',
+        th: 'รูปลักษณ์ Modern ใหม่: การ์ดขอบมนที่นุ่มนวลขึ้น ช่องกรอกแบบมีพื้น แถบด้านบนแบบฝ้า และสีเน้นสีน้ำเงิน เลือกได้ที่ โปรไฟล์ → รูปลักษณ์ ใช้ได้ทั้งโหมดสว่างและโหมดมืด โดยคลาสสิกยังเป็นค่าเริ่มต้น ระบบจะจำตัวเลือกของคุณไว้ในแต่ละอุปกรณ์',
+        vi: 'Giao diện Hiện đại mới: thẻ bo tròn mềm mại hơn, ô nhập có nền, thanh trên cùng hiệu ứng kính mờ và điểm nhấn màu xanh dương. Chọn tại Hồ sơ → Giao diện; dùng được ở cả chế độ sáng và tối, và Cổ điển vẫn là mặc định. Lựa chọn của bạn được ghi nhớ trên từng thiết bị.',
+        km: 'រូបរាងទំនើបថ្មី៖ កាតជ្រុងមូលទន់ជាងមុន ប្រអប់បញ្ចូលមានផ្ទៃ របារខាងលើបែបកញ្ចក់ព្រិល និងពណ៌សង្កត់ពណ៌ខៀវ។ ជ្រើសរើសវានៅ ប្រវត្តិរូប → រូបរាង; វាដំណើរការទាំងរបៀបភ្លឺ និងងងឹត ហើយបុរាណនៅតែជាលំនាំដើម។ ជម្រើសរបស់អ្នកត្រូវបានចងចាំនៅលើឧបករណ៍នីមួយៗ។',
+        fil: 'Bagong Moderno na itsura: mas malalambot na bilugang card, may-kulay na mga field, malabong-salamin na top bar, at asul na accent. Piliin ito sa Profile → Itsura; gumagana sa light at dark mode, at Classic pa rin ang default. Tatandaan ang pinili mo sa bawat device.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-05.1',
     date: '2026-10-05',
     items: [

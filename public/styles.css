@@ -1987,3 +1987,246 @@ a[data-open-doc]:hover { text-decoration: underline; }
 /* Theme switch: the new theme spreads out from the toggle as a circle (see
    theme.js). Turn off the default cross-fade so only the clip animates. */
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+
+/* ---------------------------------------------------------------------------
+   Modern look. An optional style (Profile → Appearance) that theme.js sets as
+   <html data-style="ios">, independent of light/dark: the iOS system palette
+   (grouped grey canvas, white cards, system blue), borderless rounded surfaces
+   with soft depth, filled fields, frosted bars, and sentence-case labels.
+   Tokens first, as in night mode; then the components whose shape changes.
+   --------------------------------------------------------------------------- */
+:root[data-style="ios"] {
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
+  /* Figures use the text face with aligned digits, not a typewriter face. */
+  --mono: var(--sans);
+  --ink:        #000000;
+  --ink-soft:   #3c3c43;
+  --muted:      #6e6e73;
+  --line:       #d1d1d6;
+  --line-soft:  #e5e5ea;
+  --paper:      #f2f2f7;
+  --surface:    #ffffff;
+  --pine:       #007aff;
+  --pine-deep:  #0062cc;
+  --pine-tint:  #e6f0ff;
+  --pine-tint-hi: #d5e6ff;
+  --pine-hover: #0071eb;
+  --amber:      #a64b00;
+  --amber-mark: #ff9500;
+  --amber-tint: #fff2e0;
+  --green:      #1f7a36;
+  --green-tint: #e5f6ea;
+  --red:        #d70015;
+  --red-tint:   #ffe9eb;
+  --indigo:     #3e3bb8;
+  --indigo-tint:#ececfb;
+  --red-line:   #ffc4c9;
+  --shadow:     0 24px 60px -18px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.04);
+  --shadow-sm:  0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.02);
+  --shadow-md:  0 12px 30px -12px rgba(0,0,0,.16);
+  --on-accent:  #ffffff;
+  --on-brand:   #ffffff;
+  --on-fill:    #ffffff;
+  --topbar-bg:  rgba(249,249,251,.72);
+  --scrim:      rgba(0,0,0,.28);
+  --tip-bg:     rgba(28,28,30,.9);
+  --tip-ink:    #ffffff;
+  --seg-on:     #ffffff;
+  --danger-fill: #ff3b30;  --danger-fill-hi: #e6342a;
+  --approve-fill: #248a3d; --approve-fill-hi: #1e7533;
+  --info-fill:  #5856d6;
+  --sand-fill:  #c96a00;
+  --focus-ring: rgba(0,122,255,.45);
+  --ios-fill:   rgba(118,118,128,.12);   /* iOS tertiary fill: fields, grey buttons */
+  --ios-fill-hi: rgba(118,118,128,.2);
+  --ios-press:  rgba(118,118,128,.08);   /* row highlight */
+}
+:root[data-style="ios"][data-theme="dark"] {
+  --ink:        #ffffff;
+  --ink-soft:   #d1d1d6;
+  --muted:      #98989f;
+  --line:       #38383a;
+  --line-soft:  #2c2c2e;
+  --paper:      #000000;
+  --surface:    #1c1c1e;
+  --pine:       #0a84ff;
+  --pine-deep:  #4da3ff;
+  --pine-tint:  #0b2747;
+  --pine-tint-hi: #10345e;
+  --pine-hover: #3396ff;
+  --amber:      #ffb340;
+  --amber-mark: #ff9f0a;
+  --amber-tint: #33240d;
+  --green:      #30d158;
+  --green-tint: #0f2e19;
+  --red:        #ff6961;
+  --red-tint:   #3b1513;
+  --indigo:     #9d9bff;
+  --indigo-tint:#22213f;
+  --red-line:   #6b2622;
+  --shadow:     0 24px 60px -18px rgba(0,0,0,.8);
+  --shadow-sm:  none;
+  --shadow-md:  0 12px 30px -12px rgba(0,0,0,.7);
+  --on-accent:  #000000;
+  --on-brand:   #ffffff;
+  --on-fill:    #ffffff;
+  --topbar-bg:  rgba(22,22,24,.72);
+  --scrim:      rgba(0,0,0,.55);
+  --tip-bg:     rgba(44,44,46,.94);
+  --tip-ink:    #ffffff;
+  --seg-on:     #636366;
+  --danger-fill: #ff453a;  --danger-fill-hi: #ff5c52;
+  --approve-fill: #248a3d; --approve-fill-hi: #2a9a46;
+  --info-fill:  #5e5ce6;
+  --sand-fill:  #c96a00;
+  --focus-ring: rgba(10,132,255,.6);
+  --ios-fill:   rgba(118,118,128,.24);
+  --ios-fill-hi: rgba(118,118,128,.34);
+  --ios-press:  rgba(255,255,255,.06);
+}
+
+/* Type: SF-style weights and tight tracking on headings. */
+:root[data-style="ios"] body { letter-spacing: -.005em; }
+:root[data-style="ios"] h1, :root[data-style="ios"] h2, :root[data-style="ios"] h3 { font-weight: 700; letter-spacing: -.02em; }
+
+/* Buttons: rounder, no coloured glows; ghost becomes the iOS grey button. */
+:root[data-style="ios"] .btn { border-radius: 12px; font-weight: 600; }
+:root[data-style="ios"] .btn-sm { border-radius: 10px; }
+:root[data-style="ios"] .btn-primary,
+:root[data-style="ios"] .btn-danger,
+:root[data-style="ios"] .btn-approve { border-color: transparent; box-shadow: none; }
+:root[data-style="ios"] .btn-primary:hover,
+:root[data-style="ios"] .btn-danger:hover,
+:root[data-style="ios"] .btn-approve:hover { box-shadow: none; }
+:root[data-style="ios"] .btn-ghost { background: var(--ios-fill); border-color: transparent; color: var(--pine-deep); }
+:root[data-style="ios"] .btn-ghost:hover { background: var(--ios-fill-hi); border-color: transparent; color: var(--pine-deep); }
+:root[data-style="ios"] .btn:active { transform: scale(.97); }
+
+/* Fields: filled grey, no outline until focused. */
+:root[data-style="ios"] .input,
+:root[data-style="ios"] .form input:not([type="checkbox"]):not([type="radio"]),
+:root[data-style="ios"] .form select,
+:root[data-style="ios"] .form textarea,
+:root[data-style="ios"] .msel-trigger,
+:root[data-style="ios"] .msel-search input { background: var(--ios-fill); border-color: transparent; border-radius: 10px; }
+:root[data-style="ios"] .msel-trigger:hover { border-color: transparent; background: var(--ios-fill-hi); }
+:root[data-style="ios"] .input:focus,
+:root[data-style="ios"] .form input:not([type="checkbox"]):not([type="radio"]):focus,
+:root[data-style="ios"] .form select:focus,
+:root[data-style="ios"] .form textarea:focus,
+:root[data-style="ios"] .msel-search input:focus,
+:root[data-style="ios"] .msel-trigger:focus-visible,
+:root[data-style="ios"] .msel.open .msel-trigger { background: var(--surface); border-color: var(--pine); box-shadow: 0 0 0 3px var(--focus-ring); }
+:root[data-style="ios"] .date-range { background: var(--ios-fill); border-color: transparent; }
+:root[data-style="ios"] .toolbar-left .date-range .input { background: transparent; box-shadow: none; }
+:root[data-style="ios"] .msel-menu,
+:root[data-style="ios"] .new-menu { border-color: transparent; border-radius: 14px; box-shadow: var(--shadow); }
+:root[data-style="ios"][data-theme="dark"] .msel-menu,
+:root[data-style="ios"][data-theme="dark"] .new-menu { background: #2c2c2e; border-color: var(--line); }
+:root[data-style="ios"][data-theme="dark"] .msel-search { background: #2c2c2e; }
+
+/* Segmented controls, the iOS way: a grey track and a raised thumb. */
+:root[data-style="ios"] .seg { background: var(--ios-fill); border-radius: 9px; padding: 2px; }
+:root[data-style="ios"] .seg button { border-radius: 7px; color: var(--ink); font-weight: 500; }
+:root[data-style="ios"] .seg button.on { color: var(--ink); font-weight: 600; box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
+
+/* Login: plain grouped canvas, a floating rounded card. */
+:root[data-style="ios"] .login-wrap { background: var(--paper); }
+:root[data-style="ios"] .login-card { border: none; border-radius: 22px; padding: 34px 30px; }
+
+/* Top bar: frosted glass over a hairline, like a navigation bar. */
+:root[data-style="ios"] .topbar { backdrop-filter: saturate(1.8) blur(20px); -webkit-backdrop-filter: saturate(1.8) blur(20px);
+  box-shadow: none; border-bottom-color: var(--line); }
+:root[data-style="ios"] .theme-btn { border-color: transparent; background: var(--ios-fill); border-radius: 50%; }
+:root[data-style="ios"] .theme-btn:hover { border-color: transparent; background: var(--ios-fill-hi); }
+
+/* Home: a large title, and app-like tiles with no outlines. */
+:root[data-style="ios"] .home-greeting { font-size: 1.9rem; font-weight: 700; letter-spacing: -.025em; color: var(--ink); margin: 4px 2px 22px; line-height: 1.15; }
+:root[data-style="ios"] .home-tile { border: none; border-radius: 20px; box-shadow: var(--shadow-sm); }
+:root[data-style="ios"] .home-tile:hover { background: var(--surface); border-color: transparent; box-shadow: var(--shadow-md); transform: translateY(-2px); }
+:root[data-style="ios"] .home-tile .tile-title { font-weight: 650; letter-spacing: -.015em; }
+:root[data-style="ios"] .home-tile .tile-count { text-transform: none; letter-spacing: 0; font-size: .88rem; font-weight: 600; color: var(--pine-deep); }
+:root[data-style="ios"] .home-tile .tile-badge { background: #ff3b30; color: #fff; box-shadow: none; font-weight: 600; }
+:root[data-style="ios"] .home-tile-insights,
+:root[data-style="ios"] .home-tile-insights:hover { background: var(--pine); }
+:root[data-style="ios"] .home-tile-insights .tile-title,
+:root[data-style="ios"] .home-tile-insights .tile-count { color: #fff; }
+:root[data-style="ios"] .home-tile-insights .tile-desc,
+:root[data-style="ios"] .home-tile-insights:hover .tile-desc { color: rgba(255,255,255,.85); }
+:root[data-style="ios"] .home-notice { border-radius: 14px; }
+
+/* Summary cards: borderless widgets with sentence-case labels. */
+:root[data-style="ios"] .card { border: none; border-radius: 18px; box-shadow: var(--shadow-sm); }
+:root[data-style="ios"] .card .card-l { text-transform: none; letter-spacing: 0; font-size: .82rem; font-weight: 600; }
+:root[data-style="ios"] .card-filter:hover { border-color: transparent; box-shadow: var(--shadow-md); }
+:root[data-style="ios"] .card.submitted.active { box-shadow: inset 0 0 0 2px var(--amber-mark); }
+:root[data-style="ios"] .card.approved.active  { box-shadow: inset 0 0 0 2px var(--green); }
+:root[data-style="ios"] .card.rejected.active  { box-shadow: inset 0 0 0 2px var(--red); }
+:root[data-style="ios"] .card.paid.active      { box-shadow: inset 0 0 0 2px var(--indigo); }
+
+/* Ledger: an inset grouped list. Separators start after the checkbox column
+   (a background line, since a pseudo-element would become a grid item), rows
+   highlight grey, the status spine is a short capsule, pills drop all-caps. */
+:root[data-style="ios"] .ledger { border: none; border-radius: 18px; box-shadow: var(--shadow-sm); }
+:root[data-style="ios"] .ledger-head { background: var(--surface); text-transform: none; letter-spacing: 0; font-size: .78rem; font-weight: 600; }
+:root[data-style="ios"] .ledger-row { border-bottom: none;
+  background: linear-gradient(var(--line-soft), var(--line-soft)) no-repeat 50px 100% / calc(100% - 50px) 1px, var(--surface); }
+:root[data-style="ios"] .ledger-row:last-child { background: var(--surface); }
+:root[data-style="ios"] .ledger-row:hover { background: linear-gradient(var(--ios-press), var(--ios-press)), var(--surface); }
+:root[data-style="ios"] .ledger-row { font-variant-numeric: tabular-nums; }
+:root[data-style="ios"] .row-spine { height: 26px; border-radius: 0 3px 3px 0; }
+:root[data-style="ios"] .pill { text-transform: none; letter-spacing: 0; font-size: .74rem; font-weight: 600; padding: 3px 9px; border-radius: 8px; line-height: 1.3; }
+/* Phones: the ledger is a stack of cards (see Responsive), so drop the list
+   separators and container depth; cards go borderless and the status
+   spine runs their full height again. */
+@media (max-width: 720px) {
+  :root[data-style="ios"] .ledger { box-shadow: none; border-radius: 0; }
+  :root[data-style="ios"] .ledger-row,
+  :root[data-style="ios"] .ledger-row:last-child,
+  :root[data-style="ios"] .ledger-row:hover { background: var(--surface); border: none; border-radius: 16px; box-shadow: var(--shadow-sm); }
+  :root[data-style="ios"][data-theme="dark"] .ledger-row { box-shadow: none; }
+  :root[data-style="ios"] .row-spine { height: auto; border-radius: 16px 0 0 16px; }
+}
+:root[data-style="ios"] .selection-bar { border: none; border-radius: 14px; }
+:root[data-style="ios"] .section-label { letter-spacing: .02em; font-weight: 600; }
+
+/* Sheets: rounded, borderless, with frosted sticky headers. */
+:root[data-style="ios"] .modal { border: none; border-radius: 22px; }
+:root[data-style="ios"] .drawer { border-left: none; border-radius: 22px 0 0 22px; }
+:root[data-style="ios"] .modal-head,
+:root[data-style="ios"] .drawer-head { background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: saturate(1.8) blur(20px); -webkit-backdrop-filter: saturate(1.8) blur(20px); border-bottom-color: var(--line-soft); }
+:root[data-style="ios"] .x-btn { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%;
+  background: var(--ios-fill); font-size: 1.15rem; padding: 0; }
+:root[data-style="ios"] .x-btn:hover { background: var(--ios-fill-hi); color: var(--ink); }
+:root[data-style="ios"] .toast { border-radius: 14px; border: none; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); font-weight: 500; }
+:root[data-style="ios"] .toast.err { background: var(--danger-fill); color: #fff; }
+:root[data-style="ios"] .form-error,
+:root[data-style="ios"] .form-note,
+:root[data-style="ios"] .note-box { border-radius: 12px; }
+
+/* Appearance picker (Profile): two small preview swatches, radio-style. */
+.look-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.look-opt { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 9px 9px 8px;
+  border: 2px solid var(--line); border-radius: 14px; background: var(--surface); cursor: pointer;
+  font: inherit; font-size: .88rem; font-weight: 600; color: var(--ink-soft); transition: border-color .14s, color .14s; }
+.look-opt:hover { border-color: var(--muted); }
+.look-opt[aria-checked="true"] { border-color: var(--pine); color: var(--ink); }
+.look-opt:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.look-swatch { height: 66px; border-radius: 8px; padding: 8px; display: grid; gap: 5px;
+  grid-template-columns: 1fr 1fr; align-content: start; }
+.look-swatch i { display: block; height: 22px; border-radius: 5px; }
+.look-swatch i:first-child { grid-column: 1 / -1; height: 9px; width: 55%; }
+.look-swatch.classic { background: #f5f4f2; box-shadow: inset 0 0 0 1px #dedcd8; }
+.look-swatch.classic i { background: #fff; box-shadow: inset 0 0 0 1px #dedcd8; }
+.look-swatch.classic i:first-child { background: #f7982a; box-shadow: none; }
+.look-swatch.ios { background: #f2f2f7; }
+.look-swatch.ios i { background: #fff; border-radius: 7px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.look-swatch.ios i:first-child { background: #007aff; box-shadow: none; border-radius: 5px; }
+:root[data-theme="dark"] .look-swatch.classic { background: #131315; box-shadow: inset 0 0 0 1px #35353b; }
+:root[data-theme="dark"] .look-swatch.classic i { background: #1c1c1f; box-shadow: inset 0 0 0 1px #35353b; }
+:root[data-theme="dark"] .look-swatch.classic i:first-child { background: #f7982a; box-shadow: none; }
+:root[data-theme="dark"] .look-swatch.ios { background: #000; }
+:root[data-theme="dark"] .look-swatch.ios i { background: #1c1c1e; box-shadow: none; }
+:root[data-theme="dark"] .look-swatch.ios i:first-child { background: #0a84ff; }
+.look-name { text-align: center; }

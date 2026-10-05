@@ -11,6 +11,9 @@
 // ---------------------------------------------------------------------------
 (function () {
   var KEY = 'reimb.theme';
+  // The look ("classic" | "ios") is a second, independent axis: either one
+  // runs light or dark. Stored per device too; written to <html data-style>.
+  var STYLE_KEY = 'reimb.style';
   var root = document.documentElement;
   var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   var listeners = [];
@@ -20,21 +23,28 @@
     catch (e) { return null; }
   }
   function resolved() { return stored() || (mq && mq.matches ? 'dark' : 'light'); }
+  function style() {
+    try { return localStorage.getItem(STYLE_KEY) === 'ios' ? 'ios' : 'classic'; }
+    catch (e) { return 'classic'; }
+  }
 
   // Mobile browser chrome (address bar) tint, matched to the page background.
   function syncMeta(theme) {
     var m = document.querySelector('meta[name="theme-color"]');
     if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); }
-    m.content = theme === 'dark' ? '#131315' : '#f5f4f2';
+    var ios = style() === 'ios';
+    m.content = theme === 'dark' ? (ios ? '#000000' : '#131315') : (ios ? '#f2f2f7' : '#f5f4f2');
   }
 
   function apply() {
     var theme = resolved();
-    if (root.getAttribute('data-theme') !== theme) {
+    var look = style() === 'ios' ? 'ios' : null;
+    if (root.getAttribute('data-theme') !== theme || root.getAttribute('data-style') !== look) {
       // Swap every colour at once: without this, each element's own colour
       // transition would fade on its own schedule and the switch would ripple.
       root.classList.add('theme-switching');
       root.setAttribute('data-theme', theme);
+      if (look) root.setAttribute('data-style', look); else root.removeAttribute('data-style');
       requestAnimationFrame(function () {
         requestAnimationFrame(function () { root.classList.remove('theme-switching'); });
       });
@@ -57,6 +67,11 @@
       apply();
     },
     toggle: function () { this.set(resolved() === 'dark' ? 'light' : 'dark'); },
+    getStyle: style,
+    setStyle: function (s) {
+      try { localStorage.setItem(STYLE_KEY, s === 'ios' ? 'ios' : 'classic'); } catch (e) { /* private mode */ }
+      apply();
+    },
     onChange: function (fn) { listeners.push(fn); }
   };
 })();

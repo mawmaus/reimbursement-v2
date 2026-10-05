@@ -320,10 +320,12 @@ function initThemeUI() {
   syncThemeButtons();
 }
 
-// The new theme spreads out from the button as a growing circle (View
+function toggleThemeFrom(btn) { revealFrom(btn, () => Theme.toggle()); }
+
+// A theme or look change spreads out from the button as a growing circle (View
 // Transitions); browsers without it, or reduced motion, just switch.
-function toggleThemeFrom(btn) {
-  if (!document.startViewTransition || reducedMotion()) { Theme.toggle(); return; }
+function revealFrom(btn, update) {
+  if (!document.startViewTransition || reducedMotion()) { update(); return; }
   // Rect and viewport sizes are visual px, but the pseudo-element inherits the
   // :root zoom, which multiplies the clip-path lengths: divide it back out.
   const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
@@ -331,7 +333,7 @@ function toggleThemeFrom(btn) {
   const x = r.left + r.width / 2, y = r.top + r.height / 2;
   const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
   const at = `at ${x / z}px ${y / z}px`;
-  const vt = document.startViewTransition(() => Theme.toggle());
+  const vt = document.startViewTransition(update);
   vt.ready.then(() => document.documentElement.animate(
     { clipPath: [`circle(0px ${at})`, `circle(${radius / z}px ${at})`] },
     { duration: 480, easing: 'cubic-bezier(.22, .8, .24, 1)', pseudoElement: '::view-transition-new(root)' }
@@ -6410,7 +6412,15 @@ async function openProfileModal() {
   openModal(`
     <div class="modal-head"><h2>${esc(t('My profile'))}</h2><button class="x-btn">×</button></div>
     <div class="modal-body">
-      <form id="profileForm" class="form">
+      <div class="section-label" style="margin-top:0">${esc(t('Appearance'))}</div>
+      <div class="look-pick" role="radiogroup" aria-label="${esc(t('Appearance'))}">
+        ${[['classic', t('Classic')], ['ios', t('Modern')]].map(([v, l]) => `
+        <button type="button" class="look-opt" role="radio" data-look="${v}" aria-checked="${Theme.getStyle() === v}">
+          <span class="look-swatch ${v}" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="look-name">${esc(l)}</span>
+        </button>`).join('')}
+      </div>
+      <form id="profileForm" class="form" style="margin-top:18px">
         <div class="section-label">${esc(t('Contact'))}</div>
         <label>${esc(t('Email (used for password resets & notifications)'))}
           <input name="email" type="email" value="${esc(me.email || '')}" placeholder="${esc(t('you@company.com'))}" /></label>
@@ -6444,6 +6454,12 @@ async function openProfileModal() {
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#profileCancel').addEventListener('click', closeModal);
   const bankName = wireBankNameField();
+  $$('#modal .look-opt').forEach(btn => btn.addEventListener('click', () => {
+    const look = btn.dataset.look;
+    if (look === Theme.getStyle()) return;
+    $$('#modal .look-opt').forEach(b => b.setAttribute('aria-checked', String(b === btn)));
+    revealFrom(btn, () => Theme.setStyle(look));
+  }));
 
   $('#profileForm').addEventListener('submit', async (e) => {
     e.preventDefault();

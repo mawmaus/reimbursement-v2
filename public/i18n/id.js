@@ -313,6 +313,9 @@ I18N.addDict('id', {
   // Profile
   'My profile': 'Profil saya',
   'Contact': 'Kontak',
+  'Appearance': 'Tampilan',
+  'Classic': 'Klasik',
+  'Modern': 'Modern',
   'Email (used for password resets & notifications)': 'Email (dipakai untuk reset kata sandi & notifikasi)',
   'you@company.com': 'anda@perusahaan.com',
   'Bank / payout details': 'Detail bank / pembayaran',
