@@ -33,7 +33,7 @@
     var m = document.querySelector('meta[name="theme-color"]');
     if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); }
     var ios = style() === 'ios';
-    m.content = theme === 'dark' ? (ios ? '#000000' : '#131315') : (ios ? '#f2f2f7' : '#f5f4f2');
+    m.content = theme === 'dark' ? (ios ? '#0a1120' : '#131315') : (ios ? '#f1f3f7' : '#f5f4f2');
   }
 
   function apply() {

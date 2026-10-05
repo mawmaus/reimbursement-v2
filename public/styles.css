@@ -1991,7 +1991,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 /* ---------------------------------------------------------------------------
    Modern look. An optional style (Profile → Appearance) that theme.js sets as
    <html data-style="ios">, independent of light/dark: the iOS system palette
-   (grouped grey canvas, white cards, system blue), borderless rounded surfaces
+   (grouped cool-grey canvas, white cards, navy accent), borderless rounded surfaces
    with soft depth, filled fields, frosted bars, and sentence-case labels.
    Tokens first, as in night mode; then the components whose shape changes.
    --------------------------------------------------------------------------- */
@@ -1999,18 +1999,18 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
   /* Figures use the text face with aligned digits, not a typewriter face. */
   --mono: var(--sans);
-  --ink:        #000000;
-  --ink-soft:   #3c3c43;
-  --muted:      #6e6e73;
-  --line:       #d1d1d6;
-  --line-soft:  #e5e5ea;
-  --paper:      #f2f2f7;
+  --ink:        #0f1b2d;
+  --ink-soft:   #3a4558;
+  --muted:      #667085;
+  --line:       #d5dae3;
+  --line-soft:  #e6e9f0;
+  --paper:      #f1f3f7;
   --surface:    #ffffff;
-  --pine:       #007aff;
-  --pine-deep:  #0062cc;
-  --pine-tint:  #e6f0ff;
-  --pine-tint-hi: #d5e6ff;
-  --pine-hover: #0071eb;
+  --pine:       #1e3a6e;
+  --pine-deep:  #1e3a6e;
+  --pine-tint:  #e7ecf5;
+  --pine-tint-hi: #d8e0ee;
+  --pine-hover: #172f5a;
   --amber:      #a64b00;
   --amber-mark: #ff9500;
   --amber-tint: #fff2e0;
@@ -2027,7 +2027,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --on-accent:  #ffffff;
   --on-brand:   #ffffff;
   --on-fill:    #ffffff;
-  --topbar-bg:  rgba(249,249,251,.72);
+  --topbar-bg:  rgba(246,248,251,.74);
   --scrim:      rgba(0,0,0,.28);
   --tip-bg:     rgba(28,28,30,.9);
   --tip-ink:    #ffffff;
@@ -2036,24 +2036,24 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --approve-fill: #248a3d; --approve-fill-hi: #1e7533;
   --info-fill:  #5856d6;
   --sand-fill:  #c96a00;
-  --focus-ring: rgba(0,122,255,.45);
-  --ios-fill:   rgba(118,118,128,.12);   /* iOS tertiary fill: fields, grey buttons */
-  --ios-fill-hi: rgba(118,118,128,.2);
-  --ios-press:  rgba(118,118,128,.08);   /* row highlight */
+  --focus-ring: rgba(30,58,110,.4);
+  --ios-fill:   rgba(110,125,155,.12);   /* iOS tertiary fill: fields, grey buttons */
+  --ios-fill-hi: rgba(110,125,155,.2);
+  --ios-press:  rgba(110,125,155,.08);   /* row highlight */
 }
 :root[data-style="ios"][data-theme="dark"] {
-  --ink:        #ffffff;
-  --ink-soft:   #d1d1d6;
-  --muted:      #98989f;
-  --line:       #38383a;
-  --line-soft:  #2c2c2e;
-  --paper:      #000000;
-  --surface:    #1c1c1e;
-  --pine:       #0a84ff;
-  --pine-deep:  #4da3ff;
-  --pine-tint:  #0b2747;
-  --pine-tint-hi: #10345e;
-  --pine-hover: #3396ff;
+  --ink:        #f2f5fa;
+  --ink-soft:   #c9d1de;
+  --muted:      #8d98ab;
+  --line:       #26324a;
+  --line-soft:  #1b2538;
+  --paper:      #0a1120;
+  --surface:    #121b2d;
+  --pine:       #4c7bd6;
+  --pine-deep:  #9ab8f2;
+  --pine-tint:  #16264a;
+  --pine-tint-hi: #1d3160;
+  --pine-hover: #5d8ae0;
   --amber:      #ffb340;
   --amber-mark: #ff9f0a;
   --amber-tint: #33240d;
@@ -2070,19 +2070,19 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --on-accent:  #000000;
   --on-brand:   #ffffff;
   --on-fill:    #ffffff;
-  --topbar-bg:  rgba(22,22,24,.72);
+  --topbar-bg:  rgba(14,22,38,.74);
   --scrim:      rgba(0,0,0,.55);
-  --tip-bg:     rgba(44,44,46,.94);
+  --tip-bg:     rgba(27,37,56,.94);
   --tip-ink:    #ffffff;
-  --seg-on:     #636366;
+  --seg-on:     #34425e;
   --danger-fill: #ff453a;  --danger-fill-hi: #ff5c52;
   --approve-fill: #248a3d; --approve-fill-hi: #2a9a46;
   --info-fill:  #5e5ce6;
   --sand-fill:  #c96a00;
-  --focus-ring: rgba(10,132,255,.6);
-  --ios-fill:   rgba(118,118,128,.24);
-  --ios-fill-hi: rgba(118,118,128,.34);
-  --ios-press:  rgba(255,255,255,.06);
+  --focus-ring: rgba(76,123,214,.6);
+  --ios-fill:   rgba(140,160,200,.16);
+  --ios-fill-hi: rgba(140,160,200,.26);
+  --ios-press:  rgba(255,255,255,.05);
 }
 
 /* Type: SF-style weights and tight tracking on headings. */
@@ -2122,8 +2122,8 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-style="ios"] .msel-menu,
 :root[data-style="ios"] .new-menu { border-color: transparent; border-radius: 14px; box-shadow: var(--shadow); }
 :root[data-style="ios"][data-theme="dark"] .msel-menu,
-:root[data-style="ios"][data-theme="dark"] .new-menu { background: #2c2c2e; border-color: var(--line); }
-:root[data-style="ios"][data-theme="dark"] .msel-search { background: #2c2c2e; }
+:root[data-style="ios"][data-theme="dark"] .new-menu { background: #1b2538; border-color: var(--line); }
+:root[data-style="ios"][data-theme="dark"] .msel-search { background: #1b2538; }
 
 /* Segmented controls, the iOS way: a grey track and a raised thumb. */
 :root[data-style="ios"] .seg { background: var(--ios-fill); border-radius: 9px; padding: 2px; }
@@ -2220,13 +2220,13 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .look-swatch.classic { background: #f5f4f2; box-shadow: inset 0 0 0 1px #dedcd8; }
 .look-swatch.classic i { background: #fff; box-shadow: inset 0 0 0 1px #dedcd8; }
 .look-swatch.classic i:first-child { background: #f7982a; box-shadow: none; }
-.look-swatch.ios { background: #f2f2f7; }
+.look-swatch.ios { background: #f1f3f7; }
 .look-swatch.ios i { background: #fff; border-radius: 7px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-.look-swatch.ios i:first-child { background: #007aff; box-shadow: none; border-radius: 5px; }
+.look-swatch.ios i:first-child { background: #1e3a6e; box-shadow: none; border-radius: 5px; }
 :root[data-theme="dark"] .look-swatch.classic { background: #131315; box-shadow: inset 0 0 0 1px #35353b; }
 :root[data-theme="dark"] .look-swatch.classic i { background: #1c1c1f; box-shadow: inset 0 0 0 1px #35353b; }
 :root[data-theme="dark"] .look-swatch.classic i:first-child { background: #f7982a; box-shadow: none; }
-:root[data-theme="dark"] .look-swatch.ios { background: #000; }
-:root[data-theme="dark"] .look-swatch.ios i { background: #1c1c1e; box-shadow: none; }
-:root[data-theme="dark"] .look-swatch.ios i:first-child { background: #0a84ff; }
+:root[data-theme="dark"] .look-swatch.ios { background: #0a1120; }
+:root[data-theme="dark"] .look-swatch.ios i { background: #121b2d; box-shadow: none; }
+:root[data-theme="dark"] .look-swatch.ios i:first-child { background: #4c7bd6; }
 .look-name { text-align: center; }
