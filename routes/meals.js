@@ -14,7 +14,8 @@ const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
   currentApproverId, mealNotify, userCanApprove, canMarkPaid, planRevert,
-  resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT
+  resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT,
+  stillAsRead, isStaleAbort
 } = require('../lib/workflow');
 const {
   serializeManyMeal, loadMealClaimOr404, serializeOneMeal, normaliseMealLines,
@@ -164,7 +165,7 @@ router.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   if (built.error) return res.status(400).json({ error: built.error });
   const approverIds = built.ids;
   const claimId = Number(row.id);
-  const queries = [qq(
+  const queries = [stillAsRead('meal_claims', row), qq(
     `UPDATE meal_claims SET total_cents=$1, department=$2, bank_name=$3, recipient_name=$4,
        bank_account_no=$5, status='submitted', manager_comment='', manager_id=NULL, decided_at=NULL,
        approver_ids=$6::int[], current_step=$7, updated_at=now() WHERE id=$8`,
@@ -179,7 +180,12 @@ router.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
     `INSERT INTO meal_claim_history (meal_claim_id, actor_id, actor_name, action, from_status, to_status, comment)
      VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
     [claimId, req.user.id, String(req.user.full_name || '').trim(), String((req.body && req.body.resubmit_note) || '').trim()]));
-  await transaction(queries);
+  try {
+    await transaction(queries);
+  } catch (e) {
+    if (isStaleAbort(e)) return res.status(409).json({ error: STALE_DOCUMENT });
+    throw e;
+  }
   if (dateChangeGranted(grant)) await consumeDateChange('meal', row.id);
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [row.id]);
   const first = currentApproverId(rows[0]);

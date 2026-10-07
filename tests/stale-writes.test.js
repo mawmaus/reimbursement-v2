@@ -84,6 +84,46 @@ test('an undisturbed action still goes through', async (t) => {
   assert.ok(state.writes.some(w => /^INSERT INTO claim_history/.test(w)), 'history recorded');
 });
 
+// --- Resubmits: rebuilt in one transaction, guarded by its opening statement ---
+state.tables.claims.push(doc({ id: 210, ...chain, status: 'rejected', current_step: 1 }));
+state.tables.meal_claims.push(doc({ id: 310, ...chain, status: 'rejected', current_step: 1 }));
+state.tables.cash_advances.push(
+  doc({ id: 410, ...chain, status: 'rejected', current_step: 1 }),
+  doc({ id: 411, ...chain, status: 'paid', current_step: 2, manager_id: APPROVER2 }),
+  doc({ id: 412, ...chain, status: 'rejected_realize', current_step: 1 })
+);
+const today = new Date().toISOString().slice(0, 10);
+const claimLines = { lines: [{ line_date: today, expense_type: 'Taxi', amount: '150000' }] };
+const RESUBMITS = [
+  ['claims', 210, 'PUT', '/api/claims/210', claimLines],
+  ['meal_claims', 310, 'PUT', '/api/meal-claims/310', { lines: [{ line_date: today, amount: '50000' }] }],
+  ['cash_advances', 410, 'PUT', '/api/cash-advances/410', { purpose: 'Site visit', amount: '1000000' }],
+  ['cash_advances', 411, 'POST', '/api/cash-advances/411/realize', claimLines],
+  ['cash_advances', 412, 'PUT', '/api/cash-advances/412/realize', claimLines]
+];
+
+test('a resubmit of a document that has just been resubmitted elsewhere is refused whole', async (t) => {
+  await serve(t);
+  for (const [table, id, method, p, body] of RESUBMITS) {
+    // e.g. the same claimant resubmitting from a second tab a moment earlier
+    const moved = find(table, id).status === 'paid' ? 'realize_submitted' : 'submitted';
+    const { r, writes } = await racing(table, id, moved, () => call(CLAIMANT, method, p, body));
+    assert.equal(r.status, 409, `${method} ${p}: ${r.status} ${r.body}`);
+    assert.match(r.json.error, /Someone else has just changed/);
+    assert.deepEqual(writes, [], `${method} ${p} wrote nothing`);
+  }
+});
+
+test('an undisturbed resubmit still goes through', async (t) => {
+  await serve(t);
+  for (const [, , method, p, body] of RESUBMITS) {
+    state.writes.length = 0;
+    const r = await call(CLAIMANT, method, p, body);
+    assert.equal(r.status, 200, `${method} ${p}: ${r.status} ${r.body}`);
+    assert.ok(state.writes.some(w => /^(UPDATE|INSERT INTO \w*history)/.test(w)), `${method} ${p} saved`);
+  }
+});
+
 test('bulk mark-paid counts only the rows it actually moved', async (t) => {
   await serve(t);
   const items = [{ type: 'claim', id: 202 }, { type: 'claim', id: 203 }];

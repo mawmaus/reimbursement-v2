@@ -13,7 +13,8 @@ const {
   computePurposes, resolveSubmitApprovers, currentApproverId, userCanApprove,
   canMarkPaid, resolveRevertApprover1, undoneApprovalStep,
   applyListStatusFilter, applyLedgerWindow, OPEN_ADVANCE_SQL,
-  unrealizedAdvanceCount, claimantApprover1Choices, moveDocument, STALE_DOCUMENT
+  unrealizedAdvanceCount, claimantApprover1Choices, moveDocument, STALE_DOCUMENT,
+  stillAsRead, isStaleAbort
 } = require('../lib/workflow');
 const {
   normaliseAdvanceRequest, advanceNotify, serializeOneAdvance,
@@ -96,7 +97,7 @@ router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
   }
   const currency = parsed.currency || row.currency || (await regionPrefsFor(row.region)).currency;
   try {
-    const queries = [qq(
+    const queries = [stillAsRead('cash_advances', row), qq(
       `UPDATE cash_advances SET claimant_name=$1, department=$2, bank_name=$3, recipient_name=$4,
          bank_account_no=$5, purpose=$6, amount_cents=$7, currency=$8, status='submitted',
          manager_comment='', manager_id=NULL, decided_at=NULL, approver_ids=$9::int[], current_step=$10, updated_at=now()
@@ -114,6 +115,7 @@ router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
     await transaction(queries);
   } catch (e) {
     for (const u of checked.items) await deleteReceipt(u.url);
+    if (isStaleAbort(e)) return res.status(409).json({ error: STALE_DOCUMENT });
     throw e;
   }
   for (const a of droppedDocs) await deleteReceiptIfUnused(a.blob_url);
@@ -259,6 +261,7 @@ async function submitRealization(req, res, row) {
   const resubmit = row.status === 'rejected_realize';
   try {
     const queries = [
+      stillAsRead('cash_advances', row),
       qq(`UPDATE cash_advances SET status='realize_submitted', realized_total_cents=$1,
             manager_comment='', manager_id=NULL, decided_at=NULL,
             approver_ids=$2::int[], current_step=$3, updated_at=now() WHERE id=$4`,
@@ -288,16 +291,19 @@ async function submitRealization(req, res, row) {
        resubmit ? 'realization resubmitted' : 'realization submitted', row.status,
        String(b.resubmit_note || '').trim()]));
     await transaction(queries);
-    for (const a of dropped) await deleteReceiptIfUnused(a.blob_url);
-    if (dateChangeGranted(grant)) await consumeDateChange('advance', advanceId);
-    const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [advanceId]);
-    const first = currentApproverId(rows[0]);
-    if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
-    res.json({ claim: await serializeOneAdvance(rows[0]) });
   } catch (e) {
     for (const u of allUploaded) await deleteReceipt(u.url);
+    if (isStaleAbort(e)) return res.status(409).json({ error: STALE_DOCUMENT });
     throw e;
   }
+  // Committed: the new receipts belong to the realization now, so a failure
+  // from here on must not reach the clean-up above.
+  for (const a of dropped) await deleteReceiptIfUnused(a.blob_url);
+  if (dateChangeGranted(grant)) await consumeDateChange('advance', advanceId);
+  const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [advanceId]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, advanceNotify(rows[0]));
+  res.json({ claim: await serializeOneAdvance(rows[0]) });
 }
 
 router.post('/api/cash-advances/:id/realize', requireAuth, ah(async (req, res) => {

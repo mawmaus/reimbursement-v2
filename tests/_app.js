@@ -43,10 +43,17 @@ async function q(text, params = []) {
     const ids = String(params[0]).replace(/[{}]/g, '').split(',').map(Number);
     return state.tables[m[1]].filter(r => ids.includes(r.id) && r.status === params[1]).map(r => ({ ...r }));
   }
+  // A test may set state.onWrite to change a document just before a write (or
+  // a resubmit's opening guard) lands, the way a second person acting at the
+  // same moment would.
+  if ((m = sql.match(/^WITH still AS \(SELECT id FROM (claims|meal_claims|cash_advances) WHERE id=\$1 AND status=\$2 AND COALESCE\(current_step, 0\)=\$3 FOR UPDATE\)/))) {
+    if (state.onWrite) state.onWrite(sql, params);
+    const r = state.tables[m[1]].find(x => x.id === Number(params[0]));
+    if (r && r.status === params[1] && (r.current_step || 0) === params[2]) return [{ ok: 1 }];
+    throw Object.assign(new Error('division by zero'), { code: '22012' }); // lib/workflow stillAsRead
+  }
   if (/COUNT\(/i.test(sql)) return [{ n: 0 }];
   if (/^(INSERT|UPDATE|DELETE|WITH)/.test(sql)) {
-    // A test may set state.onWrite to change a document just before a write
-    // lands, the way a second person acting at the same moment would.
     if (state.onWrite) state.onWrite(sql, params);
     state.writes.push(sql.slice(0, 70));
     // Guarded status changes (lib/workflow moveDocument; the bulk routes' CTE)
@@ -64,9 +71,16 @@ async function q(text, params = []) {
   }
   return [];
 }
-const transaction = (queries) => Promise.all(queries);
+// Like the real driver, qq builds a query without running it, and a
+// transaction runs its queries in order, stopping at the first error.
+const qq = (text, params) => () => q(text, params);
+const transaction = async (queries) => {
+  const out = [];
+  for (const run of queries) out.push(await run());
+  return out;
+};
 const dbPath = require.resolve(path.join(__dirname, '..', 'db.js'));
-require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: { q, qq: q, transaction, sql: null } };
+require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: { q, qq, transaction, sql: null } };
 const app = require('../app');
 
 // Account and document builders with sensible defaults.

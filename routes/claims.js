@@ -15,7 +15,8 @@ const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
   currentApproverId, reimbNotify, userCanApprove, canMarkPaid, planRevert,
-  resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT
+  resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT,
+  stillAsRead, isStaleAbort
 } = require('../lib/workflow');
 const {
   serializeMany, loadClaimOr404, serializeOne, normaliseClaimLines,
@@ -136,16 +137,19 @@ router.post('/api/claims', requireAuth, ah(async (req, res) => {
     }
     // Region is glued to the account — every claim inherits the submitter's.
     const claimRegion = String(req.user.region || '');
+    let claimId;
     try {
-      const claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion, src, keptByLine);
-      const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
-      const first = currentApproverId(rows[0]);
-      if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
-      res.status(201).json({ claim: await serializeOne(rows[0]) });
+      claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion, src, keptByLine);
     } catch (e) {
       for (const u of allUploaded) await deleteReceipt(u.url);
       throw e;
     }
+    // Committed: the receipts belong to the claim now, so a failure from here
+    // on must not reach the clean-up above.
+    const rows = await q('SELECT * FROM claims WHERE id = $1', [claimId]);
+    const first = currentApproverId(rows[0]);
+    if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
+    res.status(201).json({ claim: await serializeOne(rows[0]) });
   }));
 
 router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
@@ -205,6 +209,7 @@ router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
     // commit). Attachments are cleared first so the claim_lines delete can't
     // cascade them away.
     const queries = [
+      stillAsRead('claims', row),
       qq(`UPDATE claims SET claimant_name=$1, expense_date=$2, department=$3, db_no=$4, bank_name=$5,
             recipient_name=$6, bank_account_no=$7, expense_type=$8, amount_cents=$9, currency=$10,
             description=$11, status='submitted', manager_comment='', manager_id=NULL,
@@ -237,19 +242,21 @@ router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
        VALUES ($1,$2,$3,'resubmitted','rejected','submitted',$4)`,
       [claimId, req.user.id, String(req.user.full_name || '').trim(), String(b.resubmit_note || '').trim()]));
     await transaction(queries);
-    // Only once committed do we bin the blobs of the removed receipts (a blob
-    // delete can't be rolled back). A failure here must not reach the catch.
-    for (const a of dropped) await deleteReceiptIfUnused(a.blob_url);
-    // The grant covered this one resubmit; spend it so the next round re-locks.
-    if (dateChangeGranted(grant)) await consumeDateChange('claim', row.id);
-    const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
-    const first = currentApproverId(rows[0]);
-    if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
-    res.json({ claim: await serializeOne(rows[0]) });
   } catch (e) {
     for (const u of allUploaded) await deleteReceipt(u.url);
+    if (isStaleAbort(e)) return res.status(409).json({ error: STALE_DOCUMENT });
     throw e;
   }
+  // Committed: the new receipts are the claim's now, so nothing below may bin
+  // them. Only now do we bin the blobs of the removed receipts (a blob delete
+  // can't be rolled back).
+  for (const a of dropped) await deleteReceiptIfUnused(a.blob_url);
+  // The grant covered this one resubmit; spend it so the next round re-locks.
+  if (dateChangeGranted(grant)) await consumeDateChange('claim', row.id);
+  const rows = await q('SELECT * FROM claims WHERE id = $1', [row.id]);
+  const first = currentApproverId(rows[0]);
+  if (first) await notifyPendingApprover(first, reimbNotify(rows[0]));
+  res.json({ claim: await serializeOne(rows[0]) });
 }));
 
 router.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
