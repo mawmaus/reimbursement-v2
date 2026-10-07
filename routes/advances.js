@@ -5,15 +5,15 @@
 
 const express = require('express');
 const { q, qq, transaction } = require('../db');
-const { deleteReceipt } = require('../lib/blob');
+const { deleteReceipt, sendReceipt } = require('../lib/blob');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } = require('../lib/notify');
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
-const { ah, asIntArray, intArrayLiteral, DATE_RE } = require('../lib/util');
+const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const {
   computePurposes, resolveSubmitApprovers, currentApproverId, userCanApprove,
   canMarkPaid, resolveRevertApprover1, undoneApprovalStep,
   applyListStatusFilter, applyLedgerWindow, OPEN_ADVANCE_SQL,
-  unrealizedAdvanceCount, claimantApprover1Choices
+  unrealizedAdvanceCount, claimantApprover1Choices, moveDocument, STALE_DOCUMENT
 } = require('../lib/workflow');
 const {
   normaliseAdvanceRequest, advanceNotify, serializeOneAdvance,
@@ -116,7 +116,7 @@ router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
     for (const u of checked.items) await deleteReceipt(u.url);
     throw e;
   }
-  for (const a of droppedDocs) { try { await deleteReceipt(a.blob_url); } catch { /* ignore */ } }
+  for (const a of droppedDocs) await deleteReceiptIfUnused(a.blob_url);
   await logAdvanceHistory(row.id, req.user, 'resubmitted', 'rejected', 'submitted', String((req.body || {}).resubmit_note || '').trim());
   const rows = await q('SELECT * FROM cash_advances WHERE id = $1', [row.id]);
   const first = currentApproverId(rows[0]);
@@ -145,19 +145,20 @@ router.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) =
   const amountForLimit = realizing ? plan.remainingCents : row.amount_cents;
   const le = approvalLimitError(req.user, amountForLimit, row.currency);
   if (le) return res.status(403).json({ error: le });
-  await applyLineRejections('advance', row, req.user, plan.picks);
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
   const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
   const finalStatus = realizing ? 'realize_approved' : 'approved';
   const phase = realizing ? 'realization ' : '';
+  const moved = finalise
+    ? await moveDocument('cash_advances', row, 'status=$1, manager_id=$2, manager_comment=$3, decided_at=now()', [finalStatus, req.user.id, comment])
+    : await moveDocument('cash_advances', row, 'current_step=$1', [step + 1]);
+  if (!moved) return res.status(409).json({ error: STALE_DOCUMENT });
+  await applyLineRejections('advance', row, req.user, plan.picks);
   if (finalise) {
-    await q(`UPDATE cash_advances SET status=$1, manager_id=$2, manager_comment=$3, decided_at=now(), updated_at=now() WHERE id=$4`,
-      [finalStatus, req.user.id, comment, row.id]);
     await logAdvanceHistory(row.id, req.user, ids.length ? `${phase}approved — step ${step} of ${ids.length}` : `${phase}approved`, row.status, finalStatus, comment);
   } else {
-    await q(`UPDATE cash_advances SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
     await logAdvanceHistory(row.id, req.user, `${phase}approved — step ${step} of ${ids.length}`, row.status, row.status, comment);
   }
   const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
@@ -179,8 +180,9 @@ router.post('/api/cash-advances/:id/reject', requireAuth, ah(async (req, res) =>
   }
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this cash advance' });
   const toStatus = realizing ? 'rejected_realize' : 'rejected';
-  await q(`UPDATE cash_advances SET status=$1, manager_id=$2, manager_comment=$3, decided_at=now(), updated_at=now() WHERE id=$4`,
-    [toStatus, req.user.id, comment, row.id]);
+  if (!await moveDocument('cash_advances', row, 'status=$1, manager_id=$2, manager_comment=$3, decided_at=now()', [toStatus, req.user.id, comment])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   await logAdvanceHistory(row.id, req.user, realizing ? 'realization rejected' : 'rejected', row.status, toStatus, comment);
   const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
   await notifyClaimantRejected(rows[0].employee_id, { ...advanceNotify(rows[0]), reason: comment });
@@ -196,7 +198,9 @@ router.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res)
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved cash advances can be marked as paid' });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a cash advance as paid' });
-  await q(`UPDATE cash_advances SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  if (!await moveDocument('cash_advances', row, `status='paid', paid_by=$1, paid_at=$2`, [req.user.id, paymentDate])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   await logAdvanceHistory(row.id, req.user, `advance paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM cash_advances WHERE id=$1', [row.id]);
   await notifyClaimantDecision(rows[0].employee_id, advanceNotify(rows[0]), 'paid');
@@ -322,9 +326,10 @@ router.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) =>
   if (row.status !== 'realize_approved') return res.status(409).json({ error: 'Only an approved realization can be settled' });
   const { direction, cents } = settlementFor(row);
   const note = String((req.body && req.body.note) || '').trim();
-  await q(`UPDATE cash_advances SET status='settled', settlement_cents=$1, settlement_direction=$2,
-            settlement_note=$3, settled_by=$4, settled_at=now(), updated_at=now() WHERE id=$5`,
-    [cents, direction, note, req.user.id, row.id]);
+  if (!await moveDocument('cash_advances', row, `status='settled', settlement_cents=$1, settlement_direction=$2,
+            settlement_note=$3, settled_by=$4, settled_at=now()`, [cents, direction, note, req.user.id])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   const label = direction === 'topup' ? `settled — top-up ${fmtMoney(cents, row.currency)} to employee`
     : direction === 'return' ? `settled — ${fmtMoney(cents, row.currency)} returned by employee`
     : 'settled — balanced';
@@ -345,7 +350,7 @@ router.post('/api/cash-advances/:id/revert', requireAuth, ah(async (req, res) =>
   // resolveRevertApprover1) — resolved before anything moves.
   const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
   if (reroute.error) return res.status(400).json({ error: reroute.error });
-  await q(`UPDATE cash_advances SET ${plan.sql}, updated_at=now() WHERE id=$1`, [row.id]);
+  if (!await moveDocument('cash_advances', row, plan.sql)) return res.status(409).json({ error: STALE_DOCUMENT });
   if (reroute.ids) {
     await q(`UPDATE cash_advances SET approver_ids=$1::int[], updated_at=now() WHERE id=$2`, [intArrayLiteral(reroute.ids), row.id]);
   }
@@ -376,13 +381,13 @@ router.get('/api/cash-advances', requireAuth, ah(async (req, res) => {
   if (department) add('department = $$', department);
   applyLedgerWindow(req, search, OPEN_ADVANCE_SQL, where, params);
   if (search) {
-    params.push(`%${search}%`);
+    params.push(likeContains(search));
     const p = `$${params.length}`;
     where.push(`(advance_no ILIKE ${p} OR claimant_name ILIKE ${p} OR purpose ILIKE ${p})`);
   }
   const rows = await q(
     `SELECT * FROM cash_advances ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-     ORDER BY created_at DESC`, params);
+     ORDER BY created_at DESC, id DESC`, params);
   // my_unrealized rides along deliberately unfiltered: the client refreshes the
   // hold from it on every ledger load, and a status/department/search filter on
   // this list must not be able to make the hold look lifted.
@@ -433,12 +438,7 @@ router.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (r
     [req.params.attId, row.id]);
   const att = rows[0];
   if (!att) return res.status(404).json({ error: 'Attachment not found' });
-  const r = await fetch(att.blob_url);
-  if (!r.ok) return res.status(502).json({ error: 'Could not fetch file from storage' });
-  const inlineOk = att.mime_type === 'application/pdf' || att.mime_type.startsWith('image/');
-  res.setHeader('Content-Type', att.mime_type);
-  res.setHeader('Content-Disposition', `${inlineOk ? 'inline' : 'attachment'}; filename="${encodeURIComponent(att.original_name)}"`);
-  res.send(Buffer.from(await r.arrayBuffer()));
+  await sendReceipt(res, att);
 }));
 
 // Delete a cash advance outright (super admin only) — clears its supporting

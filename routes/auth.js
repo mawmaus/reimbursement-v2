@@ -154,6 +154,7 @@ router.post('/api/me/password', requireAuth, ah(async (req, res) => {
 // carries a random token (only its SHA-256 hash is stored). The link lands on
 // /reset.html which posts the token + a new password back to /api/reset-password.
 const RESET_TTL_MS = 60 * 60 * 1000;
+const RESET_MAX_PER_HOUR = 5;
 
 router.post('/api/forgot-password', ah(async (req, res) => {
   const blocked = await loginBlockedFor(req);
@@ -169,9 +170,20 @@ router.post('/api/forgot-password', ah(async (req, res) => {
   const user = rows[0];
   if (!user || !user.active || !user.email) { await recordLoginFail(req); return res.json(generic); }
 
+  // Per-account cap, so nobody can flood a colleague's inbox (or keep killing
+  // their link) by asking over and over: one email a minute, five an hour. Over
+  // the cap the answer is the same generic one and nothing is sent.
+  const [recent] = await q(
+    `SELECT COUNT(*)::int AS n, COALESCE(MAX(created_at) > now() - interval '1 minute', false) AS just_sent
+       FROM password_resets WHERE user_id = $1 AND created_at > now() - interval '1 hour'`, [user.id]);
+  if (recent && (recent.just_sent || recent.n >= RESET_MAX_PER_HOUR)) return res.json(generic);
+
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + RESET_TTL_MS);
-  await q('DELETE FROM password_resets WHERE user_id = $1 AND used_at IS NULL', [user.id]);
+  // Older links stop working, but their rows stay a day so the cap above can
+  // count them.
+  await q('UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [user.id]);
+  await q(`DELETE FROM password_resets WHERE user_id = $1 AND created_at < now() - interval '1 day'`, [user.id]);
   await q('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1,$2,$3)',
     [user.id, sha256(token), expires.toISOString()]);
 
@@ -197,15 +209,16 @@ router.post('/api/reset-password', ah(async (req, res) => {
   if (!new_password || String(new_password).length < 8) {
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
   }
+  // Spend the link and learn whose it is in one statement, so two submissions
+  // racing on the same link can't both get through.
   const rows = await q(
-    `SELECT id, user_id FROM password_resets
-     WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
-     ORDER BY id DESC LIMIT 1`, [sha256(String(token))]);
+    `UPDATE password_resets SET used_at = now()
+      WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+      RETURNING user_id`, [sha256(String(token))]);
   const rec = rows[0];
   if (!rec) return res.status(400).json({ error: 'This reset link is invalid or has expired. Please request a new one.' });
   // Signs out every existing session of the account.
   await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(new_password), 10), rec.user_id]);
-  await q('UPDATE password_resets SET used_at = now() WHERE id = $1', [rec.id]);
   res.json({ ok: true });
 }));
 

@@ -5,7 +5,7 @@
 const express = require('express');
 const { q } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
-const { ah, tzOffsetLabel, tsInZone, iso } = require('../lib/util');
+const { ah, tzOffsetLabel, tsInZone, iso, likeContains } = require('../lib/util');
 const { loadPositions, insightsCanView, insightsSeeAll } = require('../lib/permissions');
 const {
   viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions
@@ -93,9 +93,9 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   // are surfaced through the UNION below.)
   if (mode === 'approver') { params.push(req.user.id); where.push(`$${params.length} = ANY(appr)`); }
   if (deptFilter) { params.push(deptFilter); where.push(`lower(department) = lower($${params.length})`); }
-  if (db) { params.push(`%${db}%`); where.push(`db ILIKE $${params.length}`); }
+  if (db) { params.push(likeContains(db)); where.push(`db ILIKE $${params.length}`); }
   // Employee-name substring filter (matches the claimant on each document).
-  if (nameFilter) { params.push(`%${nameFilter}%`); where.push(`claimant ILIKE $${params.length}`); }
+  if (nameFilter) { params.push(likeContains(nameFilter)); where.push(`claimant ILIKE $${params.length}`); }
   // Region scope: region-locked viewers are pinned to their own region; all
   // -region viewers (Super Admins / VPs) may narrow to one via the top-bar picker
   // (?region=Name), else they see every region. Reused for the option lists below.

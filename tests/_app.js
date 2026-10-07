@@ -20,7 +20,8 @@ const state = {
   settings: {},            // app_settings key -> value (objects are JSON-encoded)
   positions: [],           // job_positions rows { name, rank, can_manage }
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [] },
-  writes: []
+  writes: [],
+  onWrite: null
 };
 
 const LINE_FK = { claim_lines: 'claim_id', meal_claim_lines: 'meal_claim_id', cash_advance_lines: 'advance_id' };
@@ -43,10 +44,27 @@ async function q(text, params = []) {
     return state.tables[m[1]].filter(r => ids.includes(r.id) && r.status === params[1]).map(r => ({ ...r }));
   }
   if (/COUNT\(/i.test(sql)) return [{ n: 0 }];
-  if (/^(INSERT|UPDATE|DELETE)/.test(sql)) { state.writes.push(sql.slice(0, 70)); return []; }
+  if (/^(INSERT|UPDATE|DELETE|WITH)/.test(sql)) {
+    // A test may set state.onWrite to change a document just before a write
+    // lands, the way a second person acting at the same moment would.
+    if (state.onWrite) state.onWrite(sql, params);
+    state.writes.push(sql.slice(0, 70));
+    // Guarded status changes (lib/workflow moveDocument; the bulk routes' CTE)
+    // only land while the document still has the status (and step) they expect.
+    if ((m = sql.match(/^UPDATE (claims|meal_claims|cash_advances) SET .* WHERE id=\$(\d+) AND status=\$\d+ AND COALESCE\(current_step, 0\)=\$\d+ RETURNING id$/))) {
+      const i = Number(m[2]) - 1;
+      const r = state.tables[m[1]].find(x => x.id === Number(params[i]));
+      return r && r.status === params[i + 1] && (r.current_step || 0) === params[i + 2] ? [{ id: r.id }] : [];
+    }
+    if ((m = sql.match(/^WITH moved AS \(UPDATE (claims|meal_claims|cash_advances) SET .* WHERE id=\$1 AND status=\$2::text RETURNING id\)/))) {
+      const r = state.tables[m[1]].find(x => x.id === Number(params[0]));
+      return r && r.status === params[1] ? [{ id: r.id }] : [];
+    }
+    return [];
+  }
   return [];
 }
-const transaction = async (queries) => { for (const x of queries) await x; return queries.map(() => []); };
+const transaction = (queries) => Promise.all(queries);
 const dbPath = require.resolve(path.join(__dirname, '..', 'db.js'));
 require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: { q, qq: q, transaction, sql: null } };
 const app = require('../app');

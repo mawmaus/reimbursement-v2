@@ -5,17 +5,17 @@
 
 const express = require('express');
 const { q, qq, transaction } = require('../db');
-const { deleteReceipt } = require('../lib/blob');
+const { deleteReceipt, sendReceipt } = require('../lib/blob');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } = require('../lib/notify');
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
-const { ah, asIntArray, intArrayLiteral, DATE_RE } = require('../lib/util');
+const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
 const { viewRegionFilter, seesAllRegions } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
   currentApproverId, reimbNotify, userCanApprove, canMarkPaid, planRevert,
-  resolveRevertApprover1, undoneApprovalStep
+  resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT
 } = require('../lib/workflow');
 const {
   serializeMany, loadClaimOr404, serializeOne, normaliseClaimLines,
@@ -51,8 +51,7 @@ router.get('/api/claims', requireAuth, ah(async (req, res) => {
   if (department) add('department = $$', department);
   applyLedgerWindow(req, search, OPEN_CLAIM_SQL, where, params);
   if (search) {
-    const like = `%${search}%`;
-    params.push(like);
+    params.push(likeContains(search));
     const p = `$${params.length}`;
     where.push(`(claim_no ILIKE ${p} OR claimant_name ILIKE ${p} OR recipient_name ILIKE ${p} OR expense_type ILIKE ${p} OR db_no ILIKE ${p})`);
   }
@@ -266,19 +265,20 @@ router.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   if (plan.error) return res.status(400).json({ error: plan.error });
   const le = approvalLimitError(req.user, plan.remainingCents, row.currency);
   if (le) return res.status(403).json({ error: le });
-  await applyLineRejections('claim', row, req.user, plan.picks);
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
   // A superadmin override finalises immediately; otherwise advance one step and
   // only mark fully approved once the last approver has signed off.
   const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const moved = finalise
+    ? await moveDocument('claims', row, `status='approved', manager_id=$1, manager_comment=$2, decided_at=now()`, [req.user.id, comment])
+    : await moveDocument('claims', row, 'current_step=$1', [step + 1]);
+  if (!moved) return res.status(409).json({ error: STALE_DOCUMENT });
+  await applyLineRejections('claim', row, req.user, plan.picks);
   if (finalise) {
-    await q(`UPDATE claims SET status='approved', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
-      [req.user.id, comment, row.id]);
     await logHistory(row.id, req.user, ids.length ? `approved — step ${step} of ${ids.length}` : 'approved', 'submitted', 'approved', comment);
   } else {
-    await q(`UPDATE claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
     await logHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
@@ -303,8 +303,9 @@ router.post('/api/claims/:id/reject', requireAuth, ah(async (req, res) => {
   if (!userCanApprove(req.user, row)) {
     return res.status(403).json({ error: 'You are not the approver for this claim' });
   }
-  await q(`UPDATE claims SET status='rejected', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
-    [req.user.id, comment, row.id]);
+  if (!await moveDocument('claims', row, `status='rejected', manager_id=$1, manager_comment=$2, decided_at=now()`, [req.user.id, comment])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   await logHistory(row.id, req.user, 'rejected', 'submitted', 'rejected', comment);
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   await notifyClaimantRejected(rows[0].employee_id, { ...reimbNotify(rows[0]), reason: comment });
@@ -319,7 +320,9 @@ router.post('/api/claims/:id/mark-paid', requireAuth, ah(async (req, res) => {
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved claims can be marked as paid' });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
-  await q(`UPDATE claims SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  if (!await moveDocument('claims', row, `status='paid', paid_by=$1, paid_at=$2`, [req.user.id, paymentDate])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   await logHistory(row.id, req.user, `marked paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM claims WHERE id=$1', [row.id]);
   await notifyClaimantDecision(rows[0].employee_id, reimbNotify(rows[0]), 'paid');
@@ -339,16 +342,8 @@ router.post('/api/claims/:id/revert', requireAuth, ah(async (req, res) => {
   const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
   if (reroute.error) return res.status(400).json({ error: reroute.error });
   const step = row.current_step || 0;
-  if (plan.kind === 'unpay') {
-    await q(`UPDATE claims SET status='approved', paid_by=NULL, paid_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
-  } else if (plan.kind === 'unapprove-final') {
-    await q(`UPDATE claims SET status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
-  } else if (plan.kind === 'unapprove-step') {
-    await q(`UPDATE claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step - 1, row.id]);
-  } else { // cancel
-    await q(`UPDATE claims SET status='rejected', manager_id=NULL, manager_comment=$1, decided_at=now(), updated_at=now() WHERE id=$2`,
-      [plan.comment, row.id]);
-  }
+  const { set, params } = revertSet(plan, step);
+  if (!await moveDocument('claims', row, set, params)) return res.status(409).json({ error: STALE_DOCUMENT });
   if (reroute.ids) {
     await q(`UPDATE claims SET approver_ids=$1::int[], updated_at=now() WHERE id=$2`, [intArrayLiteral(reroute.ids), row.id]);
   }
@@ -379,16 +374,7 @@ router.get('/api/claims/:id/attachments/:attId', requireAuth, ah(async (req, res
   const rows = await q('SELECT * FROM attachments WHERE id=$1 AND claim_id=$2', [req.params.attId, row.id]);
   const att = rows[0];
   if (!att) return res.status(404).json({ error: 'Attachment not found' });
-  const r = await fetch(att.blob_url);
-  if (!r.ok) return res.status(502).json({ error: 'Could not fetch file from storage' });
-  // Only render images and PDFs in the browser (safe to display inline, and the
-  // useful case for viewing a receipt). Everything else (Office docs, CSV, text)
-  // is forced to download so the browser never tries to render it in-page.
-  const inlineOk = att.mime_type === 'application/pdf' || att.mime_type.startsWith('image/');
-  const disposition = inlineOk ? 'inline' : 'attachment';
-  res.setHeader('Content-Type', att.mime_type);
-  res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(att.original_name)}"`);
-  res.send(Buffer.from(await r.arrayBuffer()));
+  await sendReceipt(res, att);
 }));
 
 // Delete a reimbursement claim outright (super admin only) — clears its

@@ -60,22 +60,25 @@ async function loadBulkEligible(items, requiredStatus, user) {
   }
   return eligible;
 }
-// One UPDATE + one history INSERT per eligible row, committed together: the
-// whole selection moves or none of it does.
+// One guarded UPDATE + history INSERT per eligible row, committed together. The
+// UPDATE re-checks the status (someone may have moved the row since it was
+// loaded) and the history line is written only for a row it actually moved.
+// Returns the entries that moved.
 async function commitBulkTransition(eligible, user, { set, params, action, from, to, comment }) {
   const queries = [];
   for (const { kind, row } of eligible) {
     const { table, history, historyCol } = BULK_PAID_KINDS[kind];
-    // The row id is always $1, so a caller's own placeholders start at $2 and
-    // no caller has to count them.
-    queries.push(qq(`UPDATE ${table} SET ${set}, updated_at=now() WHERE id=$1`,
-      [row.id, ...(params ? params(row) : [])]));
+    // $1-$7 are the row id, the required status and the history fields, so a
+    // caller's own placeholders start at $8 and no caller has to count them.
+    // (The casts matter: a bare parameter in a SELECT list would resolve as text.)
     queries.push(qq(
-      `INSERT INTO ${history} (${historyCol}, actor_id, actor_name, action, from_status, to_status, comment)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [row.id, user.id, user.full_name, action(kind, row), from, to, comment]));
+      `WITH moved AS (UPDATE ${table} SET ${set}, updated_at=now() WHERE id=$1 AND status=$2::text RETURNING id)
+       INSERT INTO ${history} (${historyCol}, actor_id, actor_name, action, from_status, to_status, comment)
+       SELECT id, $3::int, $4::text, $5::text, $2::text, $6::text, $7::text FROM moved RETURNING ${historyCol} AS id`,
+      [row.id, from, user.id, user.full_name, action(kind, row), to, comment, ...(params ? params(row) : [])]));
   }
-  await transaction(queries);
+  const results = await transaction(queries);
+  return eligible.filter((_, i) => results[i] && results[i].length);
 }
 
 router.post('/api/claims/mark-paid-bulk', requireAuth, ah(async (req, res) => {
@@ -93,8 +96,8 @@ router.post('/api/claims/mark-paid-bulk', requireAuth, ah(async (req, res) => {
   const eligible = await loadBulkEligible(items, 'approved', req.user);
   if (!eligible.length) return res.json({ paid: 0, skipped: items.length });
 
-  await commitBulkTransition(eligible, req.user, {
-    set: 'status=\'paid\', paid_by=$2, paid_at=$3',
+  const moved = await commitBulkTransition(eligible, req.user, {
+    set: 'status=\'paid\', paid_by=$8, paid_at=$9',
     params: () => [req.user.id, paymentDate],
     action: (kind) => BULK_PAID_KINDS[kind].action(paymentDate),
     from: 'approved', to: 'paid', comment
@@ -104,10 +107,10 @@ router.post('/api/claims/mark-paid-bulk', requireAuth, ah(async (req, res) => {
   // claim_no / claimant_name / amount / currency, none of which mark-paid
   // touches, so there is nothing to re-read. notifyClaimantDecision swallows
   // its own failures, so a dead mailbox can't unwind a committed payment.
-  await mapLimit(eligible, 4, ({ kind, row }) =>
+  await mapLimit(moved, 4, ({ kind, row }) =>
     notifyClaimantDecision(row.employee_id, BULK_PAID_KINDS[kind].notify(row), 'paid'));
 
-  res.json({ paid: eligible.length, skipped: items.length - eligible.length });
+  res.json({ paid: moved.length, skipped: items.length - moved.length });
 }));
 
 // The mirror of the above: walk a selection of paid claims back to approved.
@@ -129,13 +132,13 @@ router.post('/api/claims/revert-paid-bulk', requireAuth, ah(async (req, res) => 
   const eligible = await loadBulkEligible(items, 'paid', req.user);
   if (!eligible.length) return res.json({ reverted: 0, skipped: items.length });
 
-  await commitBulkTransition(eligible, req.user, {
+  const moved = await commitBulkTransition(eligible, req.user, {
     set: 'status=\'approved\', paid_by=NULL, paid_at=NULL',
     action: () => 'reverted payment',
     from: 'paid', to: 'approved', comment
   });
 
-  res.json({ reverted: eligible.length, skipped: items.length - eligible.length });
+  res.json({ reverted: moved.length, skipped: items.length - moved.length });
 }));
 
 module.exports = router;

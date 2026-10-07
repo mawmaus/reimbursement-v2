@@ -7,14 +7,14 @@ const express = require('express');
 const { q, qq, transaction } = require('../db');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } = require('../lib/notify');
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
-const { ah, asIntArray, intArrayLiteral, DATE_RE } = require('../lib/util');
+const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
 const { viewRegionFilter, seesAllRegions } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
   currentApproverId, mealNotify, userCanApprove, canMarkPaid, planRevert,
-  resolveRevertApprover1, undoneApprovalStep
+  resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT
 } = require('../lib/workflow');
 const {
   serializeManyMeal, loadMealClaimOr404, serializeOneMeal, normaliseMealLines,
@@ -47,7 +47,7 @@ router.get('/api/meal-claims', requireAuth, ah(async (req, res) => {
   if (department) add('department = $$', department);
   applyLedgerWindow(req, search, OPEN_CLAIM_SQL, where, params);
   if (search) {
-    params.push(`%${search}%`);
+    params.push(likeContains(search));
     const p = `$${params.length}`;
     // Meal claims carry the DB number per line (meal_claim_lines.site), so search
     // it via EXISTS in addition to the header fields.
@@ -197,17 +197,18 @@ router.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => 
   if (plan.error) return res.status(400).json({ error: plan.error });
   const le = approvalLimitError(req.user, plan.remainingCents, row.currency);
   if (le) return res.status(403).json({ error: le });
-  await applyLineRejections('meal', row, req.user, plan.picks);
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
   const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const moved = finalise
+    ? await moveDocument('meal_claims', row, `status='approved', manager_id=$1, manager_comment=$2, decided_at=now()`, [req.user.id, comment])
+    : await moveDocument('meal_claims', row, 'current_step=$1', [step + 1]);
+  if (!moved) return res.status(409).json({ error: STALE_DOCUMENT });
+  await applyLineRejections('meal', row, req.user, plan.picks);
   if (finalise) {
-    await q(`UPDATE meal_claims SET status='approved', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
-      [req.user.id, comment, row.id]);
     await logMealHistory(row.id, req.user, ids.length ? `approved — step ${step} of ${ids.length}` : 'approved', 'submitted', 'approved', comment);
   } else {
-    await q(`UPDATE meal_claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step + 1, row.id]);
     await logMealHistory(row.id, req.user, `approved — step ${step} of ${ids.length}`, 'submitted', 'submitted', comment);
   }
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
@@ -228,8 +229,9 @@ router.post('/api/meal-claims/:id/reject', requireAuth, ah(async (req, res) => {
   if (!comment) return res.status(400).json({ error: 'A reason is required when rejecting a claim' });
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot reject a meal claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this claim' });
-  await q(`UPDATE meal_claims SET status='rejected', manager_id=$1, manager_comment=$2, decided_at=now(), updated_at=now() WHERE id=$3`,
-    [req.user.id, comment, row.id]);
+  if (!await moveDocument('meal_claims', row, `status='rejected', manager_id=$1, manager_comment=$2, decided_at=now()`, [req.user.id, comment])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   await logMealHistory(row.id, req.user, 'rejected', 'submitted', 'rejected', comment);
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
   await notifyClaimantRejected(rows[0].employee_id, { ...mealNotify(rows[0]), reason: comment });
@@ -244,7 +246,9 @@ router.post('/api/meal-claims/:id/mark-paid', requireAuth, ah(async (req, res) =
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved meal claims can be marked as paid' });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
-  await q(`UPDATE meal_claims SET status='paid', paid_by=$1, paid_at=$2, updated_at=now() WHERE id=$3`, [req.user.id, paymentDate, row.id]);
+  if (!await moveDocument('meal_claims', row, `status='paid', paid_by=$1, paid_at=$2`, [req.user.id, paymentDate])) {
+    return res.status(409).json({ error: STALE_DOCUMENT });
+  }
   await logMealHistory(row.id, req.user, `marked paid — ${paymentDate}`, 'approved', 'paid', String((req.body && req.body.comment) || '').trim());
   const rows = await q('SELECT * FROM meal_claims WHERE id=$1', [row.id]);
   await notifyClaimantDecision(rows[0].employee_id, mealNotify(rows[0]), 'paid');
@@ -261,16 +265,8 @@ router.post('/api/meal-claims/:id/revert', requireAuth, ah(async (req, res) => {
   const reroute = await resolveRevertApprover1(row, plan.kind, (req.body || {}).approver1);
   if (reroute.error) return res.status(400).json({ error: reroute.error });
   const step = row.current_step || 0;
-  if (plan.kind === 'unpay') {
-    await q(`UPDATE meal_claims SET status='approved', paid_by=NULL, paid_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
-  } else if (plan.kind === 'unapprove-final') {
-    await q(`UPDATE meal_claims SET status='submitted', manager_id=NULL, manager_comment='', decided_at=NULL, updated_at=now() WHERE id=$1`, [row.id]);
-  } else if (plan.kind === 'unapprove-step') {
-    await q(`UPDATE meal_claims SET current_step=$1, updated_at=now() WHERE id=$2`, [step - 1, row.id]);
-  } else { // cancel
-    await q(`UPDATE meal_claims SET status='rejected', manager_id=NULL, manager_comment=$1, decided_at=now(), updated_at=now() WHERE id=$2`,
-      [plan.comment, row.id]);
-  }
+  const { set, params } = revertSet(plan, step);
+  if (!await moveDocument('meal_claims', row, set, params)) return res.status(409).json({ error: STALE_DOCUMENT });
   if (reroute.ids) {
     await q(`UPDATE meal_claims SET approver_ids=$1::int[], updated_at=now() WHERE id=$2`, [intArrayLiteral(reroute.ids), row.id]);
   }

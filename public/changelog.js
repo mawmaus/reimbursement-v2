@@ -27,6 +27,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-07.1',
+    date: '2026-10-07',
+    items: [
+      { kind: 'fixed', text: {
+        en: 'Large receipts (such as long scanned PDFs) now open and download reliably, and a downloaded receipt keeps its real file name instead of one full of %20s.',
+        id: 'Struk berukuran besar (seperti PDF hasil pindai yang panjang) kini terbuka dan terunduh dengan andal, dan struk yang diunduh mempertahankan nama file aslinya, bukan nama yang penuh %20.',
+        th: 'ใบเสร็จขนาดใหญ่ (เช่น PDF สแกนหลายหน้า) เปิดและดาวน์โหลดได้อย่างเสถียรแล้ว และใบเสร็จที่ดาวน์โหลดจะใช้ชื่อไฟล์จริง ไม่ใช่ชื่อที่เต็มไปด้วย %20',
+        vi: 'Biên lai dung lượng lớn (như tệp PDF quét nhiều trang) giờ mở và tải xuống ổn định, và biên lai tải xuống giữ đúng tên tệp gốc thay vì tên đầy ký tự %20.',
+        km: 'បង្កាន់ដៃទំហំធំ (ដូចជា PDF ស្កេនវែងៗ) ឥឡូវបើក និងទាញយកបានយ៉ាងជឿជាក់ ហើយបង្កាន់ដៃដែលបានទាញយករក្សាឈ្មោះឯកសារពិតរបស់វា ជំនួសឱ្យឈ្មោះដែលពេញដោយ %20។',
+        fil: 'Maaasahan nang nabubuksan at nada-download ang malalaking resibo (gaya ng mahahabang na-scan na PDF), at pinananatili ng na-download na resibo ang tunay nitong pangalan ng file sa halip na pangalang puno ng %20.'
+      } },
+      { kind: 'fixed', text: {
+        en: 'When two people act on the same claim at once — or a button is clicked twice — the second action is now stopped with a message to reload, instead of overwriting the first (for example, approving a claim someone had just rejected, or recording a payment twice).',
+        id: 'Ketika dua orang bertindak pada klaim yang sama secara bersamaan — atau tombol diklik dua kali — tindakan kedua kini dihentikan dengan pesan untuk memuat ulang, alih-alih menimpa tindakan pertama (misalnya menyetujui klaim yang baru saja ditolak orang lain, atau mencatat pembayaran dua kali).',
+        th: 'เมื่อมีสองคนดำเนินการกับคำขอเบิกเดียวกันพร้อมกัน หรือมีการกดปุ่มซ้ำสองครั้ง การดำเนินการครั้งที่สองจะถูกหยุดพร้อมข้อความให้โหลดใหม่ แทนที่จะเขียนทับครั้งแรก (เช่น อนุมัติคำขอที่อีกคนเพิ่งปฏิเสธ หรือบันทึกการจ่ายเงินซ้ำสองครั้ง)',
+        vi: 'Khi hai người cùng thao tác trên một yêu cầu cùng lúc — hoặc một nút bị bấm hai lần — thao tác thứ hai giờ sẽ bị dừng kèm thông báo tải lại, thay vì ghi đè thao tác đầu tiên (ví dụ: phê duyệt yêu cầu mà người khác vừa từ chối, hoặc ghi nhận thanh toán hai lần).',
+        km: 'នៅពេលមនុស្សពីរនាក់ធ្វើសកម្មភាពលើការទាមទារតែមួយក្នុងពេលតែមួយ — ឬប៊ូតុងត្រូវបានចុចពីរដង — សកម្មភាពទីពីរឥឡូវត្រូវបានបញ្ឈប់ ដោយមានសារឱ្យផ្ទុកឡើងវិញ ជំនួសឱ្យការសរសេរជាន់លើសកម្មភាពទីមួយ (ឧទាហរណ៍ ការអនុម័តការទាមទារដែលអ្នកផ្សេងទើបតែបដិសេធ ឬការកត់ត្រាការទូទាត់ពីរដង)។',
+        fil: 'Kapag sabay na kumilos ang dalawang tao sa iisang claim — o dalawang beses na na-click ang isang button — pinahihinto na ngayon ang ikalawang aksyon na may mensaheng mag-reload, sa halip na patungan ang una (halimbawa, pag-apruba ng claim na kaka-reject lang ng iba, o dalawang beses na pagtatala ng bayad).'
+      } }
+    ]
+  },
+  {
     id: '2026-10-05.2',
     date: '2026-10-05',
     items: [

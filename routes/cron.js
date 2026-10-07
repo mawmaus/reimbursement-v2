@@ -17,9 +17,12 @@ const router = express.Router();
 // Vercel Cron calls this once a day (see vercel.json). It emails every approver
 // a digest of the claims currently sitting at their step. Protected by
 // CRON_SECRET: Vercel sends it as an "Authorization: Bearer <secret>" header.
+// A deployment without the secret refuses every call rather than letting anyone
+// trigger a round of emails; only a local dev server runs it unprotected.
+const deployed = () => process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 router.get('/api/cron/reminders', ah(async (req, res) => {
   const secret = process.env.CRON_SECRET;
-  if (secret && (req.headers.authorization || '') !== `Bearer ${secret}`) {
+  if (secret ? (req.headers.authorization || '') !== `Bearer ${secret}` : deployed()) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const byApprover = new Map(); // approverId -> [claim payloads]

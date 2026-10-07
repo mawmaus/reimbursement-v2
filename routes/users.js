@@ -184,6 +184,8 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
     bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid,
     allow_advance } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  // Checked up front: a refused edit must not have saved anything else.
+  if (password && String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   let nextRegion = u.region;
   if (region !== undefined) {
     nextRegion = await normRegion(region);
@@ -256,7 +258,6 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
     allow_advance !== undefined ? isActive(allow_advance) : u.allow_advance
   ]);
   if (password) {
-    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     // Signs the account out everywhere (keeping the admin signed in if it is their own).
     const [{ session_version }] = await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(password), 10), u.id]);
     if (u.id === req.user.id) startSession(req, { id: u.id, session_version });
