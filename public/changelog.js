@@ -27,6 +27,44 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.8',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'On phones the top bar is now a single slim row — logo, New, What\'s new and your initials. Tap your initials for everything else: region, language, dark mode, Export, Profile, Settings and Sign out.',
+        id: 'Di ponsel, bilah atas kini hanya satu baris ramping — logo, Baru, Yang baru, dan inisial Anda. Ketuk inisial Anda untuk semua hal lainnya: wilayah, bahasa, mode gelap, Ekspor, Profil, Pengaturan, dan Keluar.',
+        th: 'บนมือถือ แถบด้านบนเหลือเพียงแถวเดียวที่บางลง — โลโก้ ใหม่ มีอะไรใหม่ และอักษรย่อชื่อของคุณ แตะอักษรย่อเพื่อเข้าถึงทุกอย่างที่เหลือ: ภูมิภาค ภาษา โหมดมืด ส่งออก โปรไฟล์ การตั้งค่า และออกจากระบบ',
+        vi: 'Trên điện thoại, thanh trên cùng giờ chỉ còn một hàng gọn — logo, Mới, Có gì mới và chữ viết tắt tên bạn. Chạm vào chữ viết tắt để mở mọi thứ còn lại: khu vực, ngôn ngữ, chế độ tối, Xuất, Hồ sơ, Cài đặt và Đăng xuất.',
+        km: 'នៅលើទូរសព្ទ របារខាងលើឥឡូវជាជួរតែមួយស្តើង — ឡូហ្គោ ថ្មី អ្វីថ្មី និងអក្សរកាត់ឈ្មោះរបស់អ្នក។ ចុចអក្សរកាត់ដើម្បីបើកអ្វីៗផ្សេងទៀត៖ តំបន់ ភាសា មុខងារងងឹត នាំចេញ ប្រវត្តិរូប ការកំណត់ និងចាកចេញ។',
+        fil: 'Sa phone, iisang manipis na hanay na lang ang top bar — logo, Bago, Ano ang bago at ang iyong mga inisyal. I-tap ang iyong mga inisyal para sa lahat ng iba pa: rehiyon, wika, dark mode, Export, Profile, Settings at Sign out.'
+      } },
+      { kind: 'improved', text: {
+        en: 'A claim\'s detail panel now opens with what matters at a glance — the type, the amount, its status and whose it is — shows the payment details in one card with a Copy button for the account number, and keeps Approve, Reject and the other actions pinned at the bottom so you never have to scroll to them.',
+        id: 'Panel detail klaim kini langsung menampilkan hal terpenting — jenis, jumlah, status, dan pemiliknya — menampilkan detail pembayaran dalam satu kartu dengan tombol Salin untuk nomor rekening, dan menyematkan Setujui, Tolak, serta tindakan lainnya di bagian bawah sehingga Anda tidak perlu menggulir untuk mencapainya.',
+        th: 'หน้ารายละเอียดรายการเบิกเปิดมาพร้อมข้อมูลสำคัญในทันที — ประเภท จำนวนเงิน สถานะ และเจ้าของรายการ — แสดงรายละเอียดการจ่ายเงินในการ์ดเดียวพร้อมปุ่มคัดลอกเลขบัญชี และตรึงปุ่มอนุมัติ ปฏิเสธ และการดำเนินการอื่นๆ ไว้ด้านล่าง จึงไม่ต้องเลื่อนหา',
+        vi: 'Bảng chi tiết yêu cầu giờ hiển thị ngay những điều quan trọng — loại, số tiền, trạng thái và người gửi — gom thông tin thanh toán vào một thẻ kèm nút Sao chép số tài khoản, và ghim Phê duyệt, Từ chối cùng các thao tác khác ở cuối nên bạn không cần cuộn để tìm.',
+        km: 'ផ្ទាំងព័ត៌មានលម្អិតសំណើឥឡូវបើកដោយបង្ហាញអ្វីសំខាន់ភ្លាមៗ — ប្រភេទ ចំនួនទឹកប្រាក់ ស្ថានភាព និងម្ចាស់ — បង្ហាញព័ត៌មានការទូទាត់ក្នុងកាតតែមួយ ដោយមានប៊ូតុងចម្លងលេខគណនី ហើយភ្ជាប់ប៊ូតុងអនុម័ត បដិសេធ និងសកម្មភាពផ្សេងទៀតនៅខាងក្រោម ដូច្នេះអ្នកមិនចាំបាច់រំកិលរកទេ។',
+        fil: 'Bumubukas na ang detail panel ng claim nang nakikita agad ang mahalaga — uri, halaga, status at kung kanino ito — ipinapakita ang detalye ng bayad sa iisang card na may Copy button para sa account number, at nakapirmi sa ibaba ang Approve, Reject at iba pang aksyon kaya hindi mo na kailangang mag-scroll para maabot ang mga ito.'
+      } },
+      { kind: 'improved', text: {
+        en: 'Status tags across the app (claims, accounts, settings, approval steps) now use the same easy-to-read style instead of all-capital letters, and they fit on one line in every language.',
+        id: 'Label status di seluruh aplikasi (klaim, akun, pengaturan, langkah persetujuan) kini memakai gaya yang sama dan mudah dibaca, bukan huruf kapital semua, serta muat dalam satu baris di setiap bahasa.',
+        th: 'ป้ายสถานะทั่วทั้งแอป (รายการเบิก บัญชี การตั้งค่า ขั้นตอนการอนุมัติ) ใช้รูปแบบเดียวกันที่อ่านง่ายแทนตัวพิมพ์ใหญ่ทั้งหมด และอยู่ในบรรทัดเดียวในทุกภาษา',
+        vi: 'Nhãn trạng thái trong toàn ứng dụng (yêu cầu, tài khoản, cài đặt, các bước phê duyệt) giờ dùng chung một kiểu dễ đọc thay vì viết hoa toàn bộ, và nằm gọn trên một dòng ở mọi ngôn ngữ.',
+        km: 'ស្លាកស្ថានភាពនៅទូទាំងកម្មវិធី (សំណើ គណនី ការកំណត់ ជំហានអនុម័ត) ឥឡូវប្រើរចនាប័ទ្មដូចគ្នាដែលងាយអាន ជំនួសឱ្យអក្សរធំទាំងអស់ ហើយសមល្មមក្នុងមួយបន្ទាត់ក្នុងគ្រប់ភាសា។',
+        fil: 'Iisang madaling basahing istilo na ang mga status tag sa buong app (claims, accounts, settings, mga hakbang ng pag-apruba) sa halip na puro malalaking titik, at kasya ang mga ito sa iisang linya sa bawat wika.'
+      } },
+      { kind: 'fixed', text: {
+        en: 'Changing the language now also updates the claims list filters ("All statuses", "All departments", "All claimants") straight away.',
+        id: 'Mengganti bahasa kini juga langsung memperbarui filter daftar klaim ("Semua status", "Semua departemen", "Semua pengaju").',
+        th: 'การเปลี่ยนภาษาจะอัปเดตตัวกรองของรายการเบิก ("ทุกสถานะ" "ทุกแผนก" "ผู้เบิกทั้งหมด") ทันทีด้วย',
+        vi: 'Đổi ngôn ngữ giờ cũng cập nhật ngay các bộ lọc của danh sách yêu cầu ("Tất cả trạng thái", "Tất cả phòng ban", "Tất cả người yêu cầu").',
+        km: 'ការប្តូរភាសាឥឡូវក៏ធ្វើបច្ចុប្បន្នភាពតម្រងបញ្ជីសំណើ ("ស្ថានភាពទាំងអស់" "នាយកដ្ឋានទាំងអស់" "អ្នកស្នើសុំទាំងអស់") ភ្លាមៗផងដែរ។',
+        fil: 'Kapag pinalitan ang wika, agad na ring naa-update ang mga filter ng listahan ng claims ("Lahat ng status", "Lahat ng departamento", "Lahat ng claimant").'
+      } }
+    ]
+  },
+  {
     id: '2026-10-09.7',
     date: '2026-10-09',
     items: [

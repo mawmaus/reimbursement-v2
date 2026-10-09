@@ -716,5 +716,13 @@ I18N.addDict('th', {
   'Pending - Manager': 'รอ - Manager',
   'Pending - FinanceAP': 'รอ - FinanceAP',
   'Filters': 'ตัวกรอง',
-  'Clear filters': 'ล้างตัวกรอง'
+  'Clear filters': 'ล้างตัวกรอง',
+  // Phone top bar + claim detail
+  'Account menu': 'เมนูบัญชี',
+  'Dark mode': 'โหมดมืด',
+  'Reimbursement': 'เบิกค่าใช้จ่าย',
+  'Payment details': 'รายละเอียดการจ่ายเงิน',
+  'Copy': 'คัดลอก',
+  'Copied': 'คัดลอกแล้ว',
+  'Copy failed — select the number and copy it manually.': 'คัดลอกไม่สำเร็จ — เลือกหมายเลขแล้วคัดลอกเอง'
 });

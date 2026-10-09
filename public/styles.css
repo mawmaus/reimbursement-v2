@@ -501,9 +501,12 @@ input[type="search"] { min-width: 220px; }
 .ledger-row .col-amt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 560; }
 .empty { text-align: center; padding: 40px; }
 
+/* Status tags, app-wide: sentence case on one line ("Pending review - Manager",
+   "Active", "Disabled") — easier to read than tracked capitals, and they
+   don't wrap inside narrow table cells. */
 .pill {
-  display: inline-block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-  padding: 3px 9px; border-radius: 99px;
+  display: inline-block; font-size: .75rem; font-weight: 650; line-height: 1.35; white-space: nowrap;
+  padding: 3px 10px; border-radius: 99px;
 }
 .pill.submitted { color: var(--amber); background: var(--amber-tint); }
 .pill.approved  { color: var(--green); background: var(--green-tint); }
@@ -566,7 +569,7 @@ input[type="search"] { min-width: 220px; }
 .cp-body { flex: 1; }
 .cp-label { font-weight: 560; font-size: .92rem; }
 .cp-pos { font-size: .78rem; color: var(--muted); }
-.cp-state { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--muted); }
+.cp-state { font-size: .8rem; font-weight: 650; color: var(--muted); white-space: nowrap; }
 .cp.current .cp-state { color: var(--amber); }
 .cp.done .cp-state { color: var(--green); }
 .cp.rejected .cp-state { color: var(--red); }
@@ -881,12 +884,12 @@ input[type="search"] { min-width: 220px; }
    Actions); widths sum to 100% so table-layout:fixed never overflows its
    container. Below 900px the rows reflow into cards and these widths drop out. */
 .utable-users { table-layout: fixed; width: 100%; }
-.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 23%; }
-.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 19%; }
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 21%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 18%; }
 .utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 15%; }
 .utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 11%; }
-.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 12%; }
-.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 10%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 11%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 14%; }
 .utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 10%; }
 .utable-users th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 /* Role/Region/Cash advance/Status hold short words — don't let the global
@@ -899,14 +902,14 @@ input[type="search"] { min-width: 220px; }
    page): User, Position, Status, Actions — plus a Department column
    (.utable-manage--wide) for Director-and-above viewers. Widths sum to 100%. */
 .utable-manage { table-layout: fixed; width: 100%; }
-.utable-manage:not(.utable-manage--wide) th:nth-child(1), .utable-manage:not(.utable-manage--wide) td:nth-child(1) { width: 44%; }
+.utable-manage:not(.utable-manage--wide) th:nth-child(1), .utable-manage:not(.utable-manage--wide) td:nth-child(1) { width: 41%; }
 .utable-manage:not(.utable-manage--wide) th:nth-child(2), .utable-manage:not(.utable-manage--wide) td:nth-child(2) { width: 20%; }
-.utable-manage:not(.utable-manage--wide) th:nth-child(3), .utable-manage:not(.utable-manage--wide) td:nth-child(3) { width: 13%; }
+.utable-manage:not(.utable-manage--wide) th:nth-child(3), .utable-manage:not(.utable-manage--wide) td:nth-child(3) { width: 16%; }
 .utable-manage:not(.utable-manage--wide) th:nth-child(4), .utable-manage:not(.utable-manage--wide) td:nth-child(4) { width: 23%; }
-.utable-manage--wide th:nth-child(1), .utable-manage--wide td:nth-child(1) { width: 34%; }
+.utable-manage--wide th:nth-child(1), .utable-manage--wide td:nth-child(1) { width: 31%; }
 .utable-manage--wide th:nth-child(2), .utable-manage--wide td:nth-child(2) { width: 17%; }
 .utable-manage--wide th:nth-child(3), .utable-manage--wide td:nth-child(3) { width: 16%; }
-.utable-manage--wide th:nth-child(4), .utable-manage--wide td:nth-child(4) { width: 11%; }
+.utable-manage--wide th:nth-child(4), .utable-manage--wide td:nth-child(4) { width: 14%; }
 .utable-manage--wide th:nth-child(5), .utable-manage--wide td:nth-child(5) { width: 22%; }
 /* The Actions cell holds the buttons — never break its words, whichever layout. */
 .utable-manage td.act-cell { overflow-wrap: normal; }
@@ -1623,7 +1626,7 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 .wn-release:last-child { border-bottom: none; padding-bottom: 4px; }
 .wn-date { margin: 0 0 10px; font-size: .95rem; font-weight: 650; color: var(--ink);
   display: flex; align-items: center; gap: 8px; }
-.wn-latest { font-size: .68rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+.wn-latest { font-size: .74rem; font-weight: 650; white-space: nowrap;
   color: var(--on-brand); background: var(--pine); padding: 2px 8px; border-radius: 99px; }
 .wn-items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto 1fr;
   gap: 10px 12px; align-items: baseline; }
@@ -1858,7 +1861,7 @@ body.no-scroll { overflow: hidden; }
 
 .lr-note { display: flex; flex-direction: column; gap: 3px; font-size: .82rem; line-height: 1.4; }
 .lr-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.lr-badge { color: var(--red); font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.lr-badge { color: var(--red); font-size: .78rem; font-weight: 700; }
 .lr-who { color: var(--muted); font-size: .76rem; }
 .lr-reason { color: var(--ink); overflow-wrap: anywhere; }
 .lr-tail { font-size: .8rem; }
@@ -2591,3 +2594,138 @@ a[data-open-doc]:hover { text-decoration: underline; }
 #listView #claimRows:empty { flex: 0 0 auto; }
 #emptyState { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 #emptyState[hidden] { display: none; }
+
+/* --- Phone top bar + account panel ---------------------------------------- */
+/* Wide screens keep the full bar; the avatar button and its panel are phone-only. */
+.tb-menu-btn, .tb-sheet, .tb-sheet-scrim { display: none; }
+.tb-avatar { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  font-size: .8rem; font-weight: 700; letter-spacing: .02em; color: var(--pine-deep); background: var(--pine-tint); }
+.tb-avatar-lg { width: 44px; height: 44px; font-size: .95rem; flex: none; }
+@media (max-width: 720px) {
+  /* One row: logo ........ + New · What's new · avatar. Undo the old three-row grid. */
+  .topbar { display: flex; flex-wrap: nowrap; grid-template-areas: none; gap: 8px; padding: 10px 14px; }
+  /* (The old three-row layout set order on these; reset it.) */
+  .topbar-left { order: 0; margin-right: auto; }
+  .topbar-right { order: 1; display: flex; width: auto; gap: 8px; flex-wrap: nowrap; }
+  .tb-menu-btn { order: 2; }
+  .tb-actions { order: 0; }
+  .tb-prefs { order: 1; }
+  .user-badge, .topbar-right > .tb-sep, #topTheme, .tb-actions .tb-sep,
+  .topbar .topbar-signout, .topbar .tb-actions .icon-btn { display: none; }
+  .tb-actions { padding-top: 0; border-top: 0; }
+  .tb-prefs { gap: 8px; }
+  /* New sits near the right edge again: open its menu leftwards. */
+  .new-menu { right: 0; left: auto; }
+  .tb-menu-btn { display: inline-grid; place-items: center; flex: none; padding: 0; border: 0; background: none;
+    border-radius: 50%; cursor: pointer; }
+  .tb-menu-btn:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+  .tb-menu-btn[aria-expanded="true"] .tb-avatar { background: var(--pine); color: var(--on-brand); }
+
+  .tb-sheet-scrim:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 24; background: var(--scrim);
+    animation: fade .18s ease; }
+  .tb-sheet:not([hidden]) { display: flex; flex-direction: column; position: fixed; left: 10px; right: 10px; z-index: 25;
+    max-height: calc(100dvh / var(--app-zoom) - 90px); overflow-y: auto; padding: 8px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-md);
+    animation: tb-sheet-in .2s var(--ease-out); }
+  .tb-sheet-who { display: flex; align-items: center; gap: 12px; padding: 8px 6px 12px 8px; }
+  .tb-sheet-id { flex: 1 1 auto; min-width: 0; }
+  .tb-sheet-name { font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-sheet-sub { margin-top: 2px; font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-sheet-sub:empty { display: none; }
+  /* The bar's own pickers hide on phones; the panel shows native mirrors of them
+     (full width, one per row — the phone's own picker opens on tap). */
+  .topbar .tb-context { display: none; }
+  .tb-sheet-ctx { display: grid; gap: 8px; padding: 10px 6px; border-top: 1px solid var(--line-soft); }
+  .tb-sheet-ctx:empty { display: none; }
+  .tb-pick { position: relative; display: flex; align-items: center; }
+  .tb-pick-ic { position: absolute; left: 13px; font-size: .95rem; pointer-events: none; }
+  .tb-pick::after { content: ''; position: absolute; right: 15px; top: 50%; width: 7px; height: 7px; margin-top: -5px;
+    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); pointer-events: none; }
+  .tb-pick-sel { width: 100%; min-height: 46px; padding: 0 38px 0 40px; border: 1px solid var(--line); border-radius: 11px;
+    background: var(--surface); color: var(--ink); font: inherit; font-size: .95rem; font-weight: 560;
+    -webkit-appearance: none; appearance: none; cursor: pointer; }
+  .tb-pick-sel:focus-visible { outline: none; border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+  .tb-sheet-list { padding: 6px 0; border-top: 1px solid var(--line-soft); }
+  .tb-sheet-list:empty { display: none; }
+  .tb-sheet-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 10px 12px;
+    border: 0; border-radius: 10px; background: none; font: inherit; font-size: .95rem; font-weight: 560;
+    color: var(--ink); text-align: left; cursor: pointer; }
+  .tb-sheet-item:hover, .tb-sheet-item:focus-visible { background: var(--paper); outline: none; }
+  .tb-sheet-item > svg { width: 20px; height: 20px; flex: none; color: var(--ink-soft); }
+  .tb-sheet-item > span:first-of-type { flex: 1 1 auto; min-width: 0; }
+  .tb-chev { color: var(--muted); font-size: 1.2rem; line-height: 1; }
+  .tb-sheet-theme { border-top: 1px solid var(--line-soft); border-radius: 0; }
+  .tb-sheet-theme:hover, .tb-sheet-theme:focus-visible { border-radius: 10px; }
+  /* On/off switch for dark mode. */
+  .tb-switch { position: relative; flex: none; width: 42px; height: 26px; border-radius: 13px; background: var(--line);
+    transition: background .18s; }
+  .tb-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .18s; }
+  .tb-sheet-theme[aria-checked="true"] .tb-switch { background: var(--pine); }
+  .tb-sheet-theme[aria-checked="true"] .tb-switch::after { transform: translateX(16px); }
+  .tb-sheet-out { margin-top: 2px; color: var(--red); border-top: 1px solid var(--line-soft); border-radius: 0; }
+  .tb-sheet-out > svg { color: var(--red); }
+  .tb-sheet-out:hover, .tb-sheet-out:focus-visible { background: var(--red-tint); border-radius: 10px; }
+}
+@keyframes tb-sheet-in { from { opacity: 0; transform: translateY(-8px); } }
+
+/* --- Claim detail drawer ---------------------------------------------------- */
+/* A column: header (what / how much / whose), a scrolling body, and the action
+   bar pinned to the bottom so Approve / Reject / Mark as paid never need a scroll. */
+.drawer { display: flex; flex-direction: column; overflow: hidden; }
+.drawer[hidden] { display: none; }
+.drawer > .drawer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.drawer-head.dh { position: static; flex: none; display: block; padding: 16px 22px 14px; }
+.dh-top { display: flex; align-items: center; gap: 10px; }
+.dh-type { flex: none; padding: 3px 9px; border-radius: 99px; font-size: .74rem; font-weight: 650;
+  color: var(--pine-deep); background: var(--pine-tint); }
+.dh-no { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: .9rem; color: var(--ink-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dh-top .x-btn { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 9px; }
+.dh-top .x-btn:hover { background: var(--paper); color: var(--ink); }
+.dh-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-top: 12px; }
+.dh-amt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.7rem; font-weight: 700;
+  letter-spacing: -.02em; line-height: 1.1; color: var(--ink); }
+.dh-amt-l { margin-top: 3px; font-size: .78rem; color: var(--muted); }
+.dh-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.dh .pill { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 650; padding: 4px 11px; white-space: nowrap; }
+.dh-meta { display: flex; flex-wrap: wrap; gap: 2px 0; margin-top: 10px; font-size: .84rem; color: var(--muted); }
+.dh-meta span:first-child { color: var(--ink); font-weight: 600; }
+.dh-meta span + span::before { content: '·'; margin: 0 7px; color: var(--line); }
+/* Body sections */
+.drawer-body .section-label.d-first { margin-top: 2px; }
+.d-purpose { margin: 0 0 18px; line-height: 1.5; }
+.d-source { margin: 0 0 14px; }
+.d-pay { margin-bottom: 18px; }
+.drawer-body .kv-pay { margin: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--paper); grid-template-columns: 130px 1fr; }
+.d-acct { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.d-acct .mono { font-size: 1rem; letter-spacing: .02em; }
+.copy-btn { padding: 3px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface);
+  font: inherit; font-size: .76rem; font-weight: 600; color: var(--pine-deep); cursor: pointer; }
+.copy-btn:hover { border-color: var(--pine); }
+.copy-btn:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+/* Pinned action bar */
+.drawer > .drawer-actions { flex: none; margin: 0; padding: 12px 22px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line); background: var(--surface); box-shadow: 0 -8px 18px -16px rgba(0,0,0,.35); }
+.drawer > .drawer-actions .btn { min-height: 40px; }
+.da-none { font-size: .85rem; align-self: center; }
+@media (max-width: 720px) {
+  .drawer-head.dh { padding: 12px 16px; }
+  .dh-amt { font-size: 1.4rem; }
+  .dh-main { margin-top: 10px; }
+  .dh-pills { justify-content: flex-start; }
+  .dh-meta { font-size: .78rem; }
+  .drawer-body .kv-pay { grid-template-columns: 1fr; gap: 2px; padding: 10px 12px; }
+  .drawer-body .kv-pay dd { margin-bottom: 8px; }
+  .drawer-body .kv-pay dd:last-child { margin-bottom: 0; }
+  /* Two buttons per row; a lone last one (or a single action) spans the bar. */
+  .drawer > .drawer-actions { padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
+  .drawer > .drawer-actions .btn { flex: 1 1 calc(50% - 4px); min-height: 44px; }
+}
+/* Narrow desktops / tablets: the full bar can't fit the title and the name
+   without wrapping them onto two lines, so the logo stands alone (≤1040px) and
+   the name defers to the Profile button (tablet). Phones use the one-row bar. */
+@media (max-width: 1040px) { .topbar-title { display: none; } }
+@media (min-width: 721px) and (max-width: 900px) { .user-badge { display: none; } }
+.user-badge, .topbar-title { white-space: nowrap; }

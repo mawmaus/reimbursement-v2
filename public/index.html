@@ -134,7 +134,33 @@
     <button type="button" id="logoutBtn" class="btn btn-danger-ghost btn-sm icon-btn topbar-signout" data-i18n-aria="Sign out" aria-label="Sign out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
     </button>
+    <!-- Phones: one compact row (logo · New · What's new · this). The account
+         panel below takes the name, region/language, theme, the icon actions
+         and Sign out. Hidden on wider screens. -->
+    <button type="button" id="tbMenuBtn" class="tb-menu-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="tbSheet" data-i18n-aria="Account menu" aria-label="Account menu">
+      <span class="tb-avatar" id="tbAvatar" aria-hidden="true"></span>
+    </button>
   </header>
+  <div id="tbSheetScrim" class="tb-sheet-scrim" hidden></div>
+  <div id="tbSheet" class="tb-sheet" role="dialog" aria-labelledby="tbSheetName" hidden>
+    <div class="tb-sheet-who">
+      <span class="tb-avatar tb-avatar-lg" id="tbSheetAvatar" aria-hidden="true"></span>
+      <div class="tb-sheet-id"><div class="tb-sheet-name" id="tbSheetName"></div><div class="tb-sheet-sub" id="tbSheetSub"></div></div>
+      <button type="button" class="x-btn" id="tbSheetClose" data-i18n-aria="Close" aria-label="Close">×</button>
+    </div>
+    <!-- The region / language pickers (.tb-context) move in here on phones. -->
+    <div class="tb-sheet-ctx" id="tbSheetCtx"></div>
+    <div class="tb-sheet-list" id="tbSheetList"></div>
+    <button type="button" class="tb-sheet-item tb-sheet-theme" id="tbThemeRow" data-theme-toggle role="switch" aria-checked="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a6.8 6.8 0 0 0 10.7 10.7z"/></svg>
+      <span data-i18n="Dark mode">Dark mode</span>
+      <span class="tb-switch" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="tb-sheet-item tb-sheet-out" data-proxy="logoutBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      <span data-i18n="Sign out">Sign out</span>
+    </button>
+  </div>
 
   <main class="container">
     <!-- Clean landing after login: pick a list to open. -->

@@ -716,5 +716,13 @@ I18N.addDict('km', {
   'Pending - Manager': 'រង់ចាំ - Manager',
   'Pending - FinanceAP': 'រង់ចាំ - FinanceAP',
   'Filters': 'តម្រង',
-  'Clear filters': 'សម្អាតតម្រង'
+  'Clear filters': 'សម្អាតតម្រង',
+  // Phone top bar + claim detail
+  'Account menu': 'ម៉ឺនុយគណនី',
+  'Dark mode': 'មុខងារងងឹត',
+  'Reimbursement': 'សំណង',
+  'Payment details': 'ព័ត៌មានលម្អិតការទូទាត់',
+  'Copy': 'ចម្លង',
+  'Copied': 'បានចម្លង',
+  'Copy failed — select the number and copy it manually.': 'ចម្លងមិនបាន — សូមជ្រើសលេខ ហើយចម្លងដោយដៃ។'
 });

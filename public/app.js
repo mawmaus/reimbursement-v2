@@ -345,9 +345,13 @@ function syncThemeButtons() {
   if (!window.Theme) return;
   const label = Theme.get() === 'dark' ? t('Switch to light mode') : t('Switch to dark mode');
   document.querySelectorAll('[data-theme-toggle]').forEach(btn => {
+    if (btn.id === 'tbThemeRow') return; // a switch, labelled by its own text
     btn.setAttribute('aria-label', label);
     btn.title = label;
   });
+  // The phone panel's row is a switch: on = dark.
+  const row = document.getElementById('tbThemeRow');
+  if (row) row.setAttribute('aria-checked', String(Theme.get() === 'dark'));
 }
 
 // ---------------------------------------------------------------------------
@@ -501,6 +505,12 @@ async function changeLanguage(code) {
 // the home / list / insights surfaces can be visible when this runs.
 function rerenderDynamic() {
   if (!state.user) return;
+  // The ledger's built options ("All departments" / "All claimants") are
+  // rebuilt in the new language, and every custom dropdown's trigger re-reads
+  // its (now translated) selected option.
+  renderDeptOptions();
+  renderClaimantOptions();
+  document.querySelectorAll('select').forEach(sel => { if (sel._mselRefresh) sel._mselRefresh(); });
   renderHome();
   if (state.view === 'insights') { if (state.insights.data) renderInsights(); }
   else if (state.view && state.view !== 'home') {
@@ -624,6 +634,10 @@ function showApp() {
   const u = state.user;
   // Role is intentionally not shown in the UI after login.
   $('#userBadge').innerHTML = `${esc(u.full_name)}`;
+  // Phone account panel: this account's initials / name, and never left open
+  // from a previous session in the same tab.
+  syncTbIdentity();
+  closeTbSheet();
   // "Purpose" buttons are gated per department + job position (see Settings).
   const purposes = u.purposes || { claim: false, meal: false, advance: false };
   $('#newClaimBtn').hidden = !purposes.claim;
@@ -681,6 +695,86 @@ function showApp() {
   playEnter($('#homeMenu'));
   loadAll(); // populates state.claims, then renderHome fills in the menu + badge
 }
+
+// --- Phone top bar: the account panel -----------------------------------------
+// On phones the bar is one row (logo · New · What's new · avatar). The avatar
+// opens a panel with the signed-in name, the region / language pickers, the
+// theme switch, the icon actions and Sign out. The actions are proxies: each
+// row clicks the real top-bar button, and a row shows only while that button
+// is visible — so all gating (roles, capabilities) stays in one place.
+const TB_PROXIES = [['exportBtn', 'Export CSV'], ['profileBtn', 'Profile'], ['accountsBtn', 'Manage accounts'], ['settingsBtn', 'Settings']];
+const phoneBar = window.matchMedia('(max-width: 720px)');
+// Leaving the phone layout (rotation / wider window) closes an open panel.
+phoneBar.addEventListener('change', (e) => { if (!e.matches) closeTbSheet(); });
+const initialsOf = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+// A language picked inside the open panel re-labels its rows in place.
+window.addEventListener('i18n:changed', () => { if ($('#tbSheet') && !$('#tbSheet').hidden) renderTbList(); });
+function syncTbIdentity() {
+  const u = state.user; if (!u) return;
+  $('#tbAvatar').textContent = initialsOf(u.full_name);
+  $('#tbSheetAvatar').textContent = initialsOf(u.full_name);
+  $('#tbSheetName').textContent = u.full_name || '';
+  $('#tbSheetSub').textContent = [u.department, u.position].filter(Boolean).join(' · ');
+}
+// The panel's region / language pickers mirror the bar's (which stay put in
+// the bar, hidden on phones): native selects — the phone's own picker — that
+// copy the real one's options and value, and hand a change back to it, so the
+// bar's listeners do the work. Nothing is moved between layouts, so a resize
+// or rotation can never strand a control.
+const TB_PICKERS = [['regionSelect', 'regionPicker', '📍'], ['topLang', null, '🌐']];
+function renderTbPickers() {
+  const box = $('#tbSheetCtx');
+  box.innerHTML = TB_PICKERS.map(([id, wrapId, icon]) => {
+    const real = $('#' + id);
+    if (!real || (wrapId && $('#' + wrapId).hidden)) return '';
+    return `<label class="tb-pick"><span class="tb-pick-ic" aria-hidden="true">${icon}</span>
+      <select class="tb-pick-sel" data-no-msel data-mirror="${id}" aria-label="${esc(real.getAttribute('aria-label') || '')}">${real.innerHTML}</select></label>`;
+  }).join('');
+  box.querySelectorAll('[data-mirror]').forEach(sel => {
+    const real = $('#' + sel.dataset.mirror);
+    sel.value = real.value;
+    sel.addEventListener('change', () => {
+      real.value = sel.value;
+      if (real._mselRefresh) real._mselRefresh();
+      real.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
+// The proxy rows, in the active language, for the buttons visible right now.
+function renderTbList() {
+  renderTbPickers();
+  $('#tbSheetList').innerHTML = TB_PROXIES.filter(([id]) => { const b = $('#' + id); return b && !b.hidden; })
+    .map(([id, label]) => `<button type="button" class="tb-sheet-item" data-proxy="${id}">${$('#' + id).querySelector('svg').outerHTML}<span>${esc(t(label))}</span><span class="tb-chev" aria-hidden="true">›</span></button>`).join('');
+}
+function openTbSheet() {
+  renderTbList();
+  // Drop the panel just under the bar (rects are visual px; :root zoom scales
+  // the lengths set here, so divide it back out).
+  const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  $('#tbSheet').style.top = `${($('.topbar').getBoundingClientRect().bottom + 8) / z}px`;
+  $('#tbSheet').hidden = false; $('#tbSheetScrim').hidden = false;
+  $('#tbMenuBtn').setAttribute('aria-expanded', 'true');
+  const first = $('#tbSheet .tb-sheet-item'); if (first) first.focus({ preventScroll: true });
+}
+function closeTbSheet() {
+  const sheet = $('#tbSheet'); if (!sheet || sheet.hidden) return;
+  sheet.hidden = true; $('#tbSheetScrim').hidden = true;
+  $('#tbMenuBtn').setAttribute('aria-expanded', 'false');
+}
+$('#tbMenuBtn').addEventListener('click', () => ($('#tbSheet').hidden ? openTbSheet() : closeTbSheet()));
+$('#tbSheetScrim').addEventListener('click', closeTbSheet);
+$('#tbSheetClose').addEventListener('click', closeTbSheet);
+// Proxy rows: close the panel first, then press the real button (it may open a
+// modal, which must not stack under the panel).
+$('#tbSheet').addEventListener('click', (e) => {
+  const row = e.target.closest('[data-proxy]'); if (!row) return;
+  closeTbSheet();
+  const real = $('#' + row.dataset.proxy); if (real) real.click();
+});
+// Escape closes the panel before anything underneath reacts to it.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#tbSheet').hidden) { e.stopPropagation(); closeTbSheet(); $('#tbMenuBtn').focus(); }
+}, true);
 
 // Show/hide password toggle for any .pw-toggle button next to a password input.
 document.addEventListener('click', (e) => {
@@ -3105,6 +3199,26 @@ function sourceKvHtml(c) {
   return `<dt>${esc(t('Re-claims lines from'))}</dt><dd><a href="#" data-open-doc="${c.source_doc_id}" data-doc-type="${sourceDrawerType(c.source_doc_type)}">${esc(c.source_doc_no)}</a></dd>`;
 }
 
+// Where the money goes: recipient, bank and account number (with a Copy button
+// for Finance). A document re-claiming another's rejected lines links back to it
+// first — that <dl> is then the drawer's first .kv, which openDrawer wires for
+// links. Claimant and department live in the drawer header.
+function paymentCardHtml(c) {
+  const src = sourceKvHtml(c);
+  const dash = '<span class="muted">—</span>';
+  return `${src ? `<dl class="kv d-source">${src}</dl>` : ''}
+    <section class="d-pay">
+      <div class="section-label d-first">${esc(t('Payment details'))}</div>
+      <dl class="kv kv-pay">
+        <dt>${esc(t('Recipient'))}</dt><dd>${c.recipient_name ? esc(c.recipient_name) : dash}</dd>
+        <dt>${esc(t('Bank'))}</dt><dd>${c.bank_name ? esc(c.bank_name) : dash}</dd>
+        <dt>${esc(t('Account no.'))}</dt><dd class="d-acct">${c.bank_account_no
+          ? `<span class="mono">${esc(c.bank_account_no)}</span><button type="button" class="copy-btn" data-copy="${esc(c.bank_account_no)}">${esc(t('Copy'))}</button>`
+          : dash}</dd>
+      </dl>
+    </section>`;
+}
+
 // Body for a reimbursement claim: account/bank details + the itemised line table
 // (painted into #drawerLines by renderDrawerLines), each line with its receipts.
 function reimbursementBody(c) {
@@ -3114,28 +3228,14 @@ function reimbursementBody(c) {
     amount: c.amount, description: c.description, attachments: c.attachments || []
   }];
   return `
-    <dl class="kv">
-      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
-      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
-      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
-      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
-      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-      ${sourceKvHtml(c)}
-    </dl>
+    ${paymentCardHtml(c)}
     <div id="drawerLines"></div>`;
 }
 
 // Body for a meal allowance claim: account/bank details + the line-item table.
 function mealBody(c) {
   return `
-    <dl class="kv">
-      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
-      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
-      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
-      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
-      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-      ${sourceKvHtml(c)}
-    </dl>
+    ${paymentCardHtml(c)}
     <div id="drawerLines"></div>`;
 }
 
@@ -3175,15 +3275,8 @@ function advanceBody(c) {
     </div>`;
   }
   return `
-    <dl class="kv">
-      <dt>${esc(t('Claimant'))}</dt><dd>${esc(c.claimant_name)}</dd>
-      ${c.department ? `<dt>${esc(t('Department'))}</dt><dd>${esc(c.department)}</dd>` : ''}
-      <dt>${esc(t('Recipient'))}</dt><dd>${esc(c.recipient_name)}</dd>
-      <dt>${esc(t('Bank'))}</dt><dd>${esc(c.bank_name)}</dd>
-      <dt>${esc(t('Account no.'))}</dt><dd class="mono">${esc(c.bank_account_no)}</dd>
-      <dt>${esc(t('Purpose'))}</dt><dd>${esc(c.purpose)}</dd>
-      <dt>${esc(t('Advance requested'))}</dt><dd><strong>${esc(money(c.amount, c.currency))}</strong></dd>
-    </dl>
+    ${c.purpose ? `<div class="section-label d-first">${esc(t('Purpose'))}</div><p class="d-purpose">${esc(c.purpose)}</p>` : ''}
+    ${paymentCardHtml(c)}
     ${docsBox}
     ${linesTable}
     ${settleBox}`;
@@ -3207,22 +3300,41 @@ async function openDrawer(id, type = 'reimbursement') {
   const body = type === 'meal' ? mealBody(c) : type === 'advance' ? advanceBody(c) : reimbursementBody(c);
   const actions = buildActions(c, u, isOwner);
 
+  // Header = what an approver needs at a glance: what it is, how much, where it
+  // stands, and whose it is. The headline amount is what would be paid (or, for
+  // an advance, what was asked for); the line table below breaks it down.
+  const typeLabel = type === 'meal' ? t('Meal allowance') : type === 'advance' ? t('Cash advance') : t('Reimbursement');
+  const headAmt = type === 'advance' ? c.amount : payableOf(c);
+  const headAmtLabel = type === 'advance' ? t('Advance requested') : rejectedCount ? t('Payable') : t('Total');
+  const meta = [c.claimant_name, c.department, t('Submitted {time}', { time: fmtDateTime(c.created_at) })].filter(Boolean);
   $('#drawer').innerHTML = `
-    <div class="drawer-head">
-      <div><h2>${esc(c.claim_no)} <span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span>${rejectedCount
-          ? ` <span class="pill lr-pill">${esc(rejectedCount === 1 ? t('1 line rejected') : t('{n} lines rejected', { n: rejectedCount }))}</span>` : ''}</h2>
-        <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('Submitted {time}', { time: fmtDateTime(c.created_at) }))}</p></div>
-      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    <div class="drawer-head dh">
+      <div class="dh-top">
+        <span class="dh-type">${esc(typeLabel)}</span>
+        <span class="dh-no">${esc(c.claim_no)}</span>
+        <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+      </div>
+      <div class="dh-main">
+        <div class="dh-amt-wrap"><div class="dh-amt">${esc(money(headAmt, c.currency))}</div><div class="dh-amt-l">${esc(headAmtLabel)}</div></div>
+        <div class="dh-pills"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span>${rejectedCount
+          ? `<span class="pill lr-pill">${esc(rejectedCount === 1 ? t('1 line rejected') : t('{n} lines rejected', { n: rejectedCount }))}</span>` : ''}</div>
+      </div>
+      <div class="dh-meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>
     </div>
     <div class="drawer-body">
       ${rejectedNote}
       ${body}
       ${renderChainProgress(c)}
       ${renderHistory(c)}
-      <div class="drawer-actions">${actions || `<span class="muted" style="font-size:.85rem">${esc(t('No actions available for your role at this stage.'))}</span>`}</div>
-    </div>`;
+    </div>
+    <div class="drawer-actions">${actions || `<span class="muted da-none">${esc(t('No actions available for your role at this stage.'))}</span>`}</div>`;
 
   $('#drawer .x-btn').addEventListener('click', closeDrawer);
+  // Copy the account number (Finance pastes it into the bank transfer).
+  $$('#drawer [data-copy]').forEach(b => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); toast(t('Copied')); }
+    catch { toast(t('Copy failed — select the number and copy it manually.'), true); }
+  }));
   $$('#drawer [data-act]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.act, c)));
   renderDrawerLines(c);
   wireDocLinks($('#drawer .kv') || $('#drawer'));

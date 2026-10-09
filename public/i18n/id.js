@@ -739,5 +739,13 @@ I18N.addDict('id', {
   'Pending - Manager': 'Menunggu - Manager',
   'Pending - FinanceAP': 'Menunggu - FinanceAP',
   'Filters': 'Filter',
-  'Clear filters': 'Hapus filter'
+  'Clear filters': 'Hapus filter',
+  // Phone top bar + claim detail
+  'Account menu': 'Menu akun',
+  'Dark mode': 'Mode gelap',
+  'Reimbursement': 'Reimbursement',
+  'Payment details': 'Detail pembayaran',
+  'Copy': 'Salin',
+  'Copied': 'Disalin',
+  'Copy failed — select the number and copy it manually.': 'Gagal menyalin — pilih nomornya lalu salin secara manual.'
 });

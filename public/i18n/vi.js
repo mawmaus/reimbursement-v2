@@ -716,5 +716,13 @@ I18N.addDict('vi', {
   'Pending - Manager': 'Chờ - Manager',
   'Pending - FinanceAP': 'Chờ - FinanceAP',
   'Filters': 'Bộ lọc',
-  'Clear filters': 'Xóa bộ lọc'
+  'Clear filters': 'Xóa bộ lọc',
+  // Phone top bar + claim detail
+  'Account menu': 'Menu tài khoản',
+  'Dark mode': 'Chế độ tối',
+  'Reimbursement': 'Hoàn ứng',
+  'Payment details': 'Thông tin thanh toán',
+  'Copy': 'Sao chép',
+  'Copied': 'Đã sao chép',
+  'Copy failed — select the number and copy it manually.': 'Không sao chép được — hãy chọn số rồi sao chép thủ công.'
 });

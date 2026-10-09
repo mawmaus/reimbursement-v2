@@ -716,5 +716,13 @@ I18N.addDict('fil', {
   'Pending - Manager': 'Naghihintay - Manager',
   'Pending - FinanceAP': 'Naghihintay - FinanceAP',
   'Filters': 'Mga filter',
-  'Clear filters': 'I-clear ang mga filter'
+  'Clear filters': 'I-clear ang mga filter',
+  // Phone top bar + claim detail
+  'Account menu': 'Menu ng account',
+  'Dark mode': 'Dark mode',
+  'Reimbursement': 'Reimbursement',
+  'Payment details': 'Detalye ng bayad',
+  'Copy': 'Kopyahin',
+  'Copied': 'Nakopya',
+  'Copy failed — select the number and copy it manually.': 'Hindi nakopya — piliin ang numero at kopyahin nang mano-mano.'
 });
