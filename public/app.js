@@ -3285,7 +3285,7 @@ function openModal2(html) {
   $('#modal2').hidden = false;
   syncScrollLock();
 }
-function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex'); syncScrollLock(); }
+function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
@@ -7687,77 +7687,142 @@ function syncApprover1Options() {
 
 function renderUserForm(u) {
   const isEdit = !!u;
+  const isSuper = state.user.role === 'superadmin';
   const excludeId = isEdit ? u.id : null;
   acctApprovers = isEdit ? (u.approver_ids || []).map(String) : [];
   acctApprover1Options = isEdit ? (u.approver1_options || []).map(String) : [];
-  openModal2(`
-    <div class="modal-head">
-      <h2>${isEdit ? esc(t('Edit {username}', { username: u.username })) : esc(t('New user'))}</h2>
-      <button type="button" class="x-btn" id="uClose">×</button>
-    </div>
-    <div class="modal-body">
-    <form id="uForm" class="form">
-      <div class="grid2">
-        <label>${esc(t('Username'))}<input name="username" required value="${isEdit ? esc(u.username) : ''}" /></label>
-        <label>${esc(t('Full name'))}<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
-        <label>${esc(t('Email (for resets & notifications)'))}<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="${esc(t('you@company.com'))}" /></label>
-        ${state.user.role === 'superadmin' ? `<label>${esc(t('Role'))}
+  const initials = isEdit ? String(u.full_name || u.username || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() : '+';
+  const roleField = isSuper ? `<label>${esc(t('Role'))}
           <select name="role">
             ${['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
               `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
           </select></label>`
-        : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}
+    : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}
           <select name="role">
             ${creatableRoles().map((r, i, arr) =>
               `<option value="${r}" ${i === arr.length - 1 ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
-          </select></label>` : '')}
-        <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
-        <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
-        ${(state.user.role === 'superadmin' || (!isEdit && state.user.region === '*')) ? `<label>${esc(t('Region'))}
+          </select></label>` : '');
+  const regionField = (isSuper || (!isEdit && state.user.region === '*')) ? `<label>${esc(t('Region'))}
           <select name="region">
             ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(isEdit ? u.region === r : r === settingsState.region) ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-            ${state.user.role === 'superadmin' ? `<option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>` : ''}
-          </select></label>` : ''}
-        <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
-          <div class="pw-wrap">
-            <input name="password" type="password" ${isEdit ? '' : 'required'} />
-            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button>
-          </div></label>
+            ${isSuper ? `<option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>` : ''}
+          </select></label>` : '';
+  // One titled card per section; the side menu jumps between them.
+  const sec = (id, title, desc, body) => `
+        <section class="ue-sec" id="ue-${id}" data-sec="${id}">
+          <header class="ue-sec-head"><h3>${esc(title)}</h3>${desc ? `<p>${esc(desc)}</p>` : ''}</header>
+          ${body}
+        </section>`;
+  const sections = [
+    ['profile', t('Profile'), t('Who this account belongs to, and where notifications and password resets are sent.'), `
+          <div class="grid2">
+            <label>${esc(t('Full name'))}<input name="full_name" required value="${isEdit ? esc(u.full_name) : ''}" /></label>
+            <label>${esc(t('Email (for resets & notifications)'))}<input name="email" type="email" value="${isEdit ? esc(u.email || '') : ''}" placeholder="${esc(t('you@company.com'))}" /></label>
+          </div>`],
+    ['signin', t('Sign-in'), isEdit ? t('Leave the password blank to keep the current one.') : t('The username and first password this person signs in with.'), `
+          <div class="grid2">
+            <label>${esc(t('Username'))}<input name="username" required autocomplete="off" value="${isEdit ? esc(u.username) : ''}" /></label>
+            <label>${isEdit ? esc(t('Reset password (optional)')) : esc(t('Password'))}
+              <div class="pw-wrap">
+                <input name="password" type="password" autocomplete="new-password" ${isEdit ? '' : 'required'} />
+                <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button>
+              </div></label>
+          </div>`],
+    ['access', t('Role & access'), t('What this account is, where it belongs, and what it may do.'), `
+          <div class="grid2">
+            ${roleField}${regionField}
+            <label>${esc(t('Department'))}${optionSelect('department', isEdit ? u.department : '', settingsState.departments)}</label>
+            <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
+          </div>
+          ${isSuper ? `
+          <div class="ue-sub">${esc(t('Permissions'))}</div>
+          <div class="grid2 ue-checks">
+            <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>
+            <label class="perm-check"><input type="checkbox" name="allow_advance" ${isEdit && u.allow_advance ? 'checked' : ''} /> <span>${esc(t('Can request cash advances'))}</span></label>
+          </div>
+          <p class="ue-hint">${esc(t('Cash advance is granted per account — the department and job-position lists no longer control it.'))}</p>` : ''}`],
+    ['approvals', t('Approvals'), t('How much this person may approve, and who approves their own claims.'), `
+          ${isSuper ? `
+          <div class="ue-sub ue-sub-first">${esc(t('Approval limit'))}</div>
+          <div class="ue-limit">
+            <label class="perm-check"><input type="checkbox" name="approval_unlimited" ${(isEdit ? u.approval_limit_cents == null : true) ? 'checked' : ''} /> <span>${esc(t('Unlimited — can approve a claim of any amount'))}</span></label>
+            <label id="apprLimitWrap">${esc(t('Maximum claim amount this account can approve'))}
+              <input name="approval_limit" inputmode="decimal" placeholder="${esc(t('e.g. 5,000,000'))}" value="${(isEdit && u.approval_limit_cents != null) ? esc(String(u.approval_limit_cents / 100)) : ''}" />
+            </label>
+          </div>
+          <div class="ue-sub">${esc(t('Approver 1 — let the submitter choose from'))}</div>
+          <p class="ue-hint ue-hint-top">${esc(t('Add two or more accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With one, it\'s used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.'))}</p>
+          <div id="approver1OptionRows"></div>
+          <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApprover1OptBtn">${esc(t('+ Add candidate'))}</button>` : ''}
+          <div class="ue-sub${isSuper ? '' : ' ue-sub-first'}">${esc(t('Approval chain (approvers, in order)'))}</div>
+          <div id="approverRows"></div>
+          <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApproverBtn">${esc(t('+ Add approver'))}</button>`],
+    ['bank', t('Bank details'), t('Where this person\'s reimbursements are paid.'), `
+          <div class="grid2">
+            <label>${esc(t('Bank name'))}<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>
+            <label>${esc(t('Recipient name'))}<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
+            <label>${esc(t('Bank account no.'))}<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
+          </div>`]
+  ];
+  openModal2(`
+    <div class="modal-head ue-head">
+      <div class="ue-id">
+        <span class="ue-avatar${isEdit ? '' : ' ue-avatar-new'}" aria-hidden="true">${esc(initials)}</span>
+        <div class="ue-id-text">
+          <h2>${isEdit ? esc(u.full_name || u.username) : esc(t('New user'))}</h2>
+          <div class="ue-meta">${isEdit
+            ? `<span class="mono">${esc(u.username)}</span><span aria-hidden="true">·</span><span>${esc(roleLabel(u.role))}</span><span aria-hidden="true">·</span><span>${esc(regionLabel(u.region))}</span>${u.active === false ? ` <span class="pill pill-off">${esc(t('Disabled'))}</span>` : ''}`
+            : `<span>${esc(t('Fill in each section, then create the account.'))}</span>`}</div>
+        </div>
       </div>
-      ${state.user.role === 'superadmin' ? `
-      <div class="section-label" style="margin-top:8px">${esc(t('Permissions'))}</div>
-      <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>
-      <label class="perm-check"><input type="checkbox" name="allow_advance" ${isEdit && u.allow_advance ? 'checked' : ''} /> <span>${esc(t('Can request cash advances'))}</span></label>
-      <p class="muted" style="font-size:.82rem;margin:6px 0 0">${esc(t('Cash advance is granted per account — the department and job-position lists no longer control it.'))}</p>
-      <div class="section-label" style="margin-top:8px">${esc(t('Approval limit'))}</div>
-      <label class="perm-check"><input type="checkbox" name="approval_unlimited" ${(isEdit ? u.approval_limit_cents == null : true) ? 'checked' : ''} /> <span>${esc(t('Unlimited — can approve a claim of any amount'))}</span></label>
-      <label id="apprLimitWrap" style="margin-top:8px">${esc(t('Maximum claim amount this account can approve'))}
-        <input name="approval_limit" inputmode="decimal" placeholder="${esc(t('e.g. 5,000,000'))}" value="${(isEdit && u.approval_limit_cents != null) ? esc(String(u.approval_limit_cents / 100)) : ''}" />
-      </label>` : ''}
-      ${state.user.role === 'superadmin' ? `
-      <div class="section-label" style="margin-top:8px">${esc(t('Approver 1 — let the submitter choose from'))}</div>
-      <p class="muted" style="font-size:.82rem;margin:0 0 6px">${esc(t('Add two or more accounts to let this person pick their Approver 1 from a dropdown on the New Claim form. With one, it\'s used as Approver 1 automatically (no dropdown). Leave empty to use the fixed chain below as-is. Whatever ends up as Approver 1 becomes step 1, and the chain below runs after it.'))}</p>
-      <div id="approver1OptionRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApprover1OptBtn">${esc(t('+ Add candidate'))}</button>` : ''}
-      <div class="section-label" style="margin-top:8px">${esc(t('Approval chain (approvers, in order)'))}</div>
-      <div id="approverRows"></div>
-      <button type="button" class="btn btn-ghost btn-sm add-approver-btn" id="addApproverBtn">${esc(t('+ Add approver'))}</button>
-      <div class="section-label" style="margin-top:8px">${esc(t('Bank / payout details'))}</div>
-      <div class="grid2">
-        <label>${esc(t('Bank name'))}<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>
-        <label>${esc(t('Recipient name'))}<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
-        <label>${esc(t('Bank account no.'))}<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
-      </div>
-      <p class="form-error" id="uErr" hidden></p>
-      <div class="modal-actions sticky-foot">
-        <button type="button" class="btn btn-ghost btn-sm" id="uCancel">${esc(t('Cancel'))}</button>
-        <button type="submit" class="btn btn-primary btn-sm">${isEdit ? esc(t('Save')) : esc(t('Create'))}</button>
-      </div>
-    </form>
+      <button type="button" class="x-btn" id="uClose">×</button>
+    </div>
+    <div class="modal-body ue-body">
+      <nav class="ue-nav" aria-label="${esc(t('Sections'))}">
+        ${sections.map(([id, title], i) => `<button type="button" class="ue-nav-item${i ? '' : ' active'}" data-go="${id}">${esc(title)}</button>`).join('')}
+      </nav>
+      <form id="uForm" class="form ue-form">
+        <div class="ue-scroll" id="ueScroll">${sections.map(s => sec(...s)).join('')}
+        </div>
+        <div class="ue-foot">
+          <p class="form-error" id="uErr" hidden></p>
+          <span class="ue-foot-note">${isEdit && u.created_by_name ? esc(t('Created by {name}', { name: u.created_by_name })) : ''}</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="uCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary btn-sm">${isEdit ? esc(t('Save changes')) : esc(t('Create account'))}</button>
+        </div>
+      </form>
     </div>`);
-  $('#modal2').classList.add('modal-wide');
+  $('#modal2').classList.add('modal-xwide', 'modal-flex', 'modal-ue');
   $('#uClose').addEventListener('click', closeModal2);
   $('#uCancel').addEventListener('click', closeModal2);
+  // Side menu: jump to a section; highlight whichever section is in view.
+  const scroller = $('#ueScroll');
+  const navItems = $$('#modal2 .ue-nav-item');
+  const mark = (id) => navItems.forEach(b => {
+    const on = b.dataset.go === id;
+    // On phones the menu is a sideways strip: keep the active pill in view.
+    if (on && !b.classList.contains('active') && b.scrollIntoView) b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    b.classList.toggle('active', on);
+  });
+  navItems.forEach(b => b.addEventListener('click', () => {
+    scroller.scrollTo({ top: $('#ue-' + b.dataset.go).offsetTop - 4, behavior: 'smooth' });
+    mark(b.dataset.go);
+  }));
+  scroller.addEventListener('scroll', () => {
+    const secs = $$('#ueScroll .ue-sec');
+    const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4;
+    let cur = secs[0];
+    for (const s of secs) if (s.offsetTop <= scroller.scrollTop + 40) cur = s;
+    mark((atEnd ? secs[secs.length - 1] : cur).dataset.sec);
+  });
+  // A submit blocked by empty required fields: light up the section of the
+  // first one (the field the browser scrolls to), not the last to report.
+  let firstInvalid = true;
+  $('#uForm').addEventListener('invalid', (e) => {
+    if (!firstInvalid) return;
+    firstInvalid = false; setTimeout(() => { firstInvalid = true; });
+    const s = e.target.closest('.ue-sec'); if (s) mark(s.dataset.sec);
+  }, true);
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
   if (state.user.role === 'superadmin') {
@@ -7768,7 +7833,7 @@ function renderUserForm(u) {
     const amt = $('#uForm [name="approval_limit"]');
     const wrap = $('#apprLimitWrap');
     if (unl && amt && wrap) {
-      const syncLimit = () => { const on = unl.checked; amt.disabled = on; wrap.style.opacity = on ? '.5' : '1'; if (on) amt.value = ''; };
+      const syncLimit = () => { const on = unl.checked; amt.disabled = on; wrap.hidden = on; if (on) amt.value = ''; };
       unl.addEventListener('change', syncLimit); syncLimit();
     }
   }

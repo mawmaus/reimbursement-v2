@@ -691,5 +691,20 @@ I18N.addDict('fil', {
   'The expense types claimants in {region} choose from on each reimbursement line.': 'Ang mga uri ng gastos na pinipili ng mga claimant sa {region} sa bawat linya ng reimbursement.',
   '{active} active · {disabled} disabled': '{active} aktibo · {disabled} naka-disable',
   'Disable account': 'I-disable ang account',
-  'Enable account': 'I-enable ang account'
+  'Enable account': 'I-enable ang account',
+  // Account editor
+  'Sign-in': 'Pag-sign in',
+  'Role & access': 'Role at access',
+  'Approvals': 'Mga pag-apruba',
+  'Bank details': 'Detalye ng bangko',
+  'Sections': 'Mga seksyon',
+  'Save changes': 'I-save ang mga pagbabago',
+  'Create account': 'Gumawa ng account',
+  'Fill in each section, then create the account.': 'Punan ang bawat seksyon, saka gawin ang account.',
+  'Who this account belongs to, and where notifications and password resets are sent.': 'Kung kanino ang account na ito, at saan ipinapadala ang mga notification at password reset.',
+  'Leave the password blank to keep the current one.': 'Iwanang blangko ang password para panatilihin ang kasalukuyan.',
+  'The username and first password this person signs in with.': 'Ang username at unang password na gagamitin ng taong ito sa pag-sign in.',
+  'What this account is, where it belongs, and what it may do.': 'Kung ano ang account na ito, saan ito kabilang, at ano ang maaari nitong gawin.',
+  'How much this person may approve, and who approves their own claims.': 'Gaano kalaki ang maaaring aprubahan ng taong ito, at sino ang nag-aapruba ng sarili niyang mga claim.',
+  'Where this person\'s reimbursements are paid.': 'Kung saan ibinabayad ang mga reimbursement ng taong ito.'
 });

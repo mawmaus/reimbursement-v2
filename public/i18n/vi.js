@@ -691,5 +691,20 @@ I18N.addDict('vi', {
   'The expense types claimants in {region} choose from on each reimbursement line.': 'Các loại chi phí mà người yêu cầu ở {region} chọn trên mỗi dòng hoàn ứng.',
   '{active} active · {disabled} disabled': '{active} đang hoạt động · {disabled} bị vô hiệu hóa',
   'Disable account': 'Vô hiệu hóa tài khoản',
-  'Enable account': 'Kích hoạt tài khoản'
+  'Enable account': 'Kích hoạt tài khoản',
+  // Account editor
+  'Sign-in': 'Đăng nhập',
+  'Role & access': 'Vai trò & quyền hạn',
+  'Approvals': 'Phê duyệt',
+  'Bank details': 'Thông tin ngân hàng',
+  'Sections': 'Các phần',
+  'Save changes': 'Lưu thay đổi',
+  'Create account': 'Tạo tài khoản',
+  'Fill in each section, then create the account.': 'Điền từng phần, rồi tạo tài khoản.',
+  'Who this account belongs to, and where notifications and password resets are sent.': 'Tài khoản này thuộc về ai, và thông báo cũng như đặt lại mật khẩu được gửi đến đâu.',
+  'Leave the password blank to keep the current one.': 'Để trống mật khẩu để giữ mật khẩu hiện tại.',
+  'The username and first password this person signs in with.': 'Tên đăng nhập và mật khẩu ban đầu mà người này dùng để đăng nhập.',
+  'What this account is, where it belongs, and what it may do.': 'Tài khoản này là gì, thuộc về đâu và được phép làm gì.',
+  'How much this person may approve, and who approves their own claims.': 'Người này được phê duyệt bao nhiêu, và ai phê duyệt các yêu cầu của chính họ.',
+  'Where this person\'s reimbursements are paid.': 'Nơi nhận tiền hoàn ứng của người này.'
 });

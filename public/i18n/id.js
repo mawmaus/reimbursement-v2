@@ -714,5 +714,20 @@ I18N.addDict('id', {
   'The expense types claimants in {region} choose from on each reimbursement line.': 'Jenis pengeluaran yang dipilih pengaju di {region} pada setiap baris reimbursement.',
   '{active} active · {disabled} disabled': '{active} aktif · {disabled} nonaktif',
   'Disable account': 'Nonaktifkan akun',
-  'Enable account': 'Aktifkan akun'
+  'Enable account': 'Aktifkan akun',
+  // Account editor
+  'Sign-in': 'Masuk',
+  'Role & access': 'Peran & akses',
+  'Approvals': 'Persetujuan',
+  'Bank details': 'Detail bank',
+  'Sections': 'Bagian',
+  'Save changes': 'Simpan perubahan',
+  'Create account': 'Buat akun',
+  'Fill in each section, then create the account.': 'Isi setiap bagian, lalu buat akunnya.',
+  'Who this account belongs to, and where notifications and password resets are sent.': 'Pemilik akun ini, dan ke mana notifikasi serta reset kata sandi dikirim.',
+  'Leave the password blank to keep the current one.': 'Kosongkan kata sandi untuk mempertahankan yang sekarang.',
+  'The username and first password this person signs in with.': 'Nama pengguna dan kata sandi awal yang dipakai orang ini untuk masuk.',
+  'What this account is, where it belongs, and what it may do.': 'Jenis akun ini, tempatnya, dan apa yang boleh dilakukannya.',
+  'How much this person may approve, and who approves their own claims.': 'Berapa banyak yang boleh disetujui orang ini, dan siapa yang menyetujui klaimnya sendiri.',
+  'Where this person\'s reimbursements are paid.': 'Ke mana reimbursement orang ini dibayarkan.'
 });

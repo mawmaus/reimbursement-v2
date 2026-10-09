@@ -691,5 +691,20 @@ I18N.addDict('km', {
   'The expense types claimants in {region} choose from on each reimbursement line.': 'ប្រភេទការចំណាយដែលអ្នកស្នើសុំនៅ {region} ជ្រើសរើសលើបន្ទាត់សំណងនីមួយៗ។',
   '{active} active · {disabled} disabled': 'សកម្ម {active} · បានបិទ {disabled}',
   'Disable account': 'បិទគណនី',
-  'Enable account': 'បើកគណនី'
+  'Enable account': 'បើកគណនី',
+  // Account editor
+  'Sign-in': 'ការចូលប្រើ',
+  'Role & access': 'តួនាទី និងសិទ្ធិ',
+  'Approvals': 'ការអនុម័ត',
+  'Bank details': 'ព័ត៌មានធនាគារ',
+  'Sections': 'ផ្នែក',
+  'Save changes': 'រក្សាទុកការផ្លាស់ប្តូរ',
+  'Create account': 'បង្កើតគណនី',
+  'Fill in each section, then create the account.': 'បំពេញផ្នែកនីមួយៗ រួចបង្កើតគណនី។',
+  'Who this account belongs to, and where notifications and password resets are sent.': 'គណនីនេះជារបស់អ្នកណា ហើយការជូនដំណឹង និងការកំណត់ពាក្យសម្ងាត់ឡើងវិញត្រូវផ្ញើទៅណា។',
+  'Leave the password blank to keep the current one.': 'ទុកពាក្យសម្ងាត់ទទេ ដើម្បីរក្សាពាក្យសម្ងាត់បច្ចុប្បន្ន។',
+  'The username and first password this person signs in with.': 'ឈ្មោះអ្នកប្រើ និងពាក្យសម្ងាត់ដំបូងដែលបុគ្គលនេះប្រើដើម្បីចូល។',
+  'What this account is, where it belongs, and what it may do.': 'គណនីនេះជាអ្វី ស្ថិតនៅណា និងអាចធ្វើអ្វីបាន។',
+  'How much this person may approve, and who approves their own claims.': 'បុគ្គលនេះអាចអនុម័តបានប៉ុន្មាន និងអ្នកណាអនុម័តសំណើរបស់ពួកគេផ្ទាល់។',
+  'Where this person\'s reimbursements are paid.': 'កន្លែងដែលប្រាក់សំណងរបស់បុគ្គលនេះត្រូវបានបង់។'
 });

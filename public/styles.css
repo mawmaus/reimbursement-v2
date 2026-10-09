@@ -2361,3 +2361,60 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .settings-list .utable-lookup td.ord-cell .ord-btns { flex-direction: row; }
   .settings-list .utable-lookup td.tick-cell + td.tick-cell { padding-top: 4px; }
 }
+
+/* --- Account editor (add / edit user) ------------------------------------- */
+/* Identity header, a section menu on the left, the form as titled cards that
+   scroll, and a footer that keeps the error and Save always in view. */
+.modal.modal-ue { width: min(1000px, calc(100% - 32px)); height: min(780px, 90vh); }
+.ue-head { gap: 16px; }
+.ue-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ue-avatar { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; font-size: 1rem; letter-spacing: .02em; color: var(--pine-deep); background: var(--pine-tint); }
+.ue-avatar-new { font-size: 1.4rem; font-weight: 500; }
+.ue-id-text { min-width: 0; }
+.ue-id-text h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ue-meta { margin-top: 3px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .84rem; color: var(--muted); }
+.ue-meta .mono { color: var(--ink-soft); }
+.modal.modal-flex .modal-body.ue-body { flex-direction: row; padding: 0; }
+.ue-nav { flex: none; width: 200px; padding: 16px 10px; border-right: 1px solid var(--line); background: var(--paper); overflow-y: auto; }
+.ue-nav-item { display: block; width: 100%; padding: 8px 12px; margin-bottom: 2px; text-align: left; font: inherit;
+  font-size: .9rem; font-weight: 560; color: var(--ink-soft); background: none; border: 0; border-radius: 8px; cursor: pointer; }
+.ue-nav-item:hover { background: var(--line-soft); color: var(--ink); }
+.ue-nav-item:focus-visible { outline: 2px solid var(--pine); outline-offset: -2px; }
+.ue-nav-item.active { background: var(--pine-tint); color: var(--pine-deep); font-weight: 650; }
+.form.ue-form { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 0; margin: 0; }
+.ue-scroll { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 22px 24px; }
+.ue-sec { padding: 18px 20px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.ue-sec + .ue-sec { margin-top: 14px; }
+.ue-sec-head { margin-bottom: 14px; }
+.ue-sec-head h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--ink); }
+.ue-sec-head p { margin: 3px 0 0; font-size: .84rem; line-height: 1.45; color: var(--muted); }
+.ue-sub { margin: 18px 0 10px; padding-top: 16px; border-top: 1px solid var(--line-soft);
+  font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ue-sub.ue-sub-first { margin-top: 0; padding-top: 0; border-top: 0; }
+.ue-checks { gap: 10px; }
+.ue-hint { margin: 8px 0 0; font-size: .82rem; line-height: 1.45; color: var(--muted); }
+.ue-hint.ue-hint-top { margin: 0 0 10px; }
+.ue-limit { display: grid; gap: 12px; max-width: 460px; }
+.ue-limit label[hidden] { display: none; }
+.ue-sec .add-approver-btn { margin-top: 2px; }
+.ue-foot { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 22px;
+  border-top: 1px solid var(--line); background: var(--surface); }
+.ue-foot .form-error { flex-basis: 100%; margin: 0 0 4px; }
+.ue-foot-note { margin-right: auto; font-size: .8rem; font-style: italic; color: var(--muted); }
+@media (max-width: 760px) {
+  .modal.modal-ue { height: 92vh; }
+  .modal.modal-flex .modal-body.ue-body { flex-direction: column; }
+  .ue-nav { width: auto; display: flex; gap: 6px; padding: 10px 12px; overflow-x: auto; overflow-y: hidden;
+    border-right: 0; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .ue-nav::-webkit-scrollbar { display: none; }
+  .ue-nav-item { width: auto; flex: none; margin: 0; white-space: nowrap; padding: 6px 12px;
+    border: 1px solid var(--line); border-radius: 99px; background: var(--surface); }
+  .ue-nav-item.active { border-color: transparent; }
+  .ue-scroll { padding: 12px 12px 18px; }
+  .ue-sec { padding: 14px 14px 16px; }
+
+  .ue-foot { padding: 10px 12px; }
+  .ue-foot-note { display: none; }
+  .ue-foot .btn { flex: 1; }
+}

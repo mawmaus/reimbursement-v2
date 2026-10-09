@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.5',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The add / edit account form is reorganised into clear sections — Profile, Sign-in, Role & access, Approvals and Bank details — with a side menu to jump between them. The header shows who you are editing (name, username, role and region), Save stays at the bottom of the window at all times, and the approval-limit amount only appears when Unlimited is unticked.',
+        id: 'Formulir tambah / ubah akun kini tersusun dalam bagian yang jelas — Profil, Masuk, Peran & akses, Persetujuan, dan Detail bank — dengan menu samping untuk berpindah antarbagian. Bagian atas menampilkan siapa yang sedang Anda ubah (nama, nama pengguna, peran, dan wilayah), tombol Simpan selalu terlihat di bawah jendela, dan kolom jumlah batas persetujuan hanya muncul jika Tanpa batas tidak dicentang.',
+        th: 'ฟอร์มเพิ่ม / แก้ไขบัญชีจัดเป็นส่วนที่ชัดเจนแล้ว ได้แก่ โปรไฟล์ การเข้าสู่ระบบ บทบาทและสิทธิ์ การอนุมัติ และข้อมูลธนาคาร พร้อมเมนูด้านข้างสำหรับข้ามไปยังแต่ละส่วน ส่วนหัวแสดงว่ากำลังแก้ไขใคร (ชื่อ ชื่อผู้ใช้ บทบาท และภูมิภาค) ปุ่มบันทึกอยู่ด้านล่างของหน้าต่างตลอดเวลา และช่องจำนวนวงเงินอนุมัติจะแสดงเฉพาะเมื่อไม่ได้ติ๊กไม่จำกัด',
+        vi: 'Biểu mẫu thêm / sửa tài khoản được sắp xếp lại thành các phần rõ ràng — Hồ sơ, Đăng nhập, Vai trò & quyền hạn, Phê duyệt và Thông tin ngân hàng — kèm menu bên để chuyển nhanh giữa các phần. Phần đầu hiển thị bạn đang sửa ai (tên, tên đăng nhập, vai trò và khu vực), nút Lưu luôn nằm ở cuối cửa sổ, và ô số tiền hạn mức phê duyệt chỉ hiện khi bỏ chọn Không giới hạn.',
+        km: 'ទម្រង់បន្ថែម / កែគណនីត្រូវបានរៀបចំឡើងវិញជាផ្នែកច្បាស់លាស់ — ប្រវត្តិរូប ការចូលប្រើ តួនាទី និងសិទ្ធិ ការអនុម័ត និងព័ត៌មានធនាគារ — ដោយមានម៉ឺនុយចំហៀងសម្រាប់លោតទៅផ្នែកនីមួយៗ។ ផ្នែកខាងលើបង្ហាញអ្នកដែលអ្នកកំពុងកែ (ឈ្មោះ ឈ្មោះអ្នកប្រើ តួនាទី និងតំបន់) ប៊ូតុងរក្សាទុកនៅខាងក្រោមបង្អួចជានិច្ច ហើយប្រអប់ចំនួនដែនកំណត់អនុម័តបង្ហាញតែពេលមិនបានធីក គ្មានដែនកំណត់។',
+        fil: 'Inayos na sa malinaw na mga seksyon ang form ng pagdagdag / pag-edit ng account — Profile, Pag-sign in, Role at access, Mga pag-apruba at Detalye ng bangko — na may side menu para lumipat sa bawat isa. Ipinapakita ng header kung sino ang ine-edit mo (pangalan, username, role at rehiyon), laging nasa ibaba ng window ang Save, at lumalabas lang ang halaga ng approval limit kapag hindi naka-tsek ang Unlimited.'
+      }, audience: ['settings', 'accounts'] }
+    ]
+  },
+  {
     id: '2026-10-09.4',
     date: '2026-10-09',
     items: [

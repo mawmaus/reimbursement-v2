@@ -691,5 +691,20 @@ I18N.addDict('th', {
   'The expense types claimants in {region} choose from on each reimbursement line.': 'ประเภทค่าใช้จ่ายที่ผู้เบิกใน {region} เลือกในแต่ละบรรทัดของการเบิกค่าใช้จ่าย',
   '{active} active · {disabled} disabled': 'ใช้งาน {active} · ปิดใช้งาน {disabled}',
   'Disable account': 'ปิดใช้งานบัญชี',
-  'Enable account': 'เปิดใช้งานบัญชี'
+  'Enable account': 'เปิดใช้งานบัญชี',
+  // Account editor
+  'Sign-in': 'การเข้าสู่ระบบ',
+  'Role & access': 'บทบาทและสิทธิ์',
+  'Approvals': 'การอนุมัติ',
+  'Bank details': 'ข้อมูลธนาคาร',
+  'Sections': 'ส่วนต่างๆ',
+  'Save changes': 'บันทึกการเปลี่ยนแปลง',
+  'Create account': 'สร้างบัญชี',
+  'Fill in each section, then create the account.': 'กรอกข้อมูลในแต่ละส่วน แล้วสร้างบัญชี',
+  'Who this account belongs to, and where notifications and password resets are sent.': 'บัญชีนี้เป็นของใคร และส่งการแจ้งเตือนกับการรีเซ็ตรหัสผ่านไปที่ใด',
+  'Leave the password blank to keep the current one.': 'เว้นรหัสผ่านว่างไว้เพื่อใช้รหัสผ่านเดิม',
+  'The username and first password this person signs in with.': 'ชื่อผู้ใช้และรหัสผ่านแรกที่บุคคลนี้ใช้เข้าสู่ระบบ',
+  'What this account is, where it belongs, and what it may do.': 'บัญชีนี้คืออะไร อยู่ที่ใด และทำอะไรได้บ้าง',
+  'How much this person may approve, and who approves their own claims.': 'บุคคลนี้อนุมัติได้มากเท่าใด และใครเป็นผู้อนุมัติรายการเบิกของเขาเอง',
+  'Where this person\'s reimbursements are paid.': 'ที่ซึ่งเงินเบิกคืนของบุคคลนี้จะถูกโอนเข้า'
 });
