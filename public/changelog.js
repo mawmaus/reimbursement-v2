@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.1',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'When a claim has just one photo receipt, the downloaded PDF now shows it on the claim page itself at a readable size, instead of stretching it across a page of its own.',
+        id: 'Jika klaim hanya memiliki satu foto struk, PDF yang diunduh kini menampilkannya langsung di halaman klaim dengan ukuran yang mudah dibaca, alih-alih membentangkannya di satu halaman tersendiri.',
+        th: 'เมื่อรายการเบิกมีรูปใบเสร็จเพียงรูปเดียว PDF ที่ดาวน์โหลดจะแสดงรูปนั้นในหน้ารายการเบิกเลยด้วยขนาดที่อ่านง่าย แทนที่จะขยายเต็มหน้าแยกต่างหาก',
+        vi: 'Khi một yêu cầu chỉ có một ảnh biên lai, tệp PDF tải xuống giờ hiển thị ảnh ngay trên trang yêu cầu với kích thước dễ đọc, thay vì phóng to chiếm trọn một trang riêng.',
+        km: 'នៅពេលសំណើមានរូបថតបង្កាន់ដៃតែមួយ PDF ដែលបានទាញយកឥឡូវបង្ហាញវានៅលើទំព័រសំណើផ្ទាល់ក្នុងទំហំដែលងាយអាន ជំនួសឱ្យការពង្រីកវាពេញទំព័រដាច់ដោយឡែក។',
+        fil: 'Kapag iisa lang ang larawan ng resibo sa isang claim, ipinapakita na ito ng na-download na PDF sa mismong pahina ng claim sa laking madaling basahin, sa halip na i-stretch ito sa sarili nitong buong pahina.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-07.1',
     date: '2026-10-07',
     items: [

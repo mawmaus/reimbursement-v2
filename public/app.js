@@ -2620,12 +2620,12 @@ async function buildClaimsPdf(claims) {
   // Render a claim's attachments: images are collected into `batch` and flushed
   // 4-to-a-page as grids; PDFs and load failures break the batch and take their
   // own full page(s), preserving the original attachment order.
-  const appendAttachments = async (c, atts) => {
-    // Fetch every receipt's bytes up front, a few at a time, then embed them
-    // below in the original order — the requests overlap, the layout doesn't
-    // change. A failed fetch stays null and still gets its note page.
+  // Fetch every receipt's bytes up front, a few at a time, so they can be
+  // embedded below in the original order — the requests overlap, the layout
+  // doesn't change. A failed fetch stays null and still gets its note page.
+  const fetchAttachments = (c, atts) => {
     const base = c.type === 'meal' ? '/meal-claims/' : c.type === 'advance' ? '/cash-advances/' : '/claims/';
-    const fetched = await mapLimit(atts, 4, async (att) => {
+    return mapLimit(atts, 4, async (att) => {
       try {
         const res = await fetch(`/api${base}${c.id}/attachments/${att.id}`, { credentials: 'same-origin' });
         if (!res.ok) throw new Error('http');
@@ -2633,6 +2633,32 @@ async function buildClaimsPdf(claims) {
         return { bytes, mime: att.mime_type || res.headers.get('Content-Type') || '' };
       } catch { return null; }
     });
+  };
+  const isPdfAtt = (att, mime) => /pdf/i.test(mime) || /\.pdf$/i.test(att.original_name);
+  // A claim with a single image receipt doesn't need a page to itself: draw it
+  // in the flow under the attachment list at a modest size (never upscaled,
+  // capped to roughly half a page). It drops to the next page only when too
+  // little room is left. Returns false when the file isn't an inlinable image.
+  const drawInlineImage = async (att, got) => {
+    if (!got || isPdfAtt(att, got.mime)) return false;
+    let img;
+    try { img = await pdf.embedPng((await rasterToPng(got.bytes, got.mime)).bytes); } catch { return false; }
+    const MAX_H = 380, MIN_H = 180, FOOT = 30;
+    const fit = (maxH) => Math.min(1, CW / img.width, maxH / img.height);
+    let s = fit(MAX_H);
+    const room = y - 12 - M - FOOT;
+    if (img.height * s > room) {
+      if (room >= MIN_H) s = fit(room);
+      else newPage();
+    }
+    const iw = img.width * s, ih = img.height * s;
+    y -= 12;
+    page.drawImage(img, { x: M, y: y - ih, width: iw, height: ih });
+    page.drawRectangle({ x: M, y: y - ih, width: iw, height: ih, borderColor: rule, borderWidth: 0.5 });
+    y -= ih + 4;
+    return true;
+  };
+  const appendAttachments = async (c, atts, fetched) => {
     let batch = [];
     const flush = () => { for (let i = 0; i < batch.length; i += 4) drawImageGrid(c, batch.slice(i, i + 4)); batch = []; };
     for (let i = 0; i < atts.length; i++) {
@@ -2640,7 +2666,7 @@ async function buildClaimsPdf(claims) {
       const got = fetched[i];
       if (!got) { flush(); drawNotePage(c, att, 'Could not load this attachment from storage.'); continue; }
       const { bytes, mime } = got;
-      if (/pdf/i.test(mime) || /\.pdf$/i.test(att.original_name)) {
+      if (isPdfAtt(att, mime)) {
         flush();
         try {
           const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -2669,15 +2695,18 @@ async function buildClaimsPdf(claims) {
     const atts = c.type === 'advance'
       ? (c.attachments || []).concat(lineAtts)
       : ((c.attachments && c.attachments.length) ? c.attachments : lineAtts);
+    const fetched = await fetchAttachments(c, atts);
+    let inlined = false;
     if (atts.length) {
       section(`Attachments (${atts.length})`);
       atts.forEach(a => line(`- ${a.original_name}  (${fmtBytes(a.size_bytes)})`, { size: 9, gap: 3 }));
+      if (atts.length === 1) inlined = await drawInlineImage(atts[0], fetched[0]);
     }
     need(26); y -= 14;
     page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
     y -= 11;
     page.drawText(pdfSafe(`Generated ${fmtDateTime(new Date().toISOString())}  ·  Cibes Reimbursement Portal`), { x: M, y, size: 7.5, font, color: muted });
-    await appendAttachments(c, atts);
+    if (!inlined) await appendAttachments(c, atts, fetched);
   }
   return pdf.save();
 }
