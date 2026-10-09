@@ -2581,21 +2581,22 @@ async function buildClaimsPdf(claims) {
     });
   };
 
-  // Pack up to 4 image attachments onto a single full page. One image fills the
-  // page; two share it side by side; three or four fall into a 2x2 grid. Each
+  // Pack up to 4 image attachments onto a single full page. Two share it side
+  // by side; three or four fall into a 2x2 grid; a lone image gets the same
+  // half-width cell as a pair, centred, rather than filling the page. Each
   // image is scaled to fit ("contain") inside its cell under a filename caption.
   const drawImageGrid = (c, items) => {
     const p = pdf.addPage([W, H]);
     p.drawText(pdfSafe(`Attachments · ${c.claim_no}`), { x: M, y: H - M - 6, size: 8, font, color: muted });
     const top = H - M - 22, availH = top - M;
     const n = items.length, gap = 14;
-    const cols = n === 1 ? 1 : 2, rows = Math.ceil(n / cols);
+    const cols = 2, rows = Math.ceil(n / cols);
     const cellW = (CW - gap * (cols - 1)) / cols;
     const cellH = (availH - gap * (rows - 1)) / rows;
     const capH = 13;
     items.forEach(({ att, img }, i) => {
       const col = i % cols, row = Math.floor(i / cols);
-      const cx = M + col * (cellW + gap);
+      const cx = n === 1 ? M + (CW - cellW) / 2 : M + col * (cellW + gap);
       const cellTop = top - row * (cellH + gap);
       let name = pdfSafe(att.original_name);
       while (name.length > 4 && font.widthOfTextAtSize(name, 8) > cellW) name = name.slice(0, -2);
@@ -2635,29 +2636,6 @@ async function buildClaimsPdf(claims) {
     });
   };
   const isPdfAtt = (att, mime) => /pdf/i.test(mime) || /\.pdf$/i.test(att.original_name);
-  // A claim with a single image receipt doesn't need a page to itself: draw it
-  // in the flow under the attachment list at a modest size (never upscaled,
-  // capped to roughly half a page). It drops to the next page only when too
-  // little room is left. Returns false when the file isn't an inlinable image.
-  const drawInlineImage = async (att, got) => {
-    if (!got || isPdfAtt(att, got.mime)) return false;
-    let img;
-    try { img = await pdf.embedPng((await rasterToPng(got.bytes, got.mime)).bytes); } catch { return false; }
-    const MAX_H = 380, MIN_H = 180, FOOT = 30;
-    const fit = (maxH) => Math.min(1, CW / img.width, maxH / img.height);
-    let s = fit(MAX_H);
-    const room = y - 12 - M - FOOT;
-    if (img.height * s > room) {
-      if (room >= MIN_H) s = fit(room);
-      else newPage();
-    }
-    const iw = img.width * s, ih = img.height * s;
-    y -= 12;
-    page.drawImage(img, { x: M, y: y - ih, width: iw, height: ih });
-    page.drawRectangle({ x: M, y: y - ih, width: iw, height: ih, borderColor: rule, borderWidth: 0.5 });
-    y -= ih + 4;
-    return true;
-  };
   const appendAttachments = async (c, atts, fetched) => {
     let batch = [];
     const flush = () => { for (let i = 0; i < batch.length; i += 4) drawImageGrid(c, batch.slice(i, i + 4)); batch = []; };
@@ -2695,18 +2673,15 @@ async function buildClaimsPdf(claims) {
     const atts = c.type === 'advance'
       ? (c.attachments || []).concat(lineAtts)
       : ((c.attachments && c.attachments.length) ? c.attachments : lineAtts);
-    const fetched = await fetchAttachments(c, atts);
-    let inlined = false;
     if (atts.length) {
       section(`Attachments (${atts.length})`);
       atts.forEach(a => line(`- ${a.original_name}  (${fmtBytes(a.size_bytes)})`, { size: 9, gap: 3 }));
-      if (atts.length === 1) inlined = await drawInlineImage(atts[0], fetched[0]);
     }
     need(26); y -= 14;
     page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: rule });
     y -= 11;
     page.drawText(pdfSafe(`Generated ${fmtDateTime(new Date().toISOString())}  ·  Cibes Reimbursement Portal`), { x: M, y, size: 7.5, font, color: muted });
-    if (!inlined) await appendAttachments(c, atts, fetched);
+    await appendAttachments(c, atts, await fetchAttachments(c, atts));
   }
   return pdf.save();
 }
@@ -6264,11 +6239,6 @@ const EXPORT_STATUS_OPTS = [
   { v: 'rejected', l: 'Rejected' },
   { v: 'paid', l: 'Paid' }
 ];
-const EXPORT_TYPE_OPTS = [
-  { v: 'reimbursement', l: 'Reimbursement claims' },
-  { v: 'meal', l: 'Meal allowances' },
-  { v: 'advance', l: 'Cash advances (realized)' }
-];
 $('#exportBtn').addEventListener('click', () => openExportModal());
 
 async function openExportModal() {
@@ -6291,20 +6261,21 @@ async function openExportModal() {
           <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="1">${esc(t('Last year'))}</button>
         </div>
         <div class="grid2 export-groups">
-          ${[
-            { title: 'Statuses to include', name: 'status', opts: EXPORT_STATUS_OPTS },
-            { title: 'Claim types', name: 'types', opts: EXPORT_TYPE_OPTS }
-          ].map(g => `
           <div class="export-group">
-            <div class="eg-head">
-              <div class="section-label">${esc(t(g.title))}</div>
-              <button type="button" class="eg-toggle" data-group="${g.name}">${esc(t('Clear'))}</button>
+            <div class="section-label">${esc(t('Statuses to include'))}</div>
+            <div class="check-group">
+              ${EXPORT_STATUS_OPTS.map(o => `
+                <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${esc(t(o.l))}</label>`).join('')}
             </div>
-            <div class="check-list">
-              ${g.opts.map(o => `
-                <label class="check-row"><input type="checkbox" name="${g.name}" value="${o.v}" checked /><span>${esc(t(o.l))}</span></label>`).join('')}
+          </div>
+          <div class="export-group">
+            <div class="section-label">${esc(t('Claim types'))}</div>
+            <div class="check-group">
+              <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> ${esc(t('Reimbursement claims'))}</label>
+              <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> ${esc(t('Meal allowances'))}</label>
+              <label class="check-item"><input type="checkbox" name="types" value="advance" checked /> ${esc(t('Cash advances (realized)'))}</label>
             </div>
-          </div>`).join('')}
+          </div>
         </div>
         <div class="section-label" style="margin-top:6px">${esc(t('Users (submitters)'))}</div>
         <div class="user-filter">
@@ -6350,19 +6321,6 @@ async function openExportModal() {
     $('#exportForm [name="to"]').value = ymd(last);
   }));
 
-  // Status / type groups: one header button per group that reads "Clear" while
-  // every box is ticked and "Select all" otherwise, and flips the whole group.
-  $$('.eg-toggle').forEach(btn => {
-    const boxes = $$(`#exportForm input[name="${btn.dataset.group}"]`);
-    const sync = () => { btn.textContent = boxes.every(cb => cb.checked) ? t('Clear') : t('Select all'); };
-    btn.addEventListener('click', () => {
-      const tick = !boxes.every(cb => cb.checked);
-      boxes.forEach(cb => { cb.checked = tick; });
-      sync();
-    });
-    boxes.forEach(cb => cb.addEventListener('change', sync));
-  });
-
   // Excel-style user filter: search narrows the list; Select all / Clear act on
   // whatever rows are currently visible.
   const list = $('#ufList');
@@ -6388,7 +6346,7 @@ async function openExportModal() {
     if (from && to && from > to) { err.textContent = t('The “from” date is after the “to” date.'); err.hidden = false; return; }
     const p = new URLSearchParams();
     if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
-    if (types.length < EXPORT_TYPE_OPTS.length) p.set('types', types.join(','));
+    if (types.length < 3) p.set('types', types.join(','));
     if (emps.length < users.length) p.set('employees', emps.join(','));
     if (from) p.set('from', from);
     if (to) p.set('to', to);

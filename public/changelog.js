@@ -45,12 +45,12 @@ window.CHANGELOG = [
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
-        en: 'When a claim has just one photo receipt, the downloaded PDF now shows it on the claim page itself at a readable size, instead of stretching it across a page of its own.',
-        id: 'Jika klaim hanya memiliki satu foto struk, PDF yang diunduh kini menampilkannya langsung di halaman klaim dengan ukuran yang mudah dibaca, alih-alih membentangkannya di satu halaman tersendiri.',
-        th: 'เมื่อรายการเบิกมีรูปใบเสร็จเพียงรูปเดียว PDF ที่ดาวน์โหลดจะแสดงรูปนั้นในหน้ารายการเบิกเลยด้วยขนาดที่อ่านง่าย แทนที่จะขยายเต็มหน้าแยกต่างหาก',
-        vi: 'Khi một yêu cầu chỉ có một ảnh biên lai, tệp PDF tải xuống giờ hiển thị ảnh ngay trên trang yêu cầu với kích thước dễ đọc, thay vì phóng to chiếm trọn một trang riêng.',
-        km: 'នៅពេលសំណើមានរូបថតបង្កាន់ដៃតែមួយ PDF ដែលបានទាញយកឥឡូវបង្ហាញវានៅលើទំព័រសំណើផ្ទាល់ក្នុងទំហំដែលងាយអាន ជំនួសឱ្យការពង្រីកវាពេញទំព័រដាច់ដោយឡែក។',
-        fil: 'Kapag iisa lang ang larawan ng resibo sa isang claim, ipinapakita na ito ng na-download na PDF sa mismong pahina ng claim sa laking madaling basahin, sa halip na i-stretch ito sa sarili nitong buong pahina.'
+        en: 'When a claim has just one photo receipt, the downloaded PDF now shows it at the same size as when there are two, centred on its page, instead of stretching it to fill the whole page.',
+        id: 'Jika klaim hanya memiliki satu foto struk, PDF yang diunduh kini menampilkannya dengan ukuran yang sama seperti saat ada dua struk, di tengah halaman, alih-alih membentangkannya memenuhi seluruh halaman.',
+        th: 'เมื่อรายการเบิกมีรูปใบเสร็จเพียงรูปเดียว PDF ที่ดาวน์โหลดจะแสดงรูปนั้นในขนาดเดียวกับเมื่อมีสองรูป โดยอยู่กึ่งกลางหน้า แทนที่จะขยายเต็มทั้งหน้า',
+        vi: 'Khi một yêu cầu chỉ có một ảnh biên lai, tệp PDF tải xuống giờ hiển thị ảnh với kích thước giống như khi có hai ảnh, căn giữa trang, thay vì phóng to chiếm trọn cả trang.',
+        km: 'នៅពេលសំណើមានរូបថតបង្កាន់ដៃតែមួយ PDF ដែលបានទាញយកឥឡូវបង្ហាញវាក្នុងទំហំដូចពេលមានពីរ នៅកណ្ដាលទំព័រ ជំនួសឱ្យការពង្រីកវាពេញទំព័រទាំងមូល។',
+        fil: 'Kapag iisa lang ang larawan ng resibo sa isang claim, ipinapakita na ito ng na-download na PDF sa parehong laki gaya ng kapag dalawa, nakagitna sa pahina, sa halip na i-stretch ito sa buong pahina.'
       } }
     ]
   },
