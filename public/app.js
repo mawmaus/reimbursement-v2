@@ -6264,6 +6264,11 @@ const EXPORT_STATUS_OPTS = [
   { v: 'rejected', l: 'Rejected' },
   { v: 'paid', l: 'Paid' }
 ];
+const EXPORT_TYPE_OPTS = [
+  { v: 'reimbursement', l: 'Reimbursement claims' },
+  { v: 'meal', l: 'Meal allowances' },
+  { v: 'advance', l: 'Cash advances (realized)' }
+];
 $('#exportBtn').addEventListener('click', () => openExportModal());
 
 async function openExportModal() {
@@ -6286,21 +6291,20 @@ async function openExportModal() {
           <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="1">${esc(t('Last year'))}</button>
         </div>
         <div class="grid2 export-groups">
+          ${[
+            { title: 'Statuses to include', name: 'status', opts: EXPORT_STATUS_OPTS },
+            { title: 'Claim types', name: 'types', opts: EXPORT_TYPE_OPTS }
+          ].map(g => `
           <div class="export-group">
-            <div class="section-label">${esc(t('Statuses to include'))}</div>
-            <div class="check-group">
-              ${EXPORT_STATUS_OPTS.map(o => `
-                <label class="check-item"><input type="checkbox" name="status" value="${o.v}" checked /> ${esc(t(o.l))}</label>`).join('')}
+            <div class="eg-head">
+              <div class="section-label">${esc(t(g.title))}</div>
+              <button type="button" class="eg-toggle" data-group="${g.name}">${esc(t('Clear'))}</button>
             </div>
-          </div>
-          <div class="export-group">
-            <div class="section-label">${esc(t('Claim types'))}</div>
-            <div class="check-group">
-              <label class="check-item"><input type="checkbox" name="types" value="reimbursement" checked /> ${esc(t('Reimbursement claims'))}</label>
-              <label class="check-item"><input type="checkbox" name="types" value="meal" checked /> ${esc(t('Meal allowances'))}</label>
-              <label class="check-item"><input type="checkbox" name="types" value="advance" checked /> ${esc(t('Cash advances (realized)'))}</label>
+            <div class="check-list">
+              ${g.opts.map(o => `
+                <label class="check-row"><input type="checkbox" name="${g.name}" value="${o.v}" checked /><span>${esc(t(o.l))}</span></label>`).join('')}
             </div>
-          </div>
+          </div>`).join('')}
         </div>
         <div class="section-label" style="margin-top:6px">${esc(t('Users (submitters)'))}</div>
         <div class="user-filter">
@@ -6346,6 +6350,19 @@ async function openExportModal() {
     $('#exportForm [name="to"]').value = ymd(last);
   }));
 
+  // Status / type groups: one header button per group that reads "Clear" while
+  // every box is ticked and "Select all" otherwise, and flips the whole group.
+  $$('.eg-toggle').forEach(btn => {
+    const boxes = $$(`#exportForm input[name="${btn.dataset.group}"]`);
+    const sync = () => { btn.textContent = boxes.every(cb => cb.checked) ? t('Clear') : t('Select all'); };
+    btn.addEventListener('click', () => {
+      const tick = !boxes.every(cb => cb.checked);
+      boxes.forEach(cb => { cb.checked = tick; });
+      sync();
+    });
+    boxes.forEach(cb => cb.addEventListener('change', sync));
+  });
+
   // Excel-style user filter: search narrows the list; Select all / Clear act on
   // whatever rows are currently visible.
   const list = $('#ufList');
@@ -6371,7 +6388,7 @@ async function openExportModal() {
     if (from && to && from > to) { err.textContent = t('The “from” date is after the “to” date.'); err.hidden = false; return; }
     const p = new URLSearchParams();
     if (statuses.length && statuses.length < EXPORT_STATUS_OPTS.length) p.set('status', statuses.join(','));
-    if (types.length < 3) p.set('types', types.join(','));
+    if (types.length < EXPORT_TYPE_OPTS.length) p.set('types', types.join(','));
     if (emps.length < users.length) p.set('employees', emps.join(','));
     if (from) p.set('from', from);
     if (to) p.set('to', to);

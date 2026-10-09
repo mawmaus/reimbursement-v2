@@ -937,19 +937,28 @@ input[type="search"] { min-width: 220px; }
    layout, which otherwise stacks the tickbox above its label. */
 .date-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .export-groups { align-items: stretch; margin-top: 6px; }
-.export-group { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 14px; }
-.export-group .section-label { margin: 0 0 10px; }
-.check-group { display: flex; flex-wrap: wrap; gap: 8px; }
-/* Two-class selectors so they beat the generic ".form label" column layout. */
-.check-group .check-item {
-  display: inline-flex; flex-direction: row; align-items: center; gap: 8px;
-  padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px;
-  font-size: .88rem; font-weight: 500; color: var(--ink); cursor: pointer;
-  user-select: none; transition: border-color .12s, background .12s, color .12s;
+.export-group { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.eg-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line-soft);
 }
-.check-group .check-item:hover { border-color: var(--muted); }
-.check-group .check-item:has(input:checked) { border-color: var(--pine); background: var(--pine-tint); color: var(--pine-deep); }
-.check-group .check-item input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--pine, #f7982a); }
+.eg-head .section-label { margin: 0; }
+.eg-toggle {
+  flex: none; white-space: nowrap; background: none; border: 0; border-radius: 6px;
+  padding: 5px 9px; font: inherit; font-size: .8rem; font-weight: 600;
+  color: var(--pine-deep); cursor: pointer;
+}
+.eg-toggle:hover { background: var(--pine-tint); }
+/* One option per row, checkbox on the left. Two-class selector so it beats the
+   generic ".form label" column layout. */
+.check-list { display: flex; flex-direction: column; padding: 4px 0; }
+.check-list .check-row {
+  display: flex; flex-direction: row; align-items: center; gap: 10px; margin: 0;
+  padding: 8px 14px; font-size: .9rem; font-weight: 500; color: var(--ink);
+  cursor: pointer; user-select: none;
+}
+.check-list .check-row:hover { background: var(--line-soft); }
+.check-list .check-row input { flex: none; width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--pine, #f7982a); }
 
 /* Excel-style user filter (export dialog) */
 .user-filter { border: 1px solid var(--line); border-radius: 8px; margin-top: 4px; }

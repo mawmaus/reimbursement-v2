@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.2',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'In Export claims to CSV, statuses and claim types are now tidy one-per-line lists, each with a Select all / Clear button to tick or untick the whole group in one click.',
+        id: 'Di Ekspor klaim ke CSV, status dan jenis klaim kini tersusun rapi satu per baris, masing-masing dengan tombol Pilih semua / Bersihkan untuk mencentang atau menghapus centang seluruh grup sekali klik.',
+        th: 'ในหน้าส่งออกรายการเบิกเป็น CSV สถานะและประเภทการเบิกแสดงเป็นรายการบรรทัดละหนึ่งตัวเลือกอย่างเป็นระเบียบ พร้อมปุ่มเลือกทั้งหมด / ล้าง เพื่อติ๊กหรือยกเลิกทั้งกลุ่มในคลิกเดียว',
+        vi: 'Trong Xuất yêu cầu ra CSV, trạng thái và loại yêu cầu giờ được sắp gọn mỗi dòng một mục, kèm nút Chọn tất cả / Xóa để chọn hoặc bỏ chọn cả nhóm chỉ với một lần bấm.',
+        km: 'នៅក្នុងការនាំចេញសំណើទៅ CSV ស្ថានភាព និងប្រភេទសំណើឥឡូវត្រូវបានរៀបជាបញ្ជីមួយបន្ទាត់មួយយ៉ាងមានសណ្តាប់ធ្នាប់ ដោយម្នាក់ៗមានប៊ូតុង ជ្រើសទាំងអស់ / សម្អាត ដើម្បីធីក ឬដកធីកក្រុមទាំងមូលដោយចុចតែម្តង។',
+        fil: 'Sa Export claims to CSV, maayos nang nakalista nang isa bawat linya ang mga status at uri ng claim, bawat isa ay may Piliin lahat / I-clear na button para lagyan o alisan ng tsek ang buong grupo sa isang click.'
+      }, audience: ['export'] }
+    ]
+  },
+  {
     id: '2026-10-09.1',
     date: '2026-10-09',
     items: [
