@@ -1705,7 +1705,10 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 .ws-nav-item:hover { background: var(--line-soft); color: var(--ink); }
 .ws-nav-item:focus-visible { outline: 2px solid var(--pine); outline-offset: -2px; }
 .ws-nav-item.active { background: var(--pine-tint); color: var(--pine-deep); font-weight: 650; }
-.ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; padding: 20px 22px 18px; }
+/* min-height:0 lets the page shrink inside the window so #settingsPanel can
+   scroll; without it the phone (column) layout grows to the full list height
+   and the window clips everything below the fold. */
+.ws-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 20px 22px 18px; }
 .ws-page-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .ws-page-text { min-width: 0; }
 .ws-page-head h3 { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
