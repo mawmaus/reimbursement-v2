@@ -731,5 +731,16 @@ I18N.addDict('vi', {
   'Approval': 'Phê duyệt',
   'Line {n}': 'Dòng {n}',
   '+ Add another line': '+ Thêm dòng',
-  'Request details': 'Chi tiết yêu cầu'
+  'Request details': 'Chi tiết yêu cầu',
+  // Home menu + Insights
+  'Hi {name}': 'Xin chào {name}',
+  '1 claim is waiting for your approval.': '1 yêu cầu đang chờ bạn phê duyệt.',
+  '{n} claims are waiting for your approval.': '{n} yêu cầu đang chờ bạn phê duyệt.',
+  'Your claims': 'Yêu cầu của bạn',
+  'Cash advances': 'Tạm ứng',
+  'Overview': 'Tổng quan',
+  'claim': 'yêu cầu',
+  'claims': 'yêu cầu',
+  'Reset filters': 'Đặt lại bộ lọc',
+  'Peak: {label} ({amount})': 'Cao nhất: {label} ({amount})'
 });

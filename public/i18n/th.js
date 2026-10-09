@@ -731,5 +731,16 @@ I18N.addDict('th', {
   'Approval': 'การอนุมัติ',
   'Line {n}': 'รายการที่ {n}',
   '+ Add another line': '+ เพิ่มอีกรายการ',
-  'Request details': 'รายละเอียดคำขอ'
+  'Request details': 'รายละเอียดคำขอ',
+  // Home menu + Insights
+  'Hi {name}': 'สวัสดี {name}',
+  '1 claim is waiting for your approval.': 'มี 1 รายการเบิกรอการอนุมัติจากคุณ',
+  '{n} claims are waiting for your approval.': 'มี {n} รายการเบิกรอการอนุมัติจากคุณ',
+  'Your claims': 'รายการเบิกของคุณ',
+  'Cash advances': 'เงินทดรองจ่าย',
+  'Overview': 'ภาพรวม',
+  'claim': 'รายการ',
+  'claims': 'รายการ',
+  'Reset filters': 'ล้างตัวกรอง',
+  'Peak: {label} ({amount})': 'สูงสุด: {label} ({amount})'
 });

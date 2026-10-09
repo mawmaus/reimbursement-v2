@@ -372,6 +372,7 @@ const NOTE_AUDIENCE = {
   view_all: () => uCan('view_all_claims'),
   accounts: (u) => !!(u.can_manage_accounts || uCan('create_accounts')),
   settings: (u) => !!(u.role === 'vp' || u.role === 'admin' || uCan('manage_settings')),
+  insights: (u) => !!u.can_view_insights,
   superadmin: () => false // covered by the Super Admin pass-through below
 };
 function noteFor(item, u) {
@@ -1491,7 +1492,7 @@ function renderHome() {
   const menu = $('#homeMenu');
   if (!menu || !state.user) return;
   const u = state.user;
-  $('#homeGreeting').textContent = u.full_name ? t('Hi {name} — what would you like to open?', { name: u.full_name.split(' ')[0] }) : '';
+  $('#homeGreeting').textContent = u.full_name ? t('Hi {name}', { name: u.full_name.split(' ')[0] }) : '';
   // Two greyed-out buttons in the top bar need a reason on the page, plus a way
   // straight to the advances that caused it.
   const hold = advanceHold();
@@ -1570,14 +1571,42 @@ function renderHome() {
       badge: true,
       link: t('Open') });
   }
+  // One line under the greeting saying what needs doing, for anyone who
+  // approves (or has something waiting).
+  const summary = $('#homeSummary');
+  if (summary) {
+    summary.hidden = !(iAmApprover || need);
+    summary.textContent = need === 1 ? t('1 claim is waiting for your approval.')
+      : need ? t('{n} claims are waiting for your approval.', { n: need })
+      : t('Nothing is waiting for your approval right now.');
+    summary.classList.toggle('has-work', need > 0);
+  }
+  // Tiles grouped under short headings, in this order; a group with no visible
+  // tile is left out.
+  const groups = [
+    ['Your claims', ['mine']],
+    ['Approvals', ['approval', 'approved', 'reviewed']],
+    ['Finance', ['paid']],
+    ['Cash advances', ['unrealized', 'realized']],
+    ['Overview', ['all', 'insights', 'datechange']]
+  ];
+  const tileHtml = (tile) => {
+    const attn = tile.badge && tile.count > 0;
+    const count = tile.link
+      ? `<span class="ht-go"><span class="ht-go-t">${esc(tile.link)}</span> <span aria-hidden="true">→</span></span>`
+      : `<span class="ht-n">${tile.count > 999 ? '999+' : tile.count}</span><span class="ht-unit">${esc(tile.count === 1 ? t('claim') : t('claims'))}</span>`;
+    return `<button class="home-tile ht-${tile.key}${attn ? ' ht-attn' : ''}" data-view="${tile.key}" type="button"${attn ? ` aria-label="${esc(tile.title)} — ${esc(t('{count} awaiting approval', { count: tile.count }))}"` : ''}>
+      <span class="ht-ic" aria-hidden="true">${HOME_ICONS[tile.key] || ''}</span>
+      <span class="ht-text"><span class="tile-title">${esc(tile.title)}</span><span class="tile-desc">${esc(tile.desc)}</span></span>
+      <span class="ht-count">${count}</span>
+    </button>`;
+  };
   enterKeep(menu);
-  menu.innerHTML = tiles.map(tile => `
-    <button class="home-tile${tile.key === 'insights' ? ' home-tile-insights' : ''}" data-view="${tile.key}" type="button">
-      ${tile.badge && tile.count > 0 ? `<span class="tile-badge" aria-label="${esc(t('{count} awaiting approval', { count: tile.count }))}">${tile.count > 99 ? '99+' : tile.count}</span>` : ''}
-      <span class="tile-title">${esc(tile.title)}</span>
-      <span class="tile-desc">${esc(tile.desc)}</span>
-      <span class="tile-count">${tile.link ? esc(tile.link) + ' →' : esc(tile.count === 1 ? t('{n} claim', { n: tile.count }) : t('{n} claims', { n: tile.count }))}</span>
-    </button>`).join('');
+  menu.innerHTML = groups.map(([label, keys]) => {
+    const list = keys.map(k => tiles.find(x => x.key === k)).filter(Boolean);
+    return list.length ? `<section class="home-group"><h3 class="home-group-l">${esc(t(label))}</h3>
+      <div class="home-group-grid">${list.map(tileHtml).join('')}</div></section>` : '';
+  }).join('');
   $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.view;
     if (v === 'insights') openInsights();
@@ -1585,6 +1614,20 @@ function renderHome() {
     else openView(v);
   }));
 }
+// Line icons for the home tiles (24px grid, stroke = currentColor).
+const svgI = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const HOME_ICONS = {
+  mine: svgI('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>'),
+  approval: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  approved: svgI('<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>'),
+  reviewed: svgI('<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>'),
+  paid: svgI('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>'),
+  unrealized: svgI('<path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>'),
+  realized: svgI('<path d="M20 7H6a2 2 0 0 1 0-4h12v4"/><path d="M4 5v14a2 2 0 0 0 2 2h14V7"/><path d="M9 14l2 2 4-4"/>'),
+  all: svgI('<path d="M12 2l10 6-10 6L2 8z"/><path d="M2 16l10 6 10-6"/>'),
+  insights: svgI('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'),
+  datechange: svgI('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>')
+};
 
 // Open one list view; go back to the clean menu.
 function openView(key) {
@@ -1633,6 +1676,9 @@ const INSIGHT_STATUS_PRESETS = [
   { v: 'submitted,approved,paid', l: 'All except rejected' },
   { v: 'submitted,approved,rejected,paid', l: 'All statuses' }
 ];
+
+// The status preset a fresh Insights page starts on (see showApp's reset).
+const INSIGHT_DEFAULT_STATUS = 'approved,paid';
 
 function openInsights() {
   state.view = 'insights';
@@ -1683,8 +1729,6 @@ function renderInsights() {
   const remit = d.scope.department
     ? d.scope.department
     : (d.scope.mode === 'all' ? t('Company-wide') : t('Claims you approve'));
-  // Lead with the active region when an all-region viewer has narrowed the scope.
-  scopeEl.textContent = state.viewRegion ? `${state.viewRegion} · ${remit}` : remit;
 
   const yearOpts = (d.years.length ? d.years : [d.year])
     .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');
@@ -1697,6 +1741,14 @@ function renderInsights() {
     })).join('');
   // Period label for the breakdown card's subtitle: month + year, or just year.
   const periodLabel = d.month ? `${monthNames[parseInt(d.month, 10) - 1] || d.month} ${d.year}` : String(d.year);
+  // Header line: (region ·) scope · period · statuses — what every figure below covers.
+  scopeEl.innerHTML = [state.viewRegion, remit, periodLabel, currentStatusLabel(f.status)]
+    .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
+  // Filters that differ from a fresh Insights page (the year doesn't count: it
+  // always holds a value). They drive the phone "Filters (n)" badge and Reset.
+  const changed = [f.month, f.department, f.db, f.name, f.status !== INSIGHT_DEFAULT_STATUS ? 1 : ''].filter(Boolean).length;
+  $('#insightsActs').innerHTML = changed
+    ? `<button type="button" class="btn btn-ghost btn-sm" id="inReset">${esc(t('Reset filters'))}</button>` : '';
   const deptOpts = [`<option value="">${esc(t('All departments'))}</option>`]
     .concat(d.departments.map(x => `<option value="${esc(x)}"${x === f.department ? ' selected' : ''}>${esc(x)}</option>`)).join('');
   const statusOpts = INSIGHT_STATUS_PRESETS
@@ -1720,7 +1772,12 @@ function renderInsights() {
   ].map(c => `<div class="kpi"><div class="kpi-l">${esc(c.l)}</div><div class="kpi-v">${c.v}</div></div>`).join('');
 
   $('#insightsBody').innerHTML = `
-    <div class="insights-filters">
+    <div class="in-toolbar">
+      <button type="button" class="btn btn-ghost filter-toggle in-filter-toggle${changed ? ' has-active' : ''}" id="inFilterToggle" aria-expanded="${f.filtersOpen ? 'true' : 'false'}" aria-controls="inFilters">
+        <span>${esc(t('Filters'))}</span> <span class="filter-count"${changed ? '' : ' hidden'}>${changed}</span>
+      </button>
+    </div>
+    <div class="insights-filters${f.filtersOpen ? ' open' : ''}" id="inFilters">
       <label>${esc(t('Year'))}<select id="inYear" class="input">${yearOpts}</select></label>
       <label>${esc(t('Month'))}<select id="inMonth" class="input" data-search="never">${monthOpts}</select></label>
       ${d.departments.length ? `<label>${esc(t('Department'))}<select id="inDept" class="input">${deptOpts}</select></label>` : ''}
@@ -1762,6 +1819,19 @@ function renderInsights() {
   $('#inStatus').addEventListener('change', e => { f.status = e.target.value; loadInsights(); });
   $('#inDb').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.db) { f.db = v; loadInsights(); } });
   $('#inName').addEventListener('change', e => { const v = e.target.value.trim(); if (v !== f.name) { f.name = v; loadInsights(); } });
+
+  // Phones fold the filters behind a button; the open state survives the
+  // re-render every filter change triggers.
+  $('#inFilterToggle').addEventListener('click', () => {
+    f.filtersOpen = !f.filtersOpen;
+    $('#inFilters').classList.toggle('open', f.filtersOpen);
+    $('#inFilterToggle').setAttribute('aria-expanded', String(f.filtersOpen));
+  });
+  const reset = $('#inReset');
+  if (reset) reset.addEventListener('click', () => {
+    Object.assign(f, { year: '', month: '', department: '', db: '', name: '', status: INSIGHT_DEFAULT_STATUS });
+    loadInsights();
+  });
 
   $$('#trendSeg button').forEach(b => b.addEventListener('click', () => {
     if (f.trend === b.dataset.trend) return;
@@ -1807,6 +1877,7 @@ function renderTypeBars() {
   state.insights.typeGroups = bars;
 
   const max = Math.max(...bars.map(i => i.cents), 1);
+  const sum = bars.reduce((x, i) => x + i.cents, 0) || 1;
   wrap.innerHTML = bars.map((i, idx) => {
     const pct = Math.max(2, Math.round((i.cents / max) * 100));
     const on = state.insights.drill === i.label;
@@ -1814,7 +1885,7 @@ function renderTypeBars() {
       aria-pressed="${on ? 'true' : 'false'}" title="${esc(t('Show expenses'))}: ${esc(i.label)}">
       <span class="bar-label">${esc(i.label)}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
-      <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}</span>
+      <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}<span class="bar-pct">${Math.round((i.cents / sum) * 100)}%</span></span>
     </button>`;
   }).join('');
 
@@ -1902,12 +1973,12 @@ function renderTypeDetailModal() {
           ${th('amount', t('Amount'), true)}
         </tr></thead>
         <tbody>${rows.map(r => `<tr${r.cid ? ` class="row-open" data-cid="${esc(r.cid)}" tabindex="0" role="button" title="${esc(t('Open claim'))}"` : ''}>
-          <td>${esc(r.name || '—')}</td>
-          <td>${esc(r.no || '—')}</td>
-          <td>${esc(r.date || '—')}</td>
-          <td>${esc(dbFmt(r.db) || '—')}</td>
-          ${showType ? `<td>${esc(r.type || '—')}</td>` : ''}
-          <td class="num">${esc(money(r.cents / 100, cur))}</td>
+          <td class="pv-name" data-label="${esc(t('Employee'))}">${esc(r.name || '—')}</td>
+          <td data-label="${esc(t('Doc No'))}">${esc(r.no || '—')}</td>
+          <td data-label="${esc(t('Date'))}">${esc(r.date || '—')}</td>
+          <td data-label="${esc(t('DB No'))}">${esc(dbFmt(r.db) || '—')}</td>
+          ${showType ? `<td data-label="${esc(t('Type'))}">${esc(r.type || '—')}</td>` : ''}
+          <td class="num" data-label="${esc(t('Amount'))}">${esc(money(r.cents / 100, cur))}</td>
         </tr>`).join('')}</tbody>
       </table>
     </div>` : `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
@@ -1973,7 +2044,10 @@ function renderTrend() {
     : d.byYear.map(y => ({ label: y.year, value: y.cents / 100 }));
 
   const sub = $('#trendSub');
-  if (sub) sub.textContent = monthly ? t('{year} · by month', { year: d.year }) : t('All years');
+  // Name the high point, so the chart's takeaway reads without hovering.
+  const peak = points.reduce((best, p) => (p.value > (best ? best.value : 0) ? p : best), null);
+  if (sub) sub.textContent = (monthly ? t('{year} · by month', { year: d.year }) : t('All years'))
+    + (peak ? ' · ' + t('Peak: {label} ({amount})', { label: peak.label, amount: moneyShort(peak.value, cur) }) : '');
 
   const host = $('#trendChart');
   const hasData = points.some(p => p.value > 0);
@@ -1982,7 +2056,8 @@ function renderTrend() {
     return;
   }
 
-  const W = 720, H = 240, padL = 10, padR = 12, padT = 16, padB = 28;
+  // Axis text lives in HTML around the SVG (SVG text shrinks with the chart).
+  const W = 720, H = 220, padL = 10, padR = 12, padT = 8, padB = 6;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const max = Math.max(...points.map(p => p.value), 1);
   const n = points.length;
@@ -2001,7 +2076,7 @@ function renderTrend() {
   const selMo = (monthly && state.insights.month) ? (parseInt(state.insights.month, 10) - 1) : -1;
   const dots = points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="${i === selMo ? 5.5 : 3.5}" class="dot${i === selMo ? ' dot-sel' : ''}" />`).join('');
   const xlabels = points.map((p, i) =>
-    `<text x="${xAt(i).toFixed(1)}" y="${H - 8}" class="ax" text-anchor="middle">${esc(p.label)}</text>`).join('');
+    `<span style="left:${((xAt(i) / W) * 100).toFixed(2)}%"${i === selMo ? ' class="on"' : ''}>${esc(p.label)}</span>`).join('');
   // Larger transparent hit targets drive the hover tooltip.
   const hits = points.map((p, i) =>
     `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="16" fill="transparent"
@@ -2010,16 +2085,16 @@ function renderTrend() {
 
   host.innerHTML = `
     <div class="trend-tip" id="trendTip" hidden></div>
+    <div class="trend-max">${esc(moneyShort(max, cur))}</div>
     <svg viewBox="0 0 ${W} ${H}" class="trend-svg" preserveAspectRatio="none" role="img"
          aria-label="${monthly ? 'Monthly' : 'Yearly'} expense total for ${esc(d.year)}">
       ${grid}
-      <text x="${padL}" y="${padT - 4}" class="ax ax-max">${esc(moneyShort(max, cur))}</text>
       <path d="${area}" class="area" />
       <polyline points="${line}" class="line" />
       ${dots}
-      ${xlabels}
       ${hits}
-    </svg>`;
+    </svg>
+    <div class="trend-x${n > 8 ? ' dense' : ''}" aria-hidden="true">${xlabels}</div>`;
 
   const tip = $('#trendTip');
   $$('#trendChart .hit').forEach(h => {

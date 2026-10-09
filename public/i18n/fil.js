@@ -731,5 +731,16 @@ I18N.addDict('fil', {
   'Approval': 'Pag-apruba',
   'Line {n}': 'Linya {n}',
   '+ Add another line': '+ Magdagdag ng linya',
-  'Request details': 'Detalye ng kahilingan'
+  'Request details': 'Detalye ng kahilingan',
+  // Home menu + Insights
+  'Hi {name}': 'Hi {name}',
+  '1 claim is waiting for your approval.': 'May 1 claim na naghihintay ng iyong pag-apruba.',
+  '{n} claims are waiting for your approval.': 'May {n} claim na naghihintay ng iyong pag-apruba.',
+  'Your claims': 'Iyong mga claim',
+  'Cash advances': 'Mga cash advance',
+  'Overview': 'Pangkalahatang-tanaw',
+  'claim': 'claim',
+  'claims': 'claim',
+  'Reset filters': 'I-reset ang mga filter',
+  'Peak: {label} ({amount})': 'Pinakamataas: {label} ({amount})'
 });

@@ -731,5 +731,16 @@ I18N.addDict('km', {
   'Approval': 'ការអនុម័ត',
   'Line {n}': 'បន្ទាត់ទី {n}',
   '+ Add another line': '+ បន្ថែមបន្ទាត់ទៀត',
-  'Request details': 'ព័ត៌មានលម្អិតនៃសំណើ'
+  'Request details': 'ព័ត៌មានលម្អិតនៃសំណើ',
+  // Home menu + Insights
+  'Hi {name}': 'សួស្តី {name}',
+  '1 claim is waiting for your approval.': 'មានសំណើ 1 កំពុងរង់ចាំការអនុម័តរបស់អ្នក។',
+  '{n} claims are waiting for your approval.': 'មានសំណើ {n} កំពុងរង់ចាំការអនុម័តរបស់អ្នក។',
+  'Your claims': 'សំណើរបស់អ្នក',
+  'Cash advances': 'ប្រាក់បុរេប្រទាន',
+  'Overview': 'ទិដ្ឋភាពទូទៅ',
+  'claim': 'សំណើ',
+  'claims': 'សំណើ',
+  'Reset filters': 'កំណត់តម្រងឡើងវិញ',
+  'Peak: {label} ({amount})': 'ខ្ពស់បំផុត៖ {label} ({amount})'
 });

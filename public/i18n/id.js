@@ -754,5 +754,16 @@ I18N.addDict('id', {
   'Approval': 'Persetujuan',
   'Line {n}': 'Baris {n}',
   '+ Add another line': '+ Tambah baris lagi',
-  'Request details': 'Detail permintaan'
+  'Request details': 'Detail permintaan',
+  // Home menu + Insights
+  'Hi {name}': 'Hai {name}',
+  '1 claim is waiting for your approval.': '1 klaim menunggu persetujuan Anda.',
+  '{n} claims are waiting for your approval.': '{n} klaim menunggu persetujuan Anda.',
+  'Your claims': 'Klaim Anda',
+  'Cash advances': 'Uang muka',
+  'Overview': 'Ikhtisar',
+  'claim': 'klaim',
+  'claims': 'klaim',
+  'Reset filters': 'Atur ulang filter',
+  'Peak: {label} ({amount})': 'Puncak: {label} ({amount})'
 });

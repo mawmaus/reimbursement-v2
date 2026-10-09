@@ -165,7 +165,10 @@
   <main class="container">
     <!-- Clean landing after login: pick a list to open. -->
     <section id="homeView" class="home">
-      <p class="home-greeting" id="homeGreeting"></p>
+      <div class="home-hero">
+        <h1 class="home-greeting" id="homeGreeting"></h1>
+        <p class="home-summary" id="homeSummary" hidden></p>
+      </div>
       <!-- Why "New claim" / "New meal allowance" are greyed out, when they are:
            an unrealized cash advance holds them. Filled by renderHome(). -->
       <div class="home-notice" id="advanceHoldNotice" hidden></div>
@@ -176,8 +179,13 @@
     <section id="insightsView" hidden>
       <div class="list-head">
         <button id="backHomeInsights" class="btn btn-ghost btn-sm" type="button" data-i18n="← Menu">← Menu</button>
-        <h2 class="list-title" data-i18n="Insights">Insights</h2>
-        <span id="insightsScope" class="insights-scope"></span>
+        <div class="list-title-wrap">
+          <h2 class="list-title" data-i18n="Insights">Insights</h2>
+          <!-- Scope · period · statuses, filled by renderInsights(). -->
+          <div class="list-sub" id="insightsScope"></div>
+        </div>
+        <!-- "Reset filters" while any filter differs from a fresh page. -->
+        <div class="list-acts" id="insightsActs"></div>
       </div>
       <div id="insightsBody"></div>
     </section>

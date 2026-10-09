@@ -2797,3 +2797,113 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .meal-foot .btn { flex: 1 1 0; min-height: 44px; }
   .meal-foot .btn[type="submit"] { order: 3; flex-basis: 100%; }
 }
+
+/* --- Home menu: greeting + summary, tiles grouped under headings ------------ */
+.home-hero { margin: 4px 2px 22px; }
+.home-hero .home-greeting { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.home-summary { margin: 4px 0 0; font-size: .95rem; color: var(--muted); }
+.home-summary.has-work { color: var(--pine-deep); font-weight: 600; }
+.home-menu { display: block; }
+.home-group + .home-group { margin-top: 22px; }
+.home-group-l { margin: 0 2px 10px; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.home-group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+/* Tile: icon · title + description · count (or "View charts →"). */
+.home-tile { flex-direction: row; align-items: center; gap: 14px; min-height: 0; padding: 16px 18px; border-radius: 14px; }
+.home-tile:hover { transform: translateY(-2px); }
+.ht-ic { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px;
+  color: var(--pine-deep); background: var(--pine-tint); }
+.ht-ic svg { width: 21px; height: 21px; }
+.home-tile:hover .ht-ic { background: var(--surface); }
+.ht-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.home-tile .tile-title { font-size: 1rem; font-weight: 650; line-height: 1.25; }
+.home-tile .tile-desc { font-size: .84rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ht-count { flex: none; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; text-align: right; }
+.ht-n { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ht-unit { font-size: .74rem; color: var(--muted); }
+.ht-go { font-size: .84rem; font-weight: 650; color: var(--pine-deep); white-space: nowrap; }
+/* Something is waiting for you: the tile says so. */
+.home-tile.ht-attn { border-color: var(--pine); background: var(--pine-tint); }
+.home-tile.ht-attn .ht-ic { background: var(--pine); color: var(--on-brand); }
+.home-tile.ht-attn .ht-n { color: var(--pine-deep); }
+.home-tile.ht-attn:hover { background: var(--pine-tint-hi); border-color: var(--pine); }
+.home-tile.ht-insights { background: var(--surface); }
+@media (max-width: 720px) {
+  /* Phones: a compact list — one line of description, smaller icon and count. */
+  .home-hero { margin: 0 2px 16px; }
+  .home-hero .home-greeting { font-size: 1.35rem; }
+  .home-summary { font-size: .88rem; }
+  .home-group + .home-group { margin-top: 16px; }
+  /* minmax(0,1fr): the single-line descriptions must not widen the column past the screen. */
+  .home-group-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .ht-go-t { display: none; }
+  .ht-go { font-size: 1.2rem; }
+  .home-tile { padding: 12px 14px; gap: 12px; border-radius: 12px; }
+  .home-tile:hover { transform: none; }
+  .ht-ic { width: 36px; height: 36px; border-radius: 10px; }
+  .ht-ic svg { width: 19px; height: 19px; }
+  .home-tile .tile-title { font-size: .95rem; }
+  .home-tile .tile-desc { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ht-n { font-size: 1.25rem; }
+}
+/* Tablets: one full-width column, so long translated titles stay on one line. */
+@media (max-width: 900px) { .home-group-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* --- Insights ----------------------------------------------------------------- */
+/* Header line (scope · period · statuses) replaces the old chip. */
+#insightsView .list-head { margin-bottom: 14px; }
+/* Filters: a row on desktop; on phones they fold behind a "Filters (n)" button. */
+.in-toolbar { display: none; }
+.insights-filters { align-items: flex-end; }
+.in-reset-wrap { display: flex; align-items: flex-end; margin-left: auto; }
+.in-reset-wrap .btn { white-space: nowrap; min-height: 40px; }
+/* Bars: room for longer type names (two lines before an ellipsis) and a share %. */
+.bar-row { grid-template-columns: minmax(96px, 150px) 1fr auto; }
+.bar-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+.bar-pct { margin-left: 6px; font-size: .74rem; font-weight: 600; color: var(--muted); }
+.kpi-v { overflow-wrap: normal; }
+@media (max-width: 720px) {
+  .in-toolbar { display: flex; margin-bottom: 10px; }
+  .in-filter-toggle { flex: 1; justify-content: center; min-height: 42px; }
+  .in-filter-toggle.has-active { border-color: var(--pine); color: var(--pine-deep); }
+  .insights-filters { display: none; }
+  .insights-filters.open { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .insights-filters.open label { width: auto; min-width: 0; }
+  .insights-filters.open .msel, .insights-filters.open .input { width: 100%; min-width: 0; }
+  .in-reset-wrap { grid-column: 1 / -1; margin: 0; }
+  .in-reset-wrap .btn { width: 100%; }
+  /* KPIs two by two; charts stacked. */
+  .insights-kpis { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .kpi { padding: 12px 14px; }
+  .kpi-v { font-size: 1.25rem; }
+  .chart-card { padding: 14px; }
+  .chart-head { flex-wrap: wrap; }
+  .bar-row { grid-template-columns: minmax(80px, 110px) 1fr auto; gap: 8px; padding: 6px 4px; }
+  /* Drill-down rows become cards: name + amount on top, the rest labelled. */
+  .pivot-table thead { display: none; }
+  .pivot-table, .pivot-table tbody, .pivot-table tr, .pivot-table td { display: block; }
+  .pivot-table tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 10px 4px; border-bottom: 1px solid var(--line-soft); }
+  .pivot-table td { border: 0; padding: 0; white-space: normal; font-size: .82rem; }
+  .pivot-table td.pv-name { grid-column: 1; grid-row: 1; font-weight: 650; color: var(--ink); font-size: .9rem; }
+  .pivot-table td.num { grid-column: 2; grid-row: 1; }
+  .pivot-table td:not(.pv-name):not(.num) { grid-column: 1 / -1; }
+  .pivot-table td:not(.pv-name):not(.num)::before { content: attr(data-label) ' · '; color: var(--muted); }
+}
+/* Insights header actions (Reset filters) sit at the right of the title row. */
+.list-acts { flex: none; margin-left: auto; display: flex; gap: 8px; }
+.list-acts:empty { display: none; }
+.list-acts .btn { white-space: nowrap; }
+/* Trend chart axis text as HTML: readable at any chart width. */
+.trend-max { font-size: .76rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.trend-x { position: relative; height: 18px; margin-top: 6px; }
+.trend-x span { position: absolute; top: 0; transform: translateX(-50%); font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.trend-x span.on { color: var(--pine-deep); font-weight: 700; }
+@media (max-width: 480px) { .trend-x.dense span:nth-child(even):not(.on) { visibility: hidden; } }
+/* Desktop / tablet: the filters share one row in equal columns (a long
+   translation used to push the last one onto a row of its own). */
+@media (min-width: 721px) {
+  .insights-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .insights-filters label { min-width: 0; }
+  .insights-filters .input, .insights-filters .msel, .insights-filters .msel-trigger { min-width: 0; width: 100%; }
+}
+/* Every bar's value column is the same width, so the tracks line up. */
+.bar-val { min-width: 7.6em; text-align: right; }

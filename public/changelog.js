@@ -22,10 +22,33 @@
 //   view_all                may open "View all claims"
 //   accounts                may manage accounts
 //   settings                may open Settings
+//   insights                may open Insights
 //   superadmin              Super Admins only
 // ---------------------------------------------------------------------------
-window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
+window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
+  {
+    id: '2026-10-09.10',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The home menu is organised into groups — Your claims, Approvals, Finance, Cash advances and Overview — with an icon and a clear count on every tile. A line under the greeting tells you how many claims are waiting for your approval, and that tile is highlighted while anything is waiting. On phones the tiles become a compact list.',
+        id: 'Menu beranda kini dikelompokkan — Klaim Anda, Persetujuan, Keuangan, Uang muka, dan Ikhtisar — dengan ikon dan jumlah yang jelas di setiap kotak. Satu baris di bawah sapaan memberi tahu berapa klaim yang menunggu persetujuan Anda, dan kotak itu disorot selama ada yang menunggu. Di ponsel, kotak-kotak menjadi daftar yang ringkas.',
+        th: 'เมนูหน้าแรกจัดเป็นกลุ่มแล้ว — รายการเบิกของคุณ การอนุมัติ การเงิน เงินทดรองจ่าย และภาพรวม — พร้อมไอคอนและตัวเลขที่ชัดเจนในทุกช่อง บรรทัดใต้คำทักทายบอกว่ามีรายการเบิกรอการอนุมัติจากคุณกี่รายการ และช่องนั้นจะถูกเน้นตราบที่ยังมีรายการรออยู่ บนมือถือช่องต่างๆ จะเป็นรายการแบบกะทัดรัด',
+        vi: 'Menu trang chủ được chia nhóm — Yêu cầu của bạn, Phê duyệt, Tài chính, Tạm ứng và Tổng quan — với biểu tượng và con số rõ ràng trên mỗi ô. Một dòng dưới lời chào cho biết có bao nhiêu yêu cầu đang chờ bạn phê duyệt, và ô đó được làm nổi bật khi còn yêu cầu đang chờ. Trên điện thoại, các ô trở thành danh sách gọn.',
+        km: 'ម៉ឺនុយទំព័រដើមត្រូវបានរៀបជាក្រុម — សំណើរបស់អ្នក ការអនុម័ត ហិរញ្ញវត្ថុ ប្រាក់បុរេប្រទាន និងទិដ្ឋភាពទូទៅ — ដោយមានរូបតំណាង និងចំនួនច្បាស់លាស់លើប្រអប់នីមួយៗ។ បន្ទាត់មួយនៅក្រោមការស្វាគមន៍ប្រាប់ថាមានសំណើប៉ុន្មានកំពុងរង់ចាំការអនុម័តរបស់អ្នក ហើយប្រអប់នោះត្រូវបានរំលេចដរាបណានៅមានសំណើរង់ចាំ។ នៅលើទូរសព្ទ ប្រអប់ទាំងនោះក្លាយជាបញ្ជីបង្រួម។',
+        fil: 'Nakaayos na sa mga grupo ang home menu — Iyong mga claim, Mga pag-apruba, Pananalapi, Mga cash advance at Pangkalahatang-tanaw — na may icon at malinaw na bilang sa bawat tile. Sinasabi ng isang linya sa ilalim ng pagbati kung ilang claim ang naghihintay ng iyong pag-apruba, at naka-highlight ang tile na iyon habang may naghihintay. Sa phone, nagiging siksik na listahan ang mga tile.'
+      } },
+      { kind: 'improved', text: {
+        en: 'Insights: the header now says exactly what the figures cover (scope, period and statuses), a Reset filters button clears every filter at once, each expense type shows its share of the total, and the trend chart names its peak with readable month labels. On phones the filters fold behind a Filters button, so the figures and charts come first.',
+        id: 'Wawasan: bagian atas kini menyebutkan dengan tepat cakupan angka (lingkup, periode, dan status), tombol Atur ulang filter menghapus semua filter sekaligus, setiap jenis pengeluaran menampilkan porsinya dari total, dan grafik tren menyebutkan puncaknya dengan label bulan yang mudah dibaca. Di ponsel, filter dilipat di balik tombol Filter sehingga angka dan grafik tampil lebih dulu.',
+        th: 'ข้อมูลเชิงลึก: ส่วนหัวบอกชัดเจนว่าตัวเลขครอบคลุมอะไร (ขอบเขต ช่วงเวลา และสถานะ) ปุ่มล้างตัวกรองล้างตัวกรองทั้งหมดในครั้งเดียว ประเภทค่าใช้จ่ายแต่ละประเภทแสดงสัดส่วนจากยอดรวม และกราฟแนวโน้มบอกจุดสูงสุดพร้อมชื่อเดือนที่อ่านง่าย บนมือถือ ตัวกรองจะพับอยู่หลังปุ่มตัวกรอง ตัวเลขและกราฟจึงแสดงก่อน',
+        vi: 'Thông tin chi tiết: phần đầu giờ nêu rõ các số liệu bao gồm những gì (phạm vi, kỳ và trạng thái), nút Đặt lại bộ lọc xóa mọi bộ lọc cùng lúc, mỗi loại chi phí hiển thị tỷ trọng trong tổng, và biểu đồ xu hướng nêu điểm cao nhất với nhãn tháng dễ đọc. Trên điện thoại, bộ lọc được gấp sau nút Bộ lọc để số liệu và biểu đồ hiện ra trước.',
+        km: 'ការយល់ដឹង៖ ផ្នែកខាងលើឥឡូវប្រាប់ច្បាស់ថាតួលេខគ្របដណ្តប់អ្វី (វិសាលភាព រយៈពេល និងស្ថានភាព) ប៊ូតុងកំណត់តម្រងឡើងវិញ សម្អាតតម្រងទាំងអស់ក្នុងពេលតែមួយ ប្រភេទការចំណាយនីមួយៗបង្ហាញភាគរយនៃសរុប ហើយក្រាហ្វនិន្នាការប្រាប់ចំណុចខ្ពស់បំផុត ដោយមានស្លាកខែដែលងាយអាន។ នៅលើទូរសព្ទ តម្រងត្រូវបានបត់នៅពីក្រោយប៊ូតុងតម្រង ដូច្នេះតួលេខ និងក្រាហ្វបង្ហាញមុន។',
+        fil: 'Insights: sinasabi na ng header kung ano mismo ang saklaw ng mga numero (saklaw, panahon at mga status), nililinis ng I-reset ang mga filter na button ang lahat ng filter nang sabay, ipinapakita ng bawat uri ng gastos ang bahagi nito sa kabuuan, at pinapangalanan ng trend chart ang pinakamataas na buwan gamit ang madaling basahing mga label ng buwan. Sa phone, nakatupi ang mga filter sa likod ng Filters na button kaya nauuna ang mga numero at chart.'
+      }, audience: ['insights'] }
+    ]
+  },
   {
     id: '2026-10-09.9',
     date: '2026-10-09',
