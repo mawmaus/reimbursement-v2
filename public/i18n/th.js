@@ -706,5 +706,8 @@ I18N.addDict('th', {
   'The username and first password this person signs in with.': 'ชื่อผู้ใช้และรหัสผ่านแรกที่บุคคลนี้ใช้เข้าสู่ระบบ',
   'What this account is, where it belongs, and what it may do.': 'บัญชีนี้คืออะไร อยู่ที่ใด และทำอะไรได้บ้าง',
   'How much this person may approve, and who approves their own claims.': 'บุคคลนี้อนุมัติได้มากเท่าใด และใครเป็นผู้อนุมัติรายการเบิกของเขาเอง',
-  'Where this person\'s reimbursements are paid.': 'ที่ซึ่งเงินเบิกคืนของบุคคลนี้จะถูกโอนเข้า'
+  'Where this person\'s reimbursements are paid.': 'ที่ซึ่งเงินเบิกคืนของบุคคลนี้จะถูกโอนเข้า',
+  // Manage accounts
+  'View only': 'ดูได้อย่างเดียว',
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'อย่างน้อย 8 ตัวอักษร แจ้งให้เจ้าของบัญชีทราบเป็นการส่วนตัว — เขาเปลี่ยนรหัสผ่านได้หลังเข้าสู่ระบบ'
 });

@@ -729,5 +729,8 @@ I18N.addDict('id', {
   'The username and first password this person signs in with.': 'Nama pengguna dan kata sandi awal yang dipakai orang ini untuk masuk.',
   'What this account is, where it belongs, and what it may do.': 'Jenis akun ini, tempatnya, dan apa yang boleh dilakukannya.',
   'How much this person may approve, and who approves their own claims.': 'Berapa banyak yang boleh disetujui orang ini, dan siapa yang menyetujui klaimnya sendiri.',
-  'Where this person\'s reimbursements are paid.': 'Ke mana reimbursement orang ini dibayarkan.'
+  'Where this person\'s reimbursements are paid.': 'Ke mana reimbursement orang ini dibayarkan.',
+  // Manage accounts
+  'View only': 'Hanya lihat',
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Minimal 8 karakter. Berikan secara pribadi — mereka dapat mengubahnya setelah masuk.'
 });

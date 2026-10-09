@@ -3260,7 +3260,7 @@ function openModal(html) {
 function closeModal() {
   leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
-  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws');
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
   syncScrollLock();
 }
@@ -3285,7 +3285,7 @@ function openModal2(html) {
   $('#modal2').hidden = false;
   syncScrollLock();
 }
-function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue'); syncScrollLock(); }
+function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
@@ -6560,6 +6560,12 @@ function visibleSettingsTabs() {
 const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
+// Phones clamp long page descriptions to two lines (.clamp-desc); a tap
+// toggles the full text.
+document.addEventListener('click', (e) => {
+  const d = e.target.closest && e.target.closest('.clamp-desc');
+  if (d) d.classList.toggle('open');
+});
 // Admins and delegated seniors share the same department-scoped, rank-limited
 // "Manage accounts" screen; superadmins use full Settings instead.
 $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
@@ -6788,7 +6794,7 @@ function openRegionWorkspace() {
       </nav>
       <section class="ws-main">
         <header class="ws-page-head">
-          <div class="ws-page-text"><h3 id="wsTitle"></h3><p id="wsDesc"></p></div>
+          <div class="ws-page-text"><h3 id="wsTitle"></h3><p id="wsDesc" class="clamp-desc"></p></div>
           <div class="ws-page-acts" id="wsActs"></div>
         </header>
         <div id="settingsPanel"></div>
@@ -6824,7 +6830,7 @@ function showWorkspacePage() {
 }
 function setWsPage({ desc, actions } = {}) {
   const d = $('#wsDesc'), a = $('#wsActs');
-  if (d && desc !== undefined) { d.textContent = desc; d.hidden = !desc; }
+  if (d && desc !== undefined) { d.textContent = desc; d.hidden = !desc; d.classList.remove('open'); }
   if (a) a.innerHTML = actions || '';
 }
 
@@ -7174,7 +7180,7 @@ async function renderRolesTab() {
   const { capabilities, roles, editableRoles, matrix } = data;
   const editable = new Set(editableRoles || []);
   const head = `<th>${esc(t('Capability'))}</th>`
-    + roles.map(r => `<th class="role-h">${esc(roleLabel(r))}${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
+    + roles.map(r => `<th class="role-h"><span class="role-h-label">${esc(roleLabel(r))}</span>${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
   const cell = (cap, role) => {
     const on = !!(matrix[role] && matrix[role][cap]);
     const canEdit = editable.has(role);
@@ -7403,66 +7409,83 @@ async function renderAccountsTab() {
   else paintDelegatedAccounts();
 }
 
-// The Accounts tab for a non-superadmin (CM/MD or a delegated senior): the same
-// department-scoped, rank-limited team screen as the "Manage accounts" modal —
-// reset passwords / enable-disable your team, plus "+ Add user" for anyone who
-// holds create_accounts. Rendered into the Settings workspace panel.
-function paintDelegatedAccounts() {
-  const panel = $('#settingsPanel');
-  const users = settingsState.users || [];
+// The team screen non-superadmins get — the "Manage accounts" modal and the
+// Accounts page of their Settings workspace render the same table from here.
+// Scope copy: which accounts the viewer sees and what they may do with them.
+function teamScopeCopy() {
   const dept = state.user.department || '';
   const canCreate = uCan('create_accounts');
-  // Director-and-above positions see every department (server-computed); adapt the
-  // scope blurb and add a Department column so cross-department rows are legible.
-  const seesAllDepts = !!state.user.sees_all_departments;
-  const scopeCopy = seesAllDepts
+  return state.user.sees_all_departments
     ? (canCreate
         ? t('All departments. You can create accounts, reset passwords and enable/disable any account ranked below yours.')
         : t('All departments. You can reset passwords and enable/disable any account ranked below yours. Only a super admin can create new accounts.'))
     : (canCreate
         ? t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' })
         : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }));
-  const colspan = seesAllDepts ? 6 : 5;
-  setWsPage({ desc: scopeCopy, actions: canCreate ? `<button type="button" class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : '' });
-  panel.innerHTML = `
+}
+// Toolbar (search + status chips) and the table card. Director-and-above
+// viewers see every department (server-computed), so they get a Department
+// column to keep cross-department rows legible.
+function teamAccountsHtml(users) {
+  const wide = !!state.user.sees_all_departments;
+  const shown = users.filter(u => accountsFilter === 'all' || (accountsFilter === 'active') === !!u.active);
+  const cols = wide ? 5 : 4;
+  return `
     <div class="settings-controls">
       <div class="ws-toolbar">
         <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" />
+        ${acctFilterChips(users)}
       </div>
     </div>
     <div class="settings-list ws-table">
-      <table class="utable utable-manage ${seesAllDepts ? 'utable-manage--wide' : 'utable-manage--5'}">
-        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
-        <tbody>${users.length ? users.map(u => `
-          <tr>
-            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
-            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            ${seesAllDepts ? `<td data-label="${esc(t('Department'))}">${u.department ? esc(u.department) : '<span class="muted">—</span>'}</td>` : ''}
+      <table class="utable utable-manage${wide ? ' utable-manage--wide' : ''}">
+        <thead><tr><th>${esc(t('User'))}</th>${wide ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Status'))}</th><th class="u-actions-h"></th></tr></thead>
+        <tbody>${shown.length ? shown.map(u => `
+          <tr${u.active ? '' : ' class="row-off"'}>
+            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub"><span class="mono">${esc(u.username)}</span>${u.email ? ` · ${esc(u.email)}` : ''}</div>${creatorLine(u)}</td>
+            ${wide ? `<td data-label="${esc(t('Department'))}">${u.department ? esc(u.department) : '<span class="muted">—</span>'}</td>` : ''}
             <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Active'))}">${u.active
-                ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
-                : `<span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
+            <td data-label="${esc(t('Status'))}">${acctStatusPill(u)}</td>
             <td class="act-cell" data-label="${esc(t('Actions'))}">${maCanManage(u) ? `<div class="u-actions">
-              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
-              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
-            </div>` : '<span class="muted">—</span>'}</td>
-          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
+              <button type="button" class="btn btn-brand-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
+              <button type="button" class="row-more" data-menu="${u.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>
+            </div>` : `<span class="team-ro">${esc(t('View only'))}</span>`}</td>
+          </tr>`).join('') : `<tr><td colspan="${cols}" class="muted" style="padding:16px">${esc(users.length ? t('No matches') : t('No accounts yet.'))}</td></tr>`}</tbody>
       </table>
     </div>`;
-  wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
+}
+// Paint the team table into `root` and wire it; `refetch` reloads after a change.
+function paintTeam(root, users, refetch) {
+  const repaint = () => repaintKeepingSearch(() => paintTeam(root, users, refetch));
+  root.querySelector('.team-mount').innerHTML = teamAccountsHtml(users);
+  wireTableSearch($('#acctSearch'), `#${root.id} .settings-list`);
+  root.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => { accountsFilter = b.dataset.filter; repaint(); }));
+  root.querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () =>
+    renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
+  root.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const u = users.find(x => x.id == b.dataset.menu);
+    openRowMenu(b, 'team:' + u.id, [u.active
+      ? { act: 'toggle', label: t('Disable account'), danger: true }
+      : { act: 'toggle', label: t('Enable account') }], async () => {
+      if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
+      try {
+        await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
+        toast(u.active ? t('Account disabled') : t('Account enabled'));
+        refetch();
+      } catch (ex) { toast(ex.message, true); }
+    });
+  }));
+}
+
+// The Accounts page of a non-superadmin's Settings workspace.
+function paintDelegatedAccounts() {
+  const panel = $('#settingsPanel');
+  setWsPage({ desc: teamScopeCopy(), actions: uCan('create_accounts') ? `<button type="button" class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : '' });
+  panel.innerHTML = '<div class="team-mount"></div>';
+  paintTeam(panel, settingsState.users || [], renderAccountsTab);
   const addBtn = $('#addUserBtn');
   if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
-  $$('#settingsPanel [data-reset]').forEach(b => b.addEventListener('click', () =>
-    renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
-  $$('#settingsPanel [data-active]').forEach(b => b.addEventListener('click', async () => {
-    const u = users.find(x => x.id == b.dataset.active);
-    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
-    try {
-      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
-      toast(u.active ? t('Account disabled') : t('Account enabled'));
-      renderAccountsTab();
-    } catch (ex) { toast(ex.message, true); }
-  }));
 }
 
 // Status filter for the accounts list: chips above the table, with counts.
@@ -7919,16 +7942,26 @@ function renderUserForm(u) {
 // scoped to their region and to roles below their own. The server enforces the
 // same rules; this is the UI.
 function openManageAccountsModal() {
+  const canCreate = uCan('create_accounts');
   openModal(`
-    <div class="modal-head">
-      <h2>${esc(t('Manage accounts'))}</h2>
-      <button class="x-btn">×</button>
+    <div class="modal-head ma-head">
+      <div class="ma-head-text">
+        <h2>${esc(t('Manage accounts'))}</h2>
+        <p class="rg-sub">${esc(teamScopeCopy())}</p>
+      </div>
+      <div class="rg-head-acts">
+        ${canCreate ? `<button type="button" class="btn btn-primary btn-sm" id="maAddUserBtn">${esc(t('+ Add user'))}</button>` : ''}
+        <button class="x-btn">×</button>
+      </div>
     </div>
     <div class="modal-body" id="maBody">
-      <p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>
+      <p class="ma-desc-body clamp-desc">${esc(teamScopeCopy())}</p>
+      <div class="team-mount"><p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p></div>
     </div>`);
-  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal').classList.add('modal-xwide', 'modal-flex', 'modal-ma');
   $('#modal .x-btn').addEventListener('click', closeModal);
+  const addBtn = $('#maAddUserBtn');
+  if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
   renderManageAccounts();
 }
 
@@ -7936,62 +7969,11 @@ async function renderManageAccounts() {
   const body = $('#maBody');
   let users;
   try { ({ users } = await api('/users')); }
-  catch (ex) { body.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const dept = state.user.department || '';
-  const canCreate = uCan('create_accounts');
-  // Director-and-above positions see every department (server-computed), so the
-  // scope blurb and an extra Department column adapt to that wider view.
-  const seesAllDepts = !!state.user.sees_all_departments;
+  catch (ex) { body.querySelector('.team-mount').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   // Keep the approver-combo / creatable-position helpers fed while this modal is
   // open (they read settingsState); the delegated create form reuses them.
   settingsState.users = users;
-  const scopeCopy = seesAllDepts
-    ? (canCreate
-        ? t('All departments. You can create accounts, reset passwords and enable/disable any account ranked below yours.')
-        : t('All departments. You can reset passwords and enable/disable any account ranked below yours. Only a super admin can create new accounts.'))
-    : (canCreate
-        ? t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' })
-        : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }));
-  const colspan = seesAllDepts ? 6 : 5;
-  body.innerHTML = `
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-      <input id="maSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
-      ${canCreate ? `<button class="btn btn-primary btn-sm" id="maAddUserBtn">${esc(t('+ Add user'))}</button>` : ''}
-    </div>
-    <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(scopeCopy)}</p>
-    <div class="settings-list">
-      <table class="utable utable-manage ${seesAllDepts ? 'utable-manage--wide' : 'utable-manage--5'}">
-        <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
-        <tbody>${users.length ? users.map(u => `
-          <tr>
-            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
-            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
-            ${seesAllDepts ? `<td data-label="${esc(t('Department'))}">${u.department ? esc(u.department) : '<span class="muted">—</span>'}</td>` : ''}
-            <td data-label="${esc(t('Position'))}">${u.position ? esc(u.position) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Active'))}">${u.active
-                ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
-                : `<span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
-            <td class="act-cell" data-label="${esc(t('Actions'))}">${maCanManage(u) ? `<div class="u-actions">
-              <button class="btn btn-indigo-soft btn-sm" data-reset="${u.id}">${esc(t('Reset password'))}</button>
-              <button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-primary'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
-            </div>` : '<span class="muted">—</span>'}</td>
-          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
-      </table>
-    </div>`;
-  wireTableSearch($('#maSearch'), '#maBody .settings-list');
-  const addBtn = $('#maAddUserBtn');
-  if (addBtn) addBtn.addEventListener('click', () => openDelegatedUserForm());
-  $$('#maBody [data-reset]').forEach(b => b.addEventListener('click', () =>
-    renderResetPasswordForm(users.find(x => x.id == b.dataset.reset))));
-  $$('#maBody [data-active]').forEach(b => b.addEventListener('click', async () => {
-    const u = users.find(x => x.id == b.dataset.active);
-    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
-    try {
-      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
-      toast(u.active ? t('Account disabled') : t('Account enabled'));
-      renderManageAccounts();
-    } catch (ex) { toast(ex.message, true); }
-  }));
+  paintTeam(body, users, renderManageAccounts);
 }
 
 // A row is manageable (reset password / enable-disable) when it's any
@@ -8025,6 +8007,7 @@ async function openDelegatedUserForm() {
 
 function renderResetPasswordForm(u) {
   if (!u) return;
+  const initials = String(u.full_name || u.username || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   openModal2(`
     <div class="modal-head">
       <h2>${esc(t('Reset password'))}</h2>
@@ -8032,19 +8015,25 @@ function renderResetPasswordForm(u) {
     </div>
     <div class="modal-body">
     <form id="rpForm" class="form">
-      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set a new password for {name} ({username}).', { name: u.full_name, username: u.username }))}</p>
+      <div class="rp-who">
+        <span class="ue-avatar" aria-hidden="true">${esc(initials)}</span>
+        <div class="rp-who-text"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div></div>
+      </div>
       <label>${esc(t('New password'))}
         <div class="pw-wrap">
-          <input name="password" type="password" required minlength="8" />
+          <input name="password" type="password" required minlength="8" autocomplete="new-password" />
           <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button>
-        </div></label>
+        </div>
+        <span class="rp-hint">${esc(t('At least 8 characters. Share it with them privately — they can change it after signing in.'))}</span></label>
       <p class="form-error" id="rpErr" hidden></p>
-      <div class="modal-actions">
+      <div class="modal-actions rp-actions">
         <button type="button" class="btn btn-ghost btn-sm" id="rpCancel">${esc(t('Cancel'))}</button>
         <button type="submit" class="btn btn-primary btn-sm">${esc(t('Reset password'))}</button>
       </div>
     </form>
     </div>`);
+  $('#modal2').classList.add('modal-rp');
+  setTimeout(() => { const i = $('#rpForm [name="password"]'); if (i) i.focus(); }, 50);
   $('#rpClose').addEventListener('click', closeModal2);
   $('#rpCancel').addEventListener('click', closeModal2);
   $('#rpForm').addEventListener('submit', async (e) => {

@@ -895,26 +895,23 @@ input[type="search"] { min-width: 220px; }
 .utable-users td:nth-child(5), .utable-users td:nth-child(6),
 .utable-users td:nth-child(7) { overflow-wrap: normal; }
 .utable-users td.act-cell .u-actions { flex-wrap: nowrap; gap: 4px; }
-/* Delegated "Manage accounts" table: wider actions column, and its cells must
-   never break words (the buttons live here). Two column layouts: the default
-   5-column (User, Email, Position, Active, Actions), and the 6-column variant
-   (.utable-manage--wide) that Director-and-above viewers get, which inserts a
-   Department column. Each :not()-scopes the other so the fixed-layout widths
-   never bleed across and starve the Actions column. */
-.utable-manage { table-layout: fixed; }
-.utable-manage--5 th:nth-child(1), .utable-manage--5 td:nth-child(1) { width: 30%; }
-.utable-manage--5 th:nth-child(2), .utable-manage--5 td:nth-child(2) { width: 25%; }
-.utable-manage--5 th:nth-child(3), .utable-manage--5 td:nth-child(3) { width: 12%; }
-.utable-manage--5 th:nth-child(4), .utable-manage--5 td:nth-child(4) { width: 10%; }
-.utable-manage--5 th:nth-child(5), .utable-manage--5 td:nth-child(5) { width: 23%; }
-.utable-manage--wide th:nth-child(1), .utable-manage--wide td:nth-child(1) { width: 24%; }
-.utable-manage--wide th:nth-child(2), .utable-manage--wide td:nth-child(2) { width: 19%; }
-.utable-manage--wide th:nth-child(3), .utable-manage--wide td:nth-child(3) { width: 13%; }
-.utable-manage--wide th:nth-child(4), .utable-manage--wide td:nth-child(4) { width: 12%; }
-.utable-manage--wide th:nth-child(5), .utable-manage--wide td:nth-child(5) { width: 9%; }
-.utable-manage--wide th:nth-child(6), .utable-manage--wide td:nth-child(6) { width: 23%; }
+/* Team table (Manage accounts modal + a non-superadmin's Settings Accounts
+   page): User, Position, Status, Actions — plus a Department column
+   (.utable-manage--wide) for Director-and-above viewers. Widths sum to 100%. */
+.utable-manage { table-layout: fixed; width: 100%; }
+.utable-manage:not(.utable-manage--wide) th:nth-child(1), .utable-manage:not(.utable-manage--wide) td:nth-child(1) { width: 44%; }
+.utable-manage:not(.utable-manage--wide) th:nth-child(2), .utable-manage:not(.utable-manage--wide) td:nth-child(2) { width: 20%; }
+.utable-manage:not(.utable-manage--wide) th:nth-child(3), .utable-manage:not(.utable-manage--wide) td:nth-child(3) { width: 13%; }
+.utable-manage:not(.utable-manage--wide) th:nth-child(4), .utable-manage:not(.utable-manage--wide) td:nth-child(4) { width: 23%; }
+.utable-manage--wide th:nth-child(1), .utable-manage--wide td:nth-child(1) { width: 34%; }
+.utable-manage--wide th:nth-child(2), .utable-manage--wide td:nth-child(2) { width: 17%; }
+.utable-manage--wide th:nth-child(3), .utable-manage--wide td:nth-child(3) { width: 16%; }
+.utable-manage--wide th:nth-child(4), .utable-manage--wide td:nth-child(4) { width: 11%; }
+.utable-manage--wide th:nth-child(5), .utable-manage--wide td:nth-child(5) { width: 22%; }
 /* The Actions cell holds the buttons — never break its words, whichever layout. */
 .utable-manage td.act-cell { overflow-wrap: normal; }
+.utable-manage td.act-cell .u-actions { flex-wrap: nowrap; gap: 4px; }
+.team-ro { font-size: .8rem; color: var(--muted); white-space: nowrap; }
 .u-actions-h { text-align: right; }
 .u-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .u-actions .btn { white-space: nowrap; }
@@ -1381,11 +1378,11 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
   .settings-list .utable td[colspan] { text-align: center; padding: 14px 0; }
 }
 
-/* Tablets: the multi-field account cards have room to spare, so flow their
-   fields in two columns instead of one tall stack. The name/header cell and the
+/* Phones and tablets: account cards flow their short fields in two columns
+   instead of one tall stack. The name/header cell and the
    actions row still span the full card width. Scoped to the user tables so the
    simpler settings tables (departments, positions, …) keep their single column. */
-@media (min-width: 620px) and (max-width: 900px) {
+@media (max-width: 900px) {
   .settings-list .utable-users tr,
   .settings-list .utable-manage tr {
     display: grid; grid-template-columns: 1fr 1fr; column-gap: 26px; align-items: start;
@@ -1394,6 +1391,17 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
   .settings-list .utable-users tr > td.act-cell,
   .settings-list .utable-manage tr > td:first-child,
   .settings-list .utable-manage tr > td.act-cell { grid-column: 1 / -1; }
+  /* The name and the buttons speak for themselves: drop their captions. */
+  .settings-list .utable-users tr > td:first-child::before,
+  .settings-list .utable-users tr > td.act-cell::before,
+  .settings-list .utable-manage tr > td:first-child::before,
+  .settings-list .utable-manage tr > td.act-cell::before { display: none; }
+  .settings-list .utable-users tr > td:first-child,
+  .settings-list .utable-manage tr > td:first-child { padding-top: 8px; padding-bottom: 2px; }
+}
+@media (max-width: 560px) {
+  .settings-list .utable-users tr,
+  .settings-list .utable-manage tr { column-gap: 14px; }
 }
 
 /* The Roles matrix must NOT reflow into cards — its checkbox cells have no
@@ -2417,4 +2425,66 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .ue-foot { padding: 10px 12px; }
   .ue-foot-note { display: none; }
   .ue-foot .btn { flex: 1; }
+}
+
+/* --- Manage accounts modal + reset-password dialog ------------------------- */
+.modal.modal-ma { width: min(1000px, calc(100% - 32px)); height: min(760px, 90vh); }
+.ma-head { gap: 16px; align-items: flex-start; }
+.ma-head-text { min-width: 0; }
+.ma-head .rg-sub { max-width: 640px; }
+.ma-desc-body { display: none; }
+.team-mount { display: contents; }
+.utable-manage td.act-cell .team-ro { display: block; text-align: right; }
+.modal.modal-rp { width: min(440px, calc(100% - 32px)); }
+.rp-who { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 16px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.rp-who .ue-avatar { width: 38px; height: 38px; font-size: .9rem; }
+.rp-who-text { min-width: 0; }
+.rp-who-text .u-name, .rp-who-text .u-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-hint { display: block; margin-top: 6px; font-size: .8rem; font-weight: 400; line-height: 1.45; color: var(--muted); }
+
+/* --- Mobile pass for the settings / accounts screens ----------------------- */
+@media (max-width: 760px) {
+  /* Long page / modal descriptions: two lines, tap to read the rest. */
+  .clamp-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+  .clamp-desc.open { display: block; -webkit-line-clamp: unset; }
+  .ws-page-head p.clamp-desc:not([hidden]) { display: -webkit-box; font-size: .8rem; }
+  .ws-page-head p.clamp-desc.open:not([hidden]) { display: block; }
+  /* Manage accounts: scope note moves from the cramped header into the body. */
+  .ma-head .rg-sub { display: none; }
+  .ma-desc-body { display: block; flex: none; margin: 0 0 10px; font-size: .8rem; line-height: 1.45; color: var(--muted); }
+  .modal.modal-ma, .modal.modal-ws { height: 92vh; }
+  #maBody { padding: 14px; }
+  /* Toolbars: search on its own row, chips / counts below. */
+  .ws-toolbar { gap: 8px; }
+  .ws-toolbar .input { flex-basis: 100%; }
+  .ws-chips { flex: 1 1 auto; }
+  .ws-chip { flex: 1; }
+  /* Bigger tap targets for the ⋯ menus and their items. */
+  .row-more { width: 40px; height: 38px; }
+  .row-menu button { padding: 11px 14px; font-size: .92rem; }
+  /* Card action rows: the main button fills the row beside ⋯. */
+  .settings-list .utable td.act-cell .u-actions { flex-wrap: nowrap; }
+  .settings-list .utable-users td.act-cell .u-actions .btn,
+  .settings-list .utable-manage td.act-cell .u-actions .btn { flex: 1; }
+  .settings-list .utable-manage td.act-cell .team-ro { text-align: left; }
+  /* Inline rename inside a lookup card wraps instead of overflowing. */
+  .rename-row { flex-wrap: wrap; }
+  .rename-row .rename-input { flex-basis: 100%; }
+  /* Form cards: full width, Save spans the footer. */
+  .ws-card { padding: 14px 14px 16px; }
+  .ws-card-foot { margin: 14px -14px -16px; padding: 10px 14px; }
+  .ws-card-foot .btn { flex: 1; }
+  .ws-card.ws-card-narrow { max-width: none; }
+  /* Roles matrix scrolls sideways; keep the capability column pinned. */
+  /* The table sizes to max-content here, so fix the first column's text
+     width or the descriptions never wrap and push the roles off-screen. */
+  .utable-matrix th:first-child { min-width: 0; }
+  .utable-matrix td:first-child > div { width: 165px; white-space: normal; }
+  .utable-matrix .role-h-label { display: block; width: 84px; margin: 0 auto; white-space: normal; }
+  .utable-matrix th:first-child, .utable-matrix td:first-child {
+    position: sticky; left: 0; z-index: 3; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+  .utable-matrix th.role-h { min-width: 92px; }
+  /* Reset-password dialog: full-width buttons. */
+  .rp-actions .btn { flex: 1; }
 }

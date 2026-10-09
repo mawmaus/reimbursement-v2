@@ -706,5 +706,8 @@ I18N.addDict('km', {
   'The username and first password this person signs in with.': 'ឈ្មោះអ្នកប្រើ និងពាក្យសម្ងាត់ដំបូងដែលបុគ្គលនេះប្រើដើម្បីចូល។',
   'What this account is, where it belongs, and what it may do.': 'គណនីនេះជាអ្វី ស្ថិតនៅណា និងអាចធ្វើអ្វីបាន។',
   'How much this person may approve, and who approves their own claims.': 'បុគ្គលនេះអាចអនុម័តបានប៉ុន្មាន និងអ្នកណាអនុម័តសំណើរបស់ពួកគេផ្ទាល់។',
-  'Where this person\'s reimbursements are paid.': 'កន្លែងដែលប្រាក់សំណងរបស់បុគ្គលនេះត្រូវបានបង់។'
+  'Where this person\'s reimbursements are paid.': 'កន្លែងដែលប្រាក់សំណងរបស់បុគ្គលនេះត្រូវបានបង់។',
+  // Manage accounts
+  'View only': 'មើលតែប៉ុណ្ណោះ',
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'យ៉ាងហោចណាស់ 8 តួអក្សរ។ ចែករំលែកវាជាមួយពួកគេដោយឯកជន — ពួកគេអាចប្តូរវាបន្ទាប់ពីចូល។'
 });

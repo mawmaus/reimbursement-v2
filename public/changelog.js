@@ -27,6 +27,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.6',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Manage accounts is tidier: each person\'s email sits under their name, accounts can be filtered by All, Active or Disabled, and every row has one Reset password button with Disable / Enable in a ⋯ menu. Rows you can\'t change are marked View only, and the Reset password window shows whose password you are changing.',
+        id: 'Kelola akun kini lebih rapi: email setiap orang ada di bawah namanya, akun dapat difilter menurut Semua, Aktif, atau Nonaktif, dan setiap baris memiliki satu tombol Reset kata sandi dengan Nonaktifkan / Aktifkan di menu ⋯. Baris yang tidak dapat Anda ubah ditandai Hanya lihat, dan jendela Reset kata sandi menampilkan kata sandi siapa yang sedang Anda ubah.',
+        th: 'หน้าจัดการบัญชีเป็นระเบียบขึ้น: อีเมลของแต่ละคนอยู่ใต้ชื่อ กรองบัญชีได้ตามทั้งหมด ใช้งาน หรือปิดใช้งาน และแต่ละแถวมีปุ่มรีเซ็ตรหัสผ่านปุ่มเดียว โดยย้ายปิดใช้งาน / เปิดใช้งานไปไว้ในเมนู ⋯ แถวที่คุณแก้ไขไม่ได้จะมีป้ายดูได้อย่างเดียว และหน้าต่างรีเซ็ตรหัสผ่านจะแสดงว่ากำลังเปลี่ยนรหัสผ่านของใคร',
+        vi: 'Quản lý tài khoản gọn gàng hơn: email của mỗi người nằm dưới tên họ, có thể lọc tài khoản theo Tất cả, Đang hoạt động hoặc Bị vô hiệu hóa, và mỗi dòng có một nút Đặt lại mật khẩu, còn Vô hiệu hóa / Kích hoạt nằm trong menu ⋯. Các dòng bạn không thể thay đổi được ghi Chỉ xem, và cửa sổ Đặt lại mật khẩu hiển thị bạn đang đổi mật khẩu của ai.',
+        km: 'ការគ្រប់គ្រងគណនីមានសណ្តាប់ធ្នាប់ជាងមុន៖ អ៊ីមែលរបស់មនុស្សម្នាក់ៗនៅក្រោមឈ្មោះ គណនីអាចត្រងតាម ទាំងអស់ សកម្ម ឬបានបិទ ហើយជួរនីមួយៗមានប៊ូតុងកំណត់ពាក្យសម្ងាត់ឡើងវិញតែមួយ ដោយមាន បិទ / បើក ក្នុងម៉ឺនុយ ⋯។ ជួរដែលអ្នកមិនអាចកែបានត្រូវបានសម្គាល់ មើលតែប៉ុណ្ណោះ ហើយបង្អួចកំណត់ពាក្យសម្ងាត់ឡើងវិញបង្ហាញថាអ្នកកំពុងប្តូរពាក្យសម្ងាត់របស់នរណា។',
+        fil: 'Mas maayos na ang Manage accounts: nasa ilalim ng pangalan ang email ng bawat tao, maaaring i-filter ang mga account ayon sa Lahat, Aktibo o Naka-disable, at bawat hanay ay may iisang Reset password na button na may I-disable / I-enable sa ⋯ na menu. Minarkahang Tingin lang ang mga hanay na hindi mo mababago, at ipinapakita ng Reset password na window kung kaninong password ang binabago mo.'
+      }, audience: ['accounts'] },
+      { kind: 'improved', text: {
+        en: 'Settings and the account screens work better on phones: page notes fold to two lines (tap to read more), account cards are more compact, buttons are easier to tap, and the Roles table keeps the permission names in view while you scroll sideways.',
+        id: 'Pengaturan dan layar akun kini lebih nyaman di ponsel: catatan halaman dilipat menjadi dua baris (ketuk untuk membaca selengkapnya), kartu akun lebih ringkas, tombol lebih mudah diketuk, dan tabel Peran tetap menampilkan nama izin saat Anda menggulir ke samping.',
+        th: 'การตั้งค่าและหน้าบัญชีใช้งานบนมือถือได้ดีขึ้น: คำอธิบายหน้าพับเหลือสองบรรทัด (แตะเพื่ออ่านต่อ) การ์ดบัญชีกระชับขึ้น ปุ่มกดง่ายขึ้น และตารางบทบาทยังคงแสดงชื่อสิทธิ์ขณะเลื่อนไปด้านข้าง',
+        vi: 'Cài đặt và các màn hình tài khoản dùng tốt hơn trên điện thoại: ghi chú trang được thu gọn còn hai dòng (chạm để xem thêm), thẻ tài khoản gọn hơn, nút dễ bấm hơn, và bảng Vai trò luôn hiển thị tên quyền khi bạn cuộn ngang.',
+        km: 'ការកំណត់ និងអេក្រង់គណនីដំណើរការល្អជាងនៅលើទូរសព្ទ៖ កំណត់ចំណាំទំព័របត់ត្រឹមពីរបន្ទាត់ (ចុចដើម្បីអានបន្ថែម) កាតគណនីបង្រួមជាងមុន ប៊ូតុងងាយចុចជាងមុន ហើយតារាងតួនាទីរក្សាឈ្មោះសិទ្ធិឱ្យនៅមើលឃើញពេលអ្នករំកិលទៅចំហៀង។',
+        fil: 'Mas maayos na sa phone ang Settings at mga screen ng account: tinutupi sa dalawang linya ang mga paliwanag ng pahina (i-tap para basahin pa), mas siksik ang mga account card, mas madaling i-tap ang mga button, at nananatiling nakikita ang mga pangalan ng permiso sa Roles table habang nag-i-scroll pakanan.'
+      }, audience: ['settings', 'accounts'] }
+    ]
+  },
+  {
     id: '2026-10-09.5',
     date: '2026-10-09',
     items: [

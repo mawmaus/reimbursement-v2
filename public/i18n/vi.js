@@ -706,5 +706,8 @@ I18N.addDict('vi', {
   'The username and first password this person signs in with.': 'Tên đăng nhập và mật khẩu ban đầu mà người này dùng để đăng nhập.',
   'What this account is, where it belongs, and what it may do.': 'Tài khoản này là gì, thuộc về đâu và được phép làm gì.',
   'How much this person may approve, and who approves their own claims.': 'Người này được phê duyệt bao nhiêu, và ai phê duyệt các yêu cầu của chính họ.',
-  'Where this person\'s reimbursements are paid.': 'Nơi nhận tiền hoàn ứng của người này.'
+  'Where this person\'s reimbursements are paid.': 'Nơi nhận tiền hoàn ứng của người này.',
+  // Manage accounts
+  'View only': 'Chỉ xem',
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Tối thiểu 8 ký tự. Hãy gửi riêng cho họ — họ có thể đổi sau khi đăng nhập.'
 });

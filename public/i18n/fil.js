@@ -706,5 +706,8 @@ I18N.addDict('fil', {
   'The username and first password this person signs in with.': 'Ang username at unang password na gagamitin ng taong ito sa pag-sign in.',
   'What this account is, where it belongs, and what it may do.': 'Kung ano ang account na ito, saan ito kabilang, at ano ang maaari nitong gawin.',
   'How much this person may approve, and who approves their own claims.': 'Gaano kalaki ang maaaring aprubahan ng taong ito, at sino ang nag-aapruba ng sarili niyang mga claim.',
-  'Where this person\'s reimbursements are paid.': 'Kung saan ibinabayad ang mga reimbursement ng taong ito.'
+  'Where this person\'s reimbursements are paid.': 'Kung saan ibinabayad ang mga reimbursement ng taong ito.',
+  // Manage accounts
+  'View only': 'Tingin lang',
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Hindi bababa sa 8 character. Ibigay ito nang pribado — mapapalitan nila ito pagkatapos mag-sign in.'
 });
