@@ -747,5 +747,12 @@ I18N.addDict('id', {
   'Payment details': 'Detail pembayaran',
   'Copy': 'Salin',
   'Copied': 'Disalin',
-  'Copy failed — select the number and copy it manually.': 'Gagal menyalin — pilih nomornya lalu salin secara manual.'
+  'Copy failed — select the number and copy it manually.': 'Gagal menyalin — pilih nomornya lalu salin secara manual.',
+  // Claim / meal / advance forms
+  '{n} line': '{n} baris',
+  '{n} lines': '{n} baris',
+  'Approval': 'Persetujuan',
+  'Line {n}': 'Baris {n}',
+  '+ Add another line': '+ Tambah baris lagi',
+  'Request details': 'Detail permintaan'
 });

@@ -724,5 +724,12 @@ I18N.addDict('fil', {
   'Payment details': 'Detalye ng bayad',
   'Copy': 'Kopyahin',
   'Copied': 'Nakopya',
-  'Copy failed — select the number and copy it manually.': 'Hindi nakopya — piliin ang numero at kopyahin nang mano-mano.'
+  'Copy failed — select the number and copy it manually.': 'Hindi nakopya — piliin ang numero at kopyahin nang mano-mano.',
+  // Claim / meal / advance forms
+  '{n} line': '{n} linya',
+  '{n} lines': '{n} linya',
+  'Approval': 'Pag-apruba',
+  'Line {n}': 'Linya {n}',
+  '+ Add another line': '+ Magdagdag ng linya',
+  'Request details': 'Detalye ng kahilingan'
 });

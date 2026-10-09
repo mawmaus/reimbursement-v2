@@ -27,6 +27,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.9',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The claim, meal allowance and cash advance forms are tidier: your name, department and currency show under the title, "+ Add another line" now sits right under the lines, Approver 1 has its own section, and the total with a count of lines stays at the bottom next to Submit. On phones each line is a numbered card and Submit is a full-width button at the bottom.',
+        id: 'Formulir klaim, tunjangan makan, dan uang muka kini lebih rapi: nama, departemen, dan mata uang Anda tampil di bawah judul, "+ Tambah baris lagi" kini berada tepat di bawah baris-baris, Approver 1 memiliki bagiannya sendiri, dan total beserta jumlah baris tetap di bawah di samping tombol Kirim. Di ponsel, setiap baris menjadi kartu bernomor dan tombol Kirim selebar layar di bagian bawah.',
+        th: 'ฟอร์มเบิกค่าใช้จ่าย เบี้ยเลี้ยงค่าอาหาร และเงินทดรองจ่ายเป็นระเบียบขึ้น: ชื่อ แผนก และสกุลเงินของคุณแสดงใต้หัวเรื่อง ปุ่ม "+ เพิ่มอีกรายการ" อยู่ใต้รายการทันที Approver 1 มีส่วนของตัวเอง และยอดรวมพร้อมจำนวนรายการอยู่ด้านล่างข้างปุ่มส่ง บนมือถือแต่ละรายการเป็นการ์ดที่มีหมายเลข และปุ่มส่งเต็มความกว้างอยู่ด้านล่าง',
+        vi: 'Các biểu mẫu yêu cầu hoàn ứng, phụ cấp ăn và tạm ứng gọn gàng hơn: tên, phòng ban và tiền tệ của bạn hiện dưới tiêu đề, "+ Thêm dòng" nằm ngay dưới các dòng, Approver 1 có phần riêng, và tổng tiền cùng số dòng luôn ở cuối cạnh nút Gửi. Trên điện thoại, mỗi dòng là một thẻ có đánh số và nút Gửi rộng hết màn hình ở cuối.',
+        km: 'ទម្រង់ស្នើសុំសំណង ប្រាក់ឧបត្ថម្ភអាហារ និងប្រាក់បុរេប្រទានមានសណ្តាប់ធ្នាប់ជាងមុន៖ ឈ្មោះ នាយកដ្ឋាន និងរូបិយប័ណ្ណរបស់អ្នកបង្ហាញនៅក្រោមចំណងជើង "+ បន្ថែមបន្ទាត់ទៀត" ឥឡូវនៅក្រោមបន្ទាត់ផ្ទាល់ Approver 1 មានផ្នែកផ្ទាល់ខ្លួន ហើយសរុបជាមួយចំនួនបន្ទាត់នៅខាងក្រោមក្បែរប៊ូតុងដាក់ស្នើ។ នៅលើទូរសព្ទ បន្ទាត់នីមួយៗជាកាតមានលេខ ហើយប៊ូតុងដាក់ស្នើពេញទទឹងនៅខាងក្រោម។',
+        fil: 'Mas maayos na ang mga form ng claim, meal allowance at cash advance: lumalabas sa ilalim ng pamagat ang iyong pangalan, departamento at currency, nasa ilalim na mismo ng mga linya ang "+ Magdagdag ng linya", may sariling seksyon ang Approver 1, at nasa ibaba katabi ng Submit ang kabuuan at bilang ng mga linya. Sa phone, may numero ang bawat linya bilang card at buong lapad ang Submit sa ibaba.'
+      }, audience: ['claim', 'meal', 'advance'] },
+      { kind: 'fixed', text: {
+        en: 'The required-field star (*) on Approver 1, the advance purpose and the advance amount no longer drops onto a line of its own, and the meal form no longer repeats its example text ("Surabaya") in every empty row.',
+        id: 'Tanda wajib (*) pada Approver 1, tujuan uang muka, dan jumlah uang muka tidak lagi turun ke baris sendiri, dan formulir tunjangan makan tidak lagi mengulang contoh teksnya ("Surabaya") di setiap baris kosong.',
+        th: 'เครื่องหมายช่องบังคับ (*) ของ Approver 1 วัตถุประสงค์ และจำนวนเงินทดรองจ่าย ไม่ตกไปอยู่บรรทัดของตัวเองอีกต่อไป และฟอร์มเบี้ยเลี้ยงค่าอาหารไม่แสดงข้อความตัวอย่าง ("Surabaya") ซ้ำในทุกแถวว่างแล้ว',
+        vi: 'Dấu bắt buộc (*) ở Approver 1, mục đích và số tiền tạm ứng không còn rơi xuống một dòng riêng, và biểu mẫu phụ cấp ăn không còn lặp lại chữ mẫu ("Surabaya") ở mọi dòng trống.',
+        km: 'សញ្ញាចាំបាច់ (*) នៅលើ Approver 1 គោលបំណង និងចំនួនប្រាក់បុរេប្រទាន លែងធ្លាក់ទៅបន្ទាត់ដាច់ដោយឡែកហើយ ហើយទម្រង់ប្រាក់ឧបត្ថម្ភអាហារលែងបង្ហាញអត្ថបទគំរូ ("Surabaya") ម្តងទៀតក្នុងគ្រប់ជួរទទេ។',
+        fil: 'Hindi na bumababa sa sariling linya ang required na bituin (*) sa Approver 1, layunin at halaga ng cash advance, at hindi na inuulit ng meal form ang halimbawang teksto ("Surabaya") sa bawat bakanteng hanay.'
+      }, audience: ['claim', 'meal', 'advance'] }
+    ]
+  },
+  {
     id: '2026-10-09.8',
     date: '2026-10-09',
     items: [

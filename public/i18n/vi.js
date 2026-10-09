@@ -724,5 +724,12 @@ I18N.addDict('vi', {
   'Payment details': 'Thông tin thanh toán',
   'Copy': 'Sao chép',
   'Copied': 'Đã sao chép',
-  'Copy failed — select the number and copy it manually.': 'Không sao chép được — hãy chọn số rồi sao chép thủ công.'
+  'Copy failed — select the number and copy it manually.': 'Không sao chép được — hãy chọn số rồi sao chép thủ công.',
+  // Claim / meal / advance forms
+  '{n} line': '{n} dòng',
+  '{n} lines': '{n} dòng',
+  'Approval': 'Phê duyệt',
+  'Line {n}': 'Dòng {n}',
+  '+ Add another line': '+ Thêm dòng',
+  'Request details': 'Chi tiết yêu cầu'
 });

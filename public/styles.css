@@ -2729,3 +2729,71 @@ a[data-open-doc]:hover { text-decoration: underline; }
 @media (max-width: 1040px) { .topbar-title { display: none; } }
 @media (min-width: 721px) and (max-width: 900px) { .user-badge { display: none; } }
 .user-badge, .topbar-title { white-space: nowrap; }
+
+/* --- Claim / meal / cash-advance / realization forms ------------------------ */
+/* Header with who's claiming, titled sections in the scrolling body, and a
+   footer holding the running total beside the actions. */
+.modal.modal-adv { width: min(680px, calc(100% - 32px)); }
+.modal-flex #advForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.lf-modal-head { align-items: flex-start; gap: 16px; }
+.lf-head-text { min-width: 0; }
+.lf-head-text h2 { margin: 0; }
+.lf-sub { display: flex; flex-wrap: wrap; margin-top: 3px; font-size: .84rem; color: var(--muted); }
+.lf-sub span + span::before { content: '·'; margin: 0 7px; color: var(--line); }
+.lf-form .meal-scroll { padding: 2px 2px 6px; }
+.lf-sec + .lf-sec { margin-top: 20px; }
+.lf-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.lf-sec-head h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--ink); }
+.lf-count { flex: none; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.lf-count:empty { display: none; }
+.lf-hint { margin: 0 0 10px; font-size: .82rem; line-height: 1.45; color: var(--muted); }
+.lf-sec > label + label { margin-top: 14px; }
+.lf-sec > label { display: flex; }
+/* "+ Add another line" sits where the next line goes, not above the table. */
+.lf-add { display: block; width: 100%; margin-top: 10px; padding: 11px 12px; border: 1.5px dashed var(--line);
+  border-radius: 10px; background: none; font: inherit; font-size: .88rem; font-weight: 650; color: var(--pine-deep);
+  cursor: pointer; transition: background .14s, border-color .14s; }
+.lf-add:hover { background: var(--pine-tint); border-color: var(--pine); }
+.lf-add:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+#claimDateBox:empty { display: none; }
+#claimDateBox .form-note { margin-top: 10px !important; }
+/* Approver 1 + resubmit note, set apart from the lines. */
+.lf-approval { padding: 14px 16px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.lf-approval label + label { margin-top: 12px; }
+.lf-approval label { display: flex; }
+/* Required field labels: the * stays beside the text. */
+.form label .lbl { display: block; }
+.req { color: var(--red); font-weight: 700; }
+/* Amount with the region's currency as a fixed prefix. */
+.amt-field { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--surface); transition: border-color .14s, box-shadow .14s; }
+.amt-field:focus-within { border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
+.amt-cur { flex: none; display: flex; align-items: center; padding: 0 12px; background: var(--paper);
+  border-right: 1px solid var(--line); font-size: .85rem; font-weight: 650; color: var(--muted); }
+.form .amt-field input { flex: 1 1 auto; min-width: 0; border: 0; border-radius: 0; box-shadow: none;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.form .amt-field input:focus { box-shadow: none; }
+/* Footer: Total · amount · line count, then the buttons. */
+.lf-total { margin-right: auto; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.lf-total-l { font-size: .82rem; font-weight: 650; color: var(--muted); }
+.lf-total .meal-total { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.25rem; font-weight: 700; color: var(--ink); }
+.lf-total-n { font-size: .8rem; color: var(--muted); }
+.lf-total-n:empty { display: none; }
+.meal-foot .btn { white-space: nowrap; }
+@media (max-width: 900px) {
+  /* Phone / small-tablet line cards get a "Line 2" title above their fields. */
+  #rcRows tr[data-n]::before, #mealRows tr[data-n]::before { content: attr(data-n); display: block;
+    margin: 2px 34px 2px 0; font-size: .82rem; font-weight: 700; color: var(--ink); }
+  /* The × now sits beside that title, so the first field no longer makes room for it. */
+  #rcRows tr[data-n] td:first-child, #mealRows tr[data-n] td:first-child { padding-right: 0; }
+}
+@media (max-width: 720px) {
+  .lf-sub { font-size: .78rem; }
+  .lf-approval { padding: 12px; }
+  /* Footer: total on its own row, Cancel / Save draft side by side, then the
+     primary action full-width at the bottom where the thumb is. */
+  .meal-foot { gap: 8px; }
+  .meal-foot .lf-total { flex-basis: 100%; margin: 0 0 2px; }
+  .meal-foot .btn { flex: 1 1 0; min-height: 44px; }
+  .meal-foot .btn[type="submit"] { order: 3; flex-basis: 100%; }
+}

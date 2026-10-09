@@ -3408,7 +3408,7 @@ function openModal(html) {
 function closeModal() {
   leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
-  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma');
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma', 'modal-adv');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
   syncScrollLock();
 }
@@ -3628,7 +3628,7 @@ function approver1PickerHtml(existing) {
   const preId = existing && existing.approvers && existing.approvers[0] ? String(existing.approvers[0].id) : '';
   const opts = ['<option value="" disabled' + (preId ? '' : ' selected') + '>' + esc(t('Choose an approver…')) + '</option>']
     .concat(choices.map(c => `<option value="${c.id}" ${String(c.id) === preId ? 'selected' : ''}>${esc(c.name)}</option>`));
-  return `<label class="full">${esc(t('Approver 1'))} <span style="color:var(--danger,#d33)">*</span>
+  return `<label class="full">${reqLabel(t('Approver 1'))}
     <select name="approver1" required>${opts.join('')}</select></label>`;
 }
 
@@ -3731,7 +3731,7 @@ function wireDbCells(scope) {
 }
 
 function claimRowHtml(r, i) {
-  return `<tr data-i="${i}">
+  return `<tr data-i="${i}" data-n="${esc(t('Line {n}', { n: i + 1 }))}">
     <td data-label="${esc(t('Date'))}">${claimDateInput('line_date', r.line_date, r.carried)}</td>
     <td data-label="${esc(t('DB No.'))}">${dbCellHtml(r.db_no)}</td>
     <td data-label="${esc(t('Type of expense'))}">${rcTypeSelect(r)}</td>
@@ -3764,6 +3764,7 @@ function renderClaimRows() {
     ? claimRows.map(claimRowHtml).join('')
     : `<tr><td colspan="7" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
   $('#rcTotal').textContent = liveAmt(claimTotal());
+  syncLineCount(claimRows.filter(r => rcAmt(r.amount) > 0).length);
   if (rcTotalHook) rcTotalHook();
   $$('#rcRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readClaimRows(); claimRows.splice(+b.dataset.rm, 1); renderClaimRows();
@@ -3784,7 +3785,8 @@ function renderClaimRows() {
   }));
   $$('#rcRows .rc-amt').forEach(el => el.addEventListener('input', () => {
     el.value = groupAmount(el.value); // thousands separators as they type
-    readClaimRows(); $('#rcTotal').textContent = liveAmt(claimTotal()); if (rcTotalHook) rcTotalHook();
+    readClaimRows(); $('#rcTotal').textContent = liveAmt(claimTotal());
+    syncLineCount(claimRows.filter(r => rcAmt(r.amount) > 0).length); if (rcTotalHook) rcTotalHook();
   }));
   // Reveal the "specify" field when the type is set to Others.
   $$('#rcRows select[name="expense_type"]').forEach(sel => sel.addEventListener('change', () => {
@@ -4010,40 +4012,35 @@ function openClaimModal(existing = null, reclaim = null) {
     claimRows = [blankClaimRow(todayWIB())];
   }
   openModal(`
-    <div class="modal-head">
-      <h2>${isEdit ? esc(t('Edit & resubmit claim')) : reclaim ? esc(t('Re-claim rejected lines')) : esc(t('New reimbursement claim'))}</h2>
-      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
-    </div>
+    ${formHeadHtml(isEdit ? t('Edit & resubmit claim') : reclaim ? t('Re-claim rejected lines') : t('New reimbursement claim'))}
     <div class="modal-body">
-      <form id="claimForm" class="form">
+      <form id="claimForm" class="form lf-form">
         ${draft ? draftBannerHtml() : ''}
         ${reclaim ? reclaimNoteHtml(reclaim) : ''}
-        <div class="meal-topbar">
-          <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
-        </div>
-        <div id="claimDateBox"></div>
-        <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).'))}</p>
         <p class="form-error" id="claimError" hidden></p>
         <div class="meal-scroll">
-          <div class="meal-table-wrap">
-            <table class="meal-table rc-table">
-              <colgroup>
-                <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
-              </colgroup>
-              <thead><tr>
-                <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
-                <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
-                <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
-              </tr></thead>
-              <tbody id="rcRows"></tbody>
-            </table>
-          </div>
-          ${approver1PickerHtml(existing)}
-          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
-            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+          <section class="lf-sec">
+            ${linesSectionHead(t('Expense lines'), t('One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).'))}
+            <div class="meal-table-wrap">
+              <table class="meal-table rc-table">
+                <colgroup>
+                  <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
+                </colgroup>
+                <thead><tr>
+                  <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
+                  <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
+                  <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+                </tr></thead>
+                <tbody id="rcRows"></tbody>
+              </table>
+            </div>
+            <button type="button" class="lf-add" id="rcAddRow">${esc(t('+ Add another line'))}</button>
+            <div id="claimDateBox"></div>
+          </section>
+          ${approvalSectionHtml(approver1PickerHtml(existing) + (isEdit ? resubmitNoteHtml() : ''))}
         </div>
         <div class="modal-actions meal-foot">
-          <span class="meal-foot-total">${esc(t('TOTAL'))} <span class="meal-total" id="rcTotal">0</span></span>
+          ${footTotalHtml('rcTotal')}
           <button type="button" class="btn btn-ghost" id="cancelClaim">${esc(t('Cancel'))}</button>
           ${fresh ? `<button type="button" class="btn btn-ghost" id="rcSaveDraft">${esc(t('Save draft'))}</button>` : ''}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
@@ -4080,6 +4077,42 @@ function openClaimModal(existing = null, reclaim = null) {
     });
   }
 }
+// --- Shared shell of the claim / meal / advance / realization forms -----------
+// Header with who is claiming (name · department · currency), titled sections,
+// a line count, and a footer with the running total beside the actions.
+function formHeadHtml(title) {
+  const u = state.user || {};
+  const sub = [u.full_name, u.department, regionCurrency()].filter(Boolean);
+  return `<div class="modal-head lf-modal-head">
+      <div class="lf-head-text"><h2>${esc(title)}</h2><div class="lf-sub">${sub.map(s => `<span>${esc(s)}</span>`).join('')}</div></div>
+      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>`;
+}
+function linesSectionHead(title, hint) {
+  return `<div class="lf-sec-head"><h3>${esc(title)}</h3><span class="lf-count" data-lf-count></span></div>
+    ${hint ? `<p class="lf-hint">${esc(hint)}</p>` : ''}`;
+}
+// Approver 1 / resubmit note get their own section — omitted when empty.
+function approvalSectionHtml(inner) {
+  return String(inner || '').trim()
+    ? `<section class="lf-sec lf-approval"><div class="lf-sec-head"><h3>${esc(t('Approval'))}</h3></div>${inner}</section>` : '';
+}
+function resubmitNoteHtml() {
+  return `<label class="full">${esc(t('Note to manager (optional)'))}
+    <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>`;
+}
+// Footer total: label, the live amount (id kept for the existing updaters) and
+// how many lines carry an amount.
+function footTotalHtml(id) {
+  return `<div class="lf-total"><span class="lf-total-l">${esc(t('Total'))}</span>
+    <span class="meal-total" id="${id}">0</span><span class="lf-total-n" data-lf-count></span></div>`;
+}
+const lineCountText = (n) => n === 1 ? t('{n} line', { n }) : t('{n} lines', { n });
+function syncLineCount(n) { $$('#modal [data-lf-count]').forEach(el => { el.textContent = lineCountText(n); }); }
+// A required field's label text with its asterisk, kept on one line (form
+// labels stack their children, which used to drop the * onto its own row).
+const reqLabel = (text) => `<span class="lbl">${esc(text)} <span class="req" aria-hidden="true">*</span></span>`;
+
 // The banner on a re-claim form: where the lines came from and what happens.
 function reclaimNoteHtml(reclaim) {
   const n = reclaim.lines.length;
@@ -5739,12 +5772,12 @@ function mealAmountSelect(val) {
 
 let mealRows = [];
 function mealRowHtml(r, i) {
-  return `<tr data-i="${i}">
+  return `<tr data-i="${i}" data-n="${esc(t('Line {n}', { n: i + 1 }))}">
     <td data-label="${esc(t('Date'))}">${claimDateInput('date', r.date, r.carried)}</td>
     <td data-label="${esc(t('DB Number Site'))}">${dbCellHtml(r.site)}</td>
-    <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${esc(t('Install / Repair / Service…'))}" /></td>
+    <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${i ? '' : esc(t('Install / Repair / Service…'))}" /></td>
     <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
-    <td data-label="${esc(t('Additional Description'))}"><input name="desc" value="${esc(r.desc || '')}" placeholder="${esc(t('Surabaya'))}" /></td>
+    <td data-label="${esc(t('Additional Description'))}"><input name="desc" value="${esc(r.desc || '')}" placeholder="${i ? '' : esc(t('Surabaya'))}" /></td>
     <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
   </tr>`;
 }
@@ -5765,11 +5798,13 @@ function renderMealRows() {
     ? mealRows.map(mealRowHtml).join('')
     : `<tr><td colspan="6" class="muted" style="padding:14px;text-align:center">${esc(t('No rows yet — add one below.'))}</td></tr>`;
   $('#mealTotal').textContent = liveAmt(mealTotal());
+  syncLineCount(mealRows.filter(r => mealAmount(r.amount) > 0).length);
   $$('#mealRows [data-rm]').forEach(b => b.addEventListener('click', () => {
     readMealRows(); mealRows.splice(+b.dataset.rm, 1); renderMealRows();
   }));
   $$('#mealRows .meal-amt').forEach(sel => sel.addEventListener('change', () => {
     readMealRows(); $('#mealTotal').textContent = liveAmt(mealTotal());
+    syncLineCount(mealRows.filter(r => mealAmount(r.amount) > 0).length);
   }));
   wireDbCells('#mealRows');
 }
@@ -5802,37 +5837,33 @@ async function openMealAllowanceModal(existing = null, reclaim = null) {
     mealRows = Array.from({ length: 5 }, () => ({ date: '', site: '', category: '', amount: '', desc: '' }));
   }
   openModal(`
-    <div class="modal-head">
-      <h2>${isEdit ? esc(t('Edit & resubmit meal allowance')) : reclaim ? esc(t('Re-claim rejected lines')) : esc(t('Meal Allowance Claim Form'))}</h2>
-      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
-    </div>
+    ${formHeadHtml(isEdit ? t('Edit & resubmit meal allowance') : reclaim ? t('Re-claim rejected lines') : t('Meal Allowance Claim Form'))}
     <div class="modal-body">
-      <form id="mealForm" class="form">
+      <form id="mealForm" class="form lf-form">
         ${draft ? draftBannerHtml() : ''}
         ${reclaim ? reclaimNoteHtml(reclaim) : ''}
-        <div class="meal-topbar">
-          <button type="button" class="btn btn-brand-soft btn-sm" id="mealAddRow">${esc(t('+ Add row'))}</button>
-        </div>
-        <div id="claimDateBox"></div>
         <p class="form-error" id="mealError" hidden></p>
         <div class="meal-scroll">
-          <div class="meal-table-wrap">
-            <table class="meal-table">
-              <thead>
-                <tr>
-                  <th>${esc(t('Date'))}</th><th>${esc(t('DB Number Site'))}</th><th>${esc(t('Job Category'))}</th>
-                  <th>${esc(t('Amount'))}</th><th>${esc(t('Additional Description'))}</th><th aria-label="${esc(t('Remove'))}"></th>
-                </tr>
-              </thead>
-              <tbody id="mealRows"></tbody>
-            </table>
-          </div>
-          ${approver1PickerHtml(existing)}
-          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
-            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+          <section class="lf-sec">
+            ${linesSectionHead(t('Meal allowance lines'))}
+            <div class="meal-table-wrap">
+              <table class="meal-table">
+                <thead>
+                  <tr>
+                    <th>${esc(t('Date'))}</th><th>${esc(t('DB Number Site'))}</th><th>${esc(t('Job Category'))}</th>
+                    <th>${esc(t('Amount'))}</th><th>${esc(t('Additional Description'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+                  </tr>
+                </thead>
+                <tbody id="mealRows"></tbody>
+              </table>
+            </div>
+            <button type="button" class="lf-add" id="mealAddRow">${esc(t('+ Add another line'))}</button>
+            <div id="claimDateBox"></div>
+          </section>
+          ${approvalSectionHtml(approver1PickerHtml(existing) + (isEdit ? resubmitNoteHtml() : ''))}
         </div>
         <div class="modal-actions meal-foot">
-          <span class="meal-foot-total">${esc(t('TOTAL CLAIM MEAL ALLOWANCE'))} <span class="meal-total" id="mealTotal">0</span></span>
+          ${footTotalHtml('mealTotal')}
           <button type="button" class="btn btn-ghost" id="mealCancel">${esc(t('Cancel'))}</button>
           ${fresh ? `<button type="button" class="btn btn-ghost" id="mealSaveDraft">${esc(t('Save draft'))}</button>` : ''}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
@@ -5954,38 +5985,42 @@ function openAdvanceRequestModal(existing = null) {
     ? (existing.amount != null ? groupAmount(String(Math.round(existing.amount))) : '')
     : (draft ? groupAmount(String(draft.data.amount || '')) : '');
   openModal(`
-    <div class="modal-head">
-      <h2>${isEdit ? esc(t('Edit & resubmit cash advance')) : esc(t('New cash advance'))}</h2>
-      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
-    </div>
+    ${formHeadHtml(isEdit ? t('Edit & resubmit cash advance') : t('New cash advance'))}
     <div class="modal-body">
-      <form id="advForm" class="form">
+      <form id="advForm" class="form lf-form">
         ${draft ? draftBannerHtml() : ''}
-        <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Ask for a cash advance up front. Once it is approved and paid, you will settle it by submitting your actual transactions.'))}</p>
-        <label class="full">${esc(t('Purpose of the cash advance'))} <span style="color:var(--danger,#d33)">*</span>
-          <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(prePurpose)}</textarea></label>
-        <label class="full">${esc(t('Amount needed'))} <span style="color:var(--danger,#d33)">*</span>
-          <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(preAmount)}" /></label>
-        <div class="full adv-docs">
-          <div class="adv-docs-head">
-            <span class="adv-docs-label">${esc(t('Supporting documents (optional)'))}</span>
-            <button type="button" class="btn btn-brand-soft btn-sm" id="advDocAdd">📎 ${esc(t('Attach file'))}</button>
-          </div>
-          <p class="adv-docs-hint muted">${esc(t('A quotation, proforma invoice or booking confirmation. Attach a PDF or a photo — photos are converted to PDF automatically. Up to 8 files, 10 MB each.'))}</p>
-          <div class="file-chips" id="advDocChips"></div>
-          <input type="file" id="advDocInput" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
-        </div>
-        ${approver1PickerHtml(existing)}
-        ${isEdit ? `<label class="full">${esc(t('Note to manager (optional)'))}
-          <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
         <p class="form-error" id="advError" hidden></p>
-        <div class="modal-actions">
+        <div class="meal-scroll">
+          <section class="lf-sec">
+            <div class="lf-sec-head"><h3>${esc(t('Request details'))}</h3></div>
+            <p class="lf-hint">${esc(t('Ask for a cash advance up front. Once it is approved and paid, you will settle it by submitting your actual transactions.'))}</p>
+            <label class="full">${reqLabel(t('Purpose of the cash advance'))}
+              <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(prePurpose)}</textarea></label>
+            <label class="full">${reqLabel(t('Amount needed'))}
+              <div class="amt-field"><span class="amt-cur" aria-hidden="true">${esc(regionCurrency())}</span>
+                <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(preAmount)}" /></div></label>
+          </section>
+          <section class="lf-sec">
+            <div class="full adv-docs">
+              <div class="adv-docs-head">
+                <span class="adv-docs-label">${esc(t('Supporting documents (optional)'))}</span>
+                <button type="button" class="btn btn-brand-soft btn-sm" id="advDocAdd">📎 ${esc(t('Attach file'))}</button>
+              </div>
+              <p class="adv-docs-hint muted">${esc(t('A quotation, proforma invoice or booking confirmation. Attach a PDF or a photo — photos are converted to PDF automatically. Up to 8 files, 10 MB each.'))}</p>
+              <div class="file-chips" id="advDocChips"></div>
+              <input type="file" id="advDocInput" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
+            </div>
+          </section>
+          ${approvalSectionHtml(approver1PickerHtml(existing) + (isEdit ? resubmitNoteHtml() : ''))}
+        </div>
+        <div class="modal-actions meal-foot">
           <button type="button" class="btn btn-ghost" id="advCancel">${esc(t('Cancel'))}</button>
           ${isEdit ? '' : `<button type="button" class="btn btn-ghost" id="advSaveDraft">${esc(t('Save draft'))}</button>`}
           <button type="submit" class="btn btn-primary">${isEdit ? esc(t('Resubmit request')) : esc(t('Submit request'))}</button>
         </div>
       </form>
     </div>`);
+  $('#modal').classList.add('modal-flex', 'modal-adv');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#advCancel').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('advance'));
   const amt = $('#advForm [name="amount"]');
@@ -6108,39 +6143,34 @@ function openRealizeModal(advance) {
     claimRows = [blankClaimRow(todayWIB())];
   }
   openModal(`
-    <div class="modal-head">
-      <h2>${esc(t('Realize cash advance {no}', { no: advance.advance_no }))}</h2>
-      <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
-    </div>
+    ${formHeadHtml(t('Realize cash advance {no}', { no: advance.advance_no }))}
     <div class="modal-body">
-      <form id="realizeForm" class="form">
-        <div class="meal-topbar">
-          <button type="button" class="btn btn-brand-soft btn-sm" id="rcAddRow">${esc(t('+ Add row'))}</button>
-        </div>
-        <p class="muted" style="margin:2px 0 6px;font-size:.82rem">${esc(t('Account for the advance: one row per expense, with that expense\'s receipts attached (PDF or images, up to 8 per row).'))}</p>
+      <form id="realizeForm" class="form lf-form">
         <div id="advDiffWrap">${realizeDiffBanner(advance.amount)}</div>
-        <div id="claimDateBox"></div>
         <p class="form-error" id="claimError" hidden></p>
         <div class="meal-scroll">
-          <div class="meal-table-wrap">
-            <table class="meal-table rc-table">
-              <colgroup>
-                <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
-              </colgroup>
-              <thead><tr>
-                <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
-                <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
-                <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
-              </tr></thead>
-              <tbody id="rcRows"></tbody>
-            </table>
-          </div>
-          ${approver1PickerHtml(isEdit ? advance : null)}
-          ${isEdit ? `<label class="full" style="margin-top:10px">${esc(t('Note to manager (optional)'))}
-            <input name="resubmit_note" placeholder="${esc(t('What you changed since the rejection'))}" /></label>` : ''}
+          <section class="lf-sec">
+            ${linesSectionHead(t('Realization — actual transactions'), t('Account for the advance: one row per expense, with that expense\'s receipts attached (PDF or images, up to 8 per row).'))}
+            <div class="meal-table-wrap">
+              <table class="meal-table rc-table">
+                <colgroup>
+                  <col class="c-date" /><col class="c-db" /><col class="c-type" /><col class="c-amt" /><col /><col class="c-recv" /><col class="c-x" />
+                </colgroup>
+                <thead><tr>
+                  <th>${esc(t('Date'))}</th><th>${esc(t('DB No.'))}</th><th>${esc(t('Type of expense'))}</th>
+                  <th>${esc(t('Amount'))}</th><th>${esc(t('Description / purpose'))}</th>
+                  <th>${esc(t('Receipts'))}</th><th aria-label="${esc(t('Remove'))}"></th>
+                </tr></thead>
+                <tbody id="rcRows"></tbody>
+              </table>
+            </div>
+            <button type="button" class="lf-add" id="rcAddRow">${esc(t('+ Add another line'))}</button>
+            <div id="claimDateBox"></div>
+          </section>
+          ${approvalSectionHtml(approver1PickerHtml(isEdit ? advance : null) + (isEdit ? resubmitNoteHtml() : ''))}
         </div>
         <div class="modal-actions meal-foot">
-          <span class="meal-foot-total">${esc(t('TOTAL'))} <span class="meal-total" id="rcTotal">0</span></span>
+          ${footTotalHtml('rcTotal')}
           <button type="button" class="btn btn-ghost" id="cancelRealize">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${esc(t('Submit realization'))}</button>
         </div>

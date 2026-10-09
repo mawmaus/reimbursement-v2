@@ -724,5 +724,12 @@ I18N.addDict('km', {
   'Payment details': 'ព័ត៌មានលម្អិតការទូទាត់',
   'Copy': 'ចម្លង',
   'Copied': 'បានចម្លង',
-  'Copy failed — select the number and copy it manually.': 'ចម្លងមិនបាន — សូមជ្រើសលេខ ហើយចម្លងដោយដៃ។'
+  'Copy failed — select the number and copy it manually.': 'ចម្លងមិនបាន — សូមជ្រើសលេខ ហើយចម្លងដោយដៃ។',
+  // Claim / meal / advance forms
+  '{n} line': '{n} បន្ទាត់',
+  '{n} lines': '{n} បន្ទាត់',
+  'Approval': 'ការអនុម័ត',
+  'Line {n}': 'បន្ទាត់ទី {n}',
+  '+ Add another line': '+ បន្ថែមបន្ទាត់ទៀត',
+  'Request details': 'ព័ត៌មានលម្អិតនៃសំណើ'
 });

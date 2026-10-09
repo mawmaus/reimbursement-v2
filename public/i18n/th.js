@@ -724,5 +724,12 @@ I18N.addDict('th', {
   'Payment details': 'รายละเอียดการจ่ายเงิน',
   'Copy': 'คัดลอก',
   'Copied': 'คัดลอกแล้ว',
-  'Copy failed — select the number and copy it manually.': 'คัดลอกไม่สำเร็จ — เลือกหมายเลขแล้วคัดลอกเอง'
+  'Copy failed — select the number and copy it manually.': 'คัดลอกไม่สำเร็จ — เลือกหมายเลขแล้วคัดลอกเอง',
+  // Claim / meal / advance forms
+  '{n} line': '{n} รายการ',
+  '{n} lines': '{n} รายการ',
+  'Approval': 'การอนุมัติ',
+  'Line {n}': 'รายการที่ {n}',
+  '+ Add another line': '+ เพิ่มอีกรายการ',
+  'Request details': 'รายละเอียดคำขอ'
 });
