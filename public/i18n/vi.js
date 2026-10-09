@@ -709,5 +709,12 @@ I18N.addDict('vi', {
   'Where this person\'s reimbursements are paid.': 'Nơi nhận tiền hoàn ứng của người này.',
   // Manage accounts
   'View only': 'Chỉ xem',
-  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Tối thiểu 8 ký tự. Hãy gửi riêng cho họ — họ có thể đổi sau khi đăng nhập.'
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Tối thiểu 8 ký tự. Hãy gửi riêng cho họ — họ có thể đổi sau khi đăng nhập.',
+  // Claims list
+  'Pending Review - Manager': 'Chờ duyệt - Manager',
+  'Pending Review - FinanceAP': 'Chờ duyệt - FinanceAP',
+  'Pending - Manager': 'Chờ - Manager',
+  'Pending - FinanceAP': 'Chờ - FinanceAP',
+  'Filters': 'Bộ lọc',
+  'Clear filters': 'Xóa bộ lọc'
 });

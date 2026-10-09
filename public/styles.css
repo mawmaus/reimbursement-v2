@@ -2488,3 +2488,106 @@ a[data-open-doc]:hover { text-decoration: underline; }
   /* Reset-password dialog: full-width buttons. */
   .rp-actions .btn { flex: 1; }
 }
+
+/* --- Claims list polish ----------------------------------------------------- */
+/* Header: back button, title with a "24 claims · Updated 14:18" line, Refresh. */
+.list-title-wrap { flex: 1 1 auto; min-width: 0; }
+.list-title-wrap .list-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-sub { display: flex; flex-wrap: wrap; gap: 0 6px; margin-top: 2px; font-size: .8rem; color: var(--muted); }
+.list-sub > span:empty { display: none; }
+.list-sub > span:not(:empty):not([hidden]) ~ span:not(:empty):not([hidden])::before { content: '·'; margin-right: 6px; }
+.list-sub .refresh-stamp { font-size: inherit; }
+/* Summary cards: sentence-case labels. A label that runs long (some languages)
+   wraps rather than truncating, and the numbers sit on a common baseline. */
+#listView .card { padding: 14px 12px 15px 13px; }
+#listView .card .card-l { gap: 6px; }
+.card .card-l { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 600; line-height: 1.25; align-items: flex-start; }
+.card .card-l::before { margin-top: .3em; }
+#listView .card .card-n { margin-top: auto; }
+/* Search + the fold-away filter group: one row on desktop (the wrappers vanish). */
+.search-row, .filter-panel { display: contents; }
+.filter-toggle { display: none; }
+.filter-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 2px;
+  border-radius: 10px; font-size: .74rem; font-weight: 700; color: var(--on-brand); background: var(--pine); }
+.filter-count[hidden] { display: none; }
+.clear-filters { flex: none; white-space: nowrap; }
+/* Status tags in the list: sentence case on one line, in a column sized for the
+   longest translation (Filipino "Naghihintay ng review - FinanceAP", ~221px). */
+.ledger .pill { text-transform: none; letter-spacing: 0; font-size: .76rem; font-weight: 650; white-space: nowrap; padding: 3px 10px; }
+/* (Table layouts only — phones reflow rows into cards further up.) */
+@media (min-width: 901px) {
+  .ledger-head, .ledger-row { grid-template-columns: 4px 36px 120px 1.2fr 100px 1fr 96px 128px 224px; }
+  /* Paid view: + Paid on; its tags are short ("Paid", "Advance paid") but
+     still need room for translations like "Nabayaran ang advance" (~157px). */
+  .ledger.show-paid .ledger-head, .ledger.show-paid .ledger-row {
+    grid-template-columns: 4px 36px 116px 1.2fr 96px 1fr 94px 94px 128px 160px; }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  /* Tablet: the mostly-empty No DB column gives its room to the status tags. */
+  .ledger .col-db { display: none; }
+  .ledger-head, .ledger-row { grid-template-columns: 4px 32px 92px 1.2fr 1fr 84px 104px 224px; }
+  .ledger.show-paid .ledger-head, .ledger.show-paid .ledger-row {
+    grid-template-columns: 4px 32px 92px 1.2fr 1fr 84px 84px 104px 160px; }
+}
+/* In the flex shell the auto-margined container would shrink-to-fit its widest
+   child (the phone card strip is wider than the screen by design), so pin it
+   to the shell's width. */
+#appView:has(#listView:not([hidden])) .container { width: 100%; box-sizing: border-box; }
+#listView .cards { min-width: 0; }
+/* The list is a fixed-height column: only the rows may shrink and scroll. */
+#listView > .list-head, #listView > .cards, #listView > .toolbar, #listView > .ledger-scope, #listView > .selection-bar { flex: none; }
+
+/* Phones */
+@media (max-width: 720px) {
+  /* Header on one row: ← Menu · title (+ count / updated) · ↻ */
+  .list-head { flex-wrap: nowrap; gap: 10px; margin-bottom: 10px; }
+  #backHome { order: 0; flex: none; }
+  .list-title-wrap { order: 0; }
+  .list-title-wrap .list-title { font-size: 1.05rem; }
+  .list-sub { font-size: .72rem; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+  .refresh-btn { order: 0; margin-left: 0; flex: none; width: 38px; height: 34px; padding: 0; justify-content: center; }
+  .refresh-btn .refresh-lab { display: none; }
+  .refresh-btn .refresh-icon { font-size: 1.05rem; }
+  /* Summary cards: one swipeable row (total first) instead of four stacked rows. */
+  #listView .cards { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+    gap: 8px; margin: 0 -16px 10px; padding: 2px 16px 4px; scroll-padding-inline: 16px; scrollbar-width: none; }
+  #listView .cards::-webkit-scrollbar { display: none; }
+  #listView .card { flex: none; min-width: 112px; padding: 9px 12px; gap: 4px; scroll-snap-align: start; }
+  #listView .card .card-n { font-size: 1.2rem; }
+  #listView .card .card-l { font-size: .74rem; }
+  #listView .card.total { order: -1; grid-column: auto; min-width: 136px; }
+  #listView .card.total .card-n { font-size: 1.2rem; }
+  #listView .card .card-sub { display: none; }
+  #listView .card-filter:hover { transform: none; }
+  /* Search + Filters button; the dropdowns open below as a stacked panel. */
+  .search-row { display: flex; gap: 8px; width: 100%; }
+  .search-row #searchInput { flex: 1 1 auto; min-width: 0; width: auto; }
+  .filter-toggle { display: inline-flex; align-items: center; gap: 4px; flex: none; min-height: 40px; padding: 0 14px; }
+  .filter-toggle.has-active { border-color: var(--pine); color: var(--pine-deep); }
+  .filter-panel { display: none; }
+  /* Two per row; a lone last one (e.g. Claimant) takes the full row. */
+  .filter-panel.open { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  .filter-panel.open > .msel, .filter-panel.open > select.input { flex: 1 1 calc(50% - 4px); width: auto; min-width: 0; }
+  .filter-panel.open > .date-range, .filter-panel.open > .clear-filters { flex: 1 1 100%; }
+  .filter-panel .clear-filters { width: 100%; min-height: 38px; }
+  .ledger-scope { margin: -2px 2px 10px; font-size: .76rem; }
+  /* Selection: a floating action bar at the bottom of the screen. */
+  .selection-bar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+    flex-direction: column; align-items: stretch; gap: 8px; margin: 0; padding: 10px 12px 12px;
+    background: var(--surface); border-color: var(--pine); box-shadow: var(--shadow-md); }
+  .selection-bar .sel-count { text-align: center; }
+  .selection-bar .sel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .selection-bar .sel-actions .btn { flex: 1 1 calc(50% - 4px); min-height: 40px; }
+  #listView:has(#selectionBar:not([hidden])) #claimRows { padding-bottom: 170px; }
+  .ledger .pill { font-size: .72rem; }
+}
+/* Empty list: the message sits right under the header row, not at the far end
+   of the stretched scroll area, with a way out when filters caused it. */
+/* Desktop: the two "Pending - …" cards carry the longest labels, so they get
+   more of the row than Approved / Rejected / Paid (always these six, in order). */
+@media (min-width: 901px) {
+  #listView .cards { grid-template-columns: 1.3fr 1.3fr 1fr 1fr 1fr 1.2fr; }
+}
+#listView #claimRows:empty { flex: 0 0 auto; }
+#emptyState { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+#emptyState[hidden] { display: none; }

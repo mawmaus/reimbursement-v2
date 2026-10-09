@@ -27,6 +27,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.7',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The claims list is cleaner: the header shows how many claims are listed and when they were last updated, status tags and summary cards read on one line, and a Clear filters button resets everything at once. On phones the summary cards become one swipeable row, the filters fold behind a Filters button (with a count of active filters), and selected claims get an action bar at the bottom of the screen — so the claims themselves start much higher up.',
+        id: 'Daftar klaim kini lebih rapi: bagian atas menampilkan jumlah klaim yang tercantum dan kapan terakhir diperbarui, label status dan kartu ringkasan terbaca dalam satu baris, dan tombol Hapus filter mengatur ulang semuanya sekaligus. Di ponsel, kartu ringkasan menjadi satu baris yang dapat digeser, filter dilipat di balik tombol Filter (dengan jumlah filter aktif), dan klaim yang dipilih mendapat bilah tindakan di bagian bawah layar — sehingga klaimnya sendiri tampil jauh lebih ke atas.',
+        th: 'รายการเบิกเป็นระเบียบขึ้น: ส่วนหัวแสดงจำนวนรายการและเวลาที่อัปเดตล่าสุด ป้ายสถานะและการ์ดสรุปอ่านได้ในบรรทัดเดียว และปุ่มล้างตัวกรองรีเซ็ตทุกอย่างในครั้งเดียว บนมือถือ การ์ดสรุปกลายเป็นแถวเดียวที่ปัดได้ ตัวกรองพับอยู่หลังปุ่มตัวกรอง (พร้อมจำนวนตัวกรองที่ใช้อยู่) และเมื่อเลือกรายการจะมีแถบคำสั่งที่ด้านล่างของหน้าจอ — รายการเบิกจึงเริ่มแสดงสูงขึ้นมาก',
+        vi: 'Danh sách yêu cầu gọn gàng hơn: phần đầu hiển thị số yêu cầu đang liệt kê và thời điểm cập nhật gần nhất, nhãn trạng thái và thẻ tổng hợp nằm gọn trên một dòng, và nút Xóa bộ lọc đặt lại mọi thứ cùng lúc. Trên điện thoại, các thẻ tổng hợp thành một hàng có thể vuốt, bộ lọc được gấp sau nút Bộ lọc (kèm số bộ lọc đang bật), và khi chọn yêu cầu sẽ có thanh thao tác ở cuối màn hình — nên danh sách yêu cầu hiện cao hơn nhiều.',
+        km: 'បញ្ជីសំណើមានសណ្តាប់ធ្នាប់ជាងមុន៖ ផ្នែកខាងលើបង្ហាញចំនួនសំណើ និងពេលធ្វើបច្ចុប្បន្នភាពចុងក្រោយ ស្លាកស្ថានភាព និងកាតសង្ខេបអានបានក្នុងមួយបន្ទាត់ ហើយប៊ូតុង សម្អាតតម្រង កំណត់អ្វីៗទាំងអស់ឡើងវិញក្នុងពេលតែមួយ។ នៅលើទូរសព្ទ កាតសង្ខេបក្លាយជាជួរតែមួយដែលអាចអូសបាន តម្រងត្រូវបានបត់នៅពីក្រោយប៊ូតុង តម្រង (ជាមួយចំនួនតម្រងសកម្ម) ហើយសំណើដែលបានជ្រើសមានរបារសកម្មភាពនៅខាងក្រោមអេក្រង់ — ដូច្នេះសំណើចាប់ផ្តើមបង្ហាញខ្ពស់ជាងមុនច្រើន។',
+        fil: 'Mas maayos na ang listahan ng claims: ipinapakita ng header kung ilang claim ang nakalista at kailan huling na-update, nasa iisang linya na ang mga status tag at summary card, at nire-reset ng Clear filters na button ang lahat nang sabay. Sa phone, nagiging isang hanay na maaaring i-swipe ang mga summary card, nakatupi ang mga filter sa likod ng Filters na button (na may bilang ng aktibong filter), at may action bar sa ibaba ng screen kapag may piniling claim — kaya mas mataas nang nagsisimula ang mga claim mismo.'
+      } },
+      { kind: 'fixed', text: {
+        en: 'The "Pending - Manager" / "Pending - FinanceAP" labels on the claims list, its summary cards and its status filter now appear in your language instead of always in English.',
+        id: 'Label "Menunggu - Manager" / "Menunggu - FinanceAP" pada daftar klaim, kartu ringkasan, dan filter statusnya kini tampil dalam bahasa Anda, bukan selalu dalam bahasa Inggris.',
+        th: 'ป้าย "รอ - Manager" / "รอ - FinanceAP" ในรายการเบิก การ์ดสรุป และตัวกรองสถานะ แสดงเป็นภาษาของคุณแล้ว แทนที่จะเป็นภาษาอังกฤษเสมอ',
+        vi: 'Các nhãn "Chờ - Manager" / "Chờ - FinanceAP" trên danh sách yêu cầu, thẻ tổng hợp và bộ lọc trạng thái giờ hiển thị bằng ngôn ngữ của bạn thay vì luôn là tiếng Anh.',
+        km: 'ស្លាក "រង់ចាំ - Manager" / "រង់ចាំ - FinanceAP" នៅលើបញ្ជីសំណើ កាតសង្ខេប និងតម្រងស្ថានភាព ឥឡូវបង្ហាញជាភាសារបស់អ្នក ជំនួសឱ្យភាសាអង់គ្លេសជានិច្ច។',
+        fil: 'Lumalabas na sa wika mo ang mga label na "Naghihintay - Manager" / "Naghihintay - FinanceAP" sa listahan ng claims, sa mga summary card at sa status filter nito, sa halip na laging nasa Ingles.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-09.6',
     date: '2026-10-09',
     items: [

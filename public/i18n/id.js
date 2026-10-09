@@ -732,5 +732,12 @@ I18N.addDict('id', {
   'Where this person\'s reimbursements are paid.': 'Ke mana reimbursement orang ini dibayarkan.',
   // Manage accounts
   'View only': 'Hanya lihat',
-  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Minimal 8 karakter. Berikan secara pribadi — mereka dapat mengubahnya setelah masuk.'
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Minimal 8 karakter. Berikan secara pribadi — mereka dapat mengubahnya setelah masuk.',
+  // Claims list
+  'Pending Review - Manager': 'Menunggu tinjauan - Manager',
+  'Pending Review - FinanceAP': 'Menunggu tinjauan - FinanceAP',
+  'Pending - Manager': 'Menunggu - Manager',
+  'Pending - FinanceAP': 'Menunggu - FinanceAP',
+  'Filters': 'Filter',
+  'Clear filters': 'Hapus filter'
 });

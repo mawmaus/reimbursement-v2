@@ -171,10 +171,12 @@
     <section id="listView" hidden>
       <div class="list-head">
         <button id="backHome" class="btn btn-ghost btn-sm" type="button" data-i18n="← Menu">← Menu</button>
-        <h2 class="list-title" id="listTitle"></h2>
-        <span id="refreshStamp" class="refresh-stamp" hidden></span>
-        <button id="refreshBtn" class="btn btn-ghost btn-sm refresh-btn" type="button" data-i18n-title="Reload claims and statuses" title="Reload claims and statuses">
-          <span class="refresh-icon" aria-hidden="true">↻</span> <span data-i18n="Refresh">Refresh</span>
+        <div class="list-title-wrap">
+          <h2 class="list-title" id="listTitle"></h2>
+          <div class="list-sub"><span id="listCount"></span><span id="refreshStamp" class="refresh-stamp" hidden></span></div>
+        </div>
+        <button id="refreshBtn" class="btn btn-ghost btn-sm refresh-btn" type="button" data-i18n-title="Reload claims and statuses" title="Reload claims and statuses" data-i18n-aria="Refresh" aria-label="Refresh">
+          <span class="refresh-icon" aria-hidden="true">↻</span> <span class="refresh-lab" data-i18n="Refresh">Refresh</span>
         </button>
       </div>
 
@@ -182,7 +184,14 @@
 
       <section class="toolbar">
         <div class="toolbar-left">
-          <input id="searchInput" class="input" type="search" data-i18n-ph="Search claim no, name, type, DB…" placeholder="Search claim no, name, type, DB…" />
+          <div class="search-row">
+            <input id="searchInput" class="input" type="search" data-i18n-ph="Search claim no, name, type, DB…" placeholder="Search claim no, name, type, DB…" />
+            <!-- Phones: the dropdowns fold behind this button (count = active filters). -->
+            <button id="filterToggle" class="btn btn-ghost filter-toggle" type="button" aria-expanded="false" aria-controls="filterPanel">
+              <span data-i18n="Filters">Filters</span> <span id="filterCount" class="filter-count" hidden></span>
+            </button>
+          </div>
+          <div id="filterPanel" class="filter-panel">
           <select id="statusFilter" class="input">
             <option value="" data-i18n="All statuses">All statuses</option>
             <option value="pending_manager" data-i18n="Pending Review - Manager">Pending Review - Manager</option>
@@ -200,6 +209,8 @@
             <span class="date-range-sep" aria-hidden="true">–</span>
             <input id="paidTo" class="input" type="date" data-i18n-aria="Paid to" aria-label="Paid to" />
             <button id="paidRangeClear" class="date-range-clear" type="button" hidden data-i18n-aria="Clear payment date filter" aria-label="Clear payment date filter">×</button>
+          </div>
+          <button id="clearFiltersBtn" class="btn btn-ghost btn-sm clear-filters" type="button" hidden data-i18n="Clear filters">Clear filters</button>
           </div>
         </div>
       </section>

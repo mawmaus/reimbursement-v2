@@ -1090,7 +1090,7 @@ function renderDeptOptions() {
   const sel = $('#deptFilter');
   const current = sel.value;
   const depts = [...new Set(state.claims.map(c => c.department).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">All departments</option>' +
+  sel.innerHTML = `<option value="">${esc(t('All departments'))}</option>` +
     depts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
   sel.value = current;
   if (sel._mselRefresh) sel._mselRefresh();
@@ -1103,7 +1103,7 @@ function renderClaimantOptions() {
   const names = [...new Set(state.claims.map(c => c.claimant_name).filter(Boolean))].sort();
   // Drop a stale selection if that claimant no longer has any claims.
   if (state.filters.claimant && !names.includes(state.filters.claimant)) state.filters.claimant = '';
-  sel.innerHTML = '<option value="">All claimants</option>' +
+  sel.innerHTML = `<option value="">${esc(t('All claimants'))}</option>` +
     names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   sel.value = state.filters.claimant;
   if (sel._mselRefresh) sel._mselRefresh();
@@ -1985,12 +1985,19 @@ $$('.ledger-head [data-sort]').forEach(h => {
 
 function renderClaims() {
   renderLedgerScope();
+  syncFilterUI();
   const wrap = $('#claimRows');
   const claims = sortClaims(visibleClaims());
   if (!claims.length) {
     wrap.innerHTML = '';
     const empty = $('#emptyState');
-    empty.textContent = anyFilterActive() ? t('No claims match your filters.') : viewEmpty(state.view);
+    if (anyFilterActive()) {
+      empty.innerHTML = `<span>${esc(t('No claims match your filters.'))}</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-clear-filters>${esc(t('Clear filters'))}</button>`;
+      empty.querySelector('[data-clear-filters]').addEventListener('click', () => $('#clearFiltersBtn').click());
+    } else {
+      empty.textContent = viewEmpty(state.view);
+    }
     empty.hidden = false;
     updateSelectionUI(); renderSummaryCards(); return;
   }
@@ -2041,6 +2048,35 @@ function updateSelectionUI() {
     all.indeterminate = checkedCount > 0 && checkedCount < boxes.length;
   }
 }
+
+// Header count, the phone "Filters" badge (dropdown filters only — the search
+// box is always in view) and the Clear filters button follow the active filters.
+function syncFilterUI() {
+  const n = visibleClaims().length;
+  $('#listCount').textContent = n === 1 ? t('{n} claim', { n }) : t('{n} claims', { n });
+  const f = state.filters;
+  const folded = [f.status, f.department, f.claimant, f.paidFrom || f.paidTo].filter(Boolean).length;
+  const badge = $('#filterCount');
+  badge.textContent = folded; badge.hidden = !folded;
+  $('#filterToggle').classList.toggle('has-active', !!folded);
+  $('#clearFiltersBtn').hidden = !anyFilterActive();
+}
+$('#filterToggle').addEventListener('click', () => {
+  const panel = $('#filterPanel');
+  const open = !panel.classList.contains('open');
+  panel.classList.toggle('open', open);
+  $('#filterToggle').setAttribute('aria-expanded', String(open));
+});
+// Reset every filter of the current list view (search included) in one go.
+$('#clearFiltersBtn').addEventListener('click', () => {
+  state.filters = { status: '', department: '', claimant: '', q: '', paidFrom: '', paidTo: '' };
+  setPaidRange('', '');
+  $('#searchInput').value = '';
+  for (const id of ['#statusFilter', '#deptFilter', '#claimantFilter']) {
+    const sel = $(id); sel.value = ''; if (sel._mselRefresh) sel._mselRefresh();
+  }
+  loadClaims();
+});
 
 // filters
 let qTimer;

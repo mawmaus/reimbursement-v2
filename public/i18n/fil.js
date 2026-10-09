@@ -709,5 +709,12 @@ I18N.addDict('fil', {
   'Where this person\'s reimbursements are paid.': 'Kung saan ibinabayad ang mga reimbursement ng taong ito.',
   // Manage accounts
   'View only': 'Tingin lang',
-  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Hindi bababa sa 8 character. Ibigay ito nang pribado — mapapalitan nila ito pagkatapos mag-sign in.'
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'Hindi bababa sa 8 character. Ibigay ito nang pribado — mapapalitan nila ito pagkatapos mag-sign in.',
+  // Claims list
+  'Pending Review - Manager': 'Naghihintay ng review - Manager',
+  'Pending Review - FinanceAP': 'Naghihintay ng review - FinanceAP',
+  'Pending - Manager': 'Naghihintay - Manager',
+  'Pending - FinanceAP': 'Naghihintay - FinanceAP',
+  'Filters': 'Mga filter',
+  'Clear filters': 'I-clear ang mga filter'
 });

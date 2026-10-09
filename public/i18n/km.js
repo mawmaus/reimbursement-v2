@@ -709,5 +709,12 @@ I18N.addDict('km', {
   'Where this person\'s reimbursements are paid.': 'កន្លែងដែលប្រាក់សំណងរបស់បុគ្គលនេះត្រូវបានបង់។',
   // Manage accounts
   'View only': 'មើលតែប៉ុណ្ណោះ',
-  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'យ៉ាងហោចណាស់ 8 តួអក្សរ។ ចែករំលែកវាជាមួយពួកគេដោយឯកជន — ពួកគេអាចប្តូរវាបន្ទាប់ពីចូល។'
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'យ៉ាងហោចណាស់ 8 តួអក្សរ។ ចែករំលែកវាជាមួយពួកគេដោយឯកជន — ពួកគេអាចប្តូរវាបន្ទាប់ពីចូល។',
+  // Claims list
+  'Pending Review - Manager': 'រង់ចាំពិនិត្យ - Manager',
+  'Pending Review - FinanceAP': 'រង់ចាំពិនិត្យ - FinanceAP',
+  'Pending - Manager': 'រង់ចាំ - Manager',
+  'Pending - FinanceAP': 'រង់ចាំ - FinanceAP',
+  'Filters': 'តម្រង',
+  'Clear filters': 'សម្អាតតម្រង'
 });

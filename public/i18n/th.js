@@ -709,5 +709,12 @@ I18N.addDict('th', {
   'Where this person\'s reimbursements are paid.': 'ที่ซึ่งเงินเบิกคืนของบุคคลนี้จะถูกโอนเข้า',
   // Manage accounts
   'View only': 'ดูได้อย่างเดียว',
-  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'อย่างน้อย 8 ตัวอักษร แจ้งให้เจ้าของบัญชีทราบเป็นการส่วนตัว — เขาเปลี่ยนรหัสผ่านได้หลังเข้าสู่ระบบ'
+  'At least 8 characters. Share it with them privately — they can change it after signing in.': 'อย่างน้อย 8 ตัวอักษร แจ้งให้เจ้าของบัญชีทราบเป็นการส่วนตัว — เขาเปลี่ยนรหัสผ่านได้หลังเข้าสู่ระบบ',
+  // Claims list
+  'Pending Review - Manager': 'รอตรวจสอบ - Manager',
+  'Pending Review - FinanceAP': 'รอตรวจสอบ - FinanceAP',
+  'Pending - Manager': 'รอ - Manager',
+  'Pending - FinanceAP': 'รอ - FinanceAP',
+  'Filters': 'ตัวกรอง',
+  'Clear filters': 'ล้างตัวกรอง'
 });
