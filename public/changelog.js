@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.4',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Settings has a cleaner layout: pages are grouped in a side menu (People, Organisation, Claims, Region), and each page opens with a short note on what it controls and its main button at the top. Departments, job positions and expense types show a Disabled tag and keep Rename, Disable and Delete in a ⋯ menu; Accounts can be filtered by All, Active or Disabled; and the currency, claim window and meal allowance forms sit in tidy cards with Save at the bottom.',
+        id: 'Pengaturan kini lebih rapi: halaman dikelompokkan dalam menu samping (Orang, Organisasi, Klaim, Wilayah), dan setiap halaman dibuka dengan catatan singkat tentang apa yang diaturnya serta tombol utamanya di bagian atas. Departemen, posisi jabatan, dan jenis pengeluaran menampilkan label Nonaktif dan menyimpan Ganti nama, Nonaktifkan, dan Hapus dalam menu ⋯; Akun dapat difilter menurut Semua, Aktif, atau Nonaktif; dan formulir mata uang, batas waktu klaim, serta tunjangan makan tersusun dalam kartu yang rapi dengan tombol Simpan di bawah.',
+        th: 'การตั้งค่ามีหน้าตาเป็นระเบียบขึ้น: หน้าต่างๆ ถูกจัดกลุ่มในเมนูด้านข้าง (บุคคล องค์กร การเบิก ภูมิภาค) และแต่ละหน้าจะมีคำอธิบายสั้นๆ ว่าควบคุมอะไร พร้อมปุ่มหลักอยู่ด้านบน แผนก ตำแหน่งงาน และประเภทค่าใช้จ่ายจะแสดงป้ายปิดใช้งาน และย้ายเปลี่ยนชื่อ ปิดใช้งาน และลบ ไปไว้ในเมนู ⋯ บัญชีกรองได้ตามทั้งหมด ใช้งาน หรือปิดใช้งาน และฟอร์มสกุลเงิน ช่วงเวลาการเบิก และเบี้ยเลี้ยงค่าอาหาร อยู่ในการ์ดที่เป็นระเบียบพร้อมปุ่มบันทึกด้านล่าง',
+        vi: 'Cài đặt có bố cục gọn gàng hơn: các trang được nhóm trong menu bên (Con người, Tổ chức, Yêu cầu, Khu vực), và mỗi trang mở đầu bằng ghi chú ngắn về nội dung nó kiểm soát cùng nút chính ở phía trên. Phòng ban, vị trí công việc và loại chi phí hiển thị nhãn Vô hiệu hóa và gom Đổi tên, Vô hiệu hóa, Xóa vào menu ⋯; Tài khoản có thể lọc theo Tất cả, Đang hoạt động hoặc Bị vô hiệu hóa; và các biểu mẫu tiền tệ, kỳ yêu cầu và phụ cấp ăn được đặt trong thẻ gọn gàng với nút Lưu ở cuối.',
+        km: 'ការកំណត់មានប្លង់ស្អាតជាងមុន៖ ទំព័រត្រូវបានដាក់ជាក្រុមក្នុងម៉ឺនុយចំហៀង (មនុស្ស អង្គភាព សំណើ តំបន់) ហើយទំព័រនីមួយៗបើកដោយកំណត់ចំណាំខ្លីអំពីអ្វីដែលវាគ្រប់គ្រង និងប៊ូតុងសំខាន់នៅខាងលើ។ នាយកដ្ឋាន តំណែងការងារ និងប្រភេទការចំណាយបង្ហាញស្លាកបានបិទ ហើយដាក់ ប្តូរឈ្មោះ បិទ និងលុប ក្នុងម៉ឺនុយ ⋯; គណនីអាចត្រងតាម ទាំងអស់ សកម្ម ឬបានបិទ; ហើយទម្រង់រូបិយប័ណ្ណ រយៈពេលស្នើសុំ និងប្រាក់ឧបត្ថម្ភអាហារ ស្ថិតក្នុងកាតដែលមានសណ្តាប់ធ្នាប់ ដោយមានប៊ូតុងរក្សាទុកនៅខាងក្រោម។',
+        fil: 'Mas maayos na ang layout ng Settings: nakagrupo ang mga pahina sa side menu (Mga tao, Organisasyon, Claims, Rehiyon), at bawat pahina ay nagsisimula sa maikling paliwanag kung ano ang kinokontrol nito at ang pangunahing button nito sa itaas. Ang mga departamento, posisyon sa trabaho at uri ng gastos ay may Disabled na tag at nasa ⋯ na menu na ang Palitan ang pangalan, I-disable at Burahin; maaaring i-filter ang Accounts ayon sa Lahat, Aktibo o Naka-disable; at nasa maayos na card na ang mga form ng currency, claim window at meal allowance na may Save sa ibaba.'
+      }, audience: ['settings', 'accounts'] }
+    ]
+  },
+  {
     id: '2026-10-09.3',
     date: '2026-10-09',
     items: [

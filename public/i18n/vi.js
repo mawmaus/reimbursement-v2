@@ -680,5 +680,16 @@ I18N.addDict('vi', {
   'Rename region': 'Đổi tên khu vực',
   'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'Vô hiệu hóa {name}? {accounts} tài khoản và {open} hồ sơ đang mở của khu vực vẫn được giữ, nhưng không thể chọn khu vực này cho tài khoản mới nữa.',
   'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'Xóa {name}? Khu vực này vẫn còn {accounts} tài khoản và {open} hồ sơ đang mở, sẽ bị mất khu vực hợp lệ. Hãy cân nhắc vô hiệu hóa thay vì xóa.',
-  'Delete {name}? This cannot be undone.': 'Xóa {name}? Không thể hoàn tác thao tác này.'
+  'Delete {name}? This cannot be undone.': 'Xóa {name}? Không thể hoàn tác thao tác này.',
+  // Region workspace
+  'People': 'Con người',
+  'Organisation': 'Tổ chức',
+  'All': 'Tất cả',
+  'Everyone who can sign in to {region}: their role, department, position and approval limit.': 'Mọi người có thể đăng nhập vào {region}: vai trò, phòng ban, vị trí và hạn mức phê duyệt của họ.',
+  'The departments in {region}, and which kinds of claim their members may raise.': 'Các phòng ban ở {region}, và loại yêu cầu mà thành viên của từng phòng ban được phép gửi.',
+  'The job positions in {region}, most senior first. A position may manage the accounts ranked below it.': 'Các vị trí công việc ở {region}, từ cấp cao nhất trở xuống. Một vị trí có thể quản lý các tài khoản xếp hạng thấp hơn.',
+  'The expense types claimants in {region} choose from on each reimbursement line.': 'Các loại chi phí mà người yêu cầu ở {region} chọn trên mỗi dòng hoàn ứng.',
+  '{active} active · {disabled} disabled': '{active} đang hoạt động · {disabled} bị vô hiệu hóa',
+  'Disable account': 'Vô hiệu hóa tài khoản',
+  'Enable account': 'Kích hoạt tài khoản'
 });

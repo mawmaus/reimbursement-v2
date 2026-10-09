@@ -584,6 +584,7 @@ input[type="search"] { min-width: 220px; }
 }
 .modal.modal-wide { width: min(780px, calc(100% - 32px)); }
 .modal.modal-xwide { width: min(1040px, calc(100% - 32px)); }
+.modal.modal-ws { width: min(1180px, calc(100% - 32px)); height: min(820px, 90vh); }
 /* Small yes/no confirmation (e.g. Sign out). */
 .modal.modal-confirm { width: min(420px, calc(100% - 32px)); }
 .modal.modal-confirm .modal-actions .btn { min-width: 96px; }
@@ -849,6 +850,9 @@ input[type="search"] { min-width: 220px; }
    wider than its modal, so it scrolls sideways inside its own container instead of
    being clipped by the (overflow-x:hidden) settings list. */
 .matrix-scroll { overflow-x: auto; }
+.utable-matrix { width: 100%; }
+.utable-matrix th:first-child { width: 34%; min-width: 260px; }
+.utable-matrix th.role-h { text-align: center; min-width: 104px; overflow-wrap: normal; hyphens: none; }
 .utable th, .utable td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
 .utable th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .tick-cell { text-align: center; }
@@ -873,24 +877,24 @@ input[type="search"] { min-width: 220px; }
 /* Accounts table: keep it inside the modal — long emails wrap instead of
    forcing a horizontal scroll, and the username sits under the name. */
 .utable td, .utable th { overflow-wrap: anywhere; }
-/* Eight columns (User, Email, Role, Region, Dept/Position, Cash advance, Active,
+/* Seven columns (User, Role, Dept/Position, Region, Cash advance, Status,
    Actions); widths sum to 100% so table-layout:fixed never overflows its
    container. Below 900px the rows reflow into cards and these widths drop out. */
 .utable-users { table-layout: fixed; width: 100%; }
-.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 20%; }
-.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 17%; }
-.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 10%; }
-.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 10%; }
-.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 14%; }
-.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 11%; }
-.utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 7%; }
-.utable-users th:nth-child(8), .utable-users td:nth-child(8) { width: 11%; }
-/* Role/Region/Cash advance/Active hold single short words — don't let the global
+.utable-users th:nth-child(1), .utable-users td:nth-child(1) { width: 23%; }
+.utable-users th:nth-child(2), .utable-users td:nth-child(2) { width: 19%; }
+.utable-users th:nth-child(3), .utable-users td:nth-child(3) { width: 15%; }
+.utable-users th:nth-child(4), .utable-users td:nth-child(4) { width: 11%; }
+.utable-users th:nth-child(5), .utable-users td:nth-child(5) { width: 12%; }
+.utable-users th:nth-child(6), .utable-users td:nth-child(6) { width: 10%; }
+.utable-users th:nth-child(7), .utable-users td:nth-child(7) { width: 10%; }
+.utable-users th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+/* Role/Region/Cash advance/Status hold short words — don't let the global
    anywhere-break chop "Super Admin" / "Active" mid-word on narrower tablets. */
-.utable-users td:nth-child(3), .utable-users th:nth-child(3),
-.utable-users td:nth-child(4), .utable-users th:nth-child(4),
-.utable-users td:nth-child(6), .utable-users th:nth-child(6),
-.utable-users td:nth-child(7), .utable-users th:nth-child(7) { overflow-wrap: normal; }
+.utable-users td:nth-child(2), .utable-users td:nth-child(4),
+.utable-users td:nth-child(5), .utable-users td:nth-child(6),
+.utable-users td:nth-child(7) { overflow-wrap: normal; }
+.utable-users td.act-cell .u-actions { flex-wrap: nowrap; gap: 4px; }
 /* Delegated "Manage accounts" table: wider actions column, and its cells must
    never break words (the buttons live here). Two column layouts: the default
    5-column (User, Email, Position, Active, Actions), and the 6-column variant
@@ -1654,25 +1658,98 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 .rg-off .rg-name { color: var(--muted); }
 .rg-acts { flex: none; display: flex; align-items: center; gap: 6px; }
 .rg-acts .btn { white-space: nowrap; }
-.rg-more { width: 34px; height: 32px; border-radius: 8px; border: 1px solid transparent; background: transparent;
+.row-more { width: 34px; height: 32px; border-radius: 8px; border: 1px solid transparent; background: transparent;
   color: var(--ink-soft); font-size: 1.15rem; line-height: 1; cursor: pointer; }
-.rg-more:hover, .rg-more[aria-expanded="true"] { background: var(--line-soft); color: var(--ink); }
-.rg-more:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+.row-more:hover, .row-more[aria-expanded="true"] { background: var(--line-soft); color: var(--ink); }
+.row-more:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
 .rg-empty { margin: 0; padding: 28px 16px; text-align: center; color: var(--muted);
   border: 1px dashed var(--line); border-radius: 12px; }
-.rg-menu { position: fixed; z-index: 75; min-width: 160px; padding: 4px;
+.row-menu { position: fixed; z-index: 75; min-width: 160px; padding: 4px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-md); }
-.rg-menu button { display: block; width: 100%; padding: 8px 12px; text-align: left; font: inherit; font-size: .88rem;
+.row-menu button { display: block; width: 100%; padding: 8px 12px; text-align: left; font: inherit; font-size: .88rem;
   color: var(--ink); background: none; border: 0; border-radius: 6px; cursor: pointer; }
-.rg-menu button:hover, .rg-menu button:focus-visible { background: var(--paper); outline: none; }
-.rg-menu .rg-menu-danger { color: var(--red); }
-.rg-menu .rg-menu-danger:hover, .rg-menu .rg-menu-danger:focus-visible { background: var(--red-tint); }
-.rg-menu-sep { height: 1px; margin: 4px 0; background: var(--line-soft); }
+.row-menu button:hover, .row-menu button:focus-visible { background: var(--paper); outline: none; }
+.row-menu .row-menu-danger { color: var(--red); }
+.row-menu .row-menu-danger:hover, .row-menu .row-menu-danger:focus-visible { background: var(--red-tint); }
+.row-menu-sep { height: 1px; margin: 4px 0; background: var(--line-soft); }
 @media (max-width: 560px) {
   .rg-row { flex-wrap: wrap; gap: 10px; }
   .rg-acts { width: 100%; }
   .rg-acts .btn { flex: 1; }
   .modal-head .rg-sub { display: none; }
+}
+
+/* Region workspace: a grouped side menu beside the open page. The page has a
+   header (title, what it controls, its main button) above its content; table
+   pages scroll their list, form pages scroll the panel. */
+.modal.modal-flex .modal-body.ws-body { flex-direction: row; padding: 0; }
+.ws-nav { flex: none; width: 260px; padding: 16px 10px; overflow-y: auto;
+  border-right: 1px solid var(--line); background: var(--paper); }
+.ws-nav-group + .ws-nav-group { margin-top: 14px; }
+.ws-nav-label { padding: 0 10px 6px; font-size: .68rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+.ws-nav-item { display: block; width: 100%; padding: 8px 10px; margin-bottom: 2px; text-align: left;
+  font: inherit; font-size: .9rem; font-weight: 560; color: var(--ink-soft);
+  background: none; border: 0; border-radius: 8px; cursor: pointer; }
+.ws-nav-item:hover { background: var(--line-soft); color: var(--ink); }
+.ws-nav-item:focus-visible { outline: 2px solid var(--pine); outline-offset: -2px; }
+.ws-nav-item.active { background: var(--pine-tint); color: var(--pine-deep); font-weight: 650; }
+.ws-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; padding: 20px 22px 18px; }
+.ws-page-head { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.ws-page-text { min-width: 0; }
+.ws-page-head h3 { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+.ws-page-head p { margin: 4px 0 0; font-size: .86rem; line-height: 1.45; color: var(--muted); max-width: 720px; }
+.ws-page-acts { flex: none; display: flex; gap: 8px; }
+.ws-page-acts .btn { white-space: nowrap; }
+.ws-main #settingsPanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+/* Search + summary (or filter chips) row above a table. */
+.ws-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.ws-toolbar .input { flex: 1 1 240px; min-width: 0; }
+.ws-count { flex: none; font-size: .82rem; color: var(--muted); white-space: nowrap; }
+.ws-chips { flex: none; display: inline-flex; padding: 3px; gap: 2px; background: var(--paper);
+  border: 1px solid var(--line); border-radius: 10px; }
+.ws-chip { font: inherit; font-size: .82rem; font-weight: 600; padding: 5px 12px; border: 0; border-radius: 7px;
+  background: none; color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.ws-chip span { margin-left: 4px; font-weight: 500; color: var(--muted); }
+.ws-chip:hover { color: var(--ink); }
+.ws-chip.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+/* Tables sit in a bordered card; header row stays sticky inside it. */
+.ws-table { flex: 0 1 auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.ws-table .utable { margin: 0; }
+.ws-table .utable tbody tr:last-child td { border-bottom: 0; }
+.ws-table .utable tbody tr:hover td { background: var(--paper); }
+.ws-table .row-off .lk-name, .ws-table .row-off .u-name { color: var(--muted); }
+.utable-lookup .flag-h { width: 150px; }
+.utable-lookup .ord-h { width: 70px; }
+.utable-lookup .name-cell .pill { margin-left: 6px; vertical-align: middle; }
+.row-more-gap { display: inline-block; width: 34px; }
+/* Form pages: one card, sections split by a label, Save in the footer. */
+.ws-card { max-width: 600px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.ws-card.ws-card-narrow { max-width: 360px; }
+.ws-card .form label:last-of-type { margin-bottom: 0; }
+.ws-card-label { margin: 0 0 10px; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.ws-card-split { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.ws-card-foot { display: flex; justify-content: flex-end; gap: 8px; margin: 16px -20px -18px; padding: 12px 20px;
+  border-top: 1px solid var(--line-soft); background: var(--paper); border-radius: 0 0 12px 12px; }
+.ws-note { margin: 16px 0 0; padding: 10px 12px; font-size: .86rem; font-weight: 600; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--pine); border-radius: 8px; }
+/* Narrow screens: the side menu becomes a scrolling strip of pills on top. */
+@media (max-width: 760px) {
+  .modal.modal-flex .modal-body.ws-body { flex-direction: column; }
+  .ws-nav { width: auto; display: flex; gap: 6px; padding: 10px 12px; overflow-x: auto; overflow-y: hidden;
+    border-right: 0; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .ws-nav::-webkit-scrollbar { display: none; }
+  .ws-nav-group { display: contents; }
+  .ws-nav-label { display: none; }
+  .ws-nav-item { width: auto; flex: none; margin: 0; white-space: nowrap; padding: 7px 12px;
+    border: 1px solid var(--line); border-radius: 99px; background: var(--surface); }
+  .ws-nav-item.active { border-color: transparent; }
+  .ws-main { padding: 14px 14px 12px; }
+  .ws-page-head { flex-wrap: wrap; gap: 10px; }
+  .ws-page-head p { display: none; }
+  .ws-table { border: 0; background: none; }
+  .ws-table .utable tbody tr:hover td { background: none; }
+  .ws-card { max-width: none; }
 }
 
 /* Workspace header: back-to-regions button sitting beside the title, with the
@@ -2265,3 +2342,22 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-theme="dark"] .look-swatch.ios i { background: #121b2d; box-shadow: none; }
 :root[data-theme="dark"] .look-swatch.ios i:first-child { background: #4c7bd6; }
 .look-name { text-align: center; }
+
+/* Phones/tablets: lookup rows (departments, positions, expense types) become
+   compact cards — name with the ⋯ menu on the top line, each tickbox as an
+   inline "☑ Label" below, and the order arrows inline too. */
+@media (max-width: 900px) {
+  .settings-list .utable-lookup tr { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: center; padding: 10px 14px; }
+  .settings-list .utable-lookup td.name-cell { grid-column: 1; grid-row: 1; padding: 0; font-weight: 650; }
+  .settings-list .utable-lookup td.name-cell::before { display: none; }
+  .settings-list .utable-lookup td.act-cell { grid-column: 2; grid-row: 1; border: 0; margin: 0; padding: 0; }
+  .settings-list .utable-lookup td.act-cell::before { display: none; }
+  .settings-list .utable-lookup td.tick-cell,
+  .settings-list .utable-lookup td.ord-cell { grid-column: 1 / -1; display: flex; flex-direction: row-reverse; justify-content: flex-end;
+    align-items: center; gap: 8px; padding: 8px 0 0; }
+  .settings-list .utable-lookup td.tick-cell::before,
+  .settings-list .utable-lookup td.ord-cell::before { margin: 0; font-size: .84rem; font-weight: 500; text-transform: none;
+    letter-spacing: 0; color: var(--ink-soft); }
+  .settings-list .utable-lookup td.ord-cell .ord-btns { flex-direction: row; }
+  .settings-list .utable-lookup td.tick-cell + td.tick-cell { padding-top: 4px; }
+}

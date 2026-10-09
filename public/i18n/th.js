@@ -680,5 +680,16 @@ I18N.addDict('th', {
   'Rename region': 'เปลี่ยนชื่อภูมิภาค',
   'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'ปิดใช้งาน {name} ใช่ไหม? บัญชี {accounts} บัญชีและเอกสารที่ยังค้าง {open} รายการจะยังคงอยู่ แต่จะเลือกภูมิภาคนี้ให้บัญชีใหม่ไม่ได้อีก',
   'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'ลบ {name} ใช่ไหม? ภูมิภาคนี้ยังมี {accounts} บัญชีและเอกสารที่ยังค้าง {open} รายการ ซึ่งจะไม่มีภูมิภาคที่ถูกต้อง ลองพิจารณาปิดใช้งานแทน',
-  'Delete {name}? This cannot be undone.': 'ลบ {name} ใช่ไหม? การดำเนินการนี้ไม่สามารถย้อนกลับได้'
+  'Delete {name}? This cannot be undone.': 'ลบ {name} ใช่ไหม? การดำเนินการนี้ไม่สามารถย้อนกลับได้',
+  // Region workspace
+  'People': 'บุคคล',
+  'Organisation': 'องค์กร',
+  'All': 'ทั้งหมด',
+  'Everyone who can sign in to {region}: their role, department, position and approval limit.': 'ทุกคนที่เข้าสู่ระบบใน {region} ได้ พร้อมบทบาท แผนก ตำแหน่ง และวงเงินอนุมัติ',
+  'The departments in {region}, and which kinds of claim their members may raise.': 'แผนกใน {region} และประเภทการเบิกที่สมาชิกของแต่ละแผนกยื่นได้',
+  'The job positions in {region}, most senior first. A position may manage the accounts ranked below it.': 'ตำแหน่งงานใน {region} เรียงจากอาวุโสที่สุด ตำแหน่งหนึ่งสามารถจัดการบัญชีที่มีลำดับต่ำกว่าได้',
+  'The expense types claimants in {region} choose from on each reimbursement line.': 'ประเภทค่าใช้จ่ายที่ผู้เบิกใน {region} เลือกในแต่ละบรรทัดของการเบิกค่าใช้จ่าย',
+  '{active} active · {disabled} disabled': 'ใช้งาน {active} · ปิดใช้งาน {disabled}',
+  'Disable account': 'ปิดใช้งานบัญชี',
+  'Enable account': 'เปิดใช้งานบัญชี'
 });

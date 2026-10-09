@@ -680,5 +680,16 @@ I18N.addDict('fil', {
   'Rename region': 'Palitan ang pangalan ng rehiyon',
   'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'I-disable ang {name}? Mananatili ang {accounts} account at {open} bukas na dokumento nito, pero hindi na ito mapipili para sa mga bagong account.',
   'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'Burahin ang {name}? Mayroon pa itong {accounts} account at {open} bukas na dokumento, na mawawalan ng wastong rehiyon. Isaalang-alang na i-disable na lang ito.',
-  'Delete {name}? This cannot be undone.': 'Burahin ang {name}? Hindi na ito maibabalik.'
+  'Delete {name}? This cannot be undone.': 'Burahin ang {name}? Hindi na ito maibabalik.',
+  // Region workspace
+  'People': 'Mga tao',
+  'Organisation': 'Organisasyon',
+  'All': 'Lahat',
+  'Everyone who can sign in to {region}: their role, department, position and approval limit.': 'Lahat ng maaaring mag-sign in sa {region}: ang kanilang role, departamento, posisyon at limitasyon sa pag-apruba.',
+  'The departments in {region}, and which kinds of claim their members may raise.': 'Ang mga departamento sa {region}, at kung anong uri ng claim ang maaaring isumite ng kanilang mga miyembro.',
+  'The job positions in {region}, most senior first. A position may manage the accounts ranked below it.': 'Ang mga posisyon sa trabaho sa {region}, mula sa pinakamataas. Maaaring pamahalaan ng isang posisyon ang mga account na mas mababa ang ranggo.',
+  'The expense types claimants in {region} choose from on each reimbursement line.': 'Ang mga uri ng gastos na pinipili ng mga claimant sa {region} sa bawat linya ng reimbursement.',
+  '{active} active · {disabled} disabled': '{active} aktibo · {disabled} naka-disable',
+  'Disable account': 'I-disable ang account',
+  'Enable account': 'I-enable ang account'
 });

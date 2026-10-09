@@ -703,5 +703,16 @@ I18N.addDict('id', {
   'Rename region': 'Ganti nama wilayah',
   'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'Nonaktifkan {name}? {accounts} akun dan {open} dokumen terbukanya tetap tersimpan, tetapi wilayah ini tidak dapat lagi dipilih untuk akun baru.',
   'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'Hapus {name}? Wilayah ini masih memiliki {accounts} akun dan {open} dokumen terbuka, yang akan kehilangan wilayah yang valid. Pertimbangkan untuk menonaktifkannya saja.',
-  'Delete {name}? This cannot be undone.': 'Hapus {name}? Tindakan ini tidak dapat dibatalkan.'
+  'Delete {name}? This cannot be undone.': 'Hapus {name}? Tindakan ini tidak dapat dibatalkan.',
+  // Region workspace
+  'People': 'Orang',
+  'Organisation': 'Organisasi',
+  'All': 'Semua',
+  'Everyone who can sign in to {region}: their role, department, position and approval limit.': 'Semua orang yang dapat masuk ke {region}: peran, departemen, posisi, dan batas persetujuan mereka.',
+  'The departments in {region}, and which kinds of claim their members may raise.': 'Departemen di {region}, dan jenis klaim apa yang boleh diajukan anggotanya.',
+  'The job positions in {region}, most senior first. A position may manage the accounts ranked below it.': 'Posisi jabatan di {region}, dari yang paling senior. Sebuah posisi dapat mengelola akun dengan peringkat di bawahnya.',
+  'The expense types claimants in {region} choose from on each reimbursement line.': 'Jenis pengeluaran yang dipilih pengaju di {region} pada setiap baris reimbursement.',
+  '{active} active · {disabled} disabled': '{active} aktif · {disabled} nonaktif',
+  'Disable account': 'Nonaktifkan akun',
+  'Enable account': 'Aktifkan akun'
 });

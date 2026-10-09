@@ -680,5 +680,16 @@ I18N.addDict('km', {
   'Rename region': 'ប្តូរឈ្មោះតំបន់',
   'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'បិទ {name}? គណនី {accounts} និងឯកសារកំពុងបើក {open} របស់វានៅដដែល ប៉ុន្តែមិនអាចជ្រើសរើសវាសម្រាប់គណនីថ្មីបានទៀតទេ។',
   'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'លុប {name}? វានៅមានគណនី {accounts} និងឯកសារកំពុងបើក {open} ដែលនឹងគ្មានតំបន់ត្រឹមត្រូវ។ សូមពិចារណាបិទវាជំនួសវិញ។',
-  'Delete {name}? This cannot be undone.': 'លុប {name}? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។'
+  'Delete {name}? This cannot be undone.': 'លុប {name}? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+  // Region workspace
+  'People': 'មនុស្ស',
+  'Organisation': 'អង្គភាព',
+  'All': 'ទាំងអស់',
+  'Everyone who can sign in to {region}: their role, department, position and approval limit.': 'អ្នកទាំងអស់ដែលអាចចូលប្រើ {region}៖ តួនាទី នាយកដ្ឋាន តំណែង និងដែនកំណត់អនុម័តរបស់ពួកគេ។',
+  'The departments in {region}, and which kinds of claim their members may raise.': 'នាយកដ្ឋាននៅ {region} និងប្រភេទសំណើដែលសមាជិករបស់ពួកគេអាចដាក់បាន។',
+  'The job positions in {region}, most senior first. A position may manage the accounts ranked below it.': 'តំណែងការងារនៅ {region} ពីជាន់ខ្ពស់បំផុត។ តំណែងមួយអាចគ្រប់គ្រងគណនីដែលមានឋានៈទាបជាង។',
+  'The expense types claimants in {region} choose from on each reimbursement line.': 'ប្រភេទការចំណាយដែលអ្នកស្នើសុំនៅ {region} ជ្រើសរើសលើបន្ទាត់សំណងនីមួយៗ។',
+  '{active} active · {disabled} disabled': 'សកម្ម {active} · បានបិទ {disabled}',
+  'Disable account': 'បិទគណនី',
+  'Enable account': 'បើកគណនី'
 });

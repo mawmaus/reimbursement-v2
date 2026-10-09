@@ -3260,7 +3260,7 @@ function openModal(html) {
 function closeModal() {
   leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
-  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm');
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
   syncScrollLock();
 }
@@ -6517,15 +6517,26 @@ async function openProfileModal() {
 // ---------------------------------------------------------------------------
 // Tabs inside a region workspace. Regions themselves live one level up (the
 // Regions landing), so there is no Regions tab here.
+// `group` places the page in the side menu; `desc` heads the page ({region} is
+// filled in). Order here is menu order.
+const SETTINGS_GROUPS = ['People', 'Organisation', 'Claims', 'Region'];
 const SETTINGS_TABS = [
-  { key: 'accounts', label: 'Accounts', accounts: true },
-  { key: 'departments', label: 'Departments', cap: 'manage_settings' },
-  { key: 'positions', label: 'Job positions', cap: 'manage_settings' },
-  { key: 'expense-types', label: 'Expense types', cap: 'manage_settings' },
-  { key: 'meal-rates', label: 'Meal allowance', cap: 'manage_settings' },
-  { key: 'claim-window', label: 'Claim window', cap: 'manage_settings' },
-  { key: 'region-prefs', label: 'Currency, time zone & bank', regionPrefs: true },
-  { key: 'roles', label: 'Roles', roleMatrix: true }
+  { key: 'accounts', label: 'Accounts', group: 'People', accounts: true,
+    desc: 'Everyone who can sign in to {region}: their role, department, position and approval limit.' },
+  { key: 'roles', label: 'Roles', group: 'People', roleMatrix: true,
+    desc: 'Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Employee row is shown for reference. These grants are added on top of what a user already gets from their job position and department.' },
+  { key: 'departments', label: 'Departments', group: 'Organisation', cap: 'manage_settings',
+    desc: 'The departments in {region}, and which kinds of claim their members may raise.' },
+  { key: 'positions', label: 'Job positions', group: 'Organisation', cap: 'manage_settings',
+    desc: 'The job positions in {region}, most senior first. A position may manage the accounts ranked below it.' },
+  { key: 'expense-types', label: 'Expense types', group: 'Claims', cap: 'manage_settings',
+    desc: 'The expense types claimants in {region} choose from on each reimbursement line.' },
+  { key: 'meal-rates', label: 'Meal allowance', group: 'Claims', cap: 'manage_settings',
+    desc: 'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.' },
+  { key: 'claim-window', label: 'Claim window', group: 'Claims', cap: 'manage_settings',
+    desc: 'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.' },
+  { key: 'region-prefs', label: 'Currency, time zone & bank', group: 'Region', regionPrefs: true,
+    desc: 'Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.' }
 ];
 // Tabs visible to the current user. The Roles matrix is open to Super Admins, VPs
 // and CM/MD (admins), who may edit the rows below their own; the rest need the
@@ -6595,6 +6606,8 @@ function openRegionsLanding() {
       </div>
     </div>
     <div class="modal-body"><div id="settingsPanel"></div></div>`);
+  // "← Regions" swaps the workspace out in place, so shed its sizing first.
+  $('#modal').classList.remove('modal-xwide', 'modal-ws');
   $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#rgAddBtn').addEventListener('click', () => {
@@ -6606,7 +6619,7 @@ function openRegionsLanding() {
 
 async function renderRegionsLanding() {
   const panel = $('#settingsPanel');
-  closeRegionMenu();
+  closeRowMenu();
   if (!panel.children.length) panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
   let items, stats = {};
   try {
@@ -6629,7 +6642,7 @@ async function renderRegionsLanding() {
         </div>
         <div class="rg-acts">
           ${r.active ? `<button type="button" class="btn btn-brand-soft btn-sm" data-open="${esc(r.name)}">${esc(t('Open settings'))} →</button>` : ''}
-          <button type="button" class="rg-more" data-menu="${r.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>
+          <button type="button" class="row-more" data-menu="${r.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>
         </div>
       </div>`;
   };
@@ -6671,34 +6684,58 @@ async function renderRegionsLanding() {
   $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
     e.stopPropagation();
     const it = byId(b.dataset.menu);
-    if (regionMenuFor === it.id) return closeRegionMenu();
-    openRegionMenu(b, it, stat(it));
+    openRowMenu(b, 'region:' + it.id, [
+      { act: 'rename', label: t('Rename') },
+      { act: 'toggle', label: it.active ? t('Disable') : t('Enable') },
+      { act: 'delete', label: t('Delete'), danger: true }
+    ], (act) => regionAction(act, it, stat(it)));
   }));
 }
 
-// The ⋯ menu for one region row. Fixed-positioned beside its button so the
-// scrolling list never clips it; an outside click, Escape or scroll closes it.
-let regionMenuFor = null;
-function closeRegionMenu() {
-  const m = $('#rgMenu'); if (m) m.remove();
-  $$('#settingsPanel .rg-more[aria-expanded]').forEach(b => b.removeAttribute('aria-expanded'));
-  regionMenuFor = null;
-  document.removeEventListener('click', closeRegionMenu);
-  document.removeEventListener('keydown', regionMenuKey, true);
-  const sc = $('#settingsPanel .rg-scroll'); if (sc) sc.removeEventListener('scroll', closeRegionMenu);
+async function regionAction(act, it, s) {
+  if (act === 'rename') {
+    const name = prompt(t('Rename region'), it.name);
+    if (name === null || !name.trim() || name.trim() === it.name) return;
+    try { await api(`/regions/${it.id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) }); toast(t('Renamed')); refreshAfterSettings(); }
+    catch (ex) { toast(ex.message, true); }
+  } else if (act === 'toggle') {
+    if (it.active && (s.accounts || s.open) && !confirm(t('Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.', { name: it.name, accounts: s.accounts, open: s.open }))) return;
+    try { await api(`/regions/${it.id}`, { method: 'PUT', body: JSON.stringify({ active: !it.active }) }); toast(t('Saved')); refreshAfterSettings(); }
+    catch (ex) { toast(ex.message, true); }
+  } else if (act === 'delete') {
+    const msg = (s.accounts || s.open)
+      ? t('Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.', { name: it.name, accounts: s.accounts, open: s.open })
+      : t('Delete {name}? This cannot be undone.', { name: it.name });
+    if (!confirm(msg)) return;
+    try { await api(`/regions/${it.id}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
+    catch (ex) { toast(ex.message, true); }
+  }
 }
-function regionMenuKey(e) { if (e.key === 'Escape') { e.stopPropagation(); closeRegionMenu(); } }
-function openRegionMenu(btn, it, s) {
-  closeRegionMenu();
-  regionMenuFor = it.id;
+
+// A row's ⋯ menu (Regions list, settings lookups). Portaled to <body> and
+// fixed-positioned under its button so a scrolling list never clips it; an
+// outside click, Escape or any scroll closes it, and clicking the same button
+// again toggles it shut. `items` are { act, label, danger }; a danger item gets
+// a divider above it. `onPick(act)` runs after the menu closes.
+let rowMenuKey = null;
+function closeRowMenu() {
+  const m = $('#rowMenu'); if (m) m.remove();
+  $$('.row-more[aria-expanded]').forEach(b => b.removeAttribute('aria-expanded'));
+  rowMenuKey = null;
+  document.removeEventListener('click', closeRowMenu);
+  document.removeEventListener('keydown', rowMenuEsc, true);
+  document.removeEventListener('scroll', closeRowMenu, true);
+}
+function rowMenuEsc(e) { if (e.key === 'Escape') { e.stopPropagation(); closeRowMenu(); } }
+function openRowMenu(btn, key, items, onPick) {
+  if (rowMenuKey === key) return closeRowMenu();
+  closeRowMenu();
+  rowMenuKey = key;
   btn.setAttribute('aria-expanded', 'true');
   const menu = document.createElement('div');
-  menu.id = 'rgMenu'; menu.className = 'rg-menu'; menu.setAttribute('role', 'menu');
-  menu.innerHTML = `
-    <button type="button" role="menuitem" data-act="rename">${esc(t('Rename'))}</button>
-    <button type="button" role="menuitem" data-act="toggle">${esc(it.active ? t('Disable') : t('Enable'))}</button>
-    <div class="rg-menu-sep"></div>
-    <button type="button" role="menuitem" class="rg-menu-danger" data-act="delete">${esc(t('Delete'))}</button>`;
+  menu.id = 'rowMenu'; menu.className = 'row-menu'; menu.setAttribute('role', 'menu');
+  menu.innerHTML = items.map((it, i) =>
+    `${it.danger && i ? '<div class="row-menu-sep"></div>' : ''}<button type="button" role="menuitem"${it.danger ? ' class="row-menu-danger"' : ''} data-act="${esc(it.act)}">${esc(it.label)}</button>`).join('');
   document.body.appendChild(menu);
   // Rects are visual px but lengths set here get scaled by :root zoom (see the
   // custom select menu), so work in visual px and divide the zoom back out.
@@ -6709,44 +6746,30 @@ function openRegionMenu(btn, it, s) {
   menu.style.top = `${Math.max(8, below ? r.bottom + 6 : r.top - 6 - h) / z}px`;
   menu.style.left = `${Math.max(8, r.right - w) / z}px`;
   setTimeout(() => {
-    document.addEventListener('click', closeRegionMenu);
-    document.addEventListener('keydown', regionMenuKey, true);
-    const sc = $('#settingsPanel .rg-scroll'); if (sc) sc.addEventListener('scroll', closeRegionMenu);
+    document.addEventListener('click', closeRowMenu);
+    document.addEventListener('keydown', rowMenuEsc, true);
+    document.addEventListener('scroll', closeRowMenu, true);
   });
-  menu.addEventListener('click', async (e) => {
+  menu.addEventListener('click', (e) => {
     e.stopPropagation();
     const act = e.target.closest('[data-act]'); if (!act) return;
-    closeRegionMenu();
-    if (act.dataset.act === 'rename') {
-      const name = prompt(t('Rename region'), it.name);
-      if (name === null || !name.trim() || name.trim() === it.name) return;
-      try { await api(`/regions/${it.id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) }); toast(t('Renamed')); refreshAfterSettings(); }
-      catch (ex) { toast(ex.message, true); }
-    } else if (act.dataset.act === 'toggle') {
-      if (it.active && (s.accounts || s.open) && !confirm(t('Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.', { name: it.name, accounts: s.accounts, open: s.open }))) return;
-      try { await api(`/regions/${it.id}`, { method: 'PUT', body: JSON.stringify({ active: !it.active }) }); toast(t('Saved')); refreshAfterSettings(); }
-      catch (ex) { toast(ex.message, true); }
-    } else if (act.dataset.act === 'delete') {
-      const msg = (s.accounts || s.open)
-        ? t('Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.', { name: it.name, accounts: s.accounts, open: s.open })
-        : t('Delete {name}? This cannot be undone.', { name: it.name });
-      if (!confirm(msg)) return;
-      try { await api(`/regions/${it.id}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
-      catch (ex) { toast(ex.message, true); }
-    }
+    closeRowMenu();
+    onPick(act.dataset.act);
   });
   menu.querySelector('button').focus();
 }
 
-// A region's workspace: tabs for that region's settings. Super admins get a
-// "← Regions" button to go back and switch regions; region-pinned managers do
-// not (they only ever see their own).
+// A region's workspace: a grouped side menu of that region's settings pages,
+// and the open page with its own header (title, what it controls, its main
+// action). Super admins get a "← Regions" button to go back and switch regions;
+// region-pinned managers do not (they only ever see their own).
 function openRegionWorkspace() {
   const u = state.user;
   const isSuper = u && u.role === 'superadmin';
   const region = settingsState.region;
   const tabs = visibleSettingsTabs();
   if (!tabs.some(x => x.key === settingsState.tab)) settingsState.tab = tabs.length ? tabs[0].key : 'roles';
+  const groups = SETTINGS_GROUPS.map(g => ({ g, items: tabs.filter(x => x.group === g) })).filter(x => x.items.length);
   openModal(`
     <div class="modal-head">
       <div class="ws-head">
@@ -6755,20 +6778,54 @@ function openRegionWorkspace() {
       </div>
       <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
     </div>
-    <div class="modal-body">
-      <div class="tabs" id="settingsTabs">
-        ${tabs.map(tab =>
-          `<button class="tab ${tab.key === settingsState.tab ? 'active' : ''}" data-tab="${tab.key}">${esc(t(tab.label))}</button>`).join('')}
-      </div>
-      <div id="settingsPanel"></div>
+    <div class="modal-body ws-body">
+      <nav class="ws-nav" id="settingsTabs" aria-label="${esc(t('Settings'))}">
+        ${groups.map(({ g, items }) => `
+          <div class="ws-nav-group">
+            <div class="ws-nav-label">${esc(t(g))}</div>
+            ${items.map(tab => `<button type="button" class="ws-nav-item" data-tab="${tab.key}">${esc(t(tab.label))}</button>`).join('')}
+          </div>`).join('')}
+      </nav>
+      <section class="ws-main">
+        <header class="ws-page-head">
+          <div class="ws-page-text"><h3 id="wsTitle"></h3><p id="wsDesc"></p></div>
+          <div class="ws-page-acts" id="wsActs"></div>
+        </header>
+        <div id="settingsPanel"></div>
+      </section>
     </div>`);
-  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal').classList.remove('modal-wide');
+  $('#modal').classList.add('modal-xwide', 'modal-flex', 'modal-ws');
   $('#modal .x-btn').addEventListener('click', closeModal);
   const back = $('#wsBack');
   if (back) back.addEventListener('click', () => { settingsState.region = null; openRegionsLanding(); });
-  $$('#settingsTabs .tab').forEach(b =>
-    b.addEventListener('click', () => { settingsState.tab = b.dataset.tab; openRegionWorkspace(); }));
+  $$('#settingsTabs .ws-nav-item').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.tab === settingsState.tab) return;
+    settingsState.tab = b.dataset.tab;
+    showWorkspacePage();
+  }));
+  showWorkspacePage();
+}
+
+// Mark the active menu item, fill the page header and render the page. Pages
+// put their main button in the header through setWsPage().
+function showWorkspacePage() {
+  const tab = SETTINGS_TABS.find(x => x.key === settingsState.tab);
+  $$('#settingsTabs .ws-nav-item').forEach(b => {
+    const on = b.dataset.tab === settingsState.tab;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  const active = $('#settingsTabs .ws-nav-item.active');
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  $('#wsTitle').textContent = tab ? t(tab.label) : '';
+  setWsPage({ desc: tab && tab.desc ? t(tab.desc, { region: settingsState.region || t('this region') }) : '' });
   renderSettingsTab();
+}
+function setWsPage({ desc, actions } = {}) {
+  const d = $('#wsDesc'), a = $('#wsActs');
+  if (d && desc !== undefined) { d.textContent = desc; d.hidden = !desc; }
+  if (a) a.innerHTML = actions || '';
 }
 
 // Confirm email delivery: sends a test message (default: the admin's own email).
@@ -6817,8 +6874,7 @@ async function renderClaimWindowTab() {
     ? t('Only expenses dated {date} or later can be claimed.', { date: cw.earliest })
     : t('No date limit is set — expenses of any date can be claimed.');
   panel.innerHTML = `
-    <div class="settings-controls" style="max-width:560px">
-      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.'))}</p>
+    <div class="settings-controls ws-card">
       <form id="cwForm" class="form">
         <label>${esc(t('Maximum age (days)'))}
           <input name="max_age_days" type="number" min="0" max="3650" inputmode="numeric" placeholder="${esc(t('No limit'))}" value="${cw.max_age_days != null ? cw.max_age_days : ''}" />
@@ -6828,9 +6884,9 @@ async function renderClaimWindowTab() {
           <input name="earliest_date" type="date" value="${esc(cw.earliest_date || '')}" />
           <span class="form-note" style="font-weight:400;color:var(--muted);font-size:.8rem">${esc(t('No expense dated before this can be claimed. Leave blank for no limit.'))}</span>
         </label>
-        <div style="margin:14px 0;padding:10px 12px;background:var(--pine-tint);border:1px solid var(--line);border-radius:8px;font-size:.85rem;color:var(--ink-soft)">${esc(status)}</div>
+        <div class="ws-note">${esc(status)}</div>
         <p class="form-error" id="cwErr" hidden></p>
-        <div class="modal-actions" style="justify-content:flex-start">
+        <div class="ws-card-foot">
           <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
         </div>
       </form>
@@ -6962,7 +7018,7 @@ async function renderDateChanges() {
 let mealRatesEdit = [];
 function mealRateEditRowHtml(n, i) {
   return `<div class="mr-row" data-i="${i}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-    <input name="amount" class="mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" style="flex:1;min-width:0;margin:0" />
+    <input name="amount" class="input mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" style="flex:1;min-width:0;margin:0" />
     <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button>
   </div>`;
 }
@@ -6992,14 +7048,13 @@ async function renderMealRatesTab() {
   mealRatesEdit = (data.rates || []).slice();
   if (!mealRatesEdit.length) mealRatesEdit = [0];
   panel.innerHTML = `
-    <div class="settings-controls" style="max-width:320px">
-      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the preset amounts the Meal Allowance form offers in its Amount dropdown.'))}</p>
+    <div class="settings-controls ws-card ws-card-narrow">
       <div id="mrRows"></div>
       <div style="margin-top:6px">
         <button type="button" class="btn btn-brand-soft btn-sm" id="mrAddRow">${esc(t('+ Add amount'))}</button>
       </div>
       <p class="form-error" id="mrErr" hidden style="margin-top:12px"></p>
-      <div class="modal-actions" style="justify-content:flex-start;margin-top:14px">
+      <div class="ws-card-foot">
         <button type="button" class="btn btn-primary btn-sm" id="mrSave">${esc(t('Save'))}</button>
       </div>
     </div>`;
@@ -7050,8 +7105,7 @@ async function renderRegionPrefsTab() {
   }).join('');
   const feeCur = esc(data.currency || 'IDR');
   panel.innerHTML = `
-    <div class="settings-controls" style="max-width:560px">
-      <p class="muted" style="margin:0 0 16px;font-size:.9rem">${esc(t('Set the default currency and time zone for {region}. New claims use this currency, and the time zone decides what counts as “today” for claim dates.', { region: settingsState.region || t('this region') }))}</p>
+    <div class="settings-controls ws-card">
       <form id="rpForm" class="form">
         <label>${esc(t('Default currency'))}
           <select name="currency">${curOpts}</select>
@@ -7059,7 +7113,7 @@ async function renderRegionPrefsTab() {
         <label>${esc(t('Default time zone'))}
           <select name="timezone">${tzOpts}</select>
         </label>
-        <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
+        <div class="ws-card-label ws-card-split">${esc(t('Bank / payout details'))}</div>
         <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Payments to the preferred bank are free; all other banks are charged this fee. This shows on each employee’s profile.'))}</p>
         <label>${esc(t('Preferred bank (no transfer fee)'))}
           <input name="bank" value="${esc(data.preferredBank || '')}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" />
@@ -7069,7 +7123,7 @@ async function renderRegionPrefsTab() {
           <input name="bankFee" inputmode="numeric" autocomplete="off" value="${data.bankFee != null ? esc(groupAmount(String(data.bankFee))) : ''}" />
         </label>
         <p class="form-error" id="rpErr" hidden></p>
-        <div class="modal-actions" style="justify-content:flex-start">
+        <div class="ws-card-foot">
           <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
         </div>
       </form>
@@ -7120,7 +7174,7 @@ async function renderRolesTab() {
   const { capabilities, roles, editableRoles, matrix } = data;
   const editable = new Set(editableRoles || []);
   const head = `<th>${esc(t('Capability'))}</th>`
-    + roles.map(r => `<th style="text-align:center;width:120px">${esc(roleLabel(r))}${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
+    + roles.map(r => `<th class="role-h">${esc(roleLabel(r))}${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
   const cell = (cap, role) => {
     const on = !!(matrix[role] && matrix[role][cap]);
     const canEdit = editable.has(role);
@@ -7130,10 +7184,7 @@ async function renderRolesTab() {
     return `<td class="tick-cell" style="text-align:center"><input type="checkbox" ${canEdit ? `data-role="${role}" data-cap="${cap}"` : 'disabled'} ${on ? 'checked' : ''}${title ? ` title="${esc(title)}"` : ''} /></td>`;
   };
   panel.innerHTML = `
-    <div class="settings-controls">
-      <p class="muted" style="margin:0 0 12px;font-size:.9rem">${esc(t('Set what each role in {region} can do. Super Admin always has every permission and is not shown. The Employee row is shown for reference. These grants are added on top of what a user already gets from their job position and department.', { region: region || t('this region') }))}</p>
-    </div>
-    <div class="settings-list">
+    <div class="settings-list ws-table">
       <div class="matrix-scroll">
       <table class="utable utable-matrix">
         <thead><tr>${head}</tr></thead>
@@ -7186,40 +7237,37 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         <button type="button" class="ord-btn" data-move="up" data-id="${it.id}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('Move up'))}">▲</button>
         <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
       </div></td>`;
-  const headCols = (ranked ? `<th style="width:64px">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th><th>${esc(t('Active'))}</th>`
-    + (p ? `<th>${esc(t('New claim'))}</th><th>${esc(t('New meal allowance'))}</th>` : '')
-    + (manage ? `<th>${esc(t('Manage accounts'))}</th>` : '')
+  const headCols = (ranked ? `<th class="ord-h">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th>`
+    + (p ? `<th class="flag-h">${esc(t('New claim'))}</th><th class="flag-h">${esc(t('New meal allowance'))}</th>` : '')
+    + (manage ? `<th class="flag-h">${esc(t('Manage accounts'))}</th>` : '')
     + '<th class="u-actions-h"></th>';
-  const colspan = 2 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
+  const colspan = 1 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
+  const nActive = items.filter(x => x.active).length;
+  setWsPage({ actions: `<button type="button" class="btn btn-primary btn-sm" id="lookupAddBtn">+ ${esc(t('Add {noun}', { noun }))}</button>` });
   panel.innerHTML = `
     <div class="settings-controls">
-      <form id="lookupForm" class="form" style="margin-bottom:10px">
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <label style="flex:1;margin:0">${esc(t('Add {noun}', { noun }))}<input name="name" required placeholder="${esc(t('Name'))}" /></label>
-          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Add'))}</button>
-        </div>
+      <form id="lookupForm" class="rg-add" hidden>
+        <input name="name" class="input" required maxlength="80" placeholder="${esc(t('Name'))}" aria-label="${esc(t('Name'))}" />
+        <button type="submit" class="btn btn-primary btn-sm">${esc(t('Add'))}</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-cancel>${esc(t('Cancel'))}</button>
         <p class="form-error" id="lookupErr" hidden></p>
       </form>
-      <div class="settings-search">
+      <div class="ws-toolbar">
         <input id="lookupSearch" class="input" type="search" placeholder="${esc(t('Search {noun}…', { noun }))}" />
+        <span class="ws-count">${esc(t('{active} active · {disabled} disabled', { active: nActive, disabled: items.length - nActive }))}</span>
       </div>
     </div>
-    <div class="settings-list">
+    <div class="settings-list ws-table">
       <table class="utable utable-lookup">
         <thead><tr>${headCols}</tr></thead>
         <tbody>${items.length ? items.map((it, i) => `
-          <tr data-id="${it.id}">
+          <tr data-id="${it.id}"${it.active ? '' : ' class="row-off"'}>
             ${ranked ? orderCell(it, i) : ''}
-            <td data-label="${esc(t('Name'))}" class="name-cell">${esc(it.name)}</td>
-            <td data-label="${esc(t('Active'))}">${it.active ? esc(t('Yes')) : esc(t('No'))}</td>
+            <td data-label="${esc(t('Name'))}" class="name-cell"><span class="lk-name">${esc(it.name)}</span>${it.active ? '' : ` <span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
             ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
             <td class="act-cell" data-label="${esc(t('Actions'))}">
-              <div class="u-actions">
-                <button class="btn btn-brand-soft btn-sm" data-rename="${it.id}">${esc(t('Edit'))}</button>
-                <button class="btn ${it.active ? 'btn-amber-soft' : 'btn-green-soft'} btn-sm" data-toggle="${it.id}">${it.active ? esc(t('Disable')) : esc(t('Enable'))}</button>
-                <button class="btn btn-danger-ghost btn-sm" data-del="${it.id}">${esc(t('Delete'))}</button>
-              </div>
+              <button type="button" class="row-more" data-menu="${it.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>
             </td>
           </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No {noun} entries yet.', { noun }))}</td></tr>`}</tbody>
       </table>
@@ -7227,27 +7275,33 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   wireTableSearch($('#lookupSearch'), '#settingsPanel .settings-list');
 
   const byId = (id) => items.find(x => x.id == id);
-  $('#lookupForm').addEventListener('submit', async (e) => {
+  const addForm = $('#lookupForm');
+  $('#lookupAddBtn').addEventListener('click', () => { addForm.hidden = false; addForm.querySelector('input').focus(); });
+  addForm.querySelector('[data-cancel]').addEventListener('click', () => { addForm.reset(); addForm.hidden = true; $('#lookupErr').hidden = true; });
+  addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = new FormData(e.target).get('name').trim();
     try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) }); toast(t('Added')); refreshAfterSettings(); }
     catch (ex) { const el = $('#lookupErr'); el.textContent = ex.message; el.hidden = false; }
   });
-  $$('#settingsPanel [data-toggle]').forEach(b => b.addEventListener('click', async () => {
-    const it = byId(b.dataset.toggle);
-    try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ active: !it.active }) }); refreshAfterSettings(); }
-    catch (ex) { toast(ex.message, true); }
-  }));
-  $$('#settingsPanel [data-del]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm(t('Delete this {noun}? Existing claims keep their recorded value.', { noun }))) return;
-    try { await api(`${cfg.path}/${b.dataset.del}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
-    catch (ex) { toast(ex.message, true); }
-  }));
-  // Inline rename — turn the name cell into an input with Save / Cancel.
-  $$('#settingsPanel [data-rename]').forEach(b => b.addEventListener('click', () => {
-    const it = byId(b.dataset.rename);
-    const cell = b.closest('tr').querySelector('.name-cell');
-    startInlineRename(cell, it, cfg);
+  $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const it = byId(b.dataset.menu);
+    openRowMenu(b, `${cfg.path}:${it.id}`, [
+      { act: 'rename', label: t('Rename') },
+      { act: 'toggle', label: it.active ? t('Disable') : t('Enable') },
+      { act: 'delete', label: t('Delete'), danger: true }
+    ], async (act) => {
+      if (act === 'rename') return startInlineRename(b.closest('tr').querySelector('.name-cell'), it, cfg);
+      if (act === 'toggle') {
+        try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ active: !it.active }) }); toast(t('Saved')); refreshAfterSettings(); }
+        catch (ex) { toast(ex.message, true); }
+        return;
+      }
+      if (!confirm(t('Delete this {noun}? Existing claims keep their recorded value.', { noun }))) return;
+      try { await api(`${cfg.path}/${it.id}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
+      catch (ex) { toast(ex.message, true); }
+    });
   }));
   // Boolean flag tickboxes (purposes + can_manage) — persist immediately; keep
   // local state in sync so a later re-render reflects the choice.
@@ -7278,6 +7332,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
 // Escape cancels. On success the whole tab re-renders (keeps ordering/flags).
 function startInlineRename(cell, it, cfg) {
   if (!cell || cell.querySelector('input')) return;
+  const before = cell.innerHTML;
   cell.innerHTML = `<div class="rename-row">
       <input class="input rename-input" value="${esc(it.name)}" />
       <button type="button" class="btn btn-primary btn-sm" data-save>${esc(t('Save'))}</button>
@@ -7285,7 +7340,7 @@ function startInlineRename(cell, it, cfg) {
     </div>`;
   const input = cell.querySelector('.rename-input');
   input.focus(); input.select();
-  const cancel = () => { cell.textContent = it.name; };
+  const cancel = () => { cell.innerHTML = before; };
   const save = async () => {
     const name = input.value.trim();
     if (!name || name === it.name) return cancel();
@@ -7368,15 +7423,14 @@ function paintDelegatedAccounts() {
         ? t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' })
         : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }));
   const colspan = seesAllDepts ? 6 : 5;
+  setWsPage({ desc: scopeCopy, actions: canCreate ? `<button type="button" class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : '' });
   panel.innerHTML = `
     <div class="settings-controls">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
-        ${canCreate ? `<button class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` : ''}
+      <div class="ws-toolbar">
+        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" />
       </div>
-      <p class="muted" style="margin:0 0 12px;font-size:.85rem">${esc(scopeCopy)}</p>
     </div>
-    <div class="settings-list">
+    <div class="settings-list ws-table">
       <table class="utable utable-manage ${seesAllDepts ? 'utable-manage--wide' : 'utable-manage--5'}">
         <thead><tr><th>${esc(t('User'))}</th><th>${esc(t('Email'))}</th>${seesAllDepts ? `<th>${esc(t('Department'))}</th>` : ''}<th>${esc(t('Position'))}</th><th>${esc(t('Active'))}</th><th class="u-actions-h">${esc(t('Actions'))}</th></tr></thead>
         <tbody>${users.length ? users.map(u => `
@@ -7411,43 +7465,71 @@ function paintDelegatedAccounts() {
   }));
 }
 
+// Status filter for the accounts list: chips above the table, with counts.
+let accountsFilter = 'all';
+function acctFilterChips(users) {
+  const n = { all: users.length, active: users.filter(u => u.active).length };
+  n.disabled = n.all - n.active;
+  return `<div class="ws-chips" role="group" aria-label="${esc(t('Status'))}">${[['all', t('All')], ['active', t('Active')], ['disabled', t('Disabled')]].map(([k, label]) =>
+    `<button type="button" class="ws-chip${accountsFilter === k ? ' on' : ''}" data-filter="${k}" aria-pressed="${accountsFilter === k}">${esc(label)} <span>${n[k]}</span></button>`).join('')}</div>`;
+}
+const acctStatusPill = (u) => u.active
+  ? `<span class="pill pill-on">${esc(t('Active'))}</span>`
+  : `<span class="pill pill-off">${esc(t('Disabled'))}</span>`;
+// Repaint helper: keep what's typed in the search box across a re-render.
+function repaintKeepingSearch(paint) {
+  const q = ($('#acctSearch') || {}).value || '';
+  paint();
+  const s = $('#acctSearch');
+  if (s && q) { s.value = q; s.dispatchEvent(new Event('input')); }
+}
+async function setAccountActive(u) {
+  if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
+  try {
+    await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
+    toast(u.active ? t('Account disabled') : t('Account enabled'));
+    renderAccountsTab();
+  } catch (ex) { toast(ex.message, true); }
+}
+
 function paintAccounts() {
   const panel = $('#settingsPanel');
   const users = settingsState.users || [];
-  const sorted = sortAccounts(users);
+  const shown = sortAccounts(users.filter(u => accountsFilter === 'all' || (accountsFilter === 'active') === !!u.active));
   // A clickable header cell that sorts by `key` and shows the active arrow.
   const th = (key, label) => {
     const on = accountsSort.key === key;
     const arrow = on ? (accountsSort.dir === 1 ? ' ▲' : ' ▼') : '';
-    return `<th class="sortable" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (accountsSort.dir === 1 ? 'ascending' : 'descending') : 'none'}" style="cursor:pointer;user-select:none;white-space:nowrap">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
+    return `<th class="sortable" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (accountsSort.dir === 1 ? 'ascending' : 'descending') : 'none'}">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
   };
-
+  setWsPage({ actions: `<button type="button" class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` });
   panel.innerHTML = `
     <div class="settings-controls">
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">
-        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" style="flex:1" />
-        <button class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>
+      <div class="ws-toolbar">
+        <input id="acctSearch" class="input" type="search" placeholder="${esc(t('Search users…'))}" />
+        ${acctFilterChips(users)}
       </div>
     </div>
-    <div class="settings-list">
+    <div class="settings-list ws-table">
       <table class="utable utable-users">
-        <thead><tr>${th('full_name', t('User'))}${th('email', t('Email'))}${th('role', t('Role'))}${th('region', t('Region'))}${th('department', t('Dept / Position'))}${th('allow_advance', t('Cash advance'))}${th('active', t('Active'))}<th></th></tr></thead>
-        <tbody>${sorted.map(u => `
-          <tr>
-            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub mono">${esc(u.username)}</div>${creatorLine(u)}</td>
-            <td class="u-wrap" data-label="${esc(t('Email'))}">${u.email ? esc(u.email) : '<span class="muted">—</span>'}</td>
+        <thead><tr>${th('full_name', t('User'))}${th('role', t('Role'))}${th('department', t('Dept / Position'))}${th('region', t('Region'))}${th('allow_advance', t('Cash advance'))}${th('active', t('Status'))}<th class="u-actions-h"></th></tr></thead>
+        <tbody>${shown.length ? shown.map(u => {
+          const editable = state.user.role === 'superadmin' || u.role === 'employee';
+          return `
+          <tr${u.active ? '' : ' class="row-off"'}>
+            <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub"><span class="mono">${esc(u.username)}</span>${u.email ? ` · ${esc(u.email)}` : ''}</div>${creatorLine(u)}</td>
             <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${u.approval_limit_cents == null ? esc(t('Approves any amount')) : esc(t('Approves ≤ {amount}', { amount: money(u.approval_limit_cents / 100) }))}</div></td>
-            <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
             <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
-            <td data-label="${esc(t('Cash advance'))}">${hasAdvanceGrant(u) ? esc(t('Yes')) : '<span class="muted">—</span>'}</td>
-            <td data-label="${esc(t('Active'))}">${u.active ? esc(t('Yes')) : esc(t('No'))}</td>
-            <td class="act-cell" data-label="${esc(t('Actions'))}">${(state.user.role === 'superadmin' || u.role === 'employee')
+            <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
+            <td data-label="${esc(t('Cash advance'))}">${hasAdvanceGrant(u) ? `<span class="pill pill-on">${esc(t('Yes'))}</span>` : '<span class="muted">—</span>'}</td>
+            <td data-label="${esc(t('Status'))}">${acctStatusPill(u)}</td>
+            <td class="act-cell" data-label="${esc(t('Actions'))}">${editable
               ? `<div class="u-actions">
                 <button class="btn btn-brand-soft btn-sm" data-edit="${u.id}">${esc(t('Edit'))}</button>
-                ${u.id != state.user.id ? `<button class="btn btn-sm ${u.active ? 'btn-danger-ghost' : 'btn-green-soft'}" data-active="${u.id}">${u.active ? esc(t('Disable')) : esc(t('Enable'))}</button>` : ''}
+                ${u.id != state.user.id ? `<button type="button" class="row-more" data-menu="${u.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>` : '<span class="row-more-gap"></span>'}
               </div>`
               : '<span class="muted">—</span>'}</td>
-          </tr>`).join('')}</tbody>
+          </tr>`; }).join('') : `<tr><td colspan="7" class="muted" style="padding:16px">${esc(t('No accounts yet.'))}</td></tr>`}</tbody>
       </table>
     </div>`;
   wireTableSearch($('#acctSearch'), '#settingsPanel .settings-list');
@@ -7456,23 +7538,24 @@ function paintAccounts() {
   const applySort = (key) => {
     if (accountsSort.key === key) accountsSort.dir *= -1;
     else accountsSort = { key, dir: 1 };
-    paintAccounts();
+    repaintKeepingSearch(paintAccounts);
   };
   $$('#settingsPanel th[data-sort]').forEach(h => {
     h.addEventListener('click', () => applySort(h.dataset.sort));
     h.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); applySort(h.dataset.sort); } });
   });
+  $$('#settingsPanel [data-filter]').forEach(b => b.addEventListener('click', () => {
+    accountsFilter = b.dataset.filter; repaintKeepingSearch(paintAccounts);
+  }));
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
-  $$('#settingsPanel [data-active]').forEach(b => b.addEventListener('click', async () => {
-    const u = users.find(x => x.id == b.dataset.active);
-    if (u.active && !confirm(t("Disable {name}'s account? They won't be able to sign in until re-enabled.", { name: u.full_name }))) return;
-    try {
-      await api('/users/' + u.id + '/set-active', { method: 'POST', body: JSON.stringify({ active: !u.active }) });
-      toast(u.active ? t('Account disabled') : t('Account enabled'));
-      renderAccountsTab();
-    } catch (ex) { toast(ex.message, true); }
+  $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const u = users.find(x => x.id == b.dataset.menu);
+    openRowMenu(b, 'user:' + u.id, [u.active
+      ? { act: 'toggle', label: t('Disable account'), danger: true }
+      : { act: 'toggle', label: t('Enable account') }], () => setAccountActive(u));
   }));
 }
 
