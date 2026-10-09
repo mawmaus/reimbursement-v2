@@ -558,7 +558,6 @@ I18N.addDict('vi', {
   'Approves ≤ {amount}': 'Duyệt ≤ {amount}',
   'Balance to be returned by employee: {amt}': 'Số dư nhân viên phải hoàn trả: {amt}',
   'Capability': 'Quyền',
-  'Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.': 'Chọn khu vực để cấu hình tài khoản, phòng ban, vị trí công việc, loại chi phí, kỳ yêu cầu và vai trò. Quản lý danh sách khu vực bên dưới.',
   'Click a type to see its expenses': 'Nhấp vào một loại để xem chi phí',
   'Confirm settlement': 'Xác nhận tất toán',
   'Country Manager / Managing Director permissions are set by the Super Admin.': 'Quyền của Country Manager / Managing Director do Super Admin thiết lập.',
@@ -573,14 +572,12 @@ I18N.addDict('vi', {
   'Last month': 'Tháng trước',
   'Last year': 'Năm trước',
   'Locked': 'Đã khóa',
-  'Manage regions': 'Quản lý khu vực',
   'Mark 1 claim as paid': 'Đánh dấu 1 yêu cầu đã thanh toán',
   'Mark {n} claims as paid': 'Đánh dấu {n} yêu cầu đã thanh toán',
   'Marked 1 claim as paid': 'Đã đánh dấu 1 yêu cầu là đã thanh toán',
   'Marked {n} claims as paid': 'Đã đánh dấu {n} yêu cầu là đã thanh toán',
   'Marking…': 'Đang đánh dấu…',
   'Maximum claim amount this account can approve': 'Số tiền yêu cầu tối đa mà tài khoản này có thể duyệt',
-  'No regions yet. Add one below.': 'Chưa có khu vực. Thêm bên dưới.',
   'One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).': 'Mỗi chi phí một dòng — đính kèm hóa đơn của chi phí đó trên dòng riêng (PDF hoặc hình ảnh, tối đa 8 mỗi dòng).',
   'Only approved claims can be marked as paid — none of the selected are approved.': 'Chỉ các yêu cầu đã duyệt mới có thể đánh dấu đã thanh toán — không có yêu cầu nào được chọn ở trạng thái đã duyệt.',
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'Chỉ các yêu cầu đã thanh toán mới có thể hoàn tác thanh toán — không có yêu cầu nào được chọn ở trạng thái đã thanh toán.',
@@ -667,5 +664,21 @@ I18N.addDict('vi', {
   // iPhone "Add to Home Screen" hint
   'Install this app on your iPhone': 'Cài ứng dụng này trên iPhone của bạn',
   'Tap Share, then “Add to Home Screen”.': 'Chạm Chia sẻ, rồi chọn “Thêm vào MH chính”.',
-  'Dismiss': 'Đóng'
+  'Dismiss': 'Đóng',
+  // Regions landing
+  'Each region has its own accounts, departments, job positions, expense types, claim window and roles.': 'Mỗi khu vực có tài khoản, phòng ban, vị trí công việc, loại chi phí, kỳ yêu cầu và vai trò riêng.',
+  'Add region': 'Thêm khu vực',
+  '{n} account': '{n} tài khoản',
+  '{n} accounts': '{n} tài khoản',
+  '{n} open document': '{n} hồ sơ đang mở',
+  '{n} open documents': '{n} hồ sơ đang mở',
+  'Open settings': 'Mở cài đặt',
+  'More actions': 'Thao tác khác',
+  'New region name': 'Tên khu vực mới',
+  'No regions yet. Add one to get started.': 'Chưa có khu vực nào. Thêm một khu vực để bắt đầu.',
+  'Rename': 'Đổi tên',
+  'Rename region': 'Đổi tên khu vực',
+  'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'Vô hiệu hóa {name}? {accounts} tài khoản và {open} hồ sơ đang mở của khu vực vẫn được giữ, nhưng không thể chọn khu vực này cho tài khoản mới nữa.',
+  'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'Xóa {name}? Khu vực này vẫn còn {accounts} tài khoản và {open} hồ sơ đang mở, sẽ bị mất khu vực hợp lệ. Hãy cân nhắc vô hiệu hóa thay vì xóa.',
+  'Delete {name}? This cannot be undone.': 'Xóa {name}? Không thể hoàn tác thao tác này.'
 });

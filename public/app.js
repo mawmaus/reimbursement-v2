@@ -6578,54 +6578,164 @@ function openSettingsModal() {
   return openRegionWorkspace();
 }
 
-// Regions landing (super admin): cards to enter a region's workspace, plus the
-// full region list manager (add / rename / enable-disable / delete) below.
+// Regions landing (super admin): one row per region — its headcount and open
+// workload, an Open button into its workspace, and a ⋯ menu to rename, disable
+// or delete it. Disabled regions sit in their own group below. "Add region"
+// lives in the header; search appears only once the list is long enough.
 function openRegionsLanding() {
   openModal(`
     <div class="modal-head">
-      <h2>${esc(t('Regions'))}</h2>
-      <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
+      <div>
+        <h2>${esc(t('Regions'))}</h2>
+        <p class="rg-sub">${esc(t('Each region has its own accounts, departments, job positions, expense types, claim window and roles.'))}</p>
+      </div>
+      <div class="rg-head-acts">
+        <button type="button" class="btn btn-primary btn-sm" id="rgAddBtn">+ ${esc(t('Add region'))}</button>
+        <button class="x-btn">×</button>
+      </div>
     </div>
     <div class="modal-body"><div id="settingsPanel"></div></div>`);
-  // Frozen-header model: the intro + region cards + add/search bar stay put
-  // while the region table scrolls. renderRegionsLanding lays out #settingsPanel
-  // so the table is a direct scrolling child (see there).
-  $('#modal').classList.add('modal-xwide', 'modal-flex');
+  $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#rgAddBtn').addEventListener('click', () => {
+    const form = $('#rgAddForm'); if (!form) return;
+    form.hidden = false; form.querySelector('input').focus();
+  });
   renderRegionsLanding();
 }
 
 async function renderRegionsLanding() {
   const panel = $('#settingsPanel');
-  panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
-  let items;
-  try { ({ items } = await api('/regions')); }
-  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const active = items.filter(r => r.active);
-  // Render the region-list manager straight into the panel first, so its table
-  // (.settings-list) is a direct flex child of #settingsPanel and owns the
-  // scroll. Then pin a frozen header (intro + region cards + the "Manage
-  // regions" label) above it — .settings-controls (add + search) stays frozen
-  // too, so only the table scrolls.
-  await renderLookupTab({ path: '/regions', noun: 'region' }, '#settingsPanel');
-  const header = `
-    <div class="region-landing-head">
-      <p class="muted" style="margin:0 0 8px;font-size:.9rem">${esc(t('Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.'))}</p>
-      <div class="region-grid">
-        ${active.length ? active.map(r => `
-          <button type="button" class="region-card" data-region="${esc(r.name)}">
-            <span class="region-card-name">${esc(r.name)}</span>
-            <span class="region-card-go" aria-hidden="true">→</span>
-          </button>`).join('') : `<p class="muted">${esc(t('No regions yet. Add one below.'))}</p>`}
-      </div>
-      <div class="section-label" style="margin-top:10px">${esc(t('Manage regions'))}</div>
+  closeRegionMenu();
+  if (!panel.children.length) panel.innerHTML = `<p class="muted" style="padding:20px 0">${esc(t('Loading…'))}</p>`;
+  let items, stats = {};
+  try {
+    const [list, overview] = await Promise.all([api('/regions'), api('/regions/overview').catch(() => ({ items: {} }))]);
+    items = list.items; stats = overview.items || {};
+  } catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const active = items.filter(r => r.active), disabled = items.filter(r => !r.active);
+  const stat = (r) => stats[r.name] || { accounts: 0, open: 0 };
+  const row = (r) => {
+    const s = stat(r);
+    return `
+      <div class="rg-row${r.active ? '' : ' rg-off'}" data-id="${r.id}">
+        <div class="rg-main">
+          <div class="rg-name">${esc(r.name)}</div>
+          <div class="rg-stats">
+            <span>${esc(t(s.accounts === 1 ? '{n} account' : '{n} accounts', { n: s.accounts }))}</span>
+            <span aria-hidden="true">·</span>
+            <span class="${s.open ? 'rg-open' : ''}">${esc(t(s.open === 1 ? '{n} open document' : '{n} open documents', { n: s.open }))}</span>
+          </div>
+        </div>
+        <div class="rg-acts">
+          ${r.active ? `<button type="button" class="btn btn-brand-soft btn-sm" data-open="${esc(r.name)}">${esc(t('Open settings'))} →</button>` : ''}
+          <button type="button" class="rg-more" data-menu="${r.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>
+        </div>
+      </div>`;
+  };
+  panel.innerHTML = `
+    <form id="rgAddForm" class="rg-add" hidden>
+      <input name="name" class="input" required maxlength="60" placeholder="${esc(t('New region name'))}" aria-label="${esc(t('New region name'))}" />
+      <button type="submit" class="btn btn-primary btn-sm">${esc(t('Add'))}</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-cancel>${esc(t('Cancel'))}</button>
+      <p class="form-error" id="rgAddErr" hidden></p>
+    </form>
+    ${items.length > 8 ? `<div class="rg-search"><input id="rgSearch" class="input" type="search" placeholder="${esc(t('Search {noun}…', { noun: t('region') }))}" /></div>` : ''}
+    <div class="rg-scroll">
+      ${active.length ? `<div class="rg-list">${active.map(row).join('')}</div>`
+        : `<p class="rg-empty">${esc(t('No regions yet. Add one to get started.'))}</p>`}
+      ${disabled.length ? `<div class="section-label">${esc(t('Disabled'))} · ${disabled.length}</div>
+        <div class="rg-list">${disabled.map(row).join('')}</div>` : ''}
     </div>`;
-  panel.insertAdjacentHTML('afterbegin', header);
-  $$('#settingsPanel .region-card').forEach(c => c.addEventListener('click', () => {
-    settingsState.region = c.dataset.region;
+
+  const byId = (id) => items.find(x => x.id == id);
+  const addForm = $('#rgAddForm');
+  if (!items.length) addForm.hidden = false;
+  addForm.querySelector('[data-cancel]').addEventListener('click', () => { addForm.reset(); addForm.hidden = true; $('#rgAddErr').hidden = true; });
+  addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = new FormData(addForm).get('name').trim();
+    try { await api('/regions', { method: 'POST', body: JSON.stringify({ name }) }); toast(t('Added')); refreshAfterSettings(); }
+    catch (ex) { const el = $('#rgAddErr'); el.textContent = ex.message; el.hidden = false; }
+  });
+  const search = $('#rgSearch');
+  if (search) search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    $$('#settingsPanel .rg-row').forEach(r => { r.hidden = !!q && !r.querySelector('.rg-name').textContent.toLowerCase().includes(q); });
+  });
+  $$('#settingsPanel [data-open]').forEach(b => b.addEventListener('click', () => {
+    settingsState.region = b.dataset.open;
     settingsState.tab = 'accounts';
     openRegionWorkspace();
   }));
+  $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const it = byId(b.dataset.menu);
+    if (regionMenuFor === it.id) return closeRegionMenu();
+    openRegionMenu(b, it, stat(it));
+  }));
+}
+
+// The ⋯ menu for one region row. Fixed-positioned beside its button so the
+// scrolling list never clips it; an outside click, Escape or scroll closes it.
+let regionMenuFor = null;
+function closeRegionMenu() {
+  const m = $('#rgMenu'); if (m) m.remove();
+  $$('#settingsPanel .rg-more[aria-expanded]').forEach(b => b.removeAttribute('aria-expanded'));
+  regionMenuFor = null;
+  document.removeEventListener('click', closeRegionMenu);
+  document.removeEventListener('keydown', regionMenuKey, true);
+  const sc = $('#settingsPanel .rg-scroll'); if (sc) sc.removeEventListener('scroll', closeRegionMenu);
+}
+function regionMenuKey(e) { if (e.key === 'Escape') { e.stopPropagation(); closeRegionMenu(); } }
+function openRegionMenu(btn, it, s) {
+  closeRegionMenu();
+  regionMenuFor = it.id;
+  btn.setAttribute('aria-expanded', 'true');
+  const menu = document.createElement('div');
+  menu.id = 'rgMenu'; menu.className = 'rg-menu'; menu.setAttribute('role', 'menu');
+  menu.innerHTML = `
+    <button type="button" role="menuitem" data-act="rename">${esc(t('Rename'))}</button>
+    <button type="button" role="menuitem" data-act="toggle">${esc(it.active ? t('Disable') : t('Enable'))}</button>
+    <div class="rg-menu-sep"></div>
+    <button type="button" role="menuitem" class="rg-menu-danger" data-act="delete">${esc(t('Delete'))}</button>`;
+  document.body.appendChild(menu);
+  // Rects are visual px but lengths set here get scaled by :root zoom (see the
+  // custom select menu), so work in visual px and divide the zoom back out.
+  const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  const r = btn.getBoundingClientRect();
+  const h = menu.offsetHeight * z, w = menu.offsetWidth * z;
+  const below = r.bottom + 6 + h <= window.innerHeight;
+  menu.style.top = `${Math.max(8, below ? r.bottom + 6 : r.top - 6 - h) / z}px`;
+  menu.style.left = `${Math.max(8, r.right - w) / z}px`;
+  setTimeout(() => {
+    document.addEventListener('click', closeRegionMenu);
+    document.addEventListener('keydown', regionMenuKey, true);
+    const sc = $('#settingsPanel .rg-scroll'); if (sc) sc.addEventListener('scroll', closeRegionMenu);
+  });
+  menu.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const act = e.target.closest('[data-act]'); if (!act) return;
+    closeRegionMenu();
+    if (act.dataset.act === 'rename') {
+      const name = prompt(t('Rename region'), it.name);
+      if (name === null || !name.trim() || name.trim() === it.name) return;
+      try { await api(`/regions/${it.id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) }); toast(t('Renamed')); refreshAfterSettings(); }
+      catch (ex) { toast(ex.message, true); }
+    } else if (act.dataset.act === 'toggle') {
+      if (it.active && (s.accounts || s.open) && !confirm(t('Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.', { name: it.name, accounts: s.accounts, open: s.open }))) return;
+      try { await api(`/regions/${it.id}`, { method: 'PUT', body: JSON.stringify({ active: !it.active }) }); toast(t('Saved')); refreshAfterSettings(); }
+      catch (ex) { toast(ex.message, true); }
+    } else if (act.dataset.act === 'delete') {
+      const msg = (s.accounts || s.open)
+        ? t('Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.', { name: it.name, accounts: s.accounts, open: s.open })
+        : t('Delete {name}? This cannot be undone.', { name: it.name });
+      if (!confirm(msg)) return;
+      try { await api(`/regions/${it.id}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
+      catch (ex) { toast(ex.message, true); }
+    }
+  });
+  menu.querySelector('button').focus();
 }
 
 // A region's workspace: tabs for that region's settings. Super admins get a

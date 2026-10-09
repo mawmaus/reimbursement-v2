@@ -6,7 +6,8 @@
 const express = require('express');
 const { q, qq, transaction } = require('../db');
 const { seesAllRegions, resolveLookupRegion } = require('../lib/settings');
-const { requireAuth, requireCap } = require('../lib/auth');
+const { requireAuth, requireCap, requireRole } = require('../lib/auth');
+const { OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL } = require('../lib/workflow');
 const { ah, iso, isActive } = require('../lib/util');
 
 const router = express.Router();
@@ -141,6 +142,24 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
 lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true });
 lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true });
 lookupRoutes('expense-types', 'expense_types', [], { regional: true });
+// Regions landing (super admin): per-region headcount and open workload, so the
+// list shows what each region holds — and what a delete would orphan.
+router.get('/api/regions/overview', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+  const [accounts, open] = await Promise.all([
+    q(`SELECT region, COUNT(*)::int AS n FROM users WHERE active = TRUE GROUP BY region`),
+    q(`SELECT region, SUM(n)::int AS n FROM (
+         SELECT region, COUNT(*) AS n FROM claims WHERE ${OPEN_CLAIM_SQL} GROUP BY region
+         UNION ALL SELECT region, COUNT(*) AS n FROM meal_claims WHERE ${OPEN_CLAIM_SQL} GROUP BY region
+         UNION ALL SELECT region, COUNT(*) AS n FROM cash_advances WHERE ${OPEN_ADVANCE_SQL} GROUP BY region
+       ) t GROUP BY region`)
+  ]);
+  const items = {};
+  const at = (r) => (items[r] = items[r] || { accounts: 0, open: 0 });
+  for (const r of accounts) at(r.region).accounts = r.n;
+  for (const r of open) at(r.region).open = r.n;
+  res.json({ items });
+}));
+
 lookupRoutes('regions', 'regions');
 
 module.exports = router;

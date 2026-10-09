@@ -27,6 +27,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.3',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The Regions screen in Settings is now a single tidy list: each region shows how many accounts and open documents it has, with Open settings to go in and a ⋯ menu to rename, disable or delete it. Disabled regions are grouped separately, and you are warned before disabling or deleting a region that still has accounts or open documents.',
+        id: 'Layar Wilayah di Pengaturan kini menjadi satu daftar yang rapi: setiap wilayah menampilkan jumlah akun dan dokumen terbukanya, dengan tombol Buka pengaturan untuk masuk dan menu ⋯ untuk mengganti nama, menonaktifkan, atau menghapusnya. Wilayah nonaktif dikelompokkan tersendiri, dan Anda diperingatkan sebelum menonaktifkan atau menghapus wilayah yang masih memiliki akun atau dokumen terbuka.',
+        th: 'หน้าภูมิภาคในการตั้งค่าเป็นรายการเดียวที่เป็นระเบียบแล้ว แต่ละภูมิภาคแสดงจำนวนบัญชีและเอกสารที่ยังค้าง พร้อมปุ่มเปิดการตั้งค่าเพื่อเข้าไป และเมนู ⋯ สำหรับเปลี่ยนชื่อ ปิดใช้งาน หรือลบ ภูมิภาคที่ปิดใช้งานจะแยกกลุ่มไว้ และระบบจะเตือนก่อนปิดใช้งานหรือลบภูมิภาคที่ยังมีบัญชีหรือเอกสารค้างอยู่',
+        vi: 'Màn hình Khu vực trong Cài đặt giờ là một danh sách gọn gàng: mỗi khu vực hiển thị số tài khoản và hồ sơ đang mở, kèm nút Mở cài đặt để vào và menu ⋯ để đổi tên, vô hiệu hóa hoặc xóa. Các khu vực bị vô hiệu hóa được nhóm riêng, và bạn sẽ được cảnh báo trước khi vô hiệu hóa hoặc xóa khu vực vẫn còn tài khoản hoặc hồ sơ đang mở.',
+        km: 'អេក្រង់តំបន់ក្នុងការកំណត់ឥឡូវជាបញ្ជីតែមួយយ៉ាងមានសណ្តាប់ធ្នាប់៖ តំបន់នីមួយៗបង្ហាញចំនួនគណនី និងឯកសារកំពុងបើក ដោយមានប៊ូតុង បើកការកំណត់ ដើម្បីចូល និងម៉ឺនុយ ⋯ ដើម្បីប្តូរឈ្មោះ បិទ ឬលុបវា។ តំបន់ដែលបានបិទត្រូវបានដាក់ជាក្រុមដាច់ដោយឡែក ហើយអ្នកនឹងទទួលការព្រមានមុនពេលបិទ ឬលុបតំបន់ដែលនៅមានគណនី ឬឯកសារកំពុងបើក។',
+        fil: 'Iisang maayos na listahan na ang Regions screen sa Settings: ipinapakita ng bawat rehiyon kung ilan ang account at bukas na dokumento nito, may Buksan ang settings para pumasok at ⋯ na menu para palitan ang pangalan, i-disable o burahin ito. Hiwalay na nakagrupo ang mga naka-disable na rehiyon, at binabalaan ka bago i-disable o burahin ang rehiyong may account o bukas na dokumento pa.'
+      }, audience: ['superadmin'] }
+    ]
+  },
+  {
     id: '2026-10-09.2',
     date: '2026-10-09',
     items: [

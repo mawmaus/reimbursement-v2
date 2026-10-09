@@ -581,7 +581,6 @@ I18N.addDict('id', {
   'Approves ≤ {amount}': 'Menyetujui ≤ {amount}',
   'Balance to be returned by employee: {amt}': 'Sisa yang harus dikembalikan karyawan: {amt}',
   'Capability': 'Kemampuan',
-  'Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.': 'Pilih wilayah untuk mengatur akun, departemen, posisi jabatan, jenis pengeluaran, periode klaim, dan perannya. Kelola daftar wilayah di bawah.',
   'Click a type to see its expenses': 'Klik jenis untuk melihat pengeluarannya',
   'Confirm settlement': 'Konfirmasi penyelesaian',
   'Country Manager / Managing Director permissions are set by the Super Admin.': 'Izin Country Manager / Managing Director diatur oleh Super Admin.',
@@ -596,14 +595,12 @@ I18N.addDict('id', {
   'Last month': 'Bulan lalu',
   'Last year': 'Tahun lalu',
   'Locked': 'Terkunci',
-  'Manage regions': 'Kelola wilayah',
   'Mark 1 claim as paid': 'Tandai 1 klaim sebagai dibayar',
   'Mark {n} claims as paid': 'Tandai {n} klaim sebagai dibayar',
   'Marked 1 claim as paid': '1 klaim ditandai sebagai dibayar',
   'Marked {n} claims as paid': '{n} klaim ditandai sebagai dibayar',
   'Marking…': 'Menandai…',
   'Maximum claim amount this account can approve': 'Jumlah klaim maksimum yang dapat disetujui akun ini',
-  'No regions yet. Add one below.': 'Belum ada wilayah. Tambahkan di bawah.',
   'One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).': 'Satu baris per pengeluaran — lampirkan bukti pengeluaran tersebut pada barisnya sendiri (PDF atau gambar, hingga 8 per baris).',
   'Only approved claims can be marked as paid — none of the selected are approved.': 'Hanya klaim yang disetujui yang dapat ditandai sebagai dibayar — tidak ada yang dipilih berstatus disetujui.',
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'Hanya klaim yang sudah dibayar yang pembayarannya dapat dibatalkan — tidak ada yang dipilih berstatus dibayar.',
@@ -690,5 +687,21 @@ I18N.addDict('id', {
   // iPhone "Add to Home Screen" hint
   'Install this app on your iPhone': 'Pasang aplikasi ini di iPhone Anda',
   'Tap Share, then “Add to Home Screen”.': 'Ketuk Bagikan, lalu “Tambah ke Layar Utama”.',
-  'Dismiss': 'Tutup'
+  'Dismiss': 'Tutup',
+  // Regions landing
+  'Each region has its own accounts, departments, job positions, expense types, claim window and roles.': 'Setiap wilayah memiliki akun, departemen, posisi jabatan, jenis pengeluaran, periode klaim, dan perannya sendiri.',
+  'Add region': 'Tambah wilayah',
+  '{n} account': '{n} akun',
+  '{n} accounts': '{n} akun',
+  '{n} open document': '{n} dokumen terbuka',
+  '{n} open documents': '{n} dokumen terbuka',
+  'Open settings': 'Buka pengaturan',
+  'More actions': 'Tindakan lainnya',
+  'New region name': 'Nama wilayah baru',
+  'No regions yet. Add one to get started.': 'Belum ada wilayah. Tambahkan satu untuk memulai.',
+  'Rename': 'Ganti nama',
+  'Rename region': 'Ganti nama wilayah',
+  'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'Nonaktifkan {name}? {accounts} akun dan {open} dokumen terbukanya tetap tersimpan, tetapi wilayah ini tidak dapat lagi dipilih untuk akun baru.',
+  'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'Hapus {name}? Wilayah ini masih memiliki {accounts} akun dan {open} dokumen terbuka, yang akan kehilangan wilayah yang valid. Pertimbangkan untuk menonaktifkannya saja.',
+  'Delete {name}? This cannot be undone.': 'Hapus {name}? Tindakan ini tidak dapat dibatalkan.'
 });

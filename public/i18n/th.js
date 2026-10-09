@@ -558,7 +558,6 @@ I18N.addDict('th', {
   'Approves ≤ {amount}': 'อนุมัติได้ ≤ {amount}',
   'Balance to be returned by employee: {amt}': 'ยอดที่พนักงานต้องคืน: {amt}',
   'Capability': 'สิทธิ์การใช้งาน',
-  'Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.': 'เลือกภูมิภาคเพื่อกำหนดบัญชี แผนก ตำแหน่งงาน ประเภทค่าใช้จ่าย ช่วงเวลาการเบิก และบทบาท จัดการรายการภูมิภาคด้านล่าง',
   'Click a type to see its expenses': 'คลิกที่ประเภทเพื่อดูค่าใช้จ่าย',
   'Confirm settlement': 'ยืนยันการปิดยอด',
   'Country Manager / Managing Director permissions are set by the Super Admin.': 'สิทธิ์ของ Country Manager / Managing Director กำหนดโดย Super Admin',
@@ -573,14 +572,12 @@ I18N.addDict('th', {
   'Last month': 'เดือนที่แล้ว',
   'Last year': 'ปีที่แล้ว',
   'Locked': 'ถูกล็อก',
-  'Manage regions': 'จัดการภูมิภาค',
   'Mark 1 claim as paid': 'ทำเครื่องหมาย 1 รายการว่าจ่ายแล้ว',
   'Mark {n} claims as paid': 'ทำเครื่องหมาย {n} รายการว่าจ่ายแล้ว',
   'Marked 1 claim as paid': 'ทำเครื่องหมาย 1 รายการว่าจ่ายแล้วเรียบร้อย',
   'Marked {n} claims as paid': 'ทำเครื่องหมาย {n} รายการว่าจ่ายแล้วเรียบร้อย',
   'Marking…': 'กำลังทำเครื่องหมาย…',
   'Maximum claim amount this account can approve': 'จำนวนเงินสูงสุดที่บัญชีนี้อนุมัติได้',
-  'No regions yet. Add one below.': 'ยังไม่มีภูมิภาค เพิ่มด้านล่าง',
   'One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).': 'หนึ่งแถวต่อหนึ่งค่าใช้จ่าย — แนบใบเสร็จของค่าใช้จ่ายนั้นในแถวของตนเอง (PDF หรือรูปภาพ สูงสุด 8 ต่อแถว)',
   'Only approved claims can be marked as paid — none of the selected are approved.': 'เฉพาะรายการที่อนุมัติแล้วเท่านั้นที่ทำเครื่องหมายว่าจ่ายแล้วได้ — รายการที่เลือกไม่มีรายการที่อนุมัติ',
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'เฉพาะรายการที่จ่ายแล้วเท่านั้นที่ย้อนกลับการจ่ายได้ — รายการที่เลือกไม่มีรายการที่จ่ายแล้ว',
@@ -667,5 +664,21 @@ I18N.addDict('th', {
   // iPhone "Add to Home Screen" hint
   'Install this app on your iPhone': 'ติดตั้งแอปนี้บน iPhone ของคุณ',
   'Tap Share, then “Add to Home Screen”.': 'แตะ แชร์ แล้วเลือก “เพิ่มไปยังหน้าจอโฮม”',
-  'Dismiss': 'ปิด'
+  'Dismiss': 'ปิด',
+  // Regions landing
+  'Each region has its own accounts, departments, job positions, expense types, claim window and roles.': 'แต่ละภูมิภาคมีบัญชี แผนก ตำแหน่งงาน ประเภทค่าใช้จ่าย ช่วงเวลาการเบิก และบทบาทเป็นของตัวเอง',
+  'Add region': 'เพิ่มภูมิภาค',
+  '{n} account': '{n} บัญชี',
+  '{n} accounts': '{n} บัญชี',
+  '{n} open document': 'เอกสารที่ยังค้าง {n} รายการ',
+  '{n} open documents': 'เอกสารที่ยังค้าง {n} รายการ',
+  'Open settings': 'เปิดการตั้งค่า',
+  'More actions': 'การดำเนินการเพิ่มเติม',
+  'New region name': 'ชื่อภูมิภาคใหม่',
+  'No regions yet. Add one to get started.': 'ยังไม่มีภูมิภาค เพิ่มภูมิภาคเพื่อเริ่มต้น',
+  'Rename': 'เปลี่ยนชื่อ',
+  'Rename region': 'เปลี่ยนชื่อภูมิภาค',
+  'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'ปิดใช้งาน {name} ใช่ไหม? บัญชี {accounts} บัญชีและเอกสารที่ยังค้าง {open} รายการจะยังคงอยู่ แต่จะเลือกภูมิภาคนี้ให้บัญชีใหม่ไม่ได้อีก',
+  'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'ลบ {name} ใช่ไหม? ภูมิภาคนี้ยังมี {accounts} บัญชีและเอกสารที่ยังค้าง {open} รายการ ซึ่งจะไม่มีภูมิภาคที่ถูกต้อง ลองพิจารณาปิดใช้งานแทน',
+  'Delete {name}? This cannot be undone.': 'ลบ {name} ใช่ไหม? การดำเนินการนี้ไม่สามารถย้อนกลับได้'
 });

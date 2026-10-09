@@ -68,3 +68,12 @@ test('the same account still acts on its own region; super admins act everywhere
   const bulk = await call(ROOT, 'POST', '/api/claims/mark-paid-bulk', { ...paid, items: [{ type: 'claim', id: 5 }] });
   assert.deepEqual(bulk.json, { paid: 1, skipped: 0 });
 });
+
+test('only super admins read the per-region overview', async (t) => {
+  await serve(t);
+  const fin = await call(FIN, 'GET', '/api/regions/overview');
+  assert.equal(fin.status, 403, fin.body);
+  const root = await call(ROOT, 'GET', '/api/regions/overview');
+  assert.equal(root.status, 200, root.body);
+  assert.equal(typeof root.json.items, 'object');
+});

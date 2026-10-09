@@ -558,7 +558,6 @@ I18N.addDict('km', {
   'Approves ≤ {amount}': 'អនុម័ត ≤ {amount}',
   'Balance to be returned by employee: {amt}': 'សមតុល្យដែលបុគ្គលិកត្រូវសង៖ {amt}',
   'Capability': 'សិទ្ធិ',
-  'Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.': 'ជ្រើសរើសតំបន់ដើម្បីកំណត់គណនី នាយកដ្ឋាន តំណែងការងារ ប្រភេទការចំណាយ រយៈពេលស្នើសុំ និងតួនាទី។ គ្រប់គ្រងបញ្ជីតំបន់ខាងក្រោម។',
   'Click a type to see its expenses': 'ចុចលើប្រភេទដើម្បីមើលការចំណាយ',
   'Confirm settlement': 'បញ្ជាក់ការទូទាត់បញ្ចប់',
   'Country Manager / Managing Director permissions are set by the Super Admin.': 'សិទ្ធិរបស់ Country Manager / Managing Director ត្រូវបានកំណត់ដោយ Super Admin។',
@@ -573,14 +572,12 @@ I18N.addDict('km', {
   'Last month': 'ខែមុន',
   'Last year': 'ឆ្នាំមុន',
   'Locked': 'បានចាក់សោ',
-  'Manage regions': 'គ្រប់គ្រងតំបន់',
   'Mark 1 claim as paid': 'សម្គាល់សំណើ 1 ថាបានបង់',
   'Mark {n} claims as paid': 'សម្គាល់សំណើ {n} ថាបានបង់',
   'Marked 1 claim as paid': 'បានសម្គាល់សំណើ 1 ថាបានបង់',
   'Marked {n} claims as paid': 'បានសម្គាល់សំណើ {n} ថាបានបង់',
   'Marking…': 'កំពុងសម្គាល់…',
   'Maximum claim amount this account can approve': 'ចំនួនទឹកប្រាក់សំណើអតិបរមាដែលគណនីនេះអាចអនុម័ត',
-  'No regions yet. Add one below.': 'មិនទាន់មានតំបន់ទេ។ បន្ថែមខាងក្រោម។',
   'One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).': 'មួយជួរក្នុងមួយការចំណាយ — ភ្ជាប់វិក្កយបត្រនៃការចំណាយនោះនៅជួររបស់វា (PDF ឬរូបភាព អតិបរមា ៨ ក្នុងមួយជួរ)។',
   'Only approved claims can be marked as paid — none of the selected are approved.': 'មានតែសំណើដែលបានអនុម័តទេ ដែលអាចសម្គាល់ថាបានបង់ — គ្មានសំណើដែលបានជ្រើសរើសនៅស្ថានភាពអនុម័តទេ។',
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'មានតែសំណើដែលបានបង់ទេ ដែលអាចត្រឡប់ការបង់វិញ — គ្មានសំណើដែលបានជ្រើសរើសនៅស្ថានភាពបានបង់ទេ។',
@@ -667,5 +664,21 @@ I18N.addDict('km', {
   // iPhone "Add to Home Screen" hint
   'Install this app on your iPhone': 'ដំឡើងកម្មវិធីនេះនៅលើ iPhone របស់អ្នក',
   'Tap Share, then “Add to Home Screen”.': 'ចុច Share រួចជ្រើស “Add to Home Screen”។',
-  'Dismiss': 'បិទ'
+  'Dismiss': 'បិទ',
+  // Regions landing
+  'Each region has its own accounts, departments, job positions, expense types, claim window and roles.': 'តំបន់នីមួយៗមានគណនី នាយកដ្ឋាន តំណែងការងារ ប្រភេទការចំណាយ រយៈពេលស្នើសុំ និងតួនាទីផ្ទាល់ខ្លួន។',
+  'Add region': 'បន្ថែមតំបន់',
+  '{n} account': 'គណនី {n}',
+  '{n} accounts': 'គណនី {n}',
+  '{n} open document': 'ឯកសារកំពុងបើក {n}',
+  '{n} open documents': 'ឯកសារកំពុងបើក {n}',
+  'Open settings': 'បើកការកំណត់',
+  'More actions': 'សកម្មភាពផ្សេងទៀត',
+  'New region name': 'ឈ្មោះតំបន់ថ្មី',
+  'No regions yet. Add one to get started.': 'មិនទាន់មានតំបន់នៅឡើយ។ បន្ថែមមួយដើម្បីចាប់ផ្តើម។',
+  'Rename': 'ប្តូរឈ្មោះ',
+  'Rename region': 'ប្តូរឈ្មោះតំបន់',
+  'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'បិទ {name}? គណនី {accounts} និងឯកសារកំពុងបើក {open} របស់វានៅដដែល ប៉ុន្តែមិនអាចជ្រើសរើសវាសម្រាប់គណនីថ្មីបានទៀតទេ។',
+  'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'លុប {name}? វានៅមានគណនី {accounts} និងឯកសារកំពុងបើក {open} ដែលនឹងគ្មានតំបន់ត្រឹមត្រូវ។ សូមពិចារណាបិទវាជំនួសវិញ។',
+  'Delete {name}? This cannot be undone.': 'លុប {name}? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។'
 });

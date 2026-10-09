@@ -558,7 +558,6 @@ I18N.addDict('fil', {
   'Approves ≤ {amount}': 'Inaaprubahan ang ≤ {amount}',
   'Balance to be returned by employee: {amt}': 'Balanseng ibabalik ng empleyado: {amt}',
   'Capability': 'Kakayahan',
-  'Choose a region to configure its accounts, departments, job positions, expense types, claim window and roles. Manage the region list below.': 'Pumili ng rehiyon para i-configure ang mga account, departamento, posisyon sa trabaho, uri ng gastos, claim window, at mga role nito. Pamahalaan ang listahan ng rehiyon sa ibaba.',
   'Click a type to see its expenses': 'I-click ang isang uri para makita ang mga gastos nito',
   'Confirm settlement': 'Kumpirmahin ang settlement',
   'Country Manager / Managing Director permissions are set by the Super Admin.': 'Ang mga pahintulot ng Country Manager / Managing Director ay itinatakda ng Super Admin.',
@@ -573,14 +572,12 @@ I18N.addDict('fil', {
   'Last month': 'Nakaraang buwan',
   'Last year': 'Nakaraang taon',
   'Locked': 'Naka-lock',
-  'Manage regions': 'Pamahalaan ang mga rehiyon',
   'Mark 1 claim as paid': 'Markahan ang 1 claim na bayad na',
   'Mark {n} claims as paid': 'Markahan ang {n} claim na bayad na',
   'Marked 1 claim as paid': 'Namarkahan ang 1 claim na bayad na',
   'Marked {n} claims as paid': 'Namarkahan ang {n} claim na bayad na',
   'Marking…': 'Minamarkahan…',
   'Maximum claim amount this account can approve': 'Pinakamataas na halaga ng claim na maaaprubahan ng account na ito',
-  'No regions yet. Add one below.': 'Wala pang rehiyon. Magdagdag sa ibaba.',
   'One row per expense — attach that expense\'s receipts on its own row (PDF or images, up to 8 per row).': 'Isang row bawat gastos — ilakip ang resibo ng gastos na iyon sa sarili nitong row (PDF o mga larawan, hanggang 8 bawat row).',
   'Only approved claims can be marked as paid — none of the selected are approved.': 'Tanging mga aprubadong claim lang ang maaaring markahang bayad na — walang napili na aprubado.',
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'Tanging mga bayad nang claim lang ang maaaring i-revert ang bayad — walang napili na bayad na.',
@@ -667,5 +664,21 @@ I18N.addDict('fil', {
   // iPhone "Add to Home Screen" hint
   'Install this app on your iPhone': 'I-install ang app na ito sa iyong iPhone',
   'Tap Share, then “Add to Home Screen”.': 'I-tap ang Share, saka ang “Add to Home Screen”.',
-  'Dismiss': 'Isara'
+  'Dismiss': 'Isara',
+  // Regions landing
+  'Each region has its own accounts, departments, job positions, expense types, claim window and roles.': 'Bawat rehiyon ay may sariling mga account, departamento, posisyon sa trabaho, uri ng gastos, claim window, at mga role.',
+  'Add region': 'Magdagdag ng rehiyon',
+  '{n} account': '{n} account',
+  '{n} accounts': '{n} account',
+  '{n} open document': '{n} bukas na dokumento',
+  '{n} open documents': '{n} bukas na dokumento',
+  'Open settings': 'Buksan ang settings',
+  'More actions': 'Iba pang aksyon',
+  'New region name': 'Pangalan ng bagong rehiyon',
+  'No regions yet. Add one to get started.': 'Wala pang rehiyon. Magdagdag ng isa para magsimula.',
+  'Rename': 'Palitan ang pangalan',
+  'Rename region': 'Palitan ang pangalan ng rehiyon',
+  'Disable {name}? Its {accounts} account(s) and {open} open document(s) are kept, but it can no longer be chosen for new accounts.': 'I-disable ang {name}? Mananatili ang {accounts} account at {open} bukas na dokumento nito, pero hindi na ito mapipili para sa mga bagong account.',
+  'Delete {name}? It still has {accounts} account(s) and {open} open document(s), which would be left without a valid region. Consider disabling it instead.': 'Burahin ang {name}? Mayroon pa itong {accounts} account at {open} bukas na dokumento, na mawawalan ng wastong rehiyon. Isaalang-alang na i-disable na lang ito.',
+  'Delete {name}? This cannot be undone.': 'Burahin ang {name}? Hindi na ito maibabalik.'
 });
