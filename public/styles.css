@@ -2907,3 +2907,103 @@ a[data-open-doc]:hover { text-decoration: underline; }
 }
 /* Every bar's value column is the same width, so the tracks line up. */
 .bar-val { min-width: 7.6em; text-align: right; }
+
+/* --- Show / hide password: an eye icon (was an emoji that rendered differently
+   on every OS). The emoji text stays in the markup as a no-CSS fallback. --- */
+.pw-toggle { font-size: 0; width: 34px; height: 34px; padding: 0; display: grid; place-items: center; opacity: .6; color: var(--ink-soft); }
+.pw-toggle::before { content: ''; width: 18px; height: 18px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center / contain no-repeat; }
+.pw-toggle.on::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.9 4.2A10.4 10.4 0 0 1 12 4c6.4 0 10 8 10 8a17.6 17.6 0 0 1-2.9 4.2'/%3E%3Cpath d='M6.6 6.6C3.9 8.4 2 12 2 12s3.6 8 10 8a9.7 9.7 0 0 0 5.4-1.6'/%3E%3Cpath d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/%3E%3Cpath d='M2 2l20 20'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.9 4.2A10.4 10.4 0 0 1 12 4c6.4 0 10 8 10 8a17.6 17.6 0 0 1-2.9 4.2'/%3E%3Cpath d='M6.6 6.6C3.9 8.4 2 12 2 12s3.6 8 10 8a9.7 9.7 0 0 0 5.4-1.6'/%3E%3Cpath d='M9.9 9.9a3 3 0 0 0 4.2 4.2'/%3E%3Cpath d='M2 2l20 20'/%3E%3C/svg%3E"); }
+.pw-toggle:hover { opacity: 1; background: var(--line-soft); }
+.pw-toggle:focus-visible { outline: 2px solid var(--pine); outline-offset: 0; opacity: 1; }
+.pw-toggle.on { opacity: .9; color: var(--pine-deep); }
+.pw-wrap input { padding-right: 44px; }
+/* Caps Lock warning under a password field. */
+.caps-hint { display: flex; align-items: center; gap: 6px; margin: 2px 0 0; font-size: .78rem; font-weight: 600; color: var(--amber); }
+.caps-hint[hidden] { display: none; }
+
+/* --- Sign-in (and the reset-password page, which shares the card) ---------- */
+/* Fill the real viewport under :root zoom, so the card sits truly centred. */
+.login-wrap { min-height: calc(100dvh / var(--app-zoom, 1)); }
+.login-card { max-width: 420px; padding: 34px 34px 26px; border-radius: 20px; }
+.brand.brand-stack { flex-direction: column; align-items: center; text-align: center; gap: 0; margin-bottom: 26px; }
+.brand-stack .logo-lg { height: 44px; margin-bottom: 16px; }
+.brand-stack h1 { margin: 0; font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.brand-stack p { margin: 6px 0 0; font-size: .92rem; line-height: 1.45; }
+.login-card .form { gap: 16px; }
+.login-card .form input { min-height: 46px; font-size: 1rem; }
+.login-card .btn-block { min-height: 48px; font-size: 1rem; margin-top: 4px; }
+.btn.is-busy { opacity: .8; cursor: progress; }
+.login-card .login-hint { margin-top: 20px; font-size: .82rem; line-height: 1.5; text-wrap: balance; }
+.login-card .login-lang { margin-top: 18px; }
+@media (max-width: 480px) {
+  /* Phones: the card fills the width with a little air, no floating box. */
+  .login-wrap { padding: 16px; align-items: start; padding-top: max(10vh, 24px); }
+  .login-card { padding: 26px 20px 20px; border-radius: 18px; }
+  .brand-stack h1 { font-size: 1.3rem; }
+}
+
+/* --- Export dialog ----------------------------------------------------------- */
+.modal.modal-export { width: min(760px, calc(100% - 32px)); height: min(820px, 90vh); }
+.modal-flex #exportForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Date presets as toggle chips that stay lit while their range is in place. */
+.date-presets { gap: 6px; margin-top: 10px; }
+.ex-chip { padding: 7px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface);
+  font: inherit; font-size: .84rem; font-weight: 600; color: var(--ink-soft); cursor: pointer; white-space: nowrap;
+  transition: background .14s, border-color .14s, color .14s; }
+.ex-chip:hover { border-color: var(--muted); color: var(--ink); }
+.ex-chip[aria-pressed="true"] { background: var(--pine-tint); border-color: var(--pine); color: var(--pine-deep); }
+.ex-chip:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+.ex-form .export-group, .ex-form .user-filter { border-radius: 12px; }
+.ex-form .uf-list { max-height: 260px; }
+/* Footer: what the download will cover, beside the actions. */
+.ex-summary { flex-direction: column; align-items: flex-start; gap: 1px; }
+.ex-summary .lf-total-l { font-size: .9rem; font-weight: 650; color: var(--ink); }
+@media (max-width: 720px) {
+  .modal.modal-export { height: 92vh; }
+  .ex-form .export-groups { grid-template-columns: 1fr; }
+  .ex-chip { flex: 1 1 calc(50% - 3px); text-align: center; }
+  .uf-toolbar { flex-wrap: wrap; }
+  .uf-toolbar .input { flex-basis: 100%; }
+  .uf-toolbar .btn { flex: 1; }
+  .ex-form .uf-list { max-height: none; }
+}
+
+/* --- My profile ------------------------------------------------------------- */
+.modal.modal-profile { width: min(620px, calc(100% - 32px)); height: min(860px, 90vh); }
+.modal-flex .pf-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.pf-card { padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.lf-sec.pf-card + .lf-sec.pf-card { margin-top: 14px; }
+.pf-card .lf-sec-head { margin-bottom: 2px; }
+.pf-region { margin: 0; padding: 9px 12px; border-radius: 10px; background: var(--paper); font-size: .88rem; }
+.pf-region-l { font-weight: 650; color: var(--ink-soft); margin-right: 6px; }
+.pf-card .ue-sub { margin-top: 4px; }
+.pf-actions { display: flex; justify-content: flex-end; }
+.pf-foot { justify-content: flex-end; }
+/* Password strength: four segments that fill and colour with the score. */
+.pw-meter { display: grid; grid-template-columns: repeat(4, 1fr) auto; align-items: center; gap: 4px; margin-top: -6px; }
+.pw-meter span { height: 5px; border-radius: 3px; background: var(--line); transition: background .2s; }
+.pw-meter em { min-width: 5.5em; margin-left: 6px; font-style: normal; font-size: .76rem; font-weight: 650; color: var(--muted); text-align: right; }
+.pw-meter[data-score="1"] span:nth-child(-n+1) { background: var(--red); }
+.pw-meter[data-score="2"] span:nth-child(-n+2) { background: var(--amber-mark); }
+.pw-meter[data-score="3"] span:nth-child(-n+3) { background: var(--green); }
+.pw-meter[data-score="4"] span:nth-child(-n+4) { background: var(--green); }
+.pw-meter[data-score="1"] em { color: var(--red); }
+.pw-meter[data-score="3"] em, .pw-meter[data-score="4"] em { color: var(--green); }
+.pw-match { margin: -6px 0 0; font-size: .8rem; font-weight: 600; color: var(--red); }
+.pw-match.ok { color: var(--green); }
+@media (max-width: 720px) {
+  .modal.modal-profile { height: 92vh; }
+  .pf-card { padding: 14px; }
+  .pf-actions .btn { width: 100%; }
+  .pf-foot .btn { flex: 1; }
+}
+/* Reset page: success state. */
+.reset-done { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.reset-done p { margin: 0; color: var(--ink-soft); line-height: 1.5; }
+.reset-done-ic { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+  font-size: 1.5rem; font-weight: 700; color: var(--green); background: var(--green-tint); }
+.reset-done .btn { text-decoration: none; display: grid; place-items: center; }

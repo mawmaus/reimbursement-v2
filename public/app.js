@@ -786,8 +786,28 @@ document.addEventListener('click', (e) => {
   const show = input.type === 'password';
   input.type = show ? 'text' : 'password';
   btn.classList.toggle('on', show);
-  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  btn.setAttribute('aria-label', show ? t('Hide password') : t('Show password'));
 });
+
+// Caps Lock warning under any password field while it's on (a classic reason a
+// correct password "doesn't work"). The hint is created next to the field's
+// .pw-wrap on first use, so every password form gets it for free.
+function syncCapsHint(e) {
+  const input = e.target;
+  if (!input || input.tagName !== 'INPUT' || !e.getModifierState) return;
+  const wrap = input.closest('.pw-wrap'); if (!wrap) return;
+  let hint = wrap.nextElementSibling;
+  if (!hint || !hint.classList.contains('caps-hint')) {
+    hint = document.createElement('span');
+    hint.className = 'caps-hint'; hint.hidden = true; hint.setAttribute('role', 'status');
+    wrap.insertAdjacentElement('afterend', hint);
+  }
+  const on = e.type === 'blur' ? false : e.getModifierState('CapsLock');
+  hint.textContent = '⇪ ' + t('Caps Lock is on');
+  hint.hidden = !on;
+}
+['keydown', 'keyup'].forEach(type => document.addEventListener(type, syncCapsHint, true));
+document.addEventListener('blur', (e) => { if (e.target && e.target.closest && e.target.closest('.pw-wrap')) syncCapsHint(e); }, true);
 
 // Active departments + expense types drive the claim form dropdowns.
 async function loadLookups() {
@@ -896,6 +916,10 @@ $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = $('#loginError'); err.hidden = true;
   const fd = new FormData(e.target);
+  // Busy state: a slow network shouldn't invite a second click or look frozen.
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.classList.add('is-busy'); btn.textContent = t('Signing in…');
+  const done = () => { btn.disabled = false; btn.classList.remove('is-busy'); btn.textContent = t('Sign in'); };
   try {
     const { user } = await api('/login', {
       method: 'POST',
@@ -904,8 +928,9 @@ $('#loginForm').addEventListener('submit', async (e) => {
     state.user = user;
     e.target.reset();
     adoptAccountLang(user);
+    done();
     showApp();
-  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; done(); }
 });
 
 $('#logoutBtn').addEventListener('click', () => {
@@ -3483,7 +3508,7 @@ function openModal(html) {
 function closeModal() {
   leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
-  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma', 'modal-adv');
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma', 'modal-adv', 'modal-export', 'modal-profile');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
   syncScrollLock();
 }
@@ -6505,59 +6530,70 @@ async function openExportModal() {
   users.sort((a, b) => String(a.full_name).localeCompare(String(b.full_name)));
 
   openModal(`
-    <div class="modal-head"><h2>${esc(t('Export claims to CSV'))}</h2><button class="x-btn">×</button></div>
+    ${formHeadHtml(t('Export claims to CSV'))}
     <div class="modal-body">
-      <form id="exportForm" class="form">
-        <div class="grid2">
-          <label>${esc(t('From date'))}<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
-          <label>${esc(t('To date'))}<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
-        </div>
-        <div class="date-presets">
-          <button type="button" class="btn btn-ghost btn-sm" data-unit="month" data-off="0">${esc(t('This month'))}</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-unit="month" data-off="1">${esc(t('Last month'))}</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="0">${esc(t('This year'))}</button>
-          <button type="button" class="btn btn-ghost btn-sm" data-unit="year" data-off="1">${esc(t('Last year'))}</button>
-        </div>
-        <div class="grid2 export-groups">
-          ${[
-            { title: 'Statuses to include', name: 'status', opts: EXPORT_STATUS_OPTS },
-            { title: 'Claim types', name: 'types', opts: EXPORT_TYPE_OPTS }
-          ].map(g => `
-          <div class="export-group">
-            <div class="eg-head">
-              <div class="section-label">${esc(t(g.title))}</div>
-              <button type="button" class="eg-toggle" data-group="${g.name}">${esc(t('Clear'))}</button>
+      <form id="exportForm" class="form lf-form ex-form">
+        <div class="meal-scroll">
+          <section class="lf-sec">
+            <div class="lf-sec-head"><h3>${esc(t('Date range'))}</h3></div>
+            <p class="lf-hint">${esc(t('Leave dates blank to export all dates. Dates apply to the expense / meal date.'))}</p>
+            <div class="grid2">
+              <label>${esc(t('From date'))}<input name="from" type="date" value="${esc(state.filters.exportFrom || '')}" /></label>
+              <label>${esc(t('To date'))}<input name="to" type="date" value="${esc(state.filters.exportTo || '')}" /></label>
             </div>
-            <div class="check-list">
-              ${g.opts.map(o => `
-                <label class="check-row"><input type="checkbox" name="${g.name}" value="${o.v}" checked /><span>${esc(t(o.l))}</span></label>`).join('')}
+            <div class="date-presets" role="group" aria-label="${esc(t('Date range'))}">
+              <button type="button" class="ex-chip" data-unit="month" data-off="0" aria-pressed="false">${esc(t('This month'))}</button>
+              <button type="button" class="ex-chip" data-unit="month" data-off="1" aria-pressed="false">${esc(t('Last month'))}</button>
+              <button type="button" class="ex-chip" data-unit="year" data-off="0" aria-pressed="false">${esc(t('This year'))}</button>
+              <button type="button" class="ex-chip" data-unit="year" data-off="1" aria-pressed="false">${esc(t('Last year'))}</button>
             </div>
-          </div>`).join('')}
+          </section>
+          <section class="lf-sec">
+            <div class="lf-sec-head"><h3>${esc(t('What to include'))}</h3></div>
+            <div class="grid2 export-groups">
+              ${[
+                { title: 'Statuses to include', name: 'status', opts: EXPORT_STATUS_OPTS },
+                { title: 'Claim types', name: 'types', opts: EXPORT_TYPE_OPTS }
+              ].map(g => `
+              <div class="export-group">
+                <div class="eg-head">
+                  <div class="section-label">${esc(t(g.title))}</div>
+                  <button type="button" class="eg-toggle" data-group="${g.name}">${esc(t('Clear'))}</button>
+                </div>
+                <div class="check-list">
+                  ${g.opts.map(o => `
+                    <label class="check-row"><input type="checkbox" name="${g.name}" value="${o.v}" checked /><span>${esc(t(o.l))}</span></label>`).join('')}
+                </div>
+              </div>`).join('')}
+            </div>
+          </section>
+          <section class="lf-sec">
+            <div class="lf-sec-head"><h3>${esc(t('Users (submitters)'))}</h3><span class="lf-count" id="ufCount"></span></div>
+            <div class="user-filter">
+              <div class="uf-toolbar">
+                <input id="ufSearch" class="input" type="search" placeholder="${esc(t('Search names…'))}" />
+                <button type="button" class="btn btn-ghost btn-sm" id="ufAll">${esc(t('Select all'))}</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="ufNone">${esc(t('Clear'))}</button>
+              </div>
+              <div class="uf-list" id="ufList">
+                ${users.length ? users.map(u => `
+                  <label class="uf-item" data-name="${esc((u.full_name + ' ' + u.username).toLowerCase())}">
+                    <span class="uf-name">${esc(u.full_name)} <span class="muted">(${esc(u.username)})</span></span>
+                    <input type="checkbox" name="employee" value="${u.id}" checked />
+                  </label>`).join('') : `<p class="muted" style="padding:8px">${esc(t('No users.'))}</p>`}
+              </div>
+            </div>
+          </section>
         </div>
-        <div class="section-label" style="margin-top:6px">${esc(t('Users (submitters)'))}</div>
-        <div class="user-filter">
-          <div class="uf-toolbar">
-            <input id="ufSearch" class="input" type="search" placeholder="${esc(t('Search names…'))}" />
-            <button type="button" class="btn btn-ghost btn-sm" id="ufAll">${esc(t('Select all'))}</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="ufNone">${esc(t('Clear'))}</button>
-          </div>
-          <div class="uf-list" id="ufList">
-            ${users.length ? users.map(u => `
-              <label class="uf-item" data-name="${esc((u.full_name + ' ' + u.username).toLowerCase())}">
-                <span class="uf-name">${esc(u.full_name)} <span class="muted">(${esc(u.username)})</span></span>
-                <input type="checkbox" name="employee" value="${u.id}" checked />
-              </label>`).join('') : `<p class="muted" style="padding:8px">${esc(t('No users.'))}</p>`}
-          </div>
-        </div>
-        <p class="muted" style="font-size:.8rem;margin:10px 0 0">${esc(t('Leave dates blank to export all dates. Dates apply to the expense / meal date.'))}</p>
         <p class="form-error" id="exportErr" hidden></p>
-        <div class="modal-actions sticky-foot">
+        <div class="modal-actions meal-foot">
+          <div class="lf-total ex-summary" id="exSummary"></div>
           <button type="button" class="btn btn-ghost" id="exportCancel">${esc(t('Cancel'))}</button>
           <button type="submit" class="btn btn-primary">${esc(t('Download CSV'))}</button>
         </div>
       </form>
     </div>`);
-  $('#modal').classList.add('modal-wide');
+  $('#modal').classList.add('modal-wide', 'modal-flex', 'modal-export');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#exportCancel').addEventListener('click', closeModal);
 
@@ -6576,7 +6612,24 @@ async function openExportModal() {
       : new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
     $('#exportForm [name="from"]').value = ymd(first);
     $('#exportForm [name="to"]').value = ymd(last);
+    $$('.date-presets .ex-chip').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    syncExportSummary();
   }));
+  ['from', 'to'].forEach(n => $(`#exportForm [name="${n}"]`).addEventListener('input', () => {
+    $$('.date-presets .ex-chip').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    syncExportSummary();
+  }));
+  // Footer summary (what the download will cover) + the users counter.
+  function syncExportSummary() {
+    const f = $('#exportForm'); if (!f) return;
+    const from = f.querySelector('[name="from"]').value, to = f.querySelector('[name="to"]').value;
+    const range = from && to ? `${from} – ${to}` : from ? t('From {date}', { date: from }) : to ? t('Until {date}', { date: to }) : t('All dates');
+    const picked = $$('#ufList input[name="employee"]').filter(cb => cb.checked).length;
+    const users = t('{n} of {m} users', { n: picked, m: users_total });
+    $('#exSummary').innerHTML = `<span class="lf-total-l">${esc(range)}</span><span class="lf-total-n">${esc(users)}</span>`;
+    $('#ufCount').textContent = t('{n} of {m} selected', { n: picked, m: users_total });
+  }
+  const users_total = users.length;
 
   // Status / type groups: one header button per group that reads "Clear" while
   // every box is ticked and "Select all" otherwise, and flips the whole group.
@@ -6600,8 +6653,10 @@ async function openExportModal() {
     const term = e.target.value.trim().toLowerCase();
     $$('.uf-item', list).forEach(el => { el.style.display = el.dataset.name.includes(term) ? '' : 'none'; });
   });
-  $('#ufAll').addEventListener('click', () => visibleBoxes().forEach(cb => { cb.checked = true; }));
-  $('#ufNone').addEventListener('click', () => visibleBoxes().forEach(cb => { cb.checked = false; }));
+  $('#ufAll').addEventListener('click', () => { visibleBoxes().forEach(cb => { cb.checked = true; }); syncExportSummary(); });
+  $('#ufNone').addEventListener('click', () => { visibleBoxes().forEach(cb => { cb.checked = false; }); syncExportSummary(); });
+  list.addEventListener('change', syncExportSummary);
+  syncExportSummary();
 
   $('#exportForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -6679,52 +6734,88 @@ function wireBankNameField() {
   return () => choice.value === 'Others' ? String((custom && custom.value) || '').trim() : preferred;
 }
 
+// Rough strength of a new password, 0–4: length plus character variety. A hint,
+// not a rule — the server only enforces the 8-character minimum.
+function passwordScore(pw) {
+  const v = String(pw || '');
+  if (v.length < 8) return v ? 1 : 0; // 1 = too short
+  let sc = 2;                          // meets the minimum: at least "Fair"
+  if (v.length >= 12) sc++;
+  if (/[a-z]/.test(v) && /[A-Z]/.test(v)) sc++;
+  if (/\d/.test(v) && /[^A-Za-z0-9]/.test(v)) sc++;
+  else if (/\d/.test(v) || /[^A-Za-z0-9]/.test(v)) sc += 0.5;
+  return Math.min(4, Math.floor(sc));
+}
+const PW_LABEL = ['', 'Too short', 'Fair', 'Good', 'Strong'];
+// Live meter under the new password, and a "match / don't match" line under
+// the confirmation (shown once something is typed there).
+function wirePasswordPair(pw, confirm, meter, match) {
+  const sync = () => {
+    const sc = pw.value ? Math.max(1, passwordScore(pw.value)) : 0;
+    meter.dataset.score = String(sc);
+    meter.querySelector('em').textContent = sc ? t(PW_LABEL[sc]) : '';
+    if (!confirm.value) { match.hidden = true; return; }
+    const ok = confirm.value === pw.value;
+    match.hidden = false;
+    match.classList.toggle('ok', ok);
+    match.textContent = ok ? '✓ ' + t('Passwords match') : t('The two passwords do not match.');
+  };
+  pw.addEventListener('input', sync); confirm.addEventListener('input', sync);
+  sync();
+}
+
 async function openProfileModal() {
   // Fetch the current values (login response omits bank details).
   let me = state.user || {};
   try { ({ user: me } = await api('/me')); } catch { /* fall back to state.user */ }
+  const pwField = (name, label, extra = '') => `<label>${esc(label)}
+          <div class="pw-wrap"><input name="${name}" type="password" required ${extra} />
+            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button></div></label>`;
   openModal(`
-    <div class="modal-head"><h2>${esc(t('My profile'))}</h2><button class="x-btn">×</button></div>
+    ${formHeadHtml(t('My profile'))}
     <div class="modal-body">
-      <div class="section-label" style="margin-top:0">${esc(t('Appearance'))}</div>
-      <div class="look-pick" role="radiogroup" aria-label="${esc(t('Appearance'))}">
-        ${[['classic', t('Classic')], ['ios', t('Modern')]].map(([v, l]) => `
-        <button type="button" class="look-opt" role="radio" data-look="${v}" aria-checked="${Theme.getStyle() === v}">
-          <span class="look-swatch ${v}" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="look-name">${esc(l)}</span>
-        </button>`).join('')}
-      </div>
-      <form id="profileForm" class="form" style="margin-top:18px">
-        <div class="section-label">${esc(t('Contact'))}</div>
-        <label>${esc(t('Email (used for password resets & notifications)'))}
-          <input name="email" type="email" value="${esc(me.email || '')}" placeholder="${esc(t('you@company.com'))}" /></label>
-        ${me.region ? `<div class="section-label" style="margin-top:14px">${esc(t('Region'))}</div>
-        <p class="muted" style="margin:0">${esc(regionLabel(me.region))} <span style="font-size:.8rem">— ${esc(t('set by your administrator'))}</span></p>` : ''}
-        <div class="section-label" style="margin-top:14px">${esc(t('Bank / payout details'))}</div>
-        ${bankNameField(me.bank_name, { preferredBank: me.preferredBank, bankFee: me.bankFee, currency: me.currency })}
-        <label>${esc(t('Recipient bank account name'))}<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="${esc(t('Name on the account'))}" /></label>
-        <label>${esc(t('Bank account number'))}<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="${esc(t('Account number'))}" /></label>
-        <p class="form-note caution">${esc(t('The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.'))}</p>
-        <p class="form-error" id="profileErr" hidden></p>
-        <div class="modal-actions">
+      <div class="lf-form pf-body">
+        <div class="meal-scroll">
+          <section class="lf-sec pf-card">
+            <div class="lf-sec-head"><h3>${esc(t('Appearance'))}</h3></div>
+            <div class="look-pick" role="radiogroup" aria-label="${esc(t('Appearance'))}">
+              ${[['classic', t('Classic')], ['ios', t('Modern')]].map(([v, l]) => `
+              <button type="button" class="look-opt" role="radio" data-look="${v}" aria-checked="${Theme.getStyle() === v}">
+                <span class="look-swatch ${v}" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="look-name">${esc(l)}</span>
+              </button>`).join('')}
+            </div>
+          </section>
+          <form id="profileForm" class="form lf-sec pf-card">
+            <div class="lf-sec-head"><h3>${esc(t('Contact & bank details'))}</h3></div>
+            <label>${esc(t('Email (used for password resets & notifications)'))}
+              <input name="email" type="email" value="${esc(me.email || '')}" placeholder="${esc(t('you@company.com'))}" /></label>
+            ${me.region ? `<p class="pf-region"><span class="pf-region-l">${esc(t('Region'))}</span> ${esc(regionLabel(me.region))} <span class="muted">— ${esc(t('set by your administrator'))}</span></p>` : ''}
+            <div class="ue-sub">${esc(t('Bank / payout details'))}</div>
+            ${bankNameField(me.bank_name, { preferredBank: me.preferredBank, bankFee: me.bankFee, currency: me.currency })}
+            <label>${esc(t('Recipient bank account name'))}<input name="recipient_name" value="${esc(me.recipient_name || '')}" placeholder="${esc(t('Name on the account'))}" /></label>
+            <label>${esc(t('Bank account number'))}<input name="bank_account_no" inputmode="numeric" value="${esc(me.bank_account_no || '')}" placeholder="${esc(t('Account number'))}" /></label>
+            <p class="form-note caution">${esc(t('The company is not responsible if you submit the wrong bank details. Please triple check and make sure it is your bank details and it is the right one. Thank you.'))}</p>
+            <p class="form-error" id="profileErr" hidden></p>
+            <div class="pf-actions"><button type="submit" class="btn btn-primary">${esc(t('Save details'))}</button></div>
+          </form>
+          <form id="pwForm" class="form lf-sec pf-card">
+            <div class="lf-sec-head"><h3>${esc(t('Change password'))}</h3></div>
+            ${pwField('current_password', t('Current password'), 'autocomplete="current-password"')}
+            ${pwField('new_password', t('New password (min 8 characters)'), 'minlength="8" autocomplete="new-password"')}
+            <div class="pw-meter" id="pwMeter" data-score="0" aria-live="polite"><span></span><span></span><span></span><span></span><em id="pwMeterL"></em></div>
+            ${pwField('confirm_password', t('Confirm new password'), 'minlength="8" autocomplete="new-password"')}
+            <p class="pw-match" id="pwMatch" hidden></p>
+            <p class="form-error" id="pwErr" hidden></p>
+            <div class="pf-actions"><button type="submit" class="btn btn-primary">${esc(t('Update password'))}</button></div>
+          </form>
+        </div>
+        <div class="modal-actions meal-foot pf-foot">
           <button type="button" class="btn btn-ghost" id="profileCancel">${esc(t('Close'))}</button>
-          <button type="submit" class="btn btn-primary">${esc(t('Save details'))}</button>
         </div>
-      </form>
-      <form id="pwForm" class="form" style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">
-        <div class="section-label">${esc(t('Change password'))}</div>
-        <label>${esc(t('Current password'))}
-          <div class="pw-wrap"><input name="current_password" type="password" required />
-            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button></div></label>
-        <label>${esc(t('New password (min 8 characters)'))}
-          <div class="pw-wrap"><input name="new_password" type="password" required minlength="8" />
-            <button type="button" class="pw-toggle" aria-label="${esc(t('Show password'))}">👁</button></div></label>
-        <p class="form-error" id="pwErr" hidden></p>
-        <div class="modal-actions">
-          <button type="submit" class="btn btn-primary">${esc(t('Update password'))}</button>
-        </div>
-      </form>
+      </div>
     </div>`);
+  $('#modal').classList.add('modal-flex', 'modal-profile');
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#profileCancel').addEventListener('click', closeModal);
   const bankName = wireBankNameField();
@@ -6753,14 +6844,16 @@ async function openProfileModal() {
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 
+  wirePasswordPair($('#pwForm [name="new_password"]'), $('#pwForm [name="confirm_password"]'), $('#pwMeter'), $('#pwMatch'));
   $('#pwForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#pwErr'); err.hidden = true;
     const fd = new FormData(e.target);
+    if (fd.get('new_password') !== fd.get('confirm_password')) { err.textContent = t('The two passwords do not match.'); err.hidden = false; return; }
     try {
       await api('/me/password', { method: 'POST', body: JSON.stringify({
         current_password: fd.get('current_password'), new_password: fd.get('new_password') }) });
-      toast(t('Password updated')); e.target.reset();
+      toast(t('Password updated')); e.target.reset(); $('#pwForm [name="new_password"]').dispatchEvent(new Event('input'));
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
   });
 }

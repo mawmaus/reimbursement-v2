@@ -10,40 +10,42 @@
 <body>
 <div class="login-wrap">
   <div class="login-card">
-    <div class="brand">
+    <div class="brand brand-stack">
       <img class="logo logo-lg" src="logo.svg" alt="Cibes" />
-      <div>
-        <h1>Reset password</h1>
-        <p class="muted">Choose a new password for your account.</p>
-      </div>
+      <h1 data-i18n="Reset password">Reset password</h1>
+      <p class="muted" id="resetIntro" data-i18n="Choose a new password for your account.">Choose a new password for your account.</p>
     </div>
 
     <form id="resetForm" class="form">
-      <label>New password (min 8 characters)
+      <label><span data-i18n="New password (min 8 characters)">New password (min 8 characters)</span>
         <div class="pw-wrap">
           <input name="new_password" type="password" required minlength="8" autocomplete="new-password" />
-          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+          <button type="button" class="pw-toggle" data-i18n-aria="Show password" aria-label="Show password">👁</button>
         </div>
       </label>
-      <label>Confirm new password
+      <div class="pw-meter" id="pwMeter" data-score="0" aria-live="polite"><span></span><span></span><span></span><span></span><em></em></div>
+      <label><span data-i18n="Confirm new password">Confirm new password</span>
         <div class="pw-wrap">
           <input name="confirm_password" type="password" required minlength="8" autocomplete="new-password" />
-          <button type="button" class="pw-toggle" aria-label="Show password">👁</button>
+          <button type="button" class="pw-toggle" data-i18n-aria="Show password" aria-label="Show password">👁</button>
         </div>
       </label>
+      <p class="pw-match" id="pwMatch" hidden></p>
       <p id="resetError" class="form-error" hidden></p>
-      <button type="submit" class="btn btn-primary btn-block">Set new password</button>
+      <button type="submit" class="btn btn-primary btn-block" data-i18n="Set new password">Set new password</button>
     </form>
 
-    <div id="resetDone" hidden>
-      <p class="form-note">Your password has been reset. You can now sign in with your new password.</p>
-      <p style="margin-top:16px"><a class="btn btn-primary btn-block" href="/">Go to sign in</a></p>
+    <div id="resetDone" class="reset-done" hidden>
+      <div class="reset-done-ic" aria-hidden="true">✓</div>
+      <p data-i18n="Your password has been reset. You can now sign in with your new password.">Your password has been reset. You can now sign in with your new password.</p>
+      <a class="btn btn-primary btn-block" href="/" data-i18n="Go to sign in">Go to sign in</a>
     </div>
 
-    <p class="login-hint muted"><a href="/">Back to sign in</a></p>
+    <p class="login-hint muted" id="resetBack"><a href="/" data-i18n="Back to sign in">Back to sign in</a></p>
   </div>
 </div>
 
+<script src="i18n.js"></script>
 <script src="reset.js"></script>
 </body>
 </html>

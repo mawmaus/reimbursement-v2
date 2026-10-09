@@ -28,6 +28,44 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-09.11',
+    date: '2026-10-09',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Sign-in and passwords: the sign-in page is centred and easier to read, shows "Signing in…" while it works, and warns you when Caps Lock is on. Changing your password (in My profile) now asks you to type the new password twice and shows how strong it is, and the show-password eye is a proper icon everywhere.',
+        id: 'Masuk dan kata sandi: halaman masuk kini berada di tengah dan lebih mudah dibaca, menampilkan "Sedang masuk…" saat diproses, dan memperingatkan jika Caps Lock aktif. Mengganti kata sandi (di Profil saya) kini meminta Anda mengetik kata sandi baru dua kali dan menunjukkan seberapa kuat kata sandi tersebut, dan ikon mata untuk menampilkan kata sandi kini berupa ikon yang rapi di semua tempat.',
+        th: 'การเข้าสู่ระบบและรหัสผ่าน: หน้าเข้าสู่ระบบอยู่กึ่งกลางและอ่านง่ายขึ้น แสดง "กำลังเข้าสู่ระบบ…" ระหว่างดำเนินการ และเตือนเมื่อ Caps Lock เปิดอยู่ การเปลี่ยนรหัสผ่าน (ในโปรไฟล์ของฉัน) จะให้พิมพ์รหัสผ่านใหม่สองครั้งและแสดงความแข็งแรงของรหัสผ่าน และปุ่มรูปตาสำหรับแสดงรหัสผ่านเป็นไอคอนที่เรียบร้อยในทุกที่',
+        vi: 'Đăng nhập và mật khẩu: trang đăng nhập được căn giữa và dễ đọc hơn, hiển thị "Đang đăng nhập…" khi đang xử lý, và cảnh báo khi Caps Lock đang bật. Đổi mật khẩu (trong Hồ sơ của tôi) giờ yêu cầu nhập mật khẩu mới hai lần và cho biết độ mạnh của mật khẩu, và nút con mắt để hiện mật khẩu giờ là biểu tượng gọn gàng ở mọi nơi.',
+        km: 'ការចូល និងពាក្យសម្ងាត់៖ ទំព័រចូលឥឡូវនៅកណ្តាល និងងាយអានជាងមុន បង្ហាញ "កំពុងចូល…" ពេលកំពុងដំណើរការ ហើយព្រមានពេល Caps Lock កំពុងបើក។ ការប្តូរពាក្យសម្ងាត់ (ក្នុងប្រវត្តិរូបរបស់ខ្ញុំ) ឥឡូវស្នើឱ្យវាយពាក្យសម្ងាត់ថ្មីពីរដង និងបង្ហាញថាវារឹងមាំប៉ុណ្ណា ហើយប៊ូតុងភ្នែកសម្រាប់បង្ហាញពាក្យសម្ងាត់ជារូបតំណាងដែលមានសណ្តាប់ធ្នាប់គ្រប់កន្លែង។',
+        fil: 'Pag-sign in at password: nasa gitna na at mas madaling basahin ang sign-in page, nagpapakita ng "Nagsa-sign in…" habang gumagana, at nagbababala kapag naka-on ang Caps Lock. Ang pagpapalit ng password (sa Aking profile) ay humihiling na ngayong i-type nang dalawang beses ang bagong password at ipinapakita kung gaano ito katibay, at maayos nang icon ang mata para ipakita ang password saanman.'
+      } },
+      { kind: 'improved', text: {
+        en: 'My profile is organised into cards — Appearance, Contact & bank details, and Change password — each with its own Save button.',
+        id: 'Profil saya kini tersusun dalam kartu — Tampilan, Kontak & detail bank, dan Ganti kata sandi — masing-masing dengan tombol Simpan sendiri.',
+        th: 'โปรไฟล์ของฉันจัดเป็นการ์ดแล้ว — รูปลักษณ์ ข้อมูลติดต่อและบัญชีธนาคาร และเปลี่ยนรหัสผ่าน — แต่ละการ์ดมีปุ่มบันทึกของตัวเอง',
+        vi: 'Hồ sơ của tôi được sắp thành các thẻ — Giao diện, Liên hệ & thông tin ngân hàng, và Đổi mật khẩu — mỗi thẻ có nút Lưu riêng.',
+        km: 'ប្រវត្តិរូបរបស់ខ្ញុំត្រូវបានរៀបជាកាត — រូបរាង ទំនាក់ទំនង និងព័ត៌មានធនាគារ និងប្តូរពាក្យសម្ងាត់ — ដោយកាតនីមួយៗមានប៊ូតុងរក្សាទុកផ្ទាល់ខ្លួន។',
+        fil: 'Nakaayos na sa mga card ang Aking profile — Itsura, Contact at detalye ng bangko, at Palitan ang password — na may kanya-kanyang Save button.'
+      } },
+      { kind: 'improved', text: {
+        en: 'Export claims to CSV is split into Date range, What to include and Users, the date shortcuts stay highlighted while they apply, the user list shows how many are selected, and a summary of what you are about to download sits next to the Download button.',
+        id: 'Ekspor klaim ke CSV kini dibagi menjadi Rentang tanggal, Yang disertakan, dan Pengguna; pintasan tanggal tetap tersorot selama berlaku, daftar pengguna menampilkan berapa yang dipilih, dan ringkasan isi unduhan berada di samping tombol Unduh.',
+        th: 'การส่งออกรายการเบิกเป็น CSV แบ่งเป็นช่วงวันที่ สิ่งที่จะรวม และผู้ใช้ ปุ่มลัดวันที่จะยังคงไฮไลต์ขณะใช้งาน รายชื่อผู้ใช้แสดงจำนวนที่เลือก และสรุปสิ่งที่กำลังจะดาวน์โหลดอยู่ข้างปุ่มดาวน์โหลด',
+        vi: 'Xuất yêu cầu ra CSV được chia thành Khoảng ngày, Nội dung xuất và Người dùng; các phím tắt ngày luôn được làm nổi bật khi đang áp dụng, danh sách người dùng hiển thị số đã chọn, và phần tóm tắt nội dung sắp tải nằm cạnh nút Tải xuống.',
+        km: 'ការនាំចេញសំណើទៅ CSV ត្រូវបានបែងចែកជា ចន្លោះកាលបរិច្ឆេទ អ្វីដែលត្រូវរួមបញ្ចូល និងអ្នកប្រើ ផ្លូវកាត់កាលបរិច្ឆេទនៅតែរំលេចពេលកំពុងអនុវត្ត បញ្ជីអ្នកប្រើបង្ហាញចំនួនដែលបានជ្រើស ហើយសេចក្តីសង្ខេបនៃអ្វីដែលអ្នកនឹងទាញយកនៅក្បែរប៊ូតុងទាញយក។',
+        fil: 'Nahahati na ang Export claims to CSV sa Saklaw ng petsa, Mga isasama at Mga user; nananatiling naka-highlight ang mga shortcut ng petsa habang ginagamit, ipinapakita ng listahan ng user kung ilan ang napili, at nasa tabi ng Download button ang buod ng ida-download mo.'
+      }, audience: ['export'] },
+      { kind: 'fixed', text: {
+        en: 'The page you reach from a password-reset email now appears in your language instead of always in English.',
+        id: 'Halaman yang Anda buka dari email reset kata sandi kini tampil dalam bahasa Anda, bukan selalu dalam bahasa Inggris.',
+        th: 'หน้าที่เปิดจากอีเมลรีเซ็ตรหัสผ่านแสดงเป็นภาษาของคุณแล้ว แทนที่จะเป็นภาษาอังกฤษเสมอ',
+        vi: 'Trang bạn mở từ email đặt lại mật khẩu giờ hiển thị bằng ngôn ngữ của bạn thay vì luôn là tiếng Anh.',
+        km: 'ទំព័រដែលអ្នកបើកពីអ៊ីមែលកំណត់ពាក្យសម្ងាត់ឡើងវិញឥឡូវបង្ហាញជាភាសារបស់អ្នក ជំនួសឱ្យភាសាអង់គ្លេសជានិច្ច។',
+        fil: 'Lumalabas na sa iyong wika ang pahinang naaabot mula sa password-reset email, sa halip na laging nasa Ingles.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-09.10',
     date: '2026-10-09',
     items: [
