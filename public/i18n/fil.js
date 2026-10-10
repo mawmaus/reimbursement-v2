@@ -796,5 +796,24 @@ I18N.addDict('fil', {
   'Added {n}': 'Naidagdag ang {n}',
   'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'Nagamit nang {n} beses. Burahin pa rin? Mananatili ang pangalang ito sa mga naisumiteng claim, pero hindi na ito mapipili. I-disable na lang para manatili sa record.',
   'Renamed — {count} moved to the new name.': 'Napalitan ang pangalan — inilipat ang {count} sa bagong pangalan.',
-  'Renamed. Claims already filed keep the old name.': 'Napalitan ang pangalan. Mananatili ang lumang pangalan sa mga naisumiteng claim.'
+  'Renamed. Claims already filed keep the old name.': 'Napalitan ang pangalan. Mananatili ang lumang pangalan sa mga naisumiteng claim.',
+  // Meal allowance amounts editor
+  'Not claimed yet': 'Hindi pa na-claim',
+  'Claimed once': 'Na-claim nang isang beses',
+  'Claimed {n} times': 'Na-claim nang {n} beses',
+  '{region} is using the built-in default amounts. Save to make this list the region’s own.': 'Ginagamit ng {region} ang mga default na halaga. I-save para maging sariling listahan ito ng rehiyon.',
+  'This region': 'Ang rehiyong ito',
+  'Amounts': 'Mga halaga',
+  'Up to {n} amounts': 'Hanggang {n} halaga',
+  'Claimants choose from': 'Pinagpipilian ng mga nagke-claim',
+  'Shown lowest first. Claims already filed keep their amount.': 'Ipinapakita mula sa pinakamababa. Mananatili ang halaga ng mga naisumiteng claim.',
+  'Unsaved changes': 'May mga pagbabagong hindi pa nase-save',
+  'Discard': 'Itapon',
+  'No amounts — nobody in {region} can claim a meal allowance.': 'Walang halaga — walang sinuman sa {region} ang makakapag-claim ng meal allowance.',
+  '{n} of {m}': '{n} sa {m}',
+  'Also on filed claims: {list}': 'Nasa mga naisumiteng claim din: {list}',
+  'Amount {n}': 'Halaga {n}',
+  'Saved. Removed amounts stay on claims already filed.': 'Na-save. Mananatili ang mga inalis na halaga sa mga naisumiteng claim.',
+  'Remove the duplicate to save': 'Alisin ang doble para ma-save',
+  'Listed twice': 'Doble'
 });

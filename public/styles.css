@@ -2972,3 +2972,40 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .lk-sort { flex: 1 1 100%; }
   .lk-sort .msel { flex: 1; width: auto; }
 }
+
+/* --- Meal allowance amounts ------------------------------------------------- */
+/* Each amount with its currency inside the field and how often it was claimed
+   beside it; duplicates flagged in place; a preview of what claimants pick
+   from; an unsaved-changes footer. */
+.mr-card { max-width: 640px; }
+.mr-note { margin: 0 0 14px; padding: 9px 12px; border-radius: 10px; font-size: .84rem; line-height: 1.4;
+  color: var(--pine-deep); background: var(--pine-tint); }
+.mr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.mr-count { font-size: .76rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--muted); }
+.mr-rows { display: flex; flex-direction: column; gap: 8px; }
+.mr-row { display: grid; grid-template-columns: minmax(150px, 220px) 1fr auto; align-items: center; gap: 12px; }
+.mr-field { position: relative; display: flex; align-items: center; }
+.mr-cur { position: absolute; left: 12px; font-size: .8rem; font-weight: 650; color: var(--muted); pointer-events: none; }
+.mr-field .mr-amt { width: 100%; margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.mr-field .mr-cur + .mr-amt { padding-left: 52px; }
+.mr-meta { min-width: 0; font-size: .8rem; line-height: 1.3; color: var(--muted); }
+.mr-use.none { font-style: italic; }
+.mr-dup .mr-amt { border-color: var(--red); }
+.mr-dup-msg { color: var(--red); font-weight: 600; }
+.mr-rm { width: 32px; height: 32px; border-radius: 8px; }
+.mr-rm:hover { background: var(--paper); color: var(--ink); }
+.mr-add { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.mr-max { font-size: .8rem; color: var(--muted); }
+.mr-preview { display: flex; flex-wrap: wrap; gap: 6px; }
+.mr-chip { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: .82rem; font-weight: 600;
+  color: var(--ink-soft); background: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mr-empty { font-size: .84rem; font-weight: 600; color: var(--amber); }
+.mr-hint, .mr-other { margin: 8px 0 0; font-size: .8rem; line-height: 1.4; color: var(--muted); }
+.mr-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.mr-dirty { margin-right: auto; font-size: .8rem; font-weight: 600; color: var(--amber); }
+@media (max-width: 560px) {
+  .mr-row { grid-template-columns: 1fr auto; row-gap: 3px; }
+  .mr-field { grid-column: 1; }
+  .mr-rm { grid-column: 2; grid-row: 1; }
+  .mr-meta { grid-column: 1 / -1; padding-left: 2px; }
+}

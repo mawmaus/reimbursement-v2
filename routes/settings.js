@@ -4,6 +4,7 @@
 // matrix.
 
 const express = require('express');
+const { q } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, isISODate, isActive } = require('../lib/util');
 const {
@@ -16,7 +17,7 @@ const {
 const { claimWindowView } = require('../lib/claim-window');
 const {
   CAPABILITIES, EDITABLE_ROLES, editableRolesFor, loadRolePermsForRegion,
-  CAPABILITY_KEYS
+  CAPABILITY_KEYS, userCan
 } = require('../lib/permissions');
 
 const router = express.Router();
@@ -110,10 +111,25 @@ router.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
 // own region (the meal form needs the dropdown options); a super admin may read
 // any region via ?region. Edited by anyone with the manage_settings capability
 // (same audience as departments / expense types / the claim window).
+// `?manage=1` from a settings manager (the Settings tab) also returns the
+// region's currency, whether the list is still the built-in default, and how
+// many meal-allowance lines in the region used each amount (and when last).
 router.get('/api/meal-rates', requireAuth, ah(async (req, res) => {
   const region = await resolveLookupRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
-  res.json({ region, rates: mealRatesFor(await loadAppSettings(), region) });
+  const settings = await loadAppSettings();
+  const out = { region, rates: mealRatesFor(settings, region) };
+  if (req.query.manage === '1' && userCan(req.user, 'manage_settings') && region) {
+    const rows = await q(
+      `SELECT l.amount_cents AS cents, COUNT(*)::int AS n, MAX(l.line_date) AS last
+         FROM meal_claim_lines l JOIN meal_claims c ON c.id = l.meal_claim_id
+        WHERE c.region = $1 GROUP BY l.amount_cents`, [region]);
+    out.currency = regionPrefs(settings, region).currency;
+    out.isDefault = !Array.isArray(mealRatesMap(settings)[region]);
+    out.usage = rows.map(r => ({ amount: Number(r.cents) / 100, uses: r.n || 0, last_used: r.last || null }));
+    out.max = MAX_MEAL_RATES;
+  }
+  res.json(out);
 }));
 
 router.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {

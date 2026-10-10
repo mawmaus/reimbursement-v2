@@ -130,3 +130,16 @@ test('expense types report their usage to settings managers only', async (t) => 
   assert.equal(await usageAsked(CMMD, '/api/expense-types'), false);
   assert.equal(await usageAsked(CMMD, '/api/expense-types?manage=1'), true);
 });
+
+test('meal allowance amounts report usage to settings managers only', async (t) => {
+  await serve(t);
+  const fin = await call(FIN, 'GET', '/api/meal-rates?manage=1');
+  assert.equal(fin.status, 200, fin.body);
+  assert.equal(fin.json.usage, undefined, 'the meal form read stays as it was');
+  assert.ok(Array.isArray(fin.json.rates));
+  const mgr = await call(CMMD, 'GET', '/api/meal-rates?manage=1');
+  assert.equal(mgr.status, 200, mgr.body);
+  assert.ok(Array.isArray(mgr.json.usage));
+  assert.equal(mgr.json.isDefault, true);
+  assert.equal(typeof mgr.json.currency, 'string');
+});

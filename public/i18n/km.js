@@ -796,5 +796,24 @@ I18N.addDict('km', {
   'Added {n}': 'បានបន្ថែម {n}',
   'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'បានប្រើ {n} ដង។ លុបចោលដដែលឬ? ការទាមទារដែលបានដាក់រួច នៅរក្សាឈ្មោះនេះ ប៉ុន្តែមិនអាចជ្រើសរើសបានទៀតទេ។ បិទវាជំនួសវិញ ដើម្បីរក្សាទុកក្នុងកំណត់ត្រា។',
   'Renamed — {count} moved to the new name.': 'បានប្តូរឈ្មោះ — {count} បានផ្លាស់ទៅឈ្មោះថ្មី។',
-  'Renamed. Claims already filed keep the old name.': 'បានប្តូរឈ្មោះ។ ការទាមទារដែលបានដាក់រួច នៅរក្សាឈ្មោះចាស់។'
+  'Renamed. Claims already filed keep the old name.': 'បានប្តូរឈ្មោះ។ ការទាមទារដែលបានដាក់រួច នៅរក្សាឈ្មោះចាស់។',
+  // Meal allowance amounts editor
+  'Not claimed yet': 'មិនទាន់មានការទាមទារ',
+  'Claimed once': 'បានទាមទារម្តង',
+  'Claimed {n} times': 'បានទាមទារ {n} ដង',
+  '{region} is using the built-in default amounts. Save to make this list the region’s own.': '{region} កំពុងប្រើចំនួនលំនាំដើម។ រក្សាទុកដើម្បីឱ្យបញ្ជីនេះជារបស់តំបន់ផ្ទាល់។',
+  'This region': 'តំបន់នេះ',
+  'Amounts': 'ចំនួនទឹកប្រាក់',
+  'Up to {n} amounts': 'រហូតដល់ {n} ចំនួន',
+  'Claimants choose from': 'អ្នកទាមទារជ្រើសពី',
+  'Shown lowest first. Claims already filed keep their amount.': 'បង្ហាញពីតិចទៅច្រើន។ ការទាមទារដែលបានដាក់រួច រក្សាចំនួនដដែល។',
+  'Unsaved changes': 'មានការផ្លាស់ប្តូរមិនទាន់រក្សាទុក',
+  'Discard': 'បោះបង់',
+  'No amounts — nobody in {region} can claim a meal allowance.': 'គ្មានចំនួន — គ្មាននរណានៅ {region} អាចទាមទារប្រាក់អាហារបានទេ។',
+  '{n} of {m}': '{n} ក្នុង {m}',
+  'Also on filed claims: {list}': 'ក៏មាននៅលើការទាមទារដែលបានដាក់៖ {list}',
+  'Amount {n}': 'ចំនួន {n}',
+  'Saved. Removed amounts stay on claims already filed.': 'បានរក្សាទុក។ ចំនួនដែលបានដកចេញ នៅតែមាននៅលើការទាមទារដែលបានដាក់រួច។',
+  'Remove the duplicate to save': 'ដកចំនួនដែលស្ទួនចេញដើម្បីរក្សាទុក',
+  'Listed twice': 'ស្ទួនគ្នា'
 });

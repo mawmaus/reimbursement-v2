@@ -819,5 +819,24 @@ I18N.addDict('id', {
   'Added {n}': '{n} ditambahkan',
   'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'Dipakai {n} kali. Tetap hapus? Klaim yang sudah diajukan tetap memakai nama ini, tetapi tidak bisa dipilih lagi. Nonaktifkan saja agar tetap tercatat.',
   'Renamed — {count} moved to the new name.': 'Diganti nama — {count} dipindahkan ke nama baru.',
-  'Renamed. Claims already filed keep the old name.': 'Diganti nama. Klaim yang sudah diajukan tetap memakai nama lama.'
+  'Renamed. Claims already filed keep the old name.': 'Diganti nama. Klaim yang sudah diajukan tetap memakai nama lama.',
+  // Meal allowance amounts editor
+  'Not claimed yet': 'Belum pernah diklaim',
+  'Claimed once': 'Diklaim sekali',
+  'Claimed {n} times': 'Diklaim {n} kali',
+  '{region} is using the built-in default amounts. Save to make this list the region’s own.': '{region} memakai jumlah bawaan. Simpan agar daftar ini menjadi milik region tersebut.',
+  'This region': 'Region ini',
+  'Amounts': 'Jumlah',
+  'Up to {n} amounts': 'Maksimal {n} jumlah',
+  'Claimants choose from': 'Pilihan bagi pengklaim',
+  'Shown lowest first. Claims already filed keep their amount.': 'Ditampilkan dari yang terendah. Klaim yang sudah diajukan tetap memakai jumlahnya.',
+  'Unsaved changes': 'Ada perubahan yang belum disimpan',
+  'Discard': 'Buang',
+  'No amounts — nobody in {region} can claim a meal allowance.': 'Tidak ada jumlah — tidak ada yang di {region} bisa mengajukan tunjangan makan.',
+  '{n} of {m}': '{n} dari {m}',
+  'Also on filed claims: {list}': 'Juga ada di klaim yang diajukan: {list}',
+  'Amount {n}': 'Jumlah {n}',
+  'Saved. Removed amounts stay on claims already filed.': 'Disimpan. Jumlah yang dihapus tetap ada di klaim yang sudah diajukan.',
+  'Remove the duplicate to save': 'Hapus jumlah ganda untuk menyimpan',
+  'Listed twice': 'Tercantum dua kali'
 });

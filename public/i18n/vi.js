@@ -796,5 +796,24 @@ I18N.addDict('vi', {
   'Added {n}': 'Đã thêm {n}',
   'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'Đã dùng {n} lần. Vẫn xóa? Các yêu cầu đã nộp giữ nguyên tên này, nhưng không thể chọn lại nữa. Hãy vô hiệu hóa thay vì xóa để giữ lại hồ sơ.',
   'Renamed — {count} moved to the new name.': 'Đã đổi tên — {count} đã chuyển sang tên mới.',
-  'Renamed. Claims already filed keep the old name.': 'Đã đổi tên. Các yêu cầu đã nộp vẫn giữ tên cũ.'
+  'Renamed. Claims already filed keep the old name.': 'Đã đổi tên. Các yêu cầu đã nộp vẫn giữ tên cũ.',
+  // Meal allowance amounts editor
+  'Not claimed yet': 'Chưa có ai yêu cầu',
+  'Claimed once': 'Đã yêu cầu 1 lần',
+  'Claimed {n} times': 'Đã yêu cầu {n} lần',
+  '{region} is using the built-in default amounts. Save to make this list the region’s own.': '{region} đang dùng các mức mặc định. Lưu để danh sách này thành của riêng khu vực.',
+  'This region': 'Khu vực này',
+  'Amounts': 'Các mức tiền',
+  'Up to {n} amounts': 'Tối đa {n} mức',
+  'Claimants choose from': 'Người yêu cầu chọn từ',
+  'Shown lowest first. Claims already filed keep their amount.': 'Hiển thị từ thấp đến cao. Các yêu cầu đã nộp giữ nguyên số tiền.',
+  'Unsaved changes': 'Có thay đổi chưa lưu',
+  'Discard': 'Hủy thay đổi',
+  'No amounts — nobody in {region} can claim a meal allowance.': 'Không có mức nào — không ai ở {region} có thể yêu cầu phụ cấp ăn.',
+  '{n} of {m}': '{n}/{m}',
+  'Also on filed claims: {list}': 'Cũng có trong các yêu cầu đã nộp: {list}',
+  'Amount {n}': 'Mức {n}',
+  'Saved. Removed amounts stay on claims already filed.': 'Đã lưu. Các mức đã xóa vẫn còn trong các yêu cầu đã nộp.',
+  'Remove the duplicate to save': 'Xóa mức bị trùng để lưu',
+  'Listed twice': 'Bị trùng'
 });

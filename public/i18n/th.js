@@ -796,5 +796,24 @@ I18N.addDict('th', {
   'Added {n}': 'เพิ่ม {n} รายการแล้ว',
   'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'ใช้ไปแล้ว {n} ครั้ง ต้องการลบหรือไม่ เคลมที่ยื่นแล้วจะยังใช้ชื่อนี้ แต่จะเลือกไม่ได้อีก ปิดใช้งานแทนเพื่อเก็บไว้ในระบบ',
   'Renamed — {count} moved to the new name.': 'เปลี่ยนชื่อแล้ว — ย้าย {count} ไปใช้ชื่อใหม่แล้ว',
-  'Renamed. Claims already filed keep the old name.': 'เปลี่ยนชื่อแล้ว เคลมที่ยื่นแล้วจะยังใช้ชื่อเดิม'
+  'Renamed. Claims already filed keep the old name.': 'เปลี่ยนชื่อแล้ว เคลมที่ยื่นแล้วจะยังใช้ชื่อเดิม',
+  // Meal allowance amounts editor
+  'Not claimed yet': 'ยังไม่เคยเบิก',
+  'Claimed once': 'เบิก 1 ครั้ง',
+  'Claimed {n} times': 'เบิก {n} ครั้ง',
+  '{region} is using the built-in default amounts. Save to make this list the region’s own.': '{region} ใช้จำนวนเงินค่าเริ่มต้นอยู่ บันทึกเพื่อให้รายการนี้เป็นของภูมิภาคนี้',
+  'This region': 'ภูมิภาคนี้',
+  'Amounts': 'จำนวนเงิน',
+  'Up to {n} amounts': 'สูงสุด {n} รายการ',
+  'Claimants choose from': 'ผู้เบิกเลือกได้จาก',
+  'Shown lowest first. Claims already filed keep their amount.': 'แสดงจากน้อยไปมาก เคลมที่ยื่นแล้วจะคงจำนวนเดิม',
+  'Unsaved changes': 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก',
+  'Discard': 'ยกเลิก',
+  'No amounts — nobody in {region} can claim a meal allowance.': 'ไม่มีจำนวนเงิน — ไม่มีใครใน {region} เบิกค่าอาหารได้',
+  '{n} of {m}': '{n} จาก {m}',
+  'Also on filed claims: {list}': 'ยังมีในเคลมที่ยื่นแล้ว: {list}',
+  'Amount {n}': 'จำนวนเงิน {n}',
+  'Saved. Removed amounts stay on claims already filed.': 'บันทึกแล้ว จำนวนที่ลบออกยังคงอยู่ในเคลมที่ยื่นแล้ว',
+  'Remove the duplicate to save': 'ลบจำนวนที่ซ้ำเพื่อบันทึก',
+  'Listed twice': 'ซ้ำกัน'
 });

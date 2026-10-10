@@ -7365,72 +7365,128 @@ async function renderDateChanges() {
 
 // --- Meal allowance rates (per-region dropdown presets) ----------------------
 // Editor for the preset amounts the Meal Allowance form's Amount dropdown offers,
-// scoped to the workspace region. Each preset is an optional label + an amount.
-// Saved via PUT /api/meal-rates; open to anyone with manage_settings.
-let mealRatesEdit = [];
-function mealRateEditRowHtml(n, i) {
-  return `<div class="mr-row" data-i="${i}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-    <input name="amount" class="input mr-amt" inputmode="numeric" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0" style="flex:1;min-width:0;margin:0" />
-    <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button>
-  </div>`;
-}
-function readMealRateEdit() {
-  mealRatesEdit = $$('#mrRows [data-i]').map(el => mealAmount(el.querySelector('[name="amount"]').value));
-}
-function renderMealRateRows() {
-  $('#mrRows').innerHTML = mealRatesEdit.length
-    ? mealRatesEdit.map(mealRateEditRowHtml).join('')
-    : `<p class="muted" style="margin:4px 0">${esc(t('No amounts yet — add one below.'))}</p>`;
-  $$('#mrRows [data-rm]').forEach(b => b.addEventListener('click', () => {
-    readMealRateEdit(); mealRatesEdit.splice(+b.dataset.rm, 1); renderMealRateRows();
-  }));
-  // Group digits as the admin types, like the amount fields elsewhere.
-  $$('#mrRows .mr-amt').forEach(inp => inp.addEventListener('input', () => {
-    const pos = inp.value.length; inp.value = groupAmount(inp.value);
-    // Keep the caret at the end (grouping shifts characters); good enough here.
-    void pos;
-  }));
-}
+// scoped to the workspace region; saved via PUT /api/meal-rates (manage_settings).
+// Each row shows how often that amount was claimed; a live preview shows what
+// claimants will pick from (lowest first, which is also how it is saved).
 async function renderMealRatesTab() {
   const panel = $('#settingsPanel');
-  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  const region = settingsState.region || '';
+  const regionQS = region ? `?region=${encodeURIComponent(region)}&manage=1` : '?manage=1';
   let data;
   try { data = await api('/meal-rates' + regionQS); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  mealRatesEdit = (data.rates || []).slice();
-  if (!mealRatesEdit.length) mealRatesEdit = [0];
+  const cur = data.currency || '';
+  const max = data.max || 20;
+  const usage = new Map((data.usage || []).map(u => [Math.round(u.amount), u]));
+  const saved = (data.rates || []).slice();
+  let rows = saved.length ? saved.slice() : [0];
+  const money = (n) => `${cur ? cur + ' ' : ''}${groupAmount(String(n))}`;
+  const usageText = (n) => {
+    const u = n > 0 && usage.get(n);
+    if (!n) return '';
+    if (!u || !u.uses) return `<span class="mr-use none">${esc(t('Not claimed yet'))}</span>`;
+    return `<span class="mr-use">${esc(t(u.uses === 1 ? 'Claimed once' : 'Claimed {n} times', { n: u.uses })
+      + (u.last_used ? ' · ' + t('last {date}', { date: u.last_used }) : ''))}</span>`;
+  };
+  const clean = (list) => [...new Set(list.filter(n => n > 0))].sort((a, b) => a - b);
+  const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
   panel.innerHTML = `
-    <div class="settings-controls ws-card ws-card-narrow">
-      <div id="mrRows"></div>
-      <div style="margin-top:6px">
+    <div class="settings-controls ws-card mr-card">
+      ${data.isDefault ? `<div class="mr-note">${esc(t('{region} is using the built-in default amounts. Save to make this list the region’s own.', { region: region || t('This region') }))}</div>` : ''}
+      <div class="ws-card-label mr-head"><span>${esc(t('Amounts'))}</span><span class="mr-count" id="mrCount"></span></div>
+      <div id="mrRows" class="mr-rows"></div>
+      <div class="mr-add">
         <button type="button" class="btn btn-brand-soft btn-sm" id="mrAddRow">${esc(t('+ Add amount'))}</button>
+        <span class="mr-max" id="mrMax" hidden>${esc(t('Up to {n} amounts', { n: max }))}</span>
       </div>
-      <p class="form-error" id="mrErr" hidden style="margin-top:12px"></p>
-      <div class="ws-card-foot">
-        <button type="button" class="btn btn-primary btn-sm" id="mrSave">${esc(t('Save'))}</button>
+      <div class="ws-card-label ws-card-split">${esc(t('Claimants choose from'))}</div>
+      <div class="mr-preview" id="mrPreview"></div>
+      <p class="mr-hint">${esc(t('Shown lowest first. Claims already filed keep their amount.'))}</p>
+      <p class="mr-other" id="mrOther" hidden></p>
+      <p class="form-error" id="mrErr" hidden></p>
+      <div class="ws-card-foot mr-foot">
+        <span class="mr-dirty" id="mrDirty" hidden>${esc(t('Unsaved changes'))}</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="mrDiscard" hidden>${esc(t('Discard'))}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="mrSave" disabled>${esc(t('Save'))}</button>
       </div>
     </div>`;
-  renderMealRateRows();
-  $('#mrAddRow').addEventListener('click', () => {
-    readMealRateEdit(); mealRatesEdit.push(0); renderMealRateRows();
-  });
+
+  const read = () => { rows = $$('#mrRows .mr-amt').map(inp => mealAmount(inp.value)); };
+  // Everything that depends on the current rows: duplicates, usage, preview,
+  // counter, the "other amounts on filed claims" line and the Save state.
+  const paint = () => {
+    const seen = new Map();
+    rows.forEach((n, i) => { if (n > 0) seen.set(n, (seen.get(n) || 0) + 1); });
+    $$('#mrRows .mr-row').forEach((row, i) => {
+      const n = rows[i];
+      const dup = n > 0 && seen.get(n) > 1;
+      row.classList.toggle('mr-dup', dup);
+      row.querySelector('.mr-meta').innerHTML = dup ? `<span class="mr-dup-msg">${esc(t('Listed twice'))}</span>` : usageText(n);
+    });
+    const list = clean(rows);
+    $('#mrPreview').innerHTML = list.length
+      ? list.map(n => `<span class="mr-chip">${esc(money(n))}</span>`).join('')
+      : `<span class="mr-empty">${esc(t('No amounts — nobody in {region} can claim a meal allowance.', { region: region || t('this region') }))}</span>`;
+    $('#mrCount').textContent = t('{n} of {m}', { n: rows.filter(n => n > 0).length, m: max });
+    const full = rows.length >= max;
+    $('#mrAddRow').disabled = full; $('#mrMax').hidden = !full;
+    const others = [...usage.values()].filter(u => u.uses && !list.includes(Math.round(u.amount)))
+      .sort((a, b) => b.uses - a.uses).slice(0, 6);
+    const other = $('#mrOther');
+    other.hidden = !others.length;
+    other.textContent = others.length ? t('Also on filed claims: {list}', { list: others.map(u => `${money(Math.round(u.amount))} (${u.uses}×)`).join(', ') }) : '';
+    const dirty = !same(list, clean(saved));
+    const dups = [...seen.values()].some(c => c > 1);
+    const note = $('#mrDirty');
+    note.hidden = !dirty && !dups;
+    note.textContent = dups ? t('Remove the duplicate to save') : t('Unsaved changes');
+    $('#mrDiscard').hidden = !dirty && !dups;
+    $('#mrSave').disabled = !(dirty || data.isDefault) || dups;
+  };
+  const drawRows = (focusIdx) => {
+    $('#mrRows').innerHTML = rows.map((n, i) => `
+      <div class="mr-row">
+        <div class="mr-field">${cur ? `<span class="mr-cur">${esc(cur)}</span>` : ''}
+          <input class="input mr-amt" inputmode="numeric" autocomplete="off" value="${n ? esc(groupAmount(String(n))) : ''}" placeholder="0"
+            aria-label="${esc(t('Amount {n}', { n: i + 1 }))}" /></div>
+        <div class="mr-meta"></div>
+        <button type="button" class="x-btn mr-rm" data-rm="${i}" aria-label="${esc(t('Remove'))}" title="${esc(t('Remove'))}">×</button>
+      </div>`).join('');
+    $$('#mrRows .mr-amt').forEach((inp, i) => {
+      inp.addEventListener('input', () => { inp.value = groupAmount(inp.value.replace(/\./g, '')); read(); paint(); });
+      // Enter moves on to the next amount, adding a row at the end.
+      inp.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault(); read();
+        if (i === rows.length - 1) { if (rows.length < max) { rows.push(0); drawRows(rows.length - 1); } }
+        else $$('#mrRows .mr-amt')[i + 1].focus();
+      });
+    });
+    $$('#mrRows [data-rm]').forEach(b => b.addEventListener('click', () => {
+      read(); rows.splice(+b.dataset.rm, 1); if (!rows.length) rows.push(0);
+      drawRows(Math.min(+b.dataset.rm, rows.length - 1));
+    }));
+    paint();
+    if (focusIdx != null) { const f = $$('#mrRows .mr-amt')[focusIdx]; if (f) f.focus(); }
+  };
+  drawRows();
+  $('#mrAddRow').addEventListener('click', () => { read(); if (rows.length < max) { rows.push(0); drawRows(rows.length - 1); } });
+  $('#mrDiscard').addEventListener('click', () => { rows = saved.length ? saved.slice() : [0]; $('#mrErr').hidden = true; drawRows(); });
   $('#mrSave').addEventListener('click', async () => {
     const err = $('#mrErr'); err.hidden = true;
-    readMealRateEdit();
-    // Keep only rows with a positive amount; a blank row is simply dropped.
-    const rates = mealRatesEdit.filter(n => n > 0);
+    read();
+    const rates = clean(rows);
+    const removedInUse = clean(saved).filter(n => !rates.includes(n) && usage.get(n) && usage.get(n).uses);
+    const btn = $('#mrSave'); btn.disabled = true;
     try {
-      const saved = await api('/meal-rates', { method: 'PUT', body: JSON.stringify({
-        rates, ...(settingsState.region ? { region: settingsState.region } : {})
-      }) });
+      const res = await api('/meal-rates', { method: 'PUT', body: JSON.stringify({ rates, ...(region ? { region } : {}) }) });
       // If this is the signed-in user's own region, refresh the presets the meal
       // form uses so a new claim reflects the change without a reload.
-      if (!settingsState.region || settingsState.region === state.user.region) {
-        state.mealRates = saved.rates || [];
-      }
-      toast(t('Meal allowance amounts saved'));
+      if (!region || region === state.user.region) state.mealRates = res.rates || [];
+      toast(removedInUse.length ? t('Saved. Removed amounts stay on claims already filed.') : t('Meal allowance amounts saved'));
       renderMealRatesTab();
-    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; paint(); }
   });
 }
 

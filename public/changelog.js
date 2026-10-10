@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.5',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Meal allowance shows the currency in each amount, how often each amount has been claimed and when it was last used, and a preview of exactly what claimants pick from. Duplicate amounts are flagged before you save, the list is kept lowest first, Enter adds the next amount, and unsaved changes can be discarded.',
+        id: 'Pengaturan → Tunjangan makan kini menampilkan mata uang di setiap jumlah, seberapa sering setiap jumlah diklaim dan kapan terakhir dipakai, serta pratinjau pilihan yang dilihat pengklaim. Jumlah ganda ditandai sebelum disimpan, daftar diurutkan dari yang terendah, Enter menambah jumlah berikutnya, dan perubahan yang belum disimpan bisa dibuang.',
+        th: 'การตั้งค่า → ค่าอาหาร แสดงสกุลเงินในแต่ละจำนวน จำนวนครั้งที่แต่ละจำนวนถูกเบิกและใช้ล่าสุดเมื่อใด พร้อมตัวอย่างสิ่งที่ผู้เบิกจะเลือกได้ จำนวนที่ซ้ำจะถูกแจ้งก่อนบันทึก รายการเรียงจากน้อยไปมาก กด Enter เพื่อเพิ่มจำนวนถัดไป และยกเลิกการเปลี่ยนแปลงที่ยังไม่บันทึกได้',
+        vi: 'Cài đặt → Phụ cấp ăn giờ hiển thị đơn vị tiền trong từng mức, số lần mỗi mức được yêu cầu và lần dùng gần nhất, cùng bản xem trước đúng những gì người yêu cầu sẽ chọn. Các mức trùng được đánh dấu trước khi lưu, danh sách luôn xếp từ thấp đến cao, Enter thêm mức tiếp theo, và có thể hủy các thay đổi chưa lưu.',
+        km: 'ការកំណត់ → ប្រាក់អាហារ ឥឡូវបង្ហាញរូបិយប័ណ្ណក្នុងចំនួននីមួយៗ ចំនួនដងដែលចំនួននីមួយៗត្រូវបានទាមទារ និងពេលប្រើចុងក្រោយ ព្រមទាំងការមើលជាមុននូវអ្វីដែលអ្នកទាមទារនឹងជ្រើស។ ចំនួនស្ទួនត្រូវបានសម្គាល់មុនពេលរក្សាទុក បញ្ជីតម្រៀបពីតិចទៅច្រើន ចុច Enter ដើម្បីបន្ថែមចំនួនបន្ទាប់ ហើយអាចបោះបង់ការផ្លាស់ប្តូរដែលមិនទាន់រក្សាទុក។',
+        fil: 'Ipinapakita na ng Settings → Meal allowance ang currency sa bawat halaga, kung gaano kadalas na-claim ang bawat halaga at kailan ito huling ginamit, at preview ng eksaktong pagpipilian ng mga nagke-claim. Minamarkahan ang dobleng halaga bago mag-save, laging nakaayos mula sa pinakamababa, nagdadagdag ng susunod na halaga ang Enter, at maaaring itapon ang mga pagbabagong hindi pa nase-save.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.4',
     date: '2026-10-10',
     items: [
