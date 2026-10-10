@@ -7527,17 +7527,23 @@ async function renderRolesTab() {
   const editable = new Set(editableRoles || []);
   const head = `<th>${esc(t('Capability'))}</th>`
     + roles.map(r => `<th class="role-h"><span class="role-h-label">${esc(roleLabel(r))}</span>${editable.has(r) ? '' : `<div class="role-locked">${esc(t('Locked'))}</div>`}</th>`).join('');
-  const cell = (cap, role) => {
-    const on = !!(matrix[role] && matrix[role][cap]);
+  // Each tick carries its role's name: hidden under the column headers in the
+  // wide grid, shown beside the box when narrow screens stack each capability
+  // as a card — and always its accessible name (role + capability).
+  const cell = (c, role) => {
+    const on = !!(matrix[role] && matrix[role][c.key]);
     const canEdit = editable.has(role);
     const title = canEdit ? '' : (role === 'employee'
       ? t('The Employee baseline is fixed.')
       : t('This role’s permissions are managed by a more senior administrator.'));
-    return `<td class="tick-cell" style="text-align:center"><input type="checkbox" ${canEdit ? `data-role="${role}" data-cap="${cap}"` : 'disabled'} ${on ? 'checked' : ''}${title ? ` title="${esc(title)}"` : ''} /></td>`;
+    return `<td class="tick-cell rp-cell${canEdit ? '' : ' rp-locked'}"><label class="rp-tog"${title ? ` title="${esc(title)}"` : ''}>
+      <input type="checkbox" ${canEdit ? `data-role="${role}" data-cap="${c.key}"` : 'disabled'} ${on ? 'checked' : ''}
+        aria-label="${esc(roleLabel(role))}: ${esc(t(c.label))}" />
+      <span class="rp-role">${esc(roleLabel(role))}${canEdit ? '' : ` <span class="rp-lock">${esc(t('Locked'))}</span>`}</span></label></td>`;
   };
   panel.innerHTML = `
     <div class="settings-list ws-table">
-      <div class="matrix-scroll">
+      <div class="matrix-wrap">
       <table class="utable utable-matrix">
         <thead><tr>${head}</tr></thead>
         <tbody>${capabilities.map(c => `
@@ -7546,7 +7552,7 @@ async function renderRolesTab() {
               <div>${esc(t(c.label))}</div>
               <div class="u-sub" style="color:var(--muted);font-size:.8rem;font-weight:400">${esc(t(c.desc))}</div>
             </td>
-            ${roles.map(r => cell(c.key, r)).join('')}
+            ${roles.map(r => cell(c, r)).join('')}
           </tr>`).join('')}</tbody>
       </table>
       </div>

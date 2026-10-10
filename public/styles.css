@@ -790,13 +790,6 @@ input[type="search"] { min-width: 220px; }
 
 /* users table */
 .utable { width: 100%; border-collapse: collapse; font-size: .9rem; }
-/* The Roles capability matrix is a checkbox grid keyed by role columns; it can be
-   wider than its modal, so it scrolls sideways inside its own container instead of
-   being clipped by the (overflow-x:hidden) settings list. */
-.matrix-scroll { overflow-x: auto; }
-.utable-matrix { width: 100%; }
-.utable-matrix th:first-child { width: 34%; min-width: 260px; }
-.utable-matrix th.role-h { text-align: center; min-width: 104px; overflow-wrap: normal; hyphens: none; }
 .utable th, .utable td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line-soft); }
 .utable th { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
 .tick-cell { text-align: center; }
@@ -1320,24 +1313,6 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
   .settings-list .utable-manage tr { column-gap: 14px; }
 }
 
-/* The Roles matrix must NOT reflow into cards — its checkbox cells have no
-   per-cell label, so stacked they're meaningless. Keep it a real table (it
-   scrolls sideways in .matrix-scroll). This block overrides the card reflow
-   above for the matrix only. */
-@media (max-width: 900px) {
-  .settings-list .utable-matrix { display: table; width: auto; min-width: max-content; }
-  .settings-list .utable-matrix thead { display: table-header-group; }
-  .settings-list .utable-matrix tbody { display: table-row-group; }
-  .settings-list .utable-matrix tr {
-    display: table-row; border: 0; margin: 0; padding: 0; background: none; border-radius: 0;
-  }
-  .settings-list .utable-matrix th,
-  .settings-list .utable-matrix td {
-    display: table-cell; width: auto !important;
-    border: none; border-bottom: 1px solid var(--line-soft); padding: 9px 10px;
-  }
-  .settings-list .utable-matrix td[data-label]::before { display: none; }
-}
 
 /* Meal + reimbursement line tables reflow to labelled cards below tablet width,
    so they never force a horizontal scroll — phones (portrait AND landscape) and
@@ -2388,15 +2363,6 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .ws-card-foot { margin: 14px -14px -16px; padding: 10px 14px; }
   .ws-card-foot .btn { flex: 1; }
   .ws-card.ws-card-narrow { max-width: none; }
-  /* Roles matrix scrolls sideways; keep the capability column pinned. */
-  /* The table sizes to max-content here, so fix the first column's text
-     width or the descriptions never wrap and push the roles off-screen. */
-  .utable-matrix th:first-child { min-width: 0; }
-  .utable-matrix td:first-child > div { width: 165px; white-space: normal; }
-  .utable-matrix .role-h-label { display: block; width: 84px; margin: 0 auto; white-space: normal; }
-  .utable-matrix th:first-child, .utable-matrix td:first-child {
-    position: sticky; left: 0; z-index: 3; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
-  .utable-matrix th.role-h { min-width: 92px; }
   /* Reset-password dialog: full-width buttons. */
   .rp-actions .btn { flex: 1; }
 }
@@ -2914,3 +2880,41 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .reset-done-ic { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
   font-size: 1.5rem; font-weight: 700; color: var(--green); background: var(--green-tint); }
 .reset-done .btn { text-decoration: none; display: grid; place-items: center; }
+
+/* --- Roles (capability × role grid) — never scrolls sideways -------------- */
+/* Wide screens: a fixed-layout grid that fits its container — the capability
+   column takes about a third, the six roles share the rest equally, and role
+   names wrap in the header instead of forcing extra width. */
+.utable-matrix { width: 100%; table-layout: fixed; }
+.utable-matrix th:first-child { width: 28%; }
+/* Role names in normal case: readable, and narrow enough for their column. */
+.utable-matrix th.role-h { text-align: center; vertical-align: bottom; overflow-wrap: normal; hyphens: none; white-space: normal; line-height: 1.25;
+  text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 650; color: var(--ink-soft); }
+.utable-matrix td.name-cell { overflow-wrap: normal; }
+.utable-matrix td.rp-cell { text-align: center; }
+.rp-tog { display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.rp-tog input { width: 17px; height: 17px; margin: 0; flex: none; accent-color: var(--pine); cursor: pointer; }
+.rp-locked .rp-tog, .rp-locked .rp-tog input { cursor: not-allowed; }
+/* The role name beside each box is for the card layout (and screen readers). */
+.rp-role { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Narrow screens (phones, tablets, small laptops): one card per capability —
+   name + description on top, then the six roles as labelled checkboxes that
+   wrap onto as many rows as the width needs. */
+@media (max-width: 1100px) {
+  .settings-list .utable-matrix, .settings-list .utable-matrix tbody { display: block; width: 100%; }
+  .settings-list .utable-matrix thead { display: none; }
+  .settings-list .utable-matrix tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+    gap: 6px 10px; padding: 14px 16px; margin: 0; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: none; }
+  .settings-list .utable-matrix tr:last-child { border-bottom: 0; }
+  .settings-list .utable-matrix td { display: block; width: auto !important; padding: 0; border: 0; text-align: left; }
+  .settings-list .utable-matrix td[data-label]::before { display: none; }
+  .settings-list .utable-matrix td.name-cell { grid-column: 1 / -1; margin-bottom: 6px; }
+  .settings-list .utable-matrix td.name-cell > div:first-child { font-weight: 650; color: var(--ink); }
+  .rp-tog { display: flex; justify-content: flex-start; width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--surface); }
+  .rp-tog:has(input:checked) { border-color: var(--pine); background: var(--pine-tint); }
+  .rp-locked .rp-tog { background: var(--paper); }
+  .rp-role { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal;
+    font-size: .86rem; font-weight: 560; color: var(--ink-soft); line-height: 1.25; }
+  .rp-lock { display: block; font-size: .72rem; font-weight: 600; color: var(--muted); }
+}

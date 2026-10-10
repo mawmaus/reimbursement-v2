@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.1',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Roles no longer scrolls sideways. On a wide screen the whole grid fits; on phones, tablets and small laptops each permission becomes a card with every role listed as a labelled checkbox, and roles you cannot change are marked "Locked".',
+        id: 'Pengaturan → Peran tidak lagi bergulir ke samping. Di layar lebar seluruh tabel muat; di ponsel, tablet, dan laptop kecil setiap izin menjadi kartu dengan setiap peran sebagai kotak centang berlabel, dan peran yang tidak dapat Anda ubah ditandai "Terkunci".',
+        th: 'การตั้งค่า → บทบาท ไม่ต้องเลื่อนไปด้านข้างอีกต่อไป บนจอกว้างตารางทั้งหมดแสดงได้พอดี บนโทรศัพท์ แท็บเล็ต และแล็ปท็อปขนาดเล็ก แต่ละสิทธิ์จะเป็นการ์ดที่แสดงทุกบทบาทเป็นช่องทำเครื่องหมายพร้อมชื่อ และบทบาทที่คุณเปลี่ยนไม่ได้จะมีป้าย "ถูกล็อก"',
+        vi: 'Cài đặt → Vai trò không còn phải cuộn ngang. Trên màn hình rộng, toàn bộ bảng vừa khít; trên điện thoại, máy tính bảng và laptop nhỏ, mỗi quyền thành một thẻ liệt kê từng vai trò dưới dạng ô đánh dấu có tên, và các vai trò bạn không thể thay đổi được đánh dấu "Đã khóa".',
+        km: 'ការកំណត់ → តួនាទី លែងរំកិលទៅចំហៀងទៀតហើយ។ នៅលើអេក្រង់ធំ តារាងទាំងមូលសមល្មម។ នៅលើទូរស័ព្ទ ថេប្លេត និងកុំព្យូទ័រយួរដៃតូច សិទ្ធិនីមួយៗក្លាយជាកាតដែលបង្ហាញតួនាទីនីមួយៗជាប្រអប់ធីកមានឈ្មោះ ហើយតួនាទីដែលអ្នកមិនអាចប្តូរបាន ត្រូវបានសម្គាល់ថា "បានចាក់សោ"។',
+        fil: 'Hindi na kailangang mag-scroll patagilid sa Settings → Roles. Sa malapad na screen, kasya ang buong grid; sa phone, tablet at maliit na laptop, nagiging card ang bawat pahintulot na may bawat role bilang checkbox na may pangalan, at may markang "Naka-lock" ang mga role na hindi mo mababago.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-09.11',
     date: '2026-10-09',
     items: [
