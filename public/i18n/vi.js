@@ -838,5 +838,22 @@ I18N.addDict('vi', {
   'Saving blocks expenses dated {range}.': 'Lưu sẽ chặn các chi phí có ngày {range}.',
   'Saving blocks every expense dated before {date}.': 'Lưu sẽ chặn mọi chi phí có ngày trước {date}.',
   'Saving reopens expenses dated {range}.': 'Lưu sẽ mở lại các chi phí có ngày {range}.',
-  'Saving removes the limit — expenses of any date become claimable.': 'Lưu sẽ bỏ giới hạn — chi phí của bất kỳ ngày nào đều có thể yêu cầu.'
+  'Saving removes the limit — expenses of any date become claimable.': 'Lưu sẽ bỏ giới hạn — chi phí của bất kỳ ngày nào đều có thể yêu cầu.',
+  // Currency, time zone & bank editor
+  'Currency': 'Tiền tệ',
+  'New claims, meal allowances and cash advances in {region} use this currency.': 'Các yêu cầu, phụ cấp ăn và tạm ứng mới ở {region} dùng loại tiền này.',
+  'Time zone': 'Múi giờ',
+  'Decides what counts as “today” for claim dates in {region}.': 'Quyết định ngày nào là “hôm nay” đối với ngày yêu cầu ở {region}.',
+  'Bank payouts': 'Chi trả qua ngân hàng',
+  'Employees see': 'Nhân viên thấy',
+  'Now in {zone}: {date} {time}': 'Hiện tại ở {zone}: {date} {time}',
+  '“today” becomes {date} there; claim dates are checked against it.': '“hôm nay” sẽ là {date} ở đó; ngày yêu cầu được kiểm tra theo ngày này.',
+  '{n} in {cur}': '{n} bằng {cur}',
+  'Only new claims use {cur}. Open documents keep their own currency ({list}).': 'Chỉ yêu cầu mới dùng {cur}. Các chứng từ đang mở giữ nguyên loại tiền ({list}).',
+  'Only new claims use {cur}; claims already filed keep their currency.': 'Chỉ yêu cầu mới dùng {cur}; các yêu cầu đã nộp giữ nguyên loại tiền.',
+  'Open documents now: {list}.': 'Chứng từ đang mở: {list}.',
+  'No open documents right now.': 'Hiện không có chứng từ nào đang mở.',
+  'Transfers to {bank} are free. Other banks: {fee} per payment.': 'Chuyển đến {bank} miễn phí. Ngân hàng khác: {fee} mỗi lần chi trả.',
+  'Transfers to any bank are free.': 'Chuyển đến mọi ngân hàng đều miễn phí.',
+  'Enter the preferred (no-fee) bank name': 'Nhập tên ngân hàng ưu tiên (không phí)'
 });

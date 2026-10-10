@@ -143,3 +143,13 @@ test('meal allowance amounts report usage to settings managers only', async (t) 
   assert.equal(mgr.json.isDefault, true);
   assert.equal(typeof mgr.json.currency, 'string');
 });
+
+test('region defaults report open documents by currency to their editors only', async (t) => {
+  await serve(t);
+  const fin = await call(FIN, 'GET', '/api/region-prefs?manage=1');
+  assert.equal(fin.status, 200, fin.body);
+  assert.equal(fin.json.openByCurrency, undefined, 'the claim form read stays as it was');
+  const mgr = await call(CMMD, 'GET', '/api/region-prefs?manage=1');
+  assert.equal(mgr.status, 200, mgr.body);
+  assert.equal(typeof mgr.json.openByCurrency, 'object');
+});

@@ -838,5 +838,22 @@ I18N.addDict('km', {
   'Saving blocks expenses dated {range}.': 'ការរក្សាទុកនឹងរារាំងចំណាយដែលមានកាលបរិច្ឆេទ {range}។',
   'Saving blocks every expense dated before {date}.': 'ការរក្សាទុកនឹងរារាំងចំណាយទាំងអស់ដែលមានកាលបរិច្ឆេទមុន {date}។',
   'Saving reopens expenses dated {range}.': 'ការរក្សាទុកនឹងបើកវិញនូវចំណាយដែលមានកាលបរិច្ឆេទ {range}។',
-  'Saving removes the limit — expenses of any date become claimable.': 'ការរក្សាទុកនឹងដកដែនកំណត់ចេញ — ចំណាយគ្រប់កាលបរិច្ឆេទអាចទាមទារបាន។'
+  'Saving removes the limit — expenses of any date become claimable.': 'ការរក្សាទុកនឹងដកដែនកំណត់ចេញ — ចំណាយគ្រប់កាលបរិច្ឆេទអាចទាមទារបាន។',
+  // Currency, time zone & bank editor
+  'Currency': 'រូបិយប័ណ្ណ',
+  'New claims, meal allowances and cash advances in {region} use this currency.': 'ការទាមទារ ប្រាក់អាហារ និងប្រាក់បុរេប្រទានថ្មីនៅ {region} ប្រើរូបិយប័ណ្ណនេះ។',
+  'Time zone': 'តំបន់ម៉ោង',
+  'Decides what counts as “today” for claim dates in {region}.': 'កំណត់ថាថ្ងៃណាជា “ថ្ងៃនេះ” សម្រាប់កាលបរិច្ឆេទទាមទារនៅ {region}។',
+  'Bank payouts': 'ការទូទាត់តាមធនាគារ',
+  'Employees see': 'អ្វីដែលបុគ្គលិកឃើញ',
+  'Now in {zone}: {date} {time}': 'ឥឡូវនៅ {zone}៖ {date} {time}',
+  '“today” becomes {date} there; claim dates are checked against it.': '“ថ្ងៃនេះ” ក្លាយជា {date} នៅទីនោះ ហើយកាលបរិច្ឆេទទាមទារត្រូវបានពិនិត្យតាមវា។',
+  '{n} in {cur}': '{n} ជា {cur}',
+  'Only new claims use {cur}. Open documents keep their own currency ({list}).': 'មានតែការទាមទារថ្មីប៉ុណ្ណោះដែលប្រើ {cur}។ ឯកសារដែលនៅបើក រក្សារូបិយប័ណ្ណដើម ({list})។',
+  'Only new claims use {cur}; claims already filed keep their currency.': 'មានតែការទាមទារថ្មីប៉ុណ្ណោះដែលប្រើ {cur}។ ការទាមទារដែលបានដាក់រួច រក្សារូបិយប័ណ្ណដើម។',
+  'Open documents now: {list}.': 'ឯកសារដែលកំពុងបើក៖ {list}។',
+  'No open documents right now.': 'បច្ចុប្បន្នគ្មានឯកសារកំពុងបើកទេ។',
+  'Transfers to {bank} are free. Other banks: {fee} per payment.': 'ការផ្ទេរទៅ {bank} ឥតគិតថ្លៃ។ ធនាគារផ្សេង៖ {fee} ក្នុងមួយការទូទាត់។',
+  'Transfers to any bank are free.': 'ការផ្ទេរទៅធនាគារណាក៏ឥតគិតថ្លៃ។',
+  'Enter the preferred (no-fee) bank name': 'បញ្ចូលឈ្មោះធនាគារដែលពេញចិត្ត (គ្មានថ្លៃ)'
 });

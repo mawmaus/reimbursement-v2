@@ -861,5 +861,22 @@ I18N.addDict('id', {
   'Saving blocks expenses dated {range}.': 'Menyimpan akan memblokir pengeluaran bertanggal {range}.',
   'Saving blocks every expense dated before {date}.': 'Menyimpan akan memblokir semua pengeluaran bertanggal sebelum {date}.',
   'Saving reopens expenses dated {range}.': 'Menyimpan akan membuka kembali pengeluaran bertanggal {range}.',
-  'Saving removes the limit — expenses of any date become claimable.': 'Menyimpan akan menghapus batas — pengeluaran tanggal berapa pun bisa diklaim.'
+  'Saving removes the limit — expenses of any date become claimable.': 'Menyimpan akan menghapus batas — pengeluaran tanggal berapa pun bisa diklaim.',
+  // Currency, time zone & bank editor
+  'Currency': 'Mata uang',
+  'New claims, meal allowances and cash advances in {region} use this currency.': 'Klaim, tunjangan makan, dan uang muka baru di {region} memakai mata uang ini.',
+  'Time zone': 'Zona waktu',
+  'Decides what counts as “today” for claim dates in {region}.': 'Menentukan apa yang dianggap “hari ini” untuk tanggal klaim di {region}.',
+  'Bank payouts': 'Pembayaran bank',
+  'Employees see': 'Yang dilihat karyawan',
+  'Now in {zone}: {date} {time}': 'Sekarang di {zone}: {date} {time}',
+  '“today” becomes {date} there; claim dates are checked against it.': '“hari ini” menjadi {date} di sana; tanggal klaim diperiksa terhadapnya.',
+  '{n} in {cur}': '{n} dalam {cur}',
+  'Only new claims use {cur}. Open documents keep their own currency ({list}).': 'Hanya klaim baru yang memakai {cur}. Dokumen yang masih terbuka tetap memakai mata uangnya ({list}).',
+  'Only new claims use {cur}; claims already filed keep their currency.': 'Hanya klaim baru yang memakai {cur}; klaim yang sudah diajukan tetap memakai mata uangnya.',
+  'Open documents now: {list}.': 'Dokumen terbuka saat ini: {list}.',
+  'No open documents right now.': 'Tidak ada dokumen terbuka saat ini.',
+  'Transfers to {bank} are free. Other banks: {fee} per payment.': 'Transfer ke {bank} gratis. Bank lain: {fee} per pembayaran.',
+  'Transfers to any bank are free.': 'Transfer ke bank mana pun gratis.',
+  'Enter the preferred (no-fee) bank name': 'Masukkan nama bank pilihan (tanpa biaya)'
 });

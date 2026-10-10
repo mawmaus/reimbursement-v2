@@ -7577,78 +7577,143 @@ async function renderMealRatesTab() {
   });
 }
 
-// --- Currency & time zone (per-region defaults) ------------------------------
+// --- Currency, time zone & bank (per-region defaults) --------------------------
 // Country Managers / Managing Directors (their own region) and Super Admins (any
-// region) set the region's default currency — stamped onto new claims — and its
-// default time zone, which decides what counts as "today" for claim dates. Both
-// are simple dropdowns saved via PUT /api/region-prefs.
+// region) set the region's default currency — stamped onto new claims — its time
+// zone, which decides what counts as "today" for claim dates, and the preferred
+// (no-fee) bank with the fee other banks pay. Saved via PUT /api/region-prefs.
+// Each section shows what its setting means right now: open documents by
+// currency, a live clock in the chosen zone, and the payout line employees see.
 const CURRENCY_NAMES = {
   IDR: 'Indonesian rupiah', USD: 'US dollar', THB: 'Thai baht', VND: 'Vietnamese đồng',
   KHR: 'Cambodian riel', MYR: 'Malaysian ringgit', KRW: 'South Korean won'
 };
+let rpClockTimer = null;
 async function renderRegionPrefsTab() {
   const panel = $('#settingsPanel');
-  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  clearInterval(rpClockTimer);
+  const region = settingsState.region || '';
+  const regionQS = region ? `?region=${encodeURIComponent(region)}&manage=1` : '?manage=1';
   let data;
   try { data = await api('/region-prefs' + regionQS); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const saved = { currency: data.currency, timezone: data.timezone, bank: data.preferredBank || '', bankFee: data.bankFee != null ? Number(data.bankFee) : 0 };
+  const open = data.openByCurrency || {};
+  const where = region || t('this region');
   const curOpts = (data.currencies || []).map(c =>
-    `<option value="${esc(c)}" ${c === data.currency ? 'selected' : ''}>${esc(c)}${CURRENCY_NAMES[c] ? ` — ${esc(t(CURRENCY_NAMES[c]))}` : ''}</option>`).join('');
+    `<option value="${esc(c)}" ${c === saved.currency ? 'selected' : ''}>${esc(c)}${CURRENCY_NAMES[c] ? ` — ${esc(t(CURRENCY_NAMES[c]))}` : ''}</option>`).join('');
   const tzOpts = (data.timezones || []).map(z => {
     const off = tzOffsetLabel(z);
-    return `<option value="${esc(z)}" ${z === data.timezone ? 'selected' : ''}>${esc(z)}${off ? ` (${esc(off)})` : ''}</option>`;
+    return `<option value="${esc(z)}" ${z === saved.timezone ? 'selected' : ''}>${esc(z)}${off ? ` (${esc(off)})` : ''}</option>`;
   }).join('');
-  const feeCur = esc(data.currency || 'IDR');
+  // Date and time "now" in a zone, as YYYY-MM-DD and HH:MM.
+  const nowIn = (tz) => {
+    try {
+      const p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).reduce((a, x) => (a[x.type] = x.value, a), {});
+      return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+    } catch { return null; }
+  };
+
   panel.innerHTML = `
-    <div class="settings-controls ws-card">
-      <form id="rpForm" class="form">
-        <label>${esc(t('Default currency'))}
-          <select name="currency">${curOpts}</select>
-        </label>
-        <label>${esc(t('Default time zone'))}
-          <select name="timezone">${tzOpts}</select>
-        </label>
-        <div class="ws-card-label ws-card-split">${esc(t('Bank / payout details'))}</div>
-        <p class="muted" style="margin:0 0 10px;font-size:.85rem">${esc(t('Payments to the preferred bank are free; all other banks are charged this fee. This shows on each employee’s profile.'))}</p>
-        <label>${esc(t('Preferred bank (no transfer fee)'))}
-          <input name="bank" value="${esc(data.preferredBank || '')}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" />
-        </label>
-        <label>
-          <span>${esc(t('Fee for payments to other banks'))} (<span id="rpFeeCur">${feeCur}</span>)</span>
-          <input name="bankFee" inputmode="numeric" autocomplete="off" value="${data.bankFee != null ? esc(groupAmount(String(data.bankFee))) : ''}" />
-        </label>
+    <div class="settings-controls ws-card rp-card">
+      <form id="rpForm" class="form" novalidate>
+        <section class="rp-sec">
+          <div class="rp-head"><b>${esc(t('Currency'))}</b><small>${esc(t('New claims, meal allowances and cash advances in {region} use this currency.', { region: where }))}</small></div>
+          <select name="currency" aria-label="${esc(t('Default currency'))}">${curOpts}</select>
+          <p class="rp-note" id="rpCurNote"></p>
+        </section>
+        <section class="rp-sec">
+          <div class="rp-head"><b>${esc(t('Time zone'))}</b><small>${esc(t('Decides what counts as “today” for claim dates in {region}.', { region: where }))}</small></div>
+          <select name="timezone" aria-label="${esc(t('Default time zone'))}">${tzOpts}</select>
+          <p class="rp-note" id="rpClock"></p>
+        </section>
+        <section class="rp-sec">
+          <div class="rp-head"><b>${esc(t('Bank payouts'))}</b><small>${esc(t('Payments to the preferred bank are free; all other banks are charged this fee. This shows on each employee’s profile.'))}</small></div>
+          <div class="rp-bank">
+            <label>${esc(t('Preferred bank (no transfer fee)'))}
+              <input name="bank" value="${esc(saved.bank)}" placeholder="${esc(t('Enter your bank name'))}" maxlength="60" autocomplete="off" /></label>
+            <label>${esc(t('Fee for payments to other banks'))}
+              <div class="mr-field"><span class="mr-cur" id="rpFeeCur">${esc(saved.currency)}</span>
+                <input name="bankFee" class="mr-amt" inputmode="numeric" autocomplete="off" value="${esc(groupAmount(String(saved.bankFee)))}" /></div></label>
+          </div>
+          <div class="rp-preview"><span class="rp-preview-label">${esc(t('Employees see'))}</span><span id="rpPayLine"></span></div>
+        </section>
         <p class="form-error" id="rpErr" hidden></p>
-        <div class="ws-card-foot">
-          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
+        <div class="ws-card-foot mr-foot">
+          <span class="mr-dirty" id="rpDirty" hidden>${esc(t('Unsaved changes'))}</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="rpDiscard" hidden>${esc(t('Discard'))}</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="rpSave" disabled>${esc(t('Save'))}</button>
         </div>
       </form>
     </div>`;
-  // Keep the fee's currency hint in sync with the chosen default currency, so it
-  // reflects the pending selection before the form is even saved.
-  const rpCur = $('#rpForm [name="currency"]'), rpFeeCur = $('#rpFeeCur');
-  if (rpCur && rpFeeCur) rpCur.addEventListener('change', () => { rpFeeCur.textContent = rpCur.value; });
-  // Thousands separators + digits-only as the admin types (same as amount fields
-  // elsewhere); commas are stripped again on submit via mealAmount().
-  attachAmountGrouping($('#rpForm [name="bankFee"]'));
-  $('#rpForm').addEventListener('submit', async (e) => {
+
+  const f = $('#rpForm');
+  const read = () => ({ currency: f.currency.value, timezone: f.timezone.value, bank: f.bank.value.trim(), bankFee: mealAmount(f.bankFee.value) });
+  const paintClock = () => {
+    const el = $('#rpClock');
+    if (!el) return clearInterval(rpClockTimer);
+    const tz = f.timezone.value, now = nowIn(tz), was = nowIn(saved.timezone);
+    if (!now) { el.textContent = ''; return; }
+    let txt = t('Now in {zone}: {date} {time}', { zone: tz, date: now.date, time: now.time });
+    if (tz !== saved.timezone && was && was.date !== now.date) {
+      txt += ' — ' + t('“today” becomes {date} there; claim dates are checked against it.', { date: now.date });
+    }
+    el.textContent = txt;
+    el.classList.toggle('warn', tz !== saved.timezone && !!was && was.date !== now.date);
+  };
+  const paint = () => {
+    const p = read();
+    $('#rpFeeCur').textContent = p.currency;
+    // Currency: what is open now, and what a change leaves alone.
+    const openList = Object.entries(open).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    const openTxt = openList.map(([c, n]) => t('{n} in {cur}', { n, cur: c })).join(', ');
+    const cn = $('#rpCurNote');
+    if (p.currency !== saved.currency) {
+      cn.textContent = openList.length
+        ? t('Only new claims use {cur}. Open documents keep their own currency ({list}).', { cur: p.currency, list: openTxt })
+        : t('Only new claims use {cur}; claims already filed keep their currency.', { cur: p.currency });
+      cn.classList.add('warn');
+    } else {
+      cn.textContent = openList.length ? t('Open documents now: {list}.', { list: openTxt }) : t('No open documents right now.');
+      cn.classList.remove('warn');
+    }
+    paintClock();
+    // The line employees see on their profile.
+    $('#rpPayLine').textContent = !p.bank ? '—'
+      : p.bankFee > 0 ? t('Transfers to {bank} are free. Other banks: {fee} per payment.', { bank: p.bank, fee: `${p.currency} ${groupAmount(String(p.bankFee))}` })
+      : t('Transfers to any bank are free.');
+    const dirty = p.currency !== saved.currency || p.timezone !== saved.timezone || p.bank !== saved.bank || p.bankFee !== saved.bankFee;
+    const bad = !p.bank ? t('Enter the preferred (no-fee) bank name') : '';
+    const note = $('#rpDirty');
+    note.hidden = !dirty; note.textContent = bad && dirty ? bad : t('Unsaved changes');
+    $('#rpDiscard').hidden = !dirty;
+    $('#rpSave').disabled = !dirty || !!bad;
+    f.bank.classList.toggle('invalid', !!bad);
+  };
+  f.currency.addEventListener('change', paint);
+  f.timezone.addEventListener('change', paint);
+  f.bank.addEventListener('input', paint);
+  f.bankFee.addEventListener('input', () => { f.bankFee.value = groupAmount(f.bankFee.value.replace(/\./g, '')); paint(); });
+  $('#rpDiscard').addEventListener('click', () => renderRegionPrefsTab());
+  rpClockTimer = setInterval(paintClock, 20000);
+  f.addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#rpErr'); err.hidden = true;
-    const fd = new FormData(e.target);
+    const p = read();
+    const btn = $('#rpSave'); btn.disabled = true;
     try {
-      await api('/region-prefs', { method: 'PUT', body: JSON.stringify({
-        currency: fd.get('currency'), timezone: fd.get('timezone'),
-        bank: fd.get('bank'), bankFee: mealAmount(fd.get('bankFee')),
-        ...(settingsState.region ? { region: settingsState.region } : {})
-      }) });
+      await api('/region-prefs', { method: 'PUT', body: JSON.stringify({ ...p, ...(region ? { region } : {}) }) });
       toast(t('Saved'));
       // If the actor edited their own region, refresh so new-claim defaults and
       // date formatting pick up the change without a reload.
-      if (state.user && String(state.user.region || '') === String(settingsState.region || '')) {
+      if (state.user && String(state.user.region || '') === String(region)) {
         try { const { user } = await api('/me'); if (user) state.user = { ...state.user, ...user }; } catch { /* keep going */ }
       }
       renderRegionPrefsTab();
-    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
   });
+  paint();
 }
 
 // --- Roles: region-scoped capability matrix ----------------------------------

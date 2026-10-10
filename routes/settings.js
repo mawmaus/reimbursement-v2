@@ -15,6 +15,7 @@ const {
   seesAllRegions, normRegion, ALL_REGIONS
 } = require('../lib/settings');
 const { claimWindowView } = require('../lib/claim-window');
+const { OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL } = require('../lib/workflow');
 const {
   CAPABILITIES, EDITABLE_ROLES, editableRolesFor, loadRolePermsForRegion,
   CAPABILITY_KEYS, userCan
@@ -79,10 +80,22 @@ function regionPrefsView(settings, region) {
   return { region, ...prefs, currencies: AVAILABLE_CURRENCIES, timezones: AVAILABLE_TIMEZONES };
 }
 
+// `?manage=1` from someone who may edit these (the Settings tab) also counts the
+// region's open documents by currency, so a currency change can say what it
+// leaves as it is.
 router.get('/api/region-prefs', requireAuth, ah(async (req, res) => {
   const region = await resolveLookupRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
-  res.json(regionPrefsView(await loadAppSettings(), region));
+  const view = regionPrefsView(await loadAppSettings(), region);
+  if (req.query.manage === '1' && canManageRegionPrefs(req.user) && region) {
+    const rows = await q(`SELECT currency, SUM(n)::int AS n FROM (
+        SELECT currency, COUNT(*) AS n FROM claims WHERE region = $1 AND ${OPEN_CLAIM_SQL} GROUP BY currency
+        UNION ALL SELECT currency, COUNT(*) AS n FROM meal_claims WHERE region = $1 AND ${OPEN_CLAIM_SQL} GROUP BY currency
+        UNION ALL SELECT currency, COUNT(*) AS n FROM cash_advances WHERE region = $1 AND ${OPEN_ADVANCE_SQL} GROUP BY currency
+      ) t GROUP BY currency`, [region]);
+    view.openByCurrency = Object.fromEntries(rows.map(r => [r.currency, r.n || 0]));
+  }
+  res.json(view);
 }));
 
 router.put('/api/region-prefs', requireAuth, ah(async (req, res) => {

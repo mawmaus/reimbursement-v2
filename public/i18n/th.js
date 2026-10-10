@@ -838,5 +838,22 @@ I18N.addDict('th', {
   'Saving blocks expenses dated {range}.': 'การบันทึกจะบล็อกค่าใช้จ่ายที่ลงวันที่ {range}',
   'Saving blocks every expense dated before {date}.': 'การบันทึกจะบล็อกค่าใช้จ่ายทั้งหมดที่ลงวันที่ก่อน {date}',
   'Saving reopens expenses dated {range}.': 'การบันทึกจะเปิดให้เบิกค่าใช้จ่ายที่ลงวันที่ {range} อีกครั้ง',
-  'Saving removes the limit — expenses of any date become claimable.': 'การบันทึกจะยกเลิกการจำกัด — ค่าใช้จ่ายทุกวันที่จะเบิกได้'
+  'Saving removes the limit — expenses of any date become claimable.': 'การบันทึกจะยกเลิกการจำกัด — ค่าใช้จ่ายทุกวันที่จะเบิกได้',
+  // Currency, time zone & bank editor
+  'Currency': 'สกุลเงิน',
+  'New claims, meal allowances and cash advances in {region} use this currency.': 'เคลม ค่าอาหาร และเงินทดรองใหม่ใน {region} ใช้สกุลเงินนี้',
+  'Time zone': 'เขตเวลา',
+  'Decides what counts as “today” for claim dates in {region}.': 'กำหนดว่า “วันนี้” คือวันใดสำหรับวันที่เคลมใน {region}',
+  'Bank payouts': 'การจ่ายเงินผ่านธนาคาร',
+  'Employees see': 'สิ่งที่พนักงานเห็น',
+  'Now in {zone}: {date} {time}': 'ขณะนี้ใน {zone}: {date} {time}',
+  '“today” becomes {date} there; claim dates are checked against it.': '“วันนี้” จะเป็น {date} ที่นั่น และใช้ตรวจสอบวันที่เคลม',
+  '{n} in {cur}': '{n} รายการเป็น {cur}',
+  'Only new claims use {cur}. Open documents keep their own currency ({list}).': 'เฉพาะเคลมใหม่เท่านั้นที่ใช้ {cur} เอกสารที่ยังเปิดอยู่จะคงสกุลเงินเดิม ({list})',
+  'Only new claims use {cur}; claims already filed keep their currency.': 'เฉพาะเคลมใหม่เท่านั้นที่ใช้ {cur} เคลมที่ยื่นแล้วจะคงสกุลเงินเดิม',
+  'Open documents now: {list}.': 'เอกสารที่เปิดอยู่ตอนนี้: {list}',
+  'No open documents right now.': 'ตอนนี้ไม่มีเอกสารที่เปิดอยู่',
+  'Transfers to {bank} are free. Other banks: {fee} per payment.': 'โอนไปยัง {bank} ฟรี ธนาคารอื่น: {fee} ต่อการจ่ายหนึ่งครั้ง',
+  'Transfers to any bank are free.': 'โอนไปยังทุกธนาคารฟรี',
+  'Enter the preferred (no-fee) bank name': 'กรอกชื่อธนาคารที่ต้องการ (ไม่มีค่าธรรมเนียม)'
 });

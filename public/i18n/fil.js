@@ -838,5 +838,22 @@ I18N.addDict('fil', {
   'Saving blocks expenses dated {range}.': 'Haharangin ng pag-save ang mga gastos na may petsang {range}.',
   'Saving blocks every expense dated before {date}.': 'Haharangin ng pag-save ang lahat ng gastos na may petsang bago ang {date}.',
   'Saving reopens expenses dated {range}.': 'Muling bubuksan ng pag-save ang mga gastos na may petsang {range}.',
-  'Saving removes the limit — expenses of any date become claimable.': 'Aalisin ng pag-save ang limit — mache-claim ang gastos ng anumang petsa.'
+  'Saving removes the limit — expenses of any date become claimable.': 'Aalisin ng pag-save ang limit — mache-claim ang gastos ng anumang petsa.',
+  // Currency, time zone & bank editor
+  'Currency': 'Currency',
+  'New claims, meal allowances and cash advances in {region} use this currency.': 'Ginagamit ng mga bagong claim, meal allowance at cash advance sa {region} ang currency na ito.',
+  'Time zone': 'Time zone',
+  'Decides what counts as “today” for claim dates in {region}.': 'Itinatakda kung ano ang “ngayon” para sa petsa ng claim sa {region}.',
+  'Bank payouts': 'Bayad sa bangko',
+  'Employees see': 'Nakikita ng mga empleyado',
+  'Now in {zone}: {date} {time}': 'Ngayon sa {zone}: {date} {time}',
+  '“today” becomes {date} there; claim dates are checked against it.': 'magiging {date} ang “ngayon” doon; dito ihahambing ang petsa ng claim.',
+  '{n} in {cur}': '{n} sa {cur}',
+  'Only new claims use {cur}. Open documents keep their own currency ({list}).': 'Mga bagong claim lang ang gagamit ng {cur}. Mananatili ang sariling currency ng mga bukas na dokumento ({list}).',
+  'Only new claims use {cur}; claims already filed keep their currency.': 'Mga bagong claim lang ang gagamit ng {cur}; mananatili ang currency ng mga naisumiteng claim.',
+  'Open documents now: {list}.': 'Mga bukas na dokumento ngayon: {list}.',
+  'No open documents right now.': 'Walang bukas na dokumento ngayon.',
+  'Transfers to {bank} are free. Other banks: {fee} per payment.': 'Libre ang transfer sa {bank}. Ibang bangko: {fee} bawat bayad.',
+  'Transfers to any bank are free.': 'Libre ang transfer sa anumang bangko.',
+  'Enter the preferred (no-fee) bank name': 'Ilagay ang pangalan ng preferred (walang bayad) na bangko'
 });

@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.7',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Currency, time zone & bank is split into three clear sections. Changing the currency says that only new claims use it and how many open documents keep their own; the time zone shows the current time there and warns if “today” would become a different date; and a preview shows the payout line employees see on their profile. Save only lights up when something changed, with a Discard button.',
+        id: 'Pengaturan → Mata uang, zona waktu & bank kini dibagi menjadi tiga bagian yang jelas. Saat mengganti mata uang, ditampilkan bahwa hanya klaim baru yang memakainya dan berapa dokumen terbuka yang tetap memakai mata uangnya; zona waktu menampilkan jam saat ini di sana dan memperingatkan jika “hari ini” berubah tanggal; dan pratinjau menampilkan baris pembayaran yang dilihat karyawan di profilnya. Tombol Simpan hanya aktif jika ada perubahan, dengan tombol Buang.',
+        th: 'การตั้งค่า → สกุลเงิน เขตเวลา และธนาคาร แบ่งเป็นสามส่วนที่ชัดเจน การเปลี่ยนสกุลเงินจะบอกว่ามีผลเฉพาะเคลมใหม่และมีเอกสารที่เปิดอยู่กี่รายการที่คงสกุลเงินเดิม เขตเวลาแสดงเวลาปัจจุบันที่นั่นและเตือนหาก “วันนี้” จะเปลี่ยนเป็นวันอื่น และมีตัวอย่างข้อความการจ่ายเงินที่พนักงานเห็นในโปรไฟล์ ปุ่มบันทึกจะใช้ได้เมื่อมีการเปลี่ยนแปลงเท่านั้น พร้อมปุ่มยกเลิก',
+        vi: 'Cài đặt → Tiền tệ, múi giờ & ngân hàng được chia thành ba phần rõ ràng. Khi đổi tiền tệ, hệ thống cho biết chỉ yêu cầu mới dùng loại tiền đó và bao nhiêu chứng từ đang mở giữ nguyên loại tiền; múi giờ hiển thị giờ hiện tại ở đó và cảnh báo nếu “hôm nay” sẽ thành một ngày khác; và có bản xem trước dòng chi trả nhân viên thấy trên hồ sơ. Nút Lưu chỉ bật khi có thay đổi, kèm nút Hủy thay đổi.',
+        km: 'ការកំណត់ → រូបិយប័ណ្ណ តំបន់ម៉ោង និងធនាគារ ត្រូវបានបែងចែកជាបីផ្នែកច្បាស់លាស់។ ការប្តូររូបិយប័ណ្ណប្រាប់ថាមានតែការទាមទារថ្មីប៉ុណ្ណោះដែលប្រើវា និងឯកសារដែលកំពុងបើកប៉ុន្មានរក្សារូបិយប័ណ្ណដើម តំបន់ម៉ោងបង្ហាញម៉ោងបច្ចុប្បន្ននៅទីនោះ ហើយព្រមានបើ “ថ្ងៃនេះ” នឹងក្លាយជាថ្ងៃផ្សេង ហើយការមើលជាមុនបង្ហាញបន្ទាត់ទូទាត់ដែលបុគ្គលិកឃើញនៅលើប្រវត្តិរូប។ ប៊ូតុងរក្សាទុកប្រើបានតែពេលមានការផ្លាស់ប្តូរ ជាមួយប៊ូតុងបោះបង់។',
+        fil: 'Nahati na sa tatlong malinaw na seksyon ang Settings → Currency, time zone & bank. Kapag pinalitan ang currency, sinasabi nitong mga bagong claim lang ang gagamit nito at ilang bukas na dokumento ang mananatili sa sariling currency; ipinapakita ng time zone ang kasalukuyang oras doon at nagbababala kung magiging ibang petsa ang “ngayon”; at may preview ng linya ng bayad na nakikita ng mga empleyado sa kanilang profile. Gumagana lang ang Save kapag may binago, kasama ang Itapon.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.6',
     date: '2026-10-10',
     items: [
