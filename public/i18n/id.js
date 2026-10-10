@@ -790,5 +790,9 @@ I18N.addDict('id', {
   'Go to sign in': 'Ke halaman masuk',
   'Back to sign in': 'Kembali ke halaman masuk',
   'This reset link is missing its token. Please request a new one.': 'Tautan reset ini tidak memiliki token. Silakan minta tautan baru.',
-  'Could not reset your password.': 'Tidak dapat mereset kata sandi Anda.'
+  'Could not reset your password.': 'Tidak dapat mereset kata sandi Anda.',
+  // Departments / positions / expense types list
+  'No accounts': 'Tidak ada akun',
+  'Can’t raise claims or meal allowances': 'Tidak bisa mengajukan klaim atau tunjangan makan',
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} masih memakai {noun} ini. Tetap hapus? Akun tersebut tetap menyimpan namanya, tetapi tidak bisa dipilih lagi. Nonaktifkan saja agar tetap tercatat.'
 });

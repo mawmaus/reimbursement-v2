@@ -28,6 +28,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.2',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Departments and Job positions show how many active accounts use each entry, warn when its members can’t raise any claims, and say how many accounts are affected before you delete one. Departments, job positions and expense types can be filtered by All / Active / Disabled, and on phones each entry is a tidy row with labelled toggles.',
+        id: 'Pengaturan → Departemen dan Jabatan kini menampilkan berapa akun aktif yang memakai setiap entri, memberi peringatan jika anggotanya tidak bisa mengajukan klaim apa pun, dan menyebutkan berapa akun yang terdampak sebelum Anda menghapusnya. Departemen, jabatan, dan jenis biaya bisa disaring Semua / Aktif / Nonaktif, dan di ponsel setiap entri tampil rapi dengan tombol berlabel.',
+        th: 'การตั้งค่า → แผนกและตำแหน่งงาน แสดงจำนวนบัญชีที่ใช้งานอยู่ของแต่ละรายการ เตือนเมื่อสมาชิกยื่นเคลมอะไรไม่ได้เลย และบอกจำนวนบัญชีที่ได้รับผลกระทบก่อนลบ แผนก ตำแหน่งงาน และประเภทค่าใช้จ่ายกรองได้ด้วย ทั้งหมด / ใช้งาน / ปิดใช้งาน และบนโทรศัพท์แต่ละรายการแสดงเป็นแถวที่เป็นระเบียบพร้อมสวิตช์ที่มีป้ายกำกับ',
+        vi: 'Cài đặt → Phòng ban và Chức vụ giờ cho biết số tài khoản đang hoạt động dùng từng mục, cảnh báo khi thành viên không thể tạo yêu cầu nào, và cho biết số tài khoản bị ảnh hưởng trước khi bạn xóa. Phòng ban, chức vụ và loại chi phí có thể lọc theo Tất cả / Đang hoạt động / Đã vô hiệu hóa, và trên điện thoại mỗi mục là một hàng gọn gàng với các nút bật có nhãn.',
+        km: 'ការកំណត់ → នាយកដ្ឋាន និងមុខតំណែង ឥឡូវបង្ហាញចំនួនគណនីសកម្មដែលប្រើធាតុនីមួយៗ ព្រមានពេលសមាជិកមិនអាចដាក់ការទាមទារណាមួយបាន ហើយប្រាប់ចំនួនគណនីដែលរងផលប៉ះពាល់មុនពេលអ្នកលុប។ នាយកដ្ឋាន មុខតំណែង និងប្រភេទចំណាយ អាចត្រងតាម ទាំងអស់ / សកម្ម / បានបិទ ហើយនៅលើទូរស័ព្ទ ធាតុនីមួយៗជាជួរដែលមានសណ្តាប់ធ្នាប់ជាមួយប៊ូតុងបិទបើកមានស្លាក។',
+        fil: 'Ipinapakita na ng Settings → Departments at Job positions kung ilang aktibong account ang gumagamit ng bawat isa, nagbababala kapag hindi makapag-claim ang mga miyembro nito, at sinasabi kung ilang account ang maaapektuhan bago mo ito burahin. Maaaring i-filter ang departments, job positions at expense types ayon sa Lahat / Aktibo / Naka-disable, at sa phone, maayos na hanay ang bawat isa na may mga toggle na may label.'
+      } },
+      { kind: 'fixed', audience: ['settings'], text: {
+        en: 'Country Managers and others who manage settings can now see disabled departments, job positions and expense types, so they can enable them again.',
+        id: 'Country Manager dan pengelola pengaturan lainnya kini dapat melihat departemen, jabatan, dan jenis biaya yang dinonaktifkan, sehingga bisa mengaktifkannya kembali.',
+        th: 'ผู้จัดการประเทศและผู้ที่จัดการการตั้งค่าอื่น ๆ มองเห็นแผนก ตำแหน่งงาน และประเภทค่าใช้จ่ายที่ปิดใช้งานแล้ว จึงเปิดใช้งานอีกครั้งได้',
+        vi: 'Quản lý quốc gia và những người quản lý cài đặt khác giờ có thể thấy phòng ban, chức vụ và loại chi phí đã vô hiệu hóa để bật lại.',
+        km: 'អ្នកគ្រប់គ្រងប្រទេស និងអ្នកគ្រប់គ្រងការកំណត់ផ្សេងទៀត ឥឡូវអាចឃើញនាយកដ្ឋាន មុខតំណែង និងប្រភេទចំណាយដែលបានបិទ ដើម្បីបើកវាឡើងវិញបាន។',
+        fil: 'Nakikita na ng mga Country Manager at iba pang namamahala ng settings ang mga naka-disable na department, job position at expense type, kaya maaari na nilang i-enable muli ang mga ito.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.1',
     date: '2026-10-10',
     items: [

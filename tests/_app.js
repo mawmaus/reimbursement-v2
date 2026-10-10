@@ -21,12 +21,14 @@ const state = {
   positions: [],           // job_positions rows { name, rank, can_manage }
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [] },
   writes: [],
+  reads: [],               // every query's text, so a test can see what was asked
   onWrite: null
 };
 
 const LINE_FK = { claim_lines: 'claim_id', meal_claim_lines: 'meal_claim_id', cash_advance_lines: 'advance_id' };
 async function q(text, params = []) {
   const sql = text.replace(/\s+/g, ' ').trim();
+  state.reads.push(sql);
   let m;
   if (/^SELECT key, value FROM app_settings/.test(sql)) {
     return Object.entries(state.settings).map(([key, v]) => ({ key, value: typeof v === 'string' ? v : JSON.stringify(v) }));

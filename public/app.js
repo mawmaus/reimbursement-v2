@@ -7567,6 +7567,8 @@ async function renderRolesTab() {
 }
 
 // --- Generic lookup manager (departments / positions / expense types) --------
+// Status chip per lookup (by API path): 'all' | 'active' | 'disabled'.
+const lookupFilter = {};
 async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const panel = $(mountSel);
   // Regional lookups (departments / positions / expense types) are scoped to the
@@ -7577,7 +7579,9 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const regionQS = regionScoped ? `?region=${encodeURIComponent(settingsState.region)}` : '';
   const regionBody = regionScoped ? { region: settingsState.region } : {};
   let items;
-  try { ({ items } = await api(cfg.path + regionQS)); }
+  // manage=1: disabled entries too (so they can be re-enabled), plus how many
+  // active accounts use each department / position.
+  try { ({ items } = await api(cfg.path + (regionQS ? regionQS + '&' : '?') + 'manage=1')); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
 
   // Purpose gates — New claim / New meal allowance only. Cash advance is NOT one
@@ -7586,21 +7590,38 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const ranked = !!cfg.ranked;      // reorderable seniority ladder (job positions)
   const manage = !!cfg.manage;      // "Can manage accounts" delegation flag
   const noun = t(cfg.noun);         // localised singular noun for this lookup
-  // A tick cell wires a boolean flag column (persisted immediately via PUT).
+  // A flag toggle (persisted immediately via PUT). Its label is hidden under the
+  // column header in the wide table and shown beside the box in narrow cards.
   const flagCell = (it, flag, label) =>
-    `<td class="tick-cell" data-label="${esc(label)}"><input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} /></td>`;
+    `<td class="tick-cell lk-cell"><label class="lk-tog">
+      <input type="checkbox" data-flag="${flag}" data-id="${it.id}" ${it[flag] ? 'checked' : ''} aria-label="${esc(it.name)}: ${esc(label)}" />
+      <span class="lk-tog-label">${esc(label)}</span></label></td>`;
   // Up/down reorder controls for a ranked row (disabled at the ends).
-  const orderCell = (it, i) => `<td class="ord-cell" data-label="${esc(t('Order'))}">
+  const orderCell = (it, i) => `<td class="ord-cell">
       <div class="ord-btns">
         <button type="button" class="ord-btn" data-move="up" data-id="${it.id}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('Move up'))}">▲</button>
         <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
       </div></td>`;
+  // Under the name: how many active accounts use it, and a warning when its
+  // members can raise nothing at all.
+  const metaHtml = (it) => {
+    const bits = [];
+    if (it.members != null) bits.push(`<span class="lk-members${it.members ? '' : ' none'}">${esc(it.members
+      ? t(it.members === 1 ? '{n} account' : '{n} accounts', { n: it.members }) : t('No accounts'))}</span>`);
+    if (p && it.active && !it.allow_claim && !it.allow_meal) bits.push(`<span class="lk-warn">${esc(t('Can’t raise claims or meal allowances'))}</span>`);
+    return bits.join('');
+  };
   const headCols = (ranked ? `<th class="ord-h">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th>`
     + (p ? `<th class="flag-h">${esc(t('New claim'))}</th><th class="flag-h">${esc(t('New meal allowance'))}</th>` : '')
     + (manage ? `<th class="flag-h">${esc(t('Manage accounts'))}</th>` : '')
     + '<th class="u-actions-h"></th>';
   const colspan = 1 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
-  const nActive = items.filter(x => x.active).length;
+  const counts = { all: items.length, active: items.filter(x => x.active).length };
+  counts.disabled = counts.all - counts.active;
+  if (!lookupFilter[cfg.path] || !counts.disabled) lookupFilter[cfg.path] = 'all';
+  const chips = counts.disabled ? `<div class="ws-chips" role="group" aria-label="${esc(t('Status'))}">${[['all', t('All')], ['active', t('Active')], ['disabled', t('Disabled')]].map(([k, label]) =>
+    `<button type="button" class="ws-chip${lookupFilter[cfg.path] === k ? ' on' : ''}" data-lkfilter="${k}" aria-pressed="${lookupFilter[cfg.path] === k}">${esc(label)} <span>${counts[k]}</span></button>`).join('')}</div>`
+    : `<span class="ws-count">${esc(t('{active} active · {disabled} disabled', { active: counts.active, disabled: 0 }))}</span>`;
   setWsPage({ actions: `<button type="button" class="btn btn-primary btn-sm" id="lookupAddBtn">+ ${esc(t('Add {noun}', { noun }))}</button>` });
   panel.innerHTML = `
     <div class="settings-controls">
@@ -7612,25 +7633,44 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
       </form>
       <div class="ws-toolbar">
         <input id="lookupSearch" class="input" type="search" placeholder="${esc(t('Search {noun}…', { noun }))}" />
-        <span class="ws-count">${esc(t('{active} active · {disabled} disabled', { active: nActive, disabled: items.length - nActive }))}</span>
+        ${chips}
       </div>
     </div>
     <div class="settings-list ws-table">
-      <table class="utable utable-lookup">
+      <table class="utable utable-lookup${p ? ' has-flags' : ''}">
         <thead><tr>${headCols}</tr></thead>
         <tbody>${items.length ? items.map((it, i) => `
-          <tr data-id="${it.id}"${it.active ? '' : ' class="row-off"'}>
+          <tr data-id="${it.id}" data-state="${it.active ? 'active' : 'disabled'}"${it.active ? '' : ' class="row-off"'}>
             ${ranked ? orderCell(it, i) : ''}
-            <td data-label="${esc(t('Name'))}" class="name-cell"><span class="lk-name">${esc(it.name)}</span>${it.active ? '' : ` <span class="pill pill-off">${esc(t('Disabled'))}</span>`}</td>
+            <td class="name-cell"><div class="lk-line"><span class="lk-name">${esc(it.name)}</span>${it.active ? '' : ` <span class="pill pill-off">${esc(t('Disabled'))}</span>`}</div><div class="lk-meta">${metaHtml(it)}</div></td>
             ${p ? flagCell(it, 'allow_claim', t('New claim')) + flagCell(it, 'allow_meal', t('New meal allowance')) : ''}
             ${manage ? flagCell(it, 'can_manage', t('Manage accounts')) : ''}
-            <td class="act-cell" data-label="${esc(t('Actions'))}">
+            <td class="act-cell">
               <button type="button" class="row-more" data-menu="${it.id}" aria-haspopup="menu" aria-label="${esc(t('More actions'))}" title="${esc(t('More actions'))}">⋯</button>
             </td>
-          </tr>`).join('') : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No {noun} entries yet.', { noun }))}</td></tr>`}</tbody>
+          </tr>`).join('') + `<tr class="lk-none" hidden><td colspan="${colspan}" class="muted">${esc(t('No matches'))}</td></tr>`
+          : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No {noun} entries yet.', { noun }))}</td></tr>`}</tbody>
       </table>
     </div>`;
-  wireTableSearch($('#lookupSearch'), '#settingsPanel .settings-list');
+  // Search and the status chips filter the same rows together.
+  const applyFilter = () => {
+    const q = $('#lookupSearch').value.trim().toLowerCase();
+    const f = lookupFilter[cfg.path];
+    let shown = 0;
+    $$('#settingsPanel .utable-lookup tbody tr[data-id]').forEach(tr => {
+      const hit = (!q || tr.querySelector('.lk-name').textContent.toLowerCase().includes(q)) && (f === 'all' || tr.dataset.state === f);
+      tr.hidden = !hit; if (hit) shown++;
+    });
+    const none = $('#settingsPanel .lk-none');
+    if (none) none.hidden = shown > 0;
+  };
+  $('#lookupSearch').addEventListener('input', applyFilter);
+  $$('#settingsPanel [data-lkfilter]').forEach(b => b.addEventListener('click', () => {
+    lookupFilter[cfg.path] = b.dataset.lkfilter;
+    $$('#settingsPanel [data-lkfilter]').forEach(x => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+    applyFilter();
+  }));
+  applyFilter();
 
   const byId = (id) => items.find(x => x.id == id);
   const addForm = $('#lookupForm');
@@ -7656,7 +7696,11 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         catch (ex) { toast(ex.message, true); }
         return;
       }
-      if (!confirm(t('Delete this {noun}? Existing claims keep their recorded value.', { noun }))) return;
+      const msg = it.members
+        ? t('{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.',
+          { count: t(it.members === 1 ? '{n} account' : '{n} accounts', { n: it.members }), noun })
+        : t('Delete this {noun}? Existing claims keep their recorded value.', { noun });
+      if (!confirm(msg)) return;
       try { await api(`${cfg.path}/${it.id}`, { method: 'DELETE' }); toast(t('Deleted')); refreshAfterSettings(); }
       catch (ex) { toast(ex.message, true); }
     });
@@ -7668,7 +7712,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
     const flag = cb.dataset.flag, val = cb.checked;
     try {
       await api(`${cfg.path}/${cb.dataset.id}`, { method: 'PUT', body: JSON.stringify({ [flag]: val }) });
-      if (it) it[flag] = val;
+      if (it) { it[flag] = val; const m = cb.closest('tr').querySelector('.lk-meta'); if (m) m.innerHTML = metaHtml(it); }
       toast(t('Saved'));
     } catch (ex) { cb.checked = !val; toast(ex.message, true); }
   }));

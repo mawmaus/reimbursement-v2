@@ -767,5 +767,9 @@ I18N.addDict('vi', {
   'Go to sign in': 'Đến trang đăng nhập',
   'Back to sign in': 'Quay lại đăng nhập',
   'This reset link is missing its token. Please request a new one.': 'Liên kết đặt lại này thiếu mã. Vui lòng yêu cầu liên kết mới.',
-  'Could not reset your password.': 'Không thể đặt lại mật khẩu của bạn.'
+  'Could not reset your password.': 'Không thể đặt lại mật khẩu của bạn.',
+  // Departments / positions / expense types list
+  'No accounts': 'Không có tài khoản',
+  'Can’t raise claims or meal allowances': 'Không thể tạo yêu cầu hoặc phụ cấp ăn',
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} vẫn đang dùng {noun} này. Vẫn xóa? Các tài khoản đó giữ nguyên tên, nhưng không thể chọn lại nữa. Hãy vô hiệu hóa thay vì xóa để giữ lại hồ sơ.'
 });

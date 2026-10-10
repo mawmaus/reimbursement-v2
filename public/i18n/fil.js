@@ -767,5 +767,9 @@ I18N.addDict('fil', {
   'Go to sign in': 'Pumunta sa sign in',
   'Back to sign in': 'Bumalik sa sign in',
   'This reset link is missing its token. Please request a new one.': 'Kulang ng token ang reset link na ito. Humiling ng bago.',
-  'Could not reset your password.': 'Hindi ma-reset ang iyong password.'
+  'Could not reset your password.': 'Hindi ma-reset ang iyong password.',
+  // Departments / positions / expense types list
+  'No accounts': 'Walang account',
+  'Can’t raise claims or meal allowances': 'Hindi makapag-claim o meal allowance',
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} ang gumagamit pa ng {noun} na ito. Burahin pa rin? Mananatili ang pangalan sa kanilang account, pero hindi na ito mapipili. I-disable na lang para manatili sa record.'
 });

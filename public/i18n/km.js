@@ -767,5 +767,9 @@ I18N.addDict('km', {
   'Go to sign in': 'ទៅទំព័រចូល',
   'Back to sign in': 'ត្រឡប់ទៅទំព័រចូល',
   'This reset link is missing its token. Please request a new one.': 'តំណកំណត់ឡើងវិញនេះខ្វះនិមិត្តសញ្ញា។ សូមស្នើតំណថ្មី។',
-  'Could not reset your password.': 'មិនអាចកំណត់ពាក្យសម្ងាត់របស់អ្នកឡើងវិញបានទេ។'
+  'Could not reset your password.': 'មិនអាចកំណត់ពាក្យសម្ងាត់របស់អ្នកឡើងវិញបានទេ។',
+  // Departments / positions / expense types list
+  'No accounts': 'គ្មានគណនី',
+  'Can’t raise claims or meal allowances': 'មិនអាចដាក់ការទាមទារ ឬប្រាក់អាហារបានទេ',
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} នៅតែប្រើ{noun}នេះ។ លុបចោលដដែលឬ? គណនីទាំងនោះនៅរក្សាឈ្មោះ ប៉ុន្តែមិនអាចជ្រើសរើសបានទៀតទេ។ បិទវាជំនួសវិញ ដើម្បីរក្សាទុកក្នុងកំណត់ត្រា។'
 });

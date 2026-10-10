@@ -7,6 +7,7 @@ const express = require('express');
 const { q, qq, transaction } = require('../db');
 const { seesAllRegions, resolveLookupRegion } = require('../lib/settings');
 const { requireAuth, requireCap, requireRole } = require('../lib/auth');
+const { userCan } = require('../lib/permissions');
 const { OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL } = require('../lib/workflow');
 const { ah, iso, isActive } = require('../lib/util');
 
@@ -30,8 +31,12 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
   // List — any signed-in user may read (the claim form needs departments and
   // expense types). Non-admins receive only the active entries. Regional lookups
   // are filtered to the resolved region (a super admin with no ?region sees all).
+  // `?manage=1` from a settings manager (the Settings tab) also returns disabled
+  // entries — so they can be re-enabled — and, for lookups an account points at
+  // (`opts.memberCol`), how many active accounts in the region use each one.
   router.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
-    const onlyActive = req.user.role !== 'superadmin';
+    const managing = req.query.manage === '1' && userCan(req.user, 'manage_settings');
+    const onlyActive = req.user.role !== 'superadmin' && !managing;
     const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
     const region = regional ? await resolveLookupRegion(req.user, req.query.region) : null;
     if (regional && region === null) return res.status(400).json({ error: 'Invalid region' });
@@ -41,7 +46,14 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     if (regional && region) { params.push(region); wheres.push(`region = $${params.length}`); }
     const whereSql = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
     const items = await q(`SELECT ${cols} FROM ${table} ${whereSql} ORDER BY ${orderBy}`, params);
-    res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at) })) });
+    let members = null;
+    if (managing && opts.memberCol && region) {
+      const rows = await q(
+        `SELECT lower(trim(${opts.memberCol})) AS k, COUNT(*)::int AS n FROM users WHERE active = TRUE AND region = $1 GROUP BY 1`, [region]);
+      members = new Map(rows.map(r => [r.k, r.n]));
+    }
+    res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at),
+      ...(members ? { members: members.get(String(i.name).trim().toLowerCase()) || 0 } : {}) })) });
   }));
 
   // Reorder one region's ladder: body { region, order: [id, …] } sets rank =
@@ -139,8 +151,8 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
 // `allow_advance` is deliberately absent from both flag lists: cash advance is a
 // per-account grant now (users.allow_advance), so these lookups neither return
 // nor accept it — the columns are inert leftovers the migration backfill read.
-lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true });
-lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true });
+lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true, memberCol: 'department' });
+lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true, memberCol: 'position' });
 lookupRoutes('expense-types', 'expense_types', [], { regional: true });
 // Regions landing (super admin): per-region headcount and open workload, so the
 // list shows what each region holds — and what a delete would orphan.

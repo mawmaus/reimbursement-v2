@@ -767,5 +767,9 @@ I18N.addDict('th', {
   'Go to sign in': 'ไปที่หน้าเข้าสู่ระบบ',
   'Back to sign in': 'กลับไปหน้าเข้าสู่ระบบ',
   'This reset link is missing its token. Please request a new one.': 'ลิงก์รีเซ็ตนี้ไม่มีโทเค็น โปรดขอลิงก์ใหม่',
-  'Could not reset your password.': 'ไม่สามารถรีเซ็ตรหัสผ่านได้'
+  'Could not reset your password.': 'ไม่สามารถรีเซ็ตรหัสผ่านได้',
+  // Departments / positions / expense types list
+  'No accounts': 'ไม่มีบัญชี',
+  'Can’t raise claims or meal allowances': 'ยื่นเคลมหรือค่าอาหารไม่ได้',
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} ยังใช้{noun}นี้อยู่ ต้องการลบหรือไม่ บัญชีเหล่านั้นจะยังเก็บชื่อไว้ แต่จะเลือกไม่ได้อีก ปิดใช้งานแทนเพื่อเก็บไว้ในระบบ'
 });

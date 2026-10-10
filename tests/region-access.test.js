@@ -8,12 +8,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { state, account, doc, serve, call } = require('./_app');
 
-const FIN = 20, ROOT = 1;
+const FIN = 20, ROOT = 1, CMMD = 30;
 // Region-scoped Finance with every money/delete right; it is also the approver
 // on these documents, so only the region rule stands in its way.
 state.users.set(FIN, account({ id: FIN, role: 'finance', department: 'Finance', can_mark_paid: true }));
 state.users.set(ROOT, account({ id: ROOT, role: 'superadmin', region: '*' }));
-state.settings.role_permissions = { finance: { mark_paid: true, delete_claims: true } };
+state.users.set(CMMD, account({ id: CMMD, role: 'admin', department: 'Management' }));
+state.settings.role_permissions = { finance: { mark_paid: true, delete_claims: true }, admin: { manage_settings: true } };
 const theirs = { employee_id: FIN, approver_ids: [FIN], manager_id: FIN };
 state.tables.claims.push(doc({ id: 5, region: 'Thailand', status: 'approved', ...theirs }),
   doc({ id: 8, region: 'Thailand', status: 'paid', ...theirs }),
@@ -76,4 +77,18 @@ test('only super admins read the per-region overview', async (t) => {
   const root = await call(ROOT, 'GET', '/api/regions/overview');
   assert.equal(root.status, 200, root.body);
   assert.equal(typeof root.json.items, 'object');
+});
+
+test('only settings managers get disabled lookups and member counts', async (t) => {
+  await serve(t);
+  const ask = async (who, path) => {
+    state.reads.length = 0;
+    const r = await call(who, 'GET', path);
+    assert.equal(r.status, 200, r.body);
+    const list = state.reads.find(x => /FROM departments/.test(x));
+    return { activeOnly: / active = TRUE/.test(list), counted: state.reads.some(x => /FROM users WHERE active = TRUE AND region/.test(x)) };
+  };
+  assert.deepEqual(await ask(FIN, '/api/departments?manage=1'), { activeOnly: true, counted: false }, 'no manage_settings: ignored');
+  assert.deepEqual(await ask(CMMD, '/api/departments'), { activeOnly: true, counted: false }, 'claim-form read unchanged');
+  assert.deepEqual(await ask(CMMD, '/api/departments?manage=1'), { activeOnly: false, counted: true });
 });

@@ -1623,7 +1623,6 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 .ws-table .row-off .lk-name, .ws-table .row-off .u-name { color: var(--muted); }
 .utable-lookup .flag-h { width: 150px; }
 .utable-lookup .ord-h { width: 70px; }
-.utable-lookup .name-cell .pill { margin-left: 6px; vertical-align: middle; }
 .row-more-gap { display: inline-block; width: 34px; }
 /* Form pages: one card, sections split by a label, Save in the footer. */
 .ws-card { max-width: 600px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
@@ -2238,24 +2237,6 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-theme="dark"] .look-swatch.ios i:first-child { background: #4c7bd6; }
 .look-name { text-align: center; }
 
-/* Phones/tablets: lookup rows (departments, positions, expense types) become
-   compact cards — name with the ⋯ menu on the top line, each tickbox as an
-   inline "☑ Label" below, and the order arrows inline too. */
-@media (max-width: 900px) {
-  .settings-list .utable-lookup tr { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: center; padding: 10px 14px; }
-  .settings-list .utable-lookup td.name-cell { grid-column: 1; grid-row: 1; padding: 0; font-weight: 650; }
-  .settings-list .utable-lookup td.name-cell::before { display: none; }
-  .settings-list .utable-lookup td.act-cell { grid-column: 2; grid-row: 1; border: 0; margin: 0; padding: 0; }
-  .settings-list .utable-lookup td.act-cell::before { display: none; }
-  .settings-list .utable-lookup td.tick-cell,
-  .settings-list .utable-lookup td.ord-cell { grid-column: 1 / -1; display: flex; flex-direction: row-reverse; justify-content: flex-end;
-    align-items: center; gap: 8px; padding: 8px 0 0; }
-  .settings-list .utable-lookup td.tick-cell::before,
-  .settings-list .utable-lookup td.ord-cell::before { margin: 0; font-size: .84rem; font-weight: 500; text-transform: none;
-    letter-spacing: 0; color: var(--ink-soft); }
-  .settings-list .utable-lookup td.ord-cell .ord-btns { flex-direction: row; }
-  .settings-list .utable-lookup td.tick-cell + td.tick-cell { padding-top: 4px; }
-}
 
 /* --- Account editor (add / edit user) ------------------------------------- */
 /* Identity header, a section menu on the left, the form as titled cards that
@@ -2917,4 +2898,44 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .rp-role { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal;
     font-size: .86rem; font-weight: 560; color: var(--ink-soft); line-height: 1.25; }
   .rp-lock { display: block; font-size: .72rem; font-weight: 600; color: var(--muted); }
+}
+
+/* --- Lookup lists (departments, job positions, expense types) -------------- */
+/* Name with its account count (and a warning when members can raise nothing)
+   underneath; flag toggles centred under their headers; ⋯ menu on the right. */
+.utable-lookup .lk-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.utable-lookup .lk-name { font-weight: 600; color: var(--ink); }
+.utable-lookup .lk-meta { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 2px; font-size: .78rem; line-height: 1.35; }
+.utable-lookup .lk-meta:empty { display: none; }
+.lk-members { color: var(--muted); }
+.lk-members.none { color: var(--muted); font-style: italic; }
+.lk-warn { color: var(--amber); font-weight: 600; }
+.lk-warn::before { content: '⚠ '; }
+.utable-lookup td.lk-cell { text-align: center; }
+.lk-tog { display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.lk-tog input { width: 17px; height: 17px; margin: 0; flex: none; accent-color: var(--pine); cursor: pointer; }
+.lk-tog-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.utable-lookup tr.lk-none td { padding: 20px 16px; text-align: center; }
+.ws-toolbar .ws-chips { margin-left: auto; }
+/* Phones and tablets: flat rows inside the table card — name + ⋯ on the first
+   line, then the toggles as labelled chips that share the width. */
+@media (max-width: 900px) {
+  .settings-list .utable-lookup tr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 14px;
+    margin: 0; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; background: none; }
+  .settings-list .utable-lookup tr:last-child, .settings-list .utable-lookup tr.lk-none { border-bottom: 0; }
+  .settings-list .utable-lookup td { padding: 0; margin: 0; border: 0; }
+  /* The name fills its line (less the ⋯ button, and the order arrows on ranked
+     lists), which pushes the toggles onto the line below. */
+  .settings-list .utable-lookup td.ord-cell { flex: none; order: 0; }
+  .settings-list .utable-lookup td.name-cell { flex: 1 1 calc(100% - 60px); min-width: 0; order: 1; }
+  .settings-list .utable-lookup tr:has(> td.ord-cell) td.name-cell { flex-basis: calc(100% - 140px); }
+  .settings-list .utable-lookup td.act-cell { flex: none; order: 2; padding: 0; margin: 0; border: 0; }
+  .settings-list .utable-lookup td.ord-cell .ord-btns { flex-direction: row; gap: 4px; }
+  .settings-list .utable-lookup td.lk-cell { flex: 1 1 150px; order: 4; text-align: left; }
+  .settings-list .utable-lookup tr.lk-none td { flex: 1 1 100%; }
+  .lk-tog { display: flex; justify-content: flex-start; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .lk-tog:has(input:checked) { border-color: var(--pine); background: var(--pine-tint); }
+  .lk-tog-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal;
+    font-size: .86rem; font-weight: 560; color: var(--ink-soft); line-height: 1.25; }
+  .ws-toolbar .ws-chips { margin-left: 0; }
 }
