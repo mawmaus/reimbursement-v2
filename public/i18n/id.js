@@ -794,5 +794,15 @@ I18N.addDict('id', {
   // Departments / positions / expense types list
   'No accounts': 'Tidak ada akun',
   'Can’t raise claims or meal allowances': 'Tidak bisa mengajukan klaim atau tunjangan makan',
-  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} masih memakai {noun} ini. Tetap hapus? Akun tersebut tetap menyimpan namanya, tetapi tidak bisa dipilih lagi. Nonaktifkan saja agar tetap tercatat.'
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} masih memakai {noun} ini. Tetap hapus? Akun tersebut tetap menyimpan namanya, tetapi tidak bisa dipilih lagi. Nonaktifkan saja agar tetap tercatat.',
+  // Job positions ladder
+  'Above this line: account management covers every department': 'Di atas garis ini: pengelolaan akun mencakup semua departemen',
+  'Above this line: company-wide Insights': 'Di atas garis ini: Insight seluruh perusahaan',
+  'Above this line: can open Insights': 'Di atas garis ini: dapat membuka Insight',
+  'Clear the search and filter to reorder': 'Hapus pencarian dan filter untuk mengurutkan',
+  'Can reset passwords and enable or disable accounts ranked below it in the same department.': 'Dapat mereset kata sandi serta mengaktifkan atau menonaktifkan akun dengan jabatan di bawahnya di departemen yang sama.',
+  'Move to top': 'Pindah ke atas',
+  'Move to bottom': 'Pindah ke bawah',
+  'Order saved': 'Urutan disimpan',
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Ditambahkan di urutan paling bawah — gunakan tombol panah untuk memindahkannya.'
 });

@@ -771,5 +771,15 @@ I18N.addDict('km', {
   // Departments / positions / expense types list
   'No accounts': 'គ្មានគណនី',
   'Can’t raise claims or meal allowances': 'មិនអាចដាក់ការទាមទារ ឬប្រាក់អាហារបានទេ',
-  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} នៅតែប្រើ{noun}នេះ។ លុបចោលដដែលឬ? គណនីទាំងនោះនៅរក្សាឈ្មោះ ប៉ុន្តែមិនអាចជ្រើសរើសបានទៀតទេ។ បិទវាជំនួសវិញ ដើម្បីរក្សាទុកក្នុងកំណត់ត្រា។'
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} នៅតែប្រើ{noun}នេះ។ លុបចោលដដែលឬ? គណនីទាំងនោះនៅរក្សាឈ្មោះ ប៉ុន្តែមិនអាចជ្រើសរើសបានទៀតទេ។ បិទវាជំនួសវិញ ដើម្បីរក្សាទុកក្នុងកំណត់ត្រា។',
+  // Job positions ladder
+  'Above this line: account management covers every department': 'ខាងលើបន្ទាត់នេះ៖ ការគ្រប់គ្រងគណនីគ្របដណ្តប់គ្រប់នាយកដ្ឋាន',
+  'Above this line: company-wide Insights': 'ខាងលើបន្ទាត់នេះ៖ Insight ទូទាំងក្រុមហ៊ុន',
+  'Above this line: can open Insights': 'ខាងលើបន្ទាត់នេះ៖ អាចបើក Insight បាន',
+  'Clear the search and filter to reorder': 'សម្អាតការស្វែងរក និងតម្រង ដើម្បីតម្រៀប',
+  'Can reset passwords and enable or disable accounts ranked below it in the same department.': 'អាចកំណត់ពាក្យសម្ងាត់ឡើងវិញ និងបើក ឬបិទគណនីដែលមានមុខតំណែងទាបជាងក្នុងនាយកដ្ឋានដូចគ្នា។',
+  'Move to top': 'ផ្លាស់ទៅខាងលើបំផុត',
+  'Move to bottom': 'ផ្លាស់ទៅខាងក្រោមបំផុត',
+  'Order saved': 'បានរក្សាទុកលំដាប់',
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'បានបន្ថែមនៅខាងក្រោមបំផុត — ប្រើព្រួញដើម្បីផ្លាស់វាទៅកន្លែងត្រឹមត្រូវ។'
 });

@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.3',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Job positions shows where the ladder unlocks more access — lines mark which positions manage accounts in every department, see company-wide Insights, or can open Insights — and they move as you reorder. Reordering is now instant with numbered ranks and larger arrows, saves automatically, and the ⋯ menu adds Move to top and Move to bottom.',
+        id: 'Pengaturan → Jabatan kini menunjukkan di mana urutan jabatan membuka akses lebih — garis menandai jabatan mana yang mengelola akun di semua departemen, melihat Insight seluruh perusahaan, atau dapat membuka Insight — dan garis ikut bergeser saat Anda mengubah urutan. Mengubah urutan kini langsung, dengan nomor peringkat dan tombol panah lebih besar, tersimpan otomatis, dan menu ⋯ menambahkan Pindah ke atas dan Pindah ke bawah.',
+        th: 'การตั้งค่า → ตำแหน่งงาน แสดงจุดที่ลำดับตำแหน่งปลดล็อกสิทธิ์เพิ่มขึ้น — มีเส้นบอกว่าตำแหน่งใดจัดการบัญชีได้ทุกแผนก ดู Insight ทั้งบริษัท หรือเปิด Insight ได้ — และเส้นจะเลื่อนตามเมื่อคุณจัดลำดับใหม่ การจัดลำดับเกิดขึ้นทันทีพร้อมหมายเลขลำดับและปุ่มลูกศรที่ใหญ่ขึ้น บันทึกอัตโนมัติ และเมนู ⋯ มีย้ายไปบนสุดและย้ายไปล่างสุด',
+        vi: 'Cài đặt → Chức vụ giờ cho thấy chỗ thứ bậc mở thêm quyền — các đường kẻ đánh dấu chức vụ nào quản lý tài khoản ở mọi phòng ban, xem Insight toàn công ty, hoặc có thể mở Insight — và chúng di chuyển khi bạn sắp xếp lại. Sắp xếp giờ diễn ra ngay, có số thứ hạng và mũi tên lớn hơn, tự động lưu, và menu ⋯ có thêm Chuyển lên đầu và Chuyển xuống cuối.',
+        km: 'ការកំណត់ → មុខតំណែង ឥឡូវបង្ហាញកន្លែងដែលលំដាប់មុខតំណែងបើកសិទ្ធិបន្ថែម — បន្ទាត់សម្គាល់មុខតំណែងណាដែលគ្រប់គ្រងគណនីគ្រប់នាយកដ្ឋាន មើល Insight ទូទាំងក្រុមហ៊ុន ឬអាចបើក Insight — ហើយវាផ្លាស់ទីពេលអ្នកតម្រៀបឡើងវិញ។ ការតម្រៀបឥឡូវភ្លាមៗ មានលេខលំដាប់ និងព្រួញធំជាងមុន រក្សាទុកដោយស្វ័យប្រវត្តិ ហើយម៉ឺនុយ ⋯ បន្ថែម ផ្លាស់ទៅខាងលើបំផុត និង ផ្លាស់ទៅខាងក្រោមបំផុត។',
+        fil: 'Ipinapakita na ng Settings → Job positions kung saan nagbubukas ng mas maraming access ang ranggo — may mga linyang nagmamarka kung aling posisyon ang namamahala ng account sa lahat ng department, nakakakita ng Insights ng buong kumpanya, o makakapagbukas ng Insights — at gumagalaw ang mga ito habang nag-aayos ka. Agaran na ang pag-aayos ng pagkakasunod, may numero ng ranggo at mas malalaking arrow, awtomatikong nase-save, at may Ilipat sa itaas at Ilipat sa ibaba na sa ⋯ menu.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.2',
     date: '2026-10-10',
     items: [

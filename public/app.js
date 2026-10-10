@@ -7569,6 +7569,14 @@ async function renderRolesTab() {
 // --- Generic lookup manager (departments / positions / expense types) --------
 // Status chip per lookup (by API path): 'all' | 'active' | 'disabled'.
 const lookupFilter = {};
+// Where the job-position ladder unlocks more reach. Mirrors lib/permissions.js
+// (accountsSeeAllDepts / insightsSeeAll / insightsCanView): the position with
+// that name, or — if it was renamed away — the seeded rank as a fallback.
+const RANK_TIERS = [
+  { name: 'director', fallback: 3, label: 'Above this line: account management covers every department' },
+  { name: 'general manager', fallback: 5, label: 'Above this line: company-wide Insights' },
+  { name: 'supervisor', fallback: 10, label: 'Above this line: can open Insights' }
+];
 async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const panel = $(mountSel);
   // Regional lookups (departments / positions / expense types) are scoped to the
@@ -7598,10 +7606,10 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
       <span class="lk-tog-label">${esc(label)}</span></label></td>`;
   // Up/down reorder controls for a ranked row (disabled at the ends).
   const orderCell = (it, i) => `<td class="ord-cell">
-      <div class="ord-btns">
+      <div class="ord-wrap"><span class="ord-n">${i + 1}</span><div class="ord-btns">
         <button type="button" class="ord-btn" data-move="up" data-id="${it.id}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('Move up'))}">▲</button>
         <button type="button" class="ord-btn" data-move="down" data-id="${it.id}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Move down'))}">▼</button>
-      </div></td>`;
+      </div></div></td>`;
   // Under the name: how many active accounts use it, and a warning when its
   // members can raise nothing at all.
   const metaHtml = (it) => {
@@ -7613,7 +7621,7 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   };
   const headCols = (ranked ? `<th class="ord-h">${esc(t('Order'))}</th>` : '') + `<th>${esc(t('Name'))}</th>`
     + (p ? `<th class="flag-h">${esc(t('New claim'))}</th><th class="flag-h">${esc(t('New meal allowance'))}</th>` : '')
-    + (manage ? `<th class="flag-h">${esc(t('Manage accounts'))}</th>` : '')
+    + (manage ? `<th class="flag-h" title="${esc(t('Can reset passwords and enable or disable accounts ranked below it in the same department.'))}">${esc(t('Manage accounts'))}</th>` : '')
     + '<th class="u-actions-h"></th>';
   const colspan = 1 + (ranked ? 1 : 0) + (p ? 2 : 0) + (manage ? 1 : 0) + 1;
   const counts = { all: items.length, active: items.filter(x => x.active).length };
@@ -7663,7 +7671,35 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
     });
     const none = $('#settingsPanel .lk-none');
     if (none) none.hidden = shown > 0;
+    paintLadder();
   };
+  // Ranked lists: renumber, set the arrows, and draw a line under the last
+  // position of each tier, so a reorder shows what it changes as it happens.
+  // Reordering is off while a search or filter hides part of the ladder.
+  function paintLadder() {
+    if (!ranked) return;
+    const tbody = $('#settingsPanel .utable-lookup tbody');
+    if (!tbody || !items.length) return;
+    const filtering = !!$('#lookupSearch').value.trim() || lookupFilter[cfg.path] !== 'all';
+    tbody.querySelectorAll('tr.lk-tier').forEach(r => r.remove());
+    items.forEach((it, k) => {
+      const tr = tbody.querySelector(`tr[data-id="${it.id}"]`);
+      tr.querySelector('.ord-n').textContent = k + 1;
+      const [up, down] = tr.querySelectorAll('[data-move]');
+      up.disabled = filtering || k === 0;
+      down.disabled = filtering || k === items.length - 1;
+      up.title = down.title = filtering ? t('Clear the search and filter to reorder') : '';
+    });
+    if (filtering) return;
+    for (const tier of RANK_TIERS) {
+      let after = items.findIndex(x => String(x.name).trim().toLowerCase() === tier.name);
+      if (after < 0) items.forEach((x, k) => { if ((x.rank || Infinity) <= tier.fallback) after = k; });
+      if (after < 0) continue;
+      let anchor = tbody.querySelector(`tr[data-id="${items[after].id}"]`);
+      while (anchor.nextElementSibling && anchor.nextElementSibling.classList.contains('lk-tier')) anchor = anchor.nextElementSibling;
+      anchor.insertAdjacentHTML('afterend', `<tr class="lk-tier"><td colspan="${colspan}"><span>${esc(t(tier.label))}</span></td></tr>`);
+    }
+  }
   $('#lookupSearch').addEventListener('input', applyFilter);
   $$('#settingsPanel [data-lkfilter]').forEach(b => b.addEventListener('click', () => {
     lookupFilter[cfg.path] = b.dataset.lkfilter;
@@ -7673,23 +7709,54 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   applyFilter();
 
   const byId = (id) => items.find(x => x.id == id);
+  let saveTimer = null;
+  const saveOrder = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id), ...regionBody }) });
+        toast(t('Order saved'));
+      } catch (ex) { toast(ex.message, true); refreshAfterSettings(); }
+    }, 400);
+  };
+  function moveTo(id, to) {
+    const idx = items.findIndex(x => x.id == id);
+    if (idx < 0 || to < 0 || to >= items.length || to === idx) return;
+    const [it] = items.splice(idx, 1);
+    items.splice(to, 0, it);
+    items.forEach((x, k) => { x.rank = k + 1; });   // what the server will store
+    const tbody = $('#settingsPanel .utable-lookup tbody');
+    const end = tbody.querySelector('.lk-none');
+    items.forEach(x => tbody.insertBefore(tbody.querySelector(`tr[data-id="${x.id}"]`), end));
+    paintLadder();
+    const row = tbody.querySelector(`tr[data-id="${id}"]`);
+    row.classList.remove('lk-moved'); void row.offsetWidth; row.classList.add('lk-moved');
+    row.scrollIntoView({ block: 'nearest' });
+    saveOrder();
+  }
   const addForm = $('#lookupForm');
   $('#lookupAddBtn').addEventListener('click', () => { addForm.hidden = false; addForm.querySelector('input').focus(); });
   addForm.querySelector('[data-cancel]').addEventListener('click', () => { addForm.reset(); addForm.hidden = true; $('#lookupErr').hidden = true; });
   addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = new FormData(e.target).get('name').trim();
-    try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) }); toast(t('Added')); refreshAfterSettings(); }
+    try {
+      await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) });
+      toast(ranked ? t('Added at the bottom of the ladder — use the arrows to move it into place.') : t('Added'));
+      refreshAfterSettings();
+    }
     catch (ex) { const el = $('#lookupErr'); el.textContent = ex.message; el.hidden = false; }
   });
   $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
     e.stopPropagation();
     const it = byId(b.dataset.menu);
     openRowMenu(b, `${cfg.path}:${it.id}`, [
+      ...(ranked && items.length > 1 ? [{ act: 'top', label: t('Move to top') }, { act: 'bottom', label: t('Move to bottom') }] : []),
       { act: 'rename', label: t('Rename') },
       { act: 'toggle', label: it.active ? t('Disable') : t('Enable') },
       { act: 'delete', label: t('Delete'), danger: true }
     ], async (act) => {
+      if (act === 'top' || act === 'bottom') return moveTo(it.id, act === 'top' ? 0 : items.length - 1);
       if (act === 'rename') return startInlineRename(b.closest('tr').querySelector('.name-cell'), it, cfg);
       if (act === 'toggle') {
         try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ active: !it.active }) }); toast(t('Saved')); refreshAfterSettings(); }
@@ -7716,17 +7783,13 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
       toast(t('Saved'));
     } catch (ex) { cb.checked = !val; toast(ex.message, true); }
   }));
-  // Reorder arrows — move the row within the local list and persist the new
-  // order for the whole ladder in one call.
-  if (ranked) $$('#settingsPanel [data-move]').forEach(b => b.addEventListener('click', async () => {
+  // Reorder arrows — move the row in place (no reload, focus stays on the
+  // arrow), then save the whole ladder once the clicks stop.
+  if (ranked) $$('#settingsPanel [data-move]').forEach(b => b.addEventListener('click', () => {
     const idx = items.findIndex(x => x.id == b.dataset.id);
-    const swap = b.dataset.move === 'up' ? idx - 1 : idx + 1;
-    if (swap < 0 || swap >= items.length) return;
-    [items[idx], items[swap]] = [items[swap], items[idx]];
-    try {
-      await api(`${cfg.path}/reorder`, { method: 'POST', body: JSON.stringify({ order: items.map(x => x.id), ...regionBody }) });
-      refreshAfterSettings();
-    } catch (ex) { toast(ex.message, true); refreshAfterSettings(); }
+    moveTo(b.dataset.id, b.dataset.move === 'up' ? idx - 1 : idx + 1);
+    const other = b.parentNode.querySelector(`[data-move]:not([data-move="${b.dataset.move}"])`);
+    (b.disabled ? other : b).focus();
   }));
 }
 

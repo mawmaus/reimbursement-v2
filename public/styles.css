@@ -1621,7 +1621,7 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 .ws-table .utable tbody tr:last-child td { border-bottom: 0; }
 .ws-table .utable tbody tr:hover td { background: var(--paper); }
 .ws-table .row-off .lk-name, .ws-table .row-off .u-name { color: var(--muted); }
-.utable-lookup .flag-h { width: 150px; }
+.utable-lookup .flag-h { width: 128px; }
 .utable-lookup .ord-h { width: 70px; }
 .row-more-gap { display: inline-block; width: 34px; }
 /* Form pages: one card, sections split by a label, Save in the footer. */
@@ -2928,7 +2928,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
      lists), which pushes the toggles onto the line below. */
   .settings-list .utable-lookup td.ord-cell { flex: none; order: 0; }
   .settings-list .utable-lookup td.name-cell { flex: 1 1 calc(100% - 60px); min-width: 0; order: 1; }
-  .settings-list .utable-lookup tr:has(> td.ord-cell) td.name-cell { flex-basis: calc(100% - 140px); }
+  .settings-list .utable-lookup tr:has(> td.ord-cell) td.name-cell { flex-basis: calc(100% - 170px); }
   .settings-list .utable-lookup td.act-cell { flex: none; order: 2; padding: 0; margin: 0; border: 0; }
   .settings-list .utable-lookup td.ord-cell .ord-btns { flex-direction: row; gap: 4px; }
   .settings-list .utable-lookup td.lk-cell { flex: 1 1 150px; order: 4; text-align: left; }
@@ -2938,4 +2938,24 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .lk-tog-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal;
     font-size: .86rem; font-weight: 560; color: var(--ink-soft); line-height: 1.25; }
   .ws-toolbar .ws-chips { margin-left: 0; }
+  .settings-list .utable-lookup tr.lk-tier { padding: 0; border-bottom: 0; }
+  .settings-list .utable-lookup tr.lk-tier td { flex: 1 1 100%; padding: 6px 14px; text-align: left; }
 }
+
+/* --- Job positions ladder ---------------------------------------------------- */
+/* Rank number beside side-by-side arrows; a tinted line under the last position
+   of each tier (Director / General Manager / Supervisor reach); a brief
+   highlight on the row just moved. */
+.utable-lookup .ord-h { width: 112px; }
+.ord-wrap { display: flex; align-items: center; gap: 8px; }
+.ord-n { min-width: 20px; text-align: right; font-size: .82rem; font-weight: 650; color: var(--muted); font-variant-numeric: tabular-nums; }
+.utable-lookup .ord-btns { flex-direction: row; gap: 4px; }
+.utable-lookup .ord-btn { width: 28px; height: 26px; font-size: .7rem; border-radius: 7px; }
+.utable-lookup .ord-btn:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+.utable-lookup tr.lk-tier td { padding: 5px 16px; font-size: .74rem; font-weight: 650; line-height: 1.3; color: var(--pine-deep);
+  background: var(--pine-tint); border-bottom: 1px solid var(--line-soft); }
+.utable-lookup tr.lk-tier span::before { content: '↑ '; }
+.ws-table .utable tbody tr.lk-tier:hover td { background: var(--pine-tint); }
+@keyframes lkMoved { from { background: var(--pine-tint-hi); } to { background: transparent; } }
+.utable-lookup tr.lk-moved td { animation: lkMoved 1.2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .utable-lookup tr.lk-moved td { animation: none; } }

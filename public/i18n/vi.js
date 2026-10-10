@@ -771,5 +771,15 @@ I18N.addDict('vi', {
   // Departments / positions / expense types list
   'No accounts': 'Không có tài khoản',
   'Can’t raise claims or meal allowances': 'Không thể tạo yêu cầu hoặc phụ cấp ăn',
-  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} vẫn đang dùng {noun} này. Vẫn xóa? Các tài khoản đó giữ nguyên tên, nhưng không thể chọn lại nữa. Hãy vô hiệu hóa thay vì xóa để giữ lại hồ sơ.'
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} vẫn đang dùng {noun} này. Vẫn xóa? Các tài khoản đó giữ nguyên tên, nhưng không thể chọn lại nữa. Hãy vô hiệu hóa thay vì xóa để giữ lại hồ sơ.',
+  // Job positions ladder
+  'Above this line: account management covers every department': 'Phía trên đường này: quản lý tài khoản ở mọi phòng ban',
+  'Above this line: company-wide Insights': 'Phía trên đường này: Insight toàn công ty',
+  'Above this line: can open Insights': 'Phía trên đường này: có thể mở Insight',
+  'Clear the search and filter to reorder': 'Xóa tìm kiếm và bộ lọc để sắp xếp',
+  'Can reset passwords and enable or disable accounts ranked below it in the same department.': 'Có thể đặt lại mật khẩu và bật hoặc tắt các tài khoản có chức vụ thấp hơn trong cùng phòng ban.',
+  'Move to top': 'Chuyển lên đầu',
+  'Move to bottom': 'Chuyển xuống cuối',
+  'Order saved': 'Đã lưu thứ tự',
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Đã thêm vào cuối danh sách — dùng các mũi tên để chuyển đến vị trí phù hợp.'
 });

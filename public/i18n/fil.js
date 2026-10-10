@@ -771,5 +771,15 @@ I18N.addDict('fil', {
   // Departments / positions / expense types list
   'No accounts': 'Walang account',
   'Can’t raise claims or meal allowances': 'Hindi makapag-claim o meal allowance',
-  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} ang gumagamit pa ng {noun} na ito. Burahin pa rin? Mananatili ang pangalan sa kanilang account, pero hindi na ito mapipili. I-disable na lang para manatili sa record.'
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} ang gumagamit pa ng {noun} na ito. Burahin pa rin? Mananatili ang pangalan sa kanilang account, pero hindi na ito mapipili. I-disable na lang para manatili sa record.',
+  // Job positions ladder
+  'Above this line: account management covers every department': 'Sa itaas ng linyang ito: saklaw ng pamamahala ng account ang lahat ng department',
+  'Above this line: company-wide Insights': 'Sa itaas ng linyang ito: Insights ng buong kumpanya',
+  'Above this line: can open Insights': 'Sa itaas ng linyang ito: makakapagbukas ng Insights',
+  'Clear the search and filter to reorder': 'I-clear ang paghahanap at filter para makapag-ayos ng pagkakasunod',
+  'Can reset passwords and enable or disable accounts ranked below it in the same department.': 'Makakapag-reset ng password at makakapag-enable o disable ng mga account na mas mababa ang ranggo sa parehong department.',
+  'Move to top': 'Ilipat sa itaas',
+  'Move to bottom': 'Ilipat sa ibaba',
+  'Order saved': 'Na-save ang pagkakasunod',
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Idinagdag sa pinakaibaba — gamitin ang mga arrow para ilipat ito sa tamang puwesto.'
 });

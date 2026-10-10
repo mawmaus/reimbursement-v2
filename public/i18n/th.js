@@ -771,5 +771,15 @@ I18N.addDict('th', {
   // Departments / positions / expense types list
   'No accounts': 'ไม่มีบัญชี',
   'Can’t raise claims or meal allowances': 'ยื่นเคลมหรือค่าอาหารไม่ได้',
-  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} ยังใช้{noun}นี้อยู่ ต้องการลบหรือไม่ บัญชีเหล่านั้นจะยังเก็บชื่อไว้ แต่จะเลือกไม่ได้อีก ปิดใช้งานแทนเพื่อเก็บไว้ในระบบ'
+  '{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': '{count} ยังใช้{noun}นี้อยู่ ต้องการลบหรือไม่ บัญชีเหล่านั้นจะยังเก็บชื่อไว้ แต่จะเลือกไม่ได้อีก ปิดใช้งานแทนเพื่อเก็บไว้ในระบบ',
+  // Job positions ladder
+  'Above this line: account management covers every department': 'เหนือเส้นนี้: จัดการบัญชีได้ทุกแผนก',
+  'Above this line: company-wide Insights': 'เหนือเส้นนี้: ดู Insight ทั้งบริษัท',
+  'Above this line: can open Insights': 'เหนือเส้นนี้: เปิด Insight ได้',
+  'Clear the search and filter to reorder': 'ล้างการค้นหาและตัวกรองเพื่อจัดลำดับ',
+  'Can reset passwords and enable or disable accounts ranked below it in the same department.': 'รีเซ็ตรหัสผ่านและเปิดหรือปิดใช้งานบัญชีที่มีตำแหน่งต่ำกว่าในแผนกเดียวกันได้',
+  'Move to top': 'ย้ายไปบนสุด',
+  'Move to bottom': 'ย้ายไปล่างสุด',
+  'Order saved': 'บันทึกลำดับแล้ว',
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'เพิ่มไว้ล่างสุดของลำดับแล้ว — ใช้ปุ่มลูกศรเพื่อย้ายไปยังตำแหน่งที่ต้องการ'
 });
