@@ -18,3 +18,6 @@ local/
 
 # Source maps written by `node scripts/stamp-assets.js --minify` (Vercel build only)
 public/**/*.map
+
+# Review file written by scripts/find-stranded-accounts.js
+stranded-accounts.plan.json

@@ -10,7 +10,8 @@
     "start": "node server.js",
     "setup-db": "node scripts/setup-db.js",
     "check:changelog": "node scripts/check-changelog.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "check:accounts": "node scripts/find-stranded-accounts.js"
   },
   "license": "MIT",
   "dependencies": {
