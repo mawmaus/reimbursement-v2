@@ -16,6 +16,7 @@ const {
 const { regionPrefsFor } = require('../lib/settings');
 const { computePurposes, unrealizedAdvanceCount, approver1Choices } = require('../lib/workflow');
 const { loadUser, requireAuth, SET_PASSWORD_SQL, startSession } = require('../lib/auth');
+const { surveyPending } = require('../lib/survey');
 
 const router = express.Router();
 
@@ -89,15 +90,16 @@ router.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: tr
 // /api/me and the profile saves; the lookups are independent so they run
 // together. Attaches u.caps as a side effect.
 async function sessionExtras(u) {
-  const [pos, prefs, purposes, unrealized, approver1] = await Promise.all([
+  const [pos, prefs, purposes, unrealized, approver1, survey] = await Promise.all([
     loadPositions(u.region), regionPrefsFor(u.region), computePurposes(u),
-    unrealizedAdvanceCount(u.id), approver1Choices(u.approver1_options), attachCaps(u)
+    unrealizedAdvanceCount(u.id), approver1Choices(u.approver1_options),
+    surveyPending(u.id), attachCaps(u)
   ]);
   return {
     language: normLang(u.language), ...prefs, purposes, creatable_positions: creatablePositions(u, pos),
     my_unrealized_advances: unrealized, approver1_choices: approver1,
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
-    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps
+    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey
   };
 }
 

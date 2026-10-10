@@ -120,6 +120,7 @@ app.use(require('./routes/cron'));
 app.use(require('./routes/reports'));
 app.use(require('./routes/users'));
 app.use(require('./routes/lookups'));
+app.use(require('./routes/survey'));
 
 // ---------------------------------------------------------------------------
 // Static frontend + error handling

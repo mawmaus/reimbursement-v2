@@ -567,7 +567,23 @@ const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_claims_region_created ON claims(region, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_meal_claims_region_created ON meal_claims(region, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_history_actor ON claim_history(actor_id, claim_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_meal_history_actor ON meal_claim_history(actor_id, meal_claim_id)`
+  `CREATE INDEX IF NOT EXISTS idx_meal_history_actor ON meal_claim_history(actor_id, meal_claim_id)`,
+  // --- Experience survey (2026-10-10) -------------------------------------------
+  // One answer per account per survey (lib/survey.js): three 1–10 scores. The
+  // account's region and department are copied in when it answers, so results
+  // can be broken down without following later account edits.
+  `CREATE TABLE IF NOT EXISTS survey_responses (
+    id            SERIAL PRIMARY KEY,
+    survey_key    TEXT NOT NULL,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    region        TEXT NOT NULL DEFAULT '',
+    department    TEXT NOT NULL DEFAULT '',
+    paper_score   SMALLINT NOT NULL CHECK (paper_score BETWEEN 1 AND 10),
+    digital_score SMALLINT NOT NULL CHECK (digital_score BETWEEN 1 AND 10),
+    overall_score SMALLINT NOT NULL CHECK (overall_score BETWEEN 1 AND 10),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (survey_key, user_id)
+  )`
 ];
 
 module.exports = { SCHEMA };

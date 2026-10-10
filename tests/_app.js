@@ -20,7 +20,7 @@ const state = {
   settings: {},            // app_settings key -> value (objects are JSON-encoded)
   positions: [],           // job_positions rows { name, rank, can_manage }
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [],
-    departments: [], job_positions: [], expense_types: [] },
+    departments: [], job_positions: [], expense_types: [], survey_responses: [] },
   writes: [],
   reads: [],               // every query's text, so a test can see what was asked
   onWrite: null
@@ -54,6 +54,18 @@ async function q(text, params = []) {
     const r = state.tables[m[1]].find(x => x.id === Number(params[0]));
     if (r && r.status === params[1] && (r.current_step || 0) === params[2]) return [{ ok: 1 }];
     throw Object.assign(new Error('division by zero'), { code: '22012' }); // lib/workflow stillAsRead
+  }
+  // The experience survey (lib/survey.js): eligibility, and the answer itself.
+  if (/^SELECT 1 AS pending FROM users u WHERE u.id = \$1 AND u.created_at < \$2::date/.test(sql)) {
+    const u = state.users.get(Number(params[0]));
+    const answered = state.tables.survey_responses.some(r => r.user_id === Number(params[0]) && r.survey_key === params[2]);
+    return u && u.created_at && new Date(u.created_at) < new Date(params[1]) && !answered ? [{ pending: 1 }] : [];
+  }
+  if (/^INSERT INTO survey_responses/.test(sql)) {
+    state.writes.push(sql.slice(0, 70));
+    const [survey_key, user_id, region, department, paper_score, digital_score, overall_score] = params;
+    state.tables.survey_responses.push({ survey_key, user_id, region, department, paper_score, digital_score, overall_score });
+    return [];
   }
   if (/COUNT\(/i.test(sql)) return [{ n: 0 }];
   if (/^(INSERT|UPDATE|DELETE|WITH)/.test(sql)) {

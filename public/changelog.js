@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.8',
+    date: '2026-10-10',
+    items: [
+      { kind: 'new', audience: ['superadmin'], text: {
+        en: 'Experience survey: accounts created before August are asked once, after signing in, to score reimbursing on paper, reimbursing digitally now, and this portal overall, from 1 (very bad) to 10 (very good). “Maybe later” asks again at the next sign-in. Super Admins see the results under Settings → Regions → Experience survey: how many have answered, the average and spread of each score, and a breakdown by region.',
+        id: 'Survei pengalaman: akun yang dibuat sebelum Agustus diminta satu kali, setelah masuk, untuk menilai reimbursement dengan kertas, reimbursement digital sekarang, dan portal ini secara keseluruhan, dari 1 (sangat buruk) sampai 10 (sangat baik). “Nanti saja” akan bertanya lagi saat masuk berikutnya. Super Admin melihat hasilnya di Pengaturan → Region → Survei pengalaman: berapa yang sudah menjawab, rata-rata dan sebaran setiap nilai, serta rincian per region.',
+        th: 'แบบสำรวจประสบการณ์: บัญชีที่สร้างก่อนเดือนสิงหาคมจะถูกขอให้ให้คะแนนหนึ่งครั้งหลังเข้าสู่ระบบ สำหรับการเบิกด้วยกระดาษ การเบิกแบบดิจิทัลในตอนนี้ และพอร์ทัลนี้โดยรวม ตั้งแต่ 1 (แย่มาก) ถึง 10 (ดีมาก) “ไว้ทีหลัง” จะถามอีกครั้งเมื่อเข้าสู่ระบบครั้งถัดไป Super Admin ดูผลได้ที่ การตั้งค่า → ภูมิภาค → แบบสำรวจประสบการณ์: จำนวนผู้ตอบ ค่าเฉลี่ยและการกระจายของแต่ละคะแนน และแยกตามภูมิภาค',
+        vi: 'Khảo sát trải nghiệm: tài khoản tạo trước tháng Tám được mời một lần, sau khi đăng nhập, chấm điểm việc hoàn ứng bằng giấy, hoàn ứng bằng hình thức số hiện nay và cổng thông tin này nói chung, từ 1 (rất tệ) đến 10 (rất tốt). “Để sau” sẽ hỏi lại ở lần đăng nhập tiếp theo. Super Admin xem kết quả tại Cài đặt → Khu vực → Khảo sát trải nghiệm: số người đã trả lời, điểm trung bình và phân bố của từng câu, và chi tiết theo khu vực.',
+        km: 'ការស្ទង់មតិបទពិសោធន៍៖ គណនីដែលបង្កើតមុនខែសីហា ត្រូវបានស្នើម្តង បន្ទាប់ពីចូលប្រើ ឱ្យដាក់ពិន្ទុលើការស្នើសុំសំណងដោយក្រដាស ការស្នើសុំសំណងជាឌីជីថលឥឡូវនេះ និងវិបផតថលនេះជារួម ពី 1 (អាក្រក់ណាស់) ដល់ 10 (ល្អណាស់)។ “ពេលក្រោយ” នឹងសួរម្តងទៀតនៅពេលចូលប្រើលើកក្រោយ។ Super Admin មើលលទ្ធផលនៅ ការកំណត់ → តំបន់ → ការស្ទង់មតិបទពិសោធន៍៖ ចំនួនអ្នកឆ្លើយ មធ្យមភាគ និងការបែងចែកនៃពិន្ទុនីមួយៗ និងតាមតំបន់។',
+        fil: 'Survey ng karanasan: isang beses tatanungin, pagka-sign in, ang mga account na ginawa bago ang Agosto na markahan ang reimbursement sa papel, ang digital na reimbursement ngayon, at ang portal na ito sa kabuuan, mula 1 (napakasama) hanggang 10 (napakahusay). Ang “Mamaya na lang” ay magtatanong ulit sa susunod na sign-in. Makikita ng mga Super Admin ang resulta sa Settings → Regions → Survey ng karanasan: ilan ang sumagot, ang average at pagkakahati ng bawat marka, at ayon sa rehiyon.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.7',
     date: '2026-10-10',
     items: [
