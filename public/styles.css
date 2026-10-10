@@ -136,10 +136,7 @@ input[type="search"] { min-width: 220px; }
   box-shadow: var(--shadow);
 }
 .brand { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; }
-.brand-mark, .topbar-mark {
-  display: grid; place-items: center; width: 42px; height: 42px; flex: none;
-  background: var(--pine); color: var(--on-brand); border-radius: 11px; font-size: 1.3rem; font-weight: 700;
-}
+
 /* Cibes brand logo (public/logo.svg) */
 .logo { flex: none; display: block; width: auto; user-select: none; }
 .logo-lg { height: 38px; }
@@ -174,7 +171,7 @@ input[type="search"] { min-width: 220px; }
 /* Brand pushes the action group + Sign out to the right; Sign out stays last. */
 .topbar-left { display: flex; align-items: center; gap: 12px; margin-right: auto; }
 .topbar-signout { margin-left: 4px; }
-.topbar-mark { width: 34px; height: 34px; font-size: 1.05rem; border-radius: 9px; }
+
 .topbar-title { font-weight: 650; letter-spacing: -0.01em; }
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .user-badge { font-size: .85rem; color: var(--ink-soft); margin-right: 4px; }
@@ -227,22 +224,6 @@ input[type="search"] { min-width: 220px; }
 .home-tile:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
 .home-tile .tile-title { font-size: 1.15rem; font-weight: 650; color: var(--ink); }
 .home-tile .tile-desc { font-size: .88rem; color: var(--muted); }
-.home-tile .tile-count { margin-top: auto; font-size: .8rem; font-weight: 650; color: var(--pine-deep); text-transform: uppercase; letter-spacing: .04em; }
-/* Notification-style badge (like a phone app) for the approval queue. */
-.home-tile .tile-badge {
-  position: absolute; top: 14px; right: 14px; min-width: 26px; height: 26px; padding: 0 7px;
-  display: grid; place-items: center; border-radius: 13px; background: var(--red); color: var(--on-accent);
-  font-size: .82rem; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,.18);
-}
-
-/* The Insights tile is a destination, not a claim list — give it a subtle
-   brand tint and a chart-coloured hint so it reads as its own thing. */
-.home-tile-insights { background: var(--pine-tint); border-color: transparent; }
-/* Already tinted, so its hover steps one shade deeper; the muted line darkens
-   to stay readable on it. */
-.home-tile-insights:hover { background: var(--pine-tint-hi); border-color: var(--pine-tint-hi); }
-.home-tile-insights:hover .tile-desc { color: var(--ink-soft); }
-.home-tile-insights .tile-count { color: var(--pine-deep); }
 
 /* ---------- List view header (back to menu) ---------- */
 .list-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
@@ -256,10 +237,7 @@ input[type="search"] { min-width: 220px; }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
 
 /* ---------- Insights (expense charts) ---------- */
-.insights-scope {
-  margin-left: auto; font-size: .78rem; font-weight: 650; color: var(--pine-deep);
-  background: var(--pine-tint); padding: 4px 12px; border-radius: 999px; white-space: nowrap;
-}
+
 .insights-filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
 .insights-filters label {
   display: flex; flex-direction: column; gap: 5px;
@@ -343,7 +321,7 @@ input[type="search"] { min-width: 220px; }
 .trend-svg .dot-sel { fill: var(--brand, var(--pine-deep)); stroke-width: 2.5; }
 .trend-svg .hit { cursor: pointer; }
 .trend-svg .ax { fill: var(--muted); font-size: 11px; font-family: var(--sans); }
-.trend-svg .ax-max { text-anchor: start; fill: var(--muted); }
+
 .trend-tip {
   position: absolute; transform: translate(-50%, -120%); pointer-events: none; z-index: 2;
   background: var(--tip-bg); color: var(--tip-ink); border-radius: 8px; padding: 6px 10px; white-space: nowrap;
@@ -397,7 +375,7 @@ input[type="search"] { min-width: 220px; }
 
 /* ---------- Toolbar ---------- */
 .toolbar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-.toolbar-left, .toolbar-right { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 /* Filters sit inline on one row: search grows, selects size to their content.
    (The base .input is width:100% for forms — override that here.) */
 .toolbar-left { flex: 1; }
@@ -539,11 +517,6 @@ input[type="search"] { min-width: 220px; }
 .kv dd.amt { font-family: var(--mono); font-size: 1.05rem; font-weight: 650; }
 
 .section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--muted); margin: 22px 0 10px; }
-.attach-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; }
-.attach-list a { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid var(--line);
-  border-radius: 8px; color: var(--ink); text-decoration: none; background: var(--paper); }
-.attach-list a:hover { border-color: var(--pine); }
-.attach-list .fsize { margin-left: auto; color: var(--muted); font-size: .78rem; font-family: var(--mono); }
 
 .timeline { list-style: none; padding: 0; margin: 0; }
 .timeline li { position: relative; padding: 0 0 16px 22px; border-left: 2px solid var(--line-soft); }
@@ -568,7 +541,7 @@ input[type="search"] { min-width: 220px; }
 .cp.rejected .cp-dot { background: var(--red); color: var(--on-accent); }
 .cp-body { flex: 1; }
 .cp-label { font-weight: 560; font-size: .92rem; }
-.cp-pos { font-size: .78rem; color: var(--muted); }
+
 .cp-state { font-size: .8rem; font-weight: 650; color: var(--muted); white-space: nowrap; }
 .cp.current .cp-state { color: var(--amber); }
 .cp.done .cp-state { color: var(--green); }
@@ -621,7 +594,6 @@ input[type="search"] { min-width: 220px; }
 /* A receipt already saved on the claim — its name opens the file. */
 .file-chip-saved a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .file-chip-saved a:hover { text-decoration-thickness: 2px; }
-.drop-note { margin-bottom: 10px; line-height: 1.4; }
 
 /* ---------- Receipt photo editor (crop / rotate / stamp) ---------- */
 .modal.ph-modal { display: flex; flex-direction: column; overflow: hidden; }
@@ -725,27 +697,6 @@ input[type="search"] { min-width: 220px; }
   .ph-docnote { flex: 1 0 100%; }
 }
 
-/* Amount field: fixed currency prefix + amount input + calculator toggle */
-.amount-field { display: flex; align-items: stretch; gap: 0;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; }
-.amount-field:focus-within { border-color: var(--pine); box-shadow: 0 0 0 3px var(--pine-tint); }
-.amount-cur {
-  display: flex; align-items: center; padding: 0 11px; font-weight: 650; font-size: .85rem;
-  color: var(--ink-soft); background: var(--paper); border-right: 1px solid var(--line);
-  letter-spacing: .02em; user-select: none;
-}
-.amount-field input[name="amount"] {
-  border: none; border-radius: 0; box-shadow: none !important; flex: 1 1 auto; min-width: 0;
-}
-.amount-field input[name="amount"]:focus { box-shadow: none; }
-.amount-calc-btn {
-  border: none; border-left: 1px solid var(--line); background: var(--paper); cursor: pointer;
-  padding: 0 12px; font-size: 1.05rem; line-height: 1; color: var(--ink-soft);
-  transition: background .14s, color .14s;
-}
-.amount-calc-btn:hover { background: var(--pine-tint); color: var(--pine-deep); }
-.amount-calc-btn[aria-expanded="true"] { background: var(--pine-tint); color: var(--pine-deep); }
-
 /* Searchable combobox (expense type) — a filter input plus a dropdown list,
    backed by a hidden field that carries the value. */
 .combo { position: relative; }
@@ -837,16 +788,6 @@ input[type="search"] { min-width: 220px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
 
-/* Frozen action bar: opt-in class that pins Submit / Cancel to the bottom of a
-   scrolling modal so they stay visible instead of scrolling out of view. The
-   negative margins bleed the bar to the modal edges (matching .modal-body
-   padding). Used on tall forms (claim, export, user editor…). */
-.modal-actions.sticky-foot {
-  position: sticky; bottom: 0; z-index: 3;
-  margin: 14px -22px -22px; padding: 14px 22px;
-  background: var(--surface); border-top: 1px solid var(--line);
-}
-
 /* users table */
 .utable { width: 100%; border-collapse: collapse; font-size: .9rem; }
 /* The Roles capability matrix is a checkbox grid keyed by role columns; it can be
@@ -875,7 +816,6 @@ input[type="search"] { min-width: 220px; }
 /* Inline rename (name cell → editable input) */
 .rename-row { display: flex; gap: 6px; align-items: center; }
 .rename-row .rename-input { flex: 1; min-width: 90px; padding: 5px 8px; }
-.info-note { font-size: .82rem; line-height: 1.4; }
 
 /* Accounts table: keep it inside the modal — long emails wrap instead of
    forcing a horizontal scroll, and the username sits under the name. */
@@ -1006,15 +946,8 @@ input[type="search"] { min-width: 220px; }
 .meal-table tbody input:disabled::-webkit-calendar-picker-indicator { display: none; }
 
 /* --- Date changes ---------------------------------------------------------
-   The question offered under a locked date column on a resubmit, and the queue
-   of requests it feeds in Settings. */
-.date-ask {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap; margin: 8px 0 2px; padding: 9px 12px;
-  border: 1px dashed var(--line); border-radius: 8px; background: var(--paper);
-  font-size: .85rem; color: var(--ink-soft);
-}
-.date-ask .btn { flex: 0 0 auto; }
+   The Super Admin's queue of date-change requests (legacy; see app.js). */
+
 .dc-wrap { max-width: 720px; }
 .dc-intro { margin: 0 0 18px; font-size: .9rem; }
 .dc-empty { margin: 0; font-size: .88rem; }
@@ -1067,19 +1000,11 @@ input[type="search"] { min-width: 220px; }
 .meal-total-label { text-align: right; text-transform: uppercase; font-size: .72rem; letter-spacing: .04em; }
 .meal-total { text-align: right; font-variant-numeric: tabular-nums; color: var(--pine-deep); white-space: nowrap; }
 .meal-table tbody .x-btn { color: var(--muted); }
-.meal-note {
-  margin-top: 16px; padding: 12px 14px; border: 1px dashed var(--line);
-  border-radius: 8px; background: var(--paper); font-size: .8rem; color: var(--ink-soft);
-  white-space: pre-line; line-height: 1.7;
-}
-.meal-note strong { display: block; color: var(--ink); letter-spacing: .03em; margin-bottom: 2px; }
 
 /* Meal + reimbursement forms: frozen action bar on top, scrolling table below. */
 .modal-flex #mealForm,
 .modal-flex #claimForm,
 .modal-flex #realizeForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.meal-topbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 
 /* Draft banner — shown at the top of a form reopened from a saved draft. Soft
    brand tint so it reads as a gentle "you're continuing where you left off"
@@ -1104,9 +1029,7 @@ input[type="search"] { min-width: 220px; }
    tfoot pinned over the scrolling rows and covered the bottom row you were
    editing. flex-wrap lets the total drop to its own line on a narrow phone. */
 .meal-foot { flex: none; margin-top: 0; padding-top: 14px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.meal-foot-total { margin-right: auto; display: flex; align-items: baseline; gap: 8px;
-  font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--muted); }
-.meal-foot-total .meal-total { font-size: 1.05rem; font-weight: 650; }
+
 /* Let .meal-scroll own both scroll axes so the sticky header resolves against
    it rather than a nested scroll container. */
 .meal-scroll .meal-table-wrap { overflow: visible; }
@@ -1128,21 +1051,13 @@ input[type="search"] { min-width: 220px; }
 .settings-controls { flex: none; }
 .settings-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .settings-list .utable thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
-.settings-search { margin-bottom: 10px; }
-.settings-search input { width: 100%; }
-.settings-empty { padding: 16px; color: var(--muted); }
+
 .tab {
   font: inherit; font-weight: 560; cursor: pointer; background: none; border: none;
   padding: 9px 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
 }
 .tab:hover { color: var(--ink); }
 .tab.active { color: var(--pine-deep); border-bottom-color: var(--pine); }
-
-.chain-card { border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; margin-bottom: 12px; background: var(--paper); }
-.chain-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-.chain-dept { font-size: .78rem; color: var(--pine-deep); background: var(--pine-tint); padding: 2px 8px; border-radius: 99px; margin-left: 8px; }
-.chain-lines { margin: 10px 0 0; padding-left: 22px; font-size: .9rem; display: flex; flex-direction: column; gap: 4px; }
-.chain-lines li { padding-left: 4px; }
 
 .line-row { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 8px; margin-bottom: 8px; }
 .line-step {
@@ -1258,19 +1173,17 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
      a 260px-TALL empty box, so every control's flex is reset to auto here. */
   .toolbar { flex-direction: column; align-items: stretch; }
   .toolbar-left { flex-direction: row; flex-wrap: wrap; gap: 8px; }
-  .toolbar-right { flex-direction: column; align-items: stretch; }
+
   .toolbar-left .input, input[type="search"], select.input { min-width: 0; }
   .toolbar-left #searchInput { flex: 1 1 100%; width: 100%; }
   .toolbar-left select.input { flex: 1 1 140px; width: auto; }
   .toolbar-left .msel { flex: 1 1 140px; min-width: 0; width: auto; }
-  .toolbar-right .btn { width: 100%; }
 
   /* Insights filters stack full width; scope chip drops below the title. */
   .insights-filters { flex-direction: column; align-items: stretch; }
   .insights-filters label { width: 100%; }
   .insights-filters .input { min-width: 0; width: 100%; }
   .insights-filters .msel-trigger { min-width: 0; }
-  .insights-scope { margin-left: 0; }
 
   /* Phone claims list: each row becomes a standalone card (matching the account
      and settings tables, which already reflow to cards on phones) instead of a
@@ -1323,7 +1236,7 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
   .drawer-body { padding: 18px 16px; }
   .drawer-head { padding: 16px; }
   .modal-body { padding: 18px 16px; }
-  .modal-actions.sticky-foot { margin: 14px -16px -18px; padding: 14px 16px; }
+
 }
 
 /* Phones — 2×2 status cards with the total on its own full-width row, tighter
@@ -2271,14 +2184,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-style="ios"] .home-tile { border: none; border-radius: 20px; box-shadow: var(--shadow-sm); }
 :root[data-style="ios"] .home-tile:hover { background: var(--surface); border-color: transparent; box-shadow: var(--shadow-md); transform: translateY(-2px); }
 :root[data-style="ios"] .home-tile .tile-title { font-weight: 650; letter-spacing: -.015em; }
-:root[data-style="ios"] .home-tile .tile-count { text-transform: none; letter-spacing: 0; font-size: .88rem; font-weight: 600; color: var(--pine-deep); }
-:root[data-style="ios"] .home-tile .tile-badge { background: #ff3b30; color: #fff; box-shadow: none; font-weight: 600; }
-:root[data-style="ios"] .home-tile-insights,
-:root[data-style="ios"] .home-tile-insights:hover { background: var(--pine); }
-:root[data-style="ios"] .home-tile-insights .tile-title,
-:root[data-style="ios"] .home-tile-insights .tile-count { color: #fff; }
-:root[data-style="ios"] .home-tile-insights .tile-desc,
-:root[data-style="ios"] .home-tile-insights:hover .tile-desc { color: rgba(255,255,255,.85); }
+
 :root[data-style="ios"] .home-notice { border-radius: 14px; }
 
 /* Summary cards: borderless widgets with sentence-case labels. */
@@ -2857,8 +2763,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 /* Filters: a row on desktop; on phones they fold behind a "Filters (n)" button. */
 .in-toolbar { display: none; }
 .insights-filters { align-items: flex-end; }
-.in-reset-wrap { display: flex; align-items: flex-end; margin-left: auto; }
-.in-reset-wrap .btn { white-space: nowrap; min-height: 40px; }
+
 /* Bars: room for longer type names (two lines before an ellipsis) and a share %. */
 .bar-row { grid-template-columns: minmax(96px, 150px) 1fr auto; }
 .bar-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
@@ -2872,8 +2777,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .insights-filters.open { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .insights-filters.open label { width: auto; min-width: 0; }
   .insights-filters.open .msel, .insights-filters.open .input { width: 100%; min-width: 0; }
-  .in-reset-wrap { grid-column: 1 / -1; margin: 0; }
-  .in-reset-wrap .btn { width: 100%; }
+
   /* KPIs two by two; charts stacked. */
   .insights-kpis { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
   .kpi { padding: 12px 14px; }
