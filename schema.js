@@ -583,7 +583,52 @@ const SCHEMA = [
     overall_score SMALLINT NOT NULL CHECK (overall_score BETWEEN 1 AND 10),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (survey_key, user_id)
-  )`
+  )`,
+  // --- Helpdesk and feedback (2026-10-10) ---------------------------------------
+  // Helpdesk: an account opens a ticket (lib/help.js) and talks it through with
+  // the Super Admins in a thread of messages. user_unread lights the owner's
+  // badge when a Super Admin replies, until they open the ticket.
+  `CREATE TABLE IF NOT EXISTS helpdesk_tickets (
+    id           SERIAL PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    region       TEXT NOT NULL DEFAULT '',
+    department   TEXT NOT NULL DEFAULT '',
+    category     TEXT NOT NULL DEFAULT 'other',
+    subject      TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered', 'closed')),
+    user_unread  BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS helpdesk_messages (
+    id          SERIAL PRIMARY KEY,
+    ticket_id   INTEGER NOT NULL REFERENCES helpdesk_tickets(id) ON DELETE CASCADE,
+    author_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    from_staff  BOOLEAN NOT NULL DEFAULT FALSE,
+    body        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_helpdesk_tickets_user ON helpdesk_tickets(user_id, updated_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_helpdesk_messages_ticket ON helpdesk_messages(ticket_id, id)`,
+  // Feedback (kritik & saran): one-way notes to the Super Admins, who mark them
+  // read and may answer. An anonymous note keeps no account and no department,
+  // only the region.
+  `CREATE TABLE IF NOT EXISTS feedback (
+    id            SERIAL PRIMARY KEY,
+    user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    anonymous     BOOLEAN NOT NULL DEFAULT FALSE,
+    region        TEXT NOT NULL DEFAULT '',
+    department    TEXT NOT NULL DEFAULT '',
+    kind          TEXT NOT NULL CHECK (kind IN ('criticism', 'suggestion')),
+    topic         TEXT NOT NULL DEFAULT 'other',
+    body          TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read')),
+    response      TEXT NOT NULL DEFAULT '',
+    responded_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    responded_at  TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC)`
 ];
 
 module.exports = { SCHEMA };

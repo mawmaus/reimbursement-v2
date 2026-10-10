@@ -20,7 +20,8 @@ const state = {
   settings: {},            // app_settings key -> value (objects are JSON-encoded)
   positions: [],           // job_positions rows { name, rank, can_manage }
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [],
-    departments: [], job_positions: [], expense_types: [], survey_responses: [] },
+    departments: [], job_positions: [], expense_types: [], survey_responses: [],
+    helpdesk_tickets: [], helpdesk_messages: [], feedback: [] },
   writes: [],
   reads: [],               // every query's text, so a test can see what was asked
   onWrite: null
@@ -67,6 +68,9 @@ async function q(text, params = []) {
     state.tables.survey_responses.push({ survey_key, user_id, region, department, paper_score, digital_score, overall_score });
     return [];
   }
+  // Helpdesk tickets and feedback (routes/help.js).
+  const help = helpQuery(sql, params);
+  if (help) return help;
   if (/COUNT\(/i.test(sql)) return [{ n: 0 }];
   if (/^(INSERT|UPDATE|DELETE|WITH)/.test(sql)) {
     if (state.onWrite) state.onWrite(sql, params);
@@ -85,6 +89,64 @@ async function q(text, params = []) {
     return [];
   }
   return [];
+}
+// The helpdesk / feedback queries, over state.tables.helpdesk_tickets,
+// helpdesk_messages and feedback. Returns null for anything else.
+function helpQuery(sql, params) {
+  const T = state.tables;
+  const write = () => state.writes.push(sql.slice(0, 70));
+  const ticket = (id) => T.helpdesk_tickets.find(x => x.id === Number(id));
+  if (/^SELECT COUNT\(\*\)::int AS n FROM helpdesk_tickets WHERE status = 'open'/.test(sql)) return [{ n: T.helpdesk_tickets.filter(x => x.status === 'open').length }];
+  if (/^SELECT COUNT\(\*\)::int AS n FROM feedback WHERE status = 'new'/.test(sql)) return [{ n: T.feedback.filter(x => x.status === 'new').length }];
+  if (/^SELECT COUNT\(\*\)::int AS n FROM helpdesk_tickets WHERE user_id = \$1 AND user_unread/.test(sql)) {
+    return [{ n: T.helpdesk_tickets.filter(x => x.user_id === params[0] && x.user_unread).length }];
+  }
+  if (/^WITH t AS \( INSERT INTO helpdesk_tickets/.test(sql)) {
+    write();
+    const [user_id, region, department, category, subject, body] = params;
+    const id = T.helpdesk_tickets.length + 1;
+    T.helpdesk_tickets.push({ id, user_id, region, department, category, subject, status: 'open', user_unread: false });
+    T.helpdesk_messages.push({ id: T.helpdesk_messages.length + 1, ticket_id: id, author_id: user_id, from_staff: false, body });
+    return [{ id, subject }];
+  }
+  if (/^SELECT \* FROM helpdesk_tickets WHERE id = \$1/.test(sql)) { const r = ticket(params[0]); return r ? [{ ...r }] : []; }
+  if (/^SELECT t\.id, .* FROM helpdesk_tickets t/.test(sql)) {
+    const mine = /WHERE t\.user_id = \$1/.test(sql);
+    return T.helpdesk_tickets.filter(x => !mine || x.user_id === params[0]).map(x => ({ ...x }));
+  }
+  if (/^SELECT m\.id, .* FROM helpdesk_messages m/.test(sql)) return T.helpdesk_messages.filter(m => m.ticket_id === params[0]).map(m => ({ ...m }));
+  if (/^INSERT INTO helpdesk_messages/.test(sql)) {
+    write();
+    const [ticket_id, author_id, from_staff, body] = params;
+    T.helpdesk_messages.push({ id: T.helpdesk_messages.length + 1, ticket_id, author_id, from_staff, body });
+    return [];
+  }
+  if (/^UPDATE helpdesk_tickets SET/.test(sql)) {
+    write();
+    const r = ticket(params[0]);
+    if (r && /SET status = \$2, user_unread = \$3/.test(sql)) Object.assign(r, { status: params[1], user_unread: params[2] });
+    else if (r && /SET status = \$2, user_unread = FALSE/.test(sql)) Object.assign(r, { status: params[1], user_unread: false });
+    else if (r && /SET user_unread = FALSE/.test(sql)) r.user_unread = false;
+    return [];
+  }
+  if (/^INSERT INTO feedback/.test(sql)) {
+    write();
+    const [user_id, anonymous, region, department, kind, topic, body] = params;
+    T.feedback.push({ id: T.feedback.length + 1, user_id, anonymous, region, department, kind, topic, body, status: 'new', response: '' });
+    return [];
+  }
+  if (/^SELECT f\.id, .* FROM feedback f/.test(sql)) {
+    const mine = /WHERE f\.user_id = \$1/.test(sql);
+    return T.feedback.filter(x => !mine || x.user_id === params[0]).map(x => ({ ...x, sender_name: x.user_id ? 'User ' + x.user_id : null }));
+  }
+  if (/^SELECT \* FROM feedback WHERE id = \$1/.test(sql)) { const r = T.feedback.find(x => x.id === Number(params[0])); return r ? [{ ...r }] : []; }
+  if (/^UPDATE feedback SET/.test(sql)) {
+    write();
+    const r = T.feedback.find(x => x.id === Number(params[0]));
+    if (r) Object.assign(r, { status: 'read' }, params.length > 1 ? { response: params[1], responded_by: params[2] } : {});
+    return [];
+  }
+  return null;
 }
 // Like the real driver, qq builds a query without running it, and a
 // transaction runs its queries in order, stopping at the first error.

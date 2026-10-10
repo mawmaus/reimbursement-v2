@@ -631,7 +631,8 @@ function rerenderDynamic() {
   document.querySelectorAll('select').forEach(sel => { if (sel._mselRefresh) sel._mselRefresh(); });
   renderHome();
   if (state.view === 'insights') { if (state.insights.data) renderInsights(); }
-  else if (state.view && state.view !== 'home') {
+  else if (state.view === 'help') renderHelp();
+  else if (state.view && state.view !== 'home' && state.view !== 'datechange') {
     const title = $('#listTitle');
     if (title) title.textContent = viewLabel(state.view);
     renderClaims();
@@ -733,6 +734,7 @@ $('#regionSelect').addEventListener('change', (e) => {
   state.viewRegion = e.target.value || '';
   loadClaims();
   if (!$('#insightsView').hidden) loadInsights();
+  if (state.view === 'help') loadHelpTab();
 });
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
 const ROLES_ORDER = ['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
@@ -803,6 +805,8 @@ function showApp() {
   $('#listView').hidden = true;
   $('#insightsView').hidden = true;
   $('#dcView').hidden = true;
+  $('#helpView').hidden = true;
+  resetHelpState();
   state.insights = { year: '', month: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
   state.dcPending = 0;
   // Reset the region scope on every login so a same-tab account switch never
@@ -1160,7 +1164,7 @@ async function loadAll() {
   // The summary cards are derived from the loaded claims (see renderSummaryCards
   // in renderClaims), so loading the claims is all that's needed.
   await loadClaims();
-  await loadDcPending();
+  await Promise.all([loadDcPending(), loadHelpSummary()]);
 }
 // The Super Admin's date-change queue depth, for the tile badge. Nobody else has
 // a queue, and a failure here must not cost anyone their menu.
@@ -1714,6 +1718,23 @@ function renderHome() {
       badge: true,
       link: t('Open') });
   }
+  // Help: everyone's helpdesk and feedback. The counts are the account's
+  // unread answers, or for the helpdesk (Super Admins) what's waiting on them.
+  const help = (state.help && state.help.summary) || { tickets: 0, feedback: 0 };
+  const helpStaff = isSuperUser();
+  tiles.push({
+    key: 'helpdesk', title: t('Helpdesk'),
+    desc: helpStaff ? t('Answer questions from staff') : t('Ask a question or report a problem'),
+    count: help.tickets, badge: true, link: help.tickets ? '' : t('Open'),
+    unit: (n) => helpStaff ? t('waiting') : (n === 1 ? t('new reply') : t('new replies')),
+    attnLabel: (n) => helpStaff ? t('{n} waiting for an answer', { n }) : t('{n} new replies', { n })
+  });
+  tiles.push({
+    key: 'feedback', title: t('Feedback & suggestions'),
+    desc: helpStaff ? t('Read criticism and suggestions from staff') : t('Tell us what could be better'),
+    count: helpStaff ? help.feedback : 0, badge: helpStaff, link: helpStaff && help.feedback ? '' : t('Open'),
+    unit: () => t('new'), attnLabel: (n) => t('{n} new', { n })
+  });
   // One line under the greeting saying what needs doing, for anyone who
   // approves (or has something waiting).
   const summary = $('#homeSummary');
@@ -1731,14 +1752,16 @@ function renderHome() {
     ['Approvals', ['approval', 'approved', 'reviewed']],
     ['Finance', ['paid']],
     ['Cash advances', ['unrealized', 'realized']],
-    ['Overview', ['all', 'insights', 'datechange']]
+    ['Overview', ['all', 'insights', 'datechange']],
+    ['Help', ['helpdesk', 'feedback']]
   ];
   const tileHtml = (tile) => {
     const attn = tile.badge && tile.count > 0;
     const count = tile.link
       ? `<span class="ht-go"><span class="ht-go-t">${esc(tile.link)}</span> <span aria-hidden="true">→</span></span>`
-      : `<span class="ht-n">${tile.count > 999 ? '999+' : tile.count}</span><span class="ht-unit">${esc(tile.count === 1 ? t('claim') : t('claims'))}</span>`;
-    return `<button class="home-tile ht-${tile.key}${attn ? ' ht-attn' : ''}" data-view="${tile.key}" type="button"${attn ? ` aria-label="${esc(tile.title)} — ${esc(t('{count} awaiting approval', { count: tile.count }))}"` : ''}>
+      : `<span class="ht-n">${tile.count > 999 ? '999+' : tile.count}</span><span class="ht-unit">${esc(tile.unit ? tile.unit(tile.count) : tile.count === 1 ? t('claim') : t('claims'))}</span>`;
+    const attnText = tile.attnLabel ? tile.attnLabel(tile.count) : t('{count} awaiting approval', { count: tile.count });
+    return `<button class="home-tile ht-${tile.key}${attn ? ' ht-attn' : ''}" data-view="${tile.key}" type="button"${attn ? ` aria-label="${esc(tile.title)} — ${esc(attnText)}"` : ''}>
       <span class="ht-ic" aria-hidden="true">${HOME_ICONS[tile.key] || ''}</span>
       <span class="ht-text"><span class="tile-title">${esc(tile.title)}</span><span class="tile-desc">${esc(tile.desc)}</span></span>
       <span class="ht-count">${count}</span>
@@ -1754,6 +1777,7 @@ function renderHome() {
     const v = el.dataset.view;
     if (v === 'insights') openInsights();
     else if (v === 'datechange') openDateChanges();
+    else if (v === 'helpdesk' || v === 'feedback') openHelp(v === 'feedback' ? 'feedback' : 'tickets');
     else openView(v);
   }));
 }
@@ -1769,7 +1793,9 @@ const HOME_ICONS = {
   realized: svgI('<path d="M20 7H6a2 2 0 0 1 0-4h12v4"/><path d="M4 5v14a2 2 0 0 0 2 2h14V7"/><path d="M9 14l2 2 4-4"/>'),
   all: svgI('<path d="M12 2l10 6-10 6L2 8z"/><path d="M2 16l10 6 10-6"/>'),
   insights: svgI('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'),
-  datechange: svgI('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>')
+  datechange: svgI('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
+  helpdesk: svgI('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"/>'),
+  feedback: svgI('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>')
 };
 
 // Open one list view; go back to the clean menu.
@@ -1799,6 +1825,7 @@ function goHome() {
   $('#listView').hidden = true;
   const iv = $('#insightsView'); if (iv) iv.hidden = true;
   const dv = $('#dcView'); if (dv) dv.hidden = true;
+  const hv = $('#helpView'); if (hv) hv.hidden = true;
   $('#homeView').hidden = false;
   playEnter($('#homeMenu'));
   loadClaims(); // refetch unfiltered, then renderHome via loadClaims
@@ -3628,7 +3655,7 @@ function closeModal() {
   if (surveyLock) return;
   leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
-  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma', 'modal-adv', 'modal-export', 'modal-profile', 'modal-survey');
+  $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma', 'modal-adv', 'modal-export', 'modal-profile', 'modal-survey', 'modal-help', 'modal-help-thread');
   if (modalCloseHook) { const hook = modalCloseHook; modalCloseHook = null; hook(); }
   syncScrollLock();
 }
@@ -7574,6 +7601,415 @@ async function renderDateChanges() {
   $$('#dcBody [data-decline]').forEach(b =>
     b.addEventListener('click', () => openDeclineModal(note => send(b.dataset.decline, false, note))));
   renderHome(); // keep the tile's badge in step with what we just fetched
+}
+
+// ---------------------------------------------------------------------------
+// Helpdesk & feedback (kritik & saran) — routes/help.js. Everyone opens tickets
+// and sends feedback from the two Help tiles; the Super Admins are the
+// helpdesk, so the same view shows them everyone's tickets and feedback to
+// answer. Tickets are a thread of messages shown in a modal.
+// ---------------------------------------------------------------------------
+const HELP_CATEGORIES = [
+  ['claim', 'Claims & reimbursement'], ['meal', 'Meal allowance'], ['advance', 'Cash advance'],
+  ['account', 'Account & sign-in'], ['bug', 'Something isn’t working'], ['other', 'Something else']
+];
+const FEEDBACK_TOPICS = [['portal', 'The portal'], ['process', 'The reimbursement process'], ['other', 'Something else']];
+const helpCategoryLabel = (k) => t((HELP_CATEGORIES.find(c => c[0] === k) || HELP_CATEGORIES[5])[1]);
+const feedbackTopicLabel = (k) => t((FEEDBACK_TOPICS.find(c => c[0] === k) || FEEDBACK_TOPICS[2])[1]);
+const feedbackKindLabel = (k) => (k === 'criticism' ? t('Criticism') : t('Suggestion'));
+function ticketStatusChip(status) {
+  const label = { open: t('Waiting for answer'), answered: t('Answered'), closed: t('Closed') }[status] || status;
+  return `<span class="hp-chip hp-st-${esc(status)}">${esc(label)}</span>`;
+}
+function resetHelpState() {
+  state.help = { summary: { staff: false, tickets: 0, feedback: 0 }, tab: 'tickets',
+    ticketFilter: 'active', fbStatus: 'new', fbKind: '', tickets: null, feedback: null };
+}
+resetHelpState();
+// The tile badges. A failure here must not cost anyone their menu.
+async function loadHelpSummary() {
+  try { state.help.summary = await api('/help/summary'); } catch { /* keep the last counts */ }
+  renderHome();
+}
+
+function openHelp(tab) {
+  state.view = 'help';
+  state.help.tab = tab === 'feedback' ? 'feedback' : 'tickets';
+  $('#homeView').hidden = true;
+  $('#listView').hidden = true;
+  const iv = $('#insightsView'); if (iv) iv.hidden = true;
+  const dv = $('#dcView'); if (dv) dv.hidden = true;
+  $('#helpView').hidden = false;
+  state.help.tickets = null; state.help.feedback = null;
+  renderHelp();
+  loadHelpTab();
+}
+$('#backHomeHelp').addEventListener('click', goHome);
+
+const helpRegionQS = () => (isSuperUser() && state.viewRegion ? `?region=${encodeURIComponent(state.viewRegion)}` : '');
+async function loadHelpTab() {
+  const h = state.help;
+  const tab = h.tab;
+  try {
+    if (tab === 'tickets') h.tickets = (await api('/help/tickets' + helpRegionQS())).tickets || [];
+    else h.feedback = (await api('/help/feedback' + helpRegionQS())).feedback || [];
+  } catch (ex) {
+    if (state.view === 'help' && h.tab === tab) $('#helpBody').innerHTML = `<p class="form-error">${esc(ex.message)}</p>`;
+    return;
+  }
+  if (state.view === 'help' && h.tab === tab) renderHelp();
+  loadHelpSummary();
+}
+
+// The page chrome (tabs, header button) plus the open tab's body.
+function renderHelp() {
+  const h = state.help;
+  const staff = isSuperUser();
+  $('#helpSub').innerHTML = `<span>${esc(staff
+    ? t('Answer questions and read feedback from staff')
+    : t('Ask the helpdesk, or tell us what to improve'))}</span>`;
+  const badge = (n) => (n > 0 ? ` <span class="hp-tab-n">${n > 99 ? '99+' : n}</span>` : '');
+  $('#helpTabs').innerHTML = `
+    <button type="button" role="tab" data-tab="tickets" aria-selected="${h.tab === 'tickets'}" class="${h.tab === 'tickets' ? 'on' : ''}">${HOME_ICONS.helpdesk}<span>${esc(t('Helpdesk'))}</span>${badge(h.summary.tickets)}</button>
+    <button type="button" role="tab" data-tab="feedback" aria-selected="${h.tab === 'feedback'}" class="${h.tab === 'feedback' ? 'on' : ''}">${HOME_ICONS.feedback}<span>${esc(t('Feedback & suggestions'))}</span>${staff ? badge(h.summary.feedback) : ''}</button>`;
+  $$('#helpTabs [data-tab]').forEach(b => b.addEventListener('click', () => {
+    if (h.tab === b.dataset.tab) return;
+    h.tab = b.dataset.tab;
+    renderHelp();
+    loadHelpTab();
+  }));
+  const acts = $('#helpActs');
+  acts.innerHTML = h.tab === 'tickets' && !staff
+    ? `<button type="button" class="btn btn-primary btn-sm" id="hpNewTicket">${esc(t('+ New ticket'))}</button>` : '';
+  if ($('#hpNewTicket')) $('#hpNewTicket').addEventListener('click', openNewTicket);
+  if (h.tab === 'tickets') renderTickets(); else renderFeedbackTab();
+}
+
+const helpLoading = () => `<p class="muted hp-loading">${esc(t('Loading…'))}</p>`;
+function helpEmpty(icon, title, sub, btn) {
+  return `<div class="hp-empty"><span class="hp-empty-ic" aria-hidden="true">${icon}</span>
+    <strong>${esc(title)}</strong><span>${esc(sub)}</span>${btn || ''}</div>`;
+}
+// A segmented filter: [[value, label, count]].
+function helpSeg(id, items, cur) {
+  return `<div class="seg hp-seg" id="${id}" role="group">${items.map(([v, l, n]) =>
+    `<button type="button" data-v="${esc(v)}" class="${v === cur ? 'on' : ''}" aria-pressed="${v === cur}">${esc(l)}${n != null ? ` <span class="hp-seg-n">${n}</span>` : ''}</button>`).join('')}</div>`;
+}
+
+// --- Tickets ---
+function renderTickets() {
+  const body = $('#helpBody');
+  const h = state.help;
+  const staff = isSuperUser();
+  if (!h.tickets) { body.innerHTML = helpLoading(); return; }
+  const all = h.tickets;
+  const n = (fn) => all.filter(fn).length;
+  const filters = staff
+    ? [['open', t('Waiting'), n(x => x.status === 'open')], ['answered', t('Answered'), n(x => x.status === 'answered')],
+       ['closed', t('Closed'), n(x => x.status === 'closed')], ['all', t('All'), all.length]]
+    : [['active', t('Open'), n(x => x.status !== 'closed')], ['closed', t('Closed'), n(x => x.status === 'closed')], ['all', t('All'), all.length]];
+  if (!filters.some(f => f[0] === h.ticketFilter)) h.ticketFilter = staff ? 'open' : 'active';
+  const f = h.ticketFilter;
+  const list = all.filter(x => f === 'all' || (f === 'active' ? x.status !== 'closed' : x.status === f));
+  if (!all.length) {
+    body.innerHTML = staff
+      ? helpEmpty(HOME_ICONS.helpdesk, t('No tickets yet'), t('Questions from staff will appear here.'))
+      : helpEmpty(HOME_ICONS.helpdesk, t('No tickets yet'),
+          t('Have a question about a claim, your account, or something that isn’t working? Open a ticket and the helpdesk will answer you here.'),
+          `<button type="button" class="btn btn-primary btn-sm" id="hpEmptyNew">${esc(t('+ New ticket'))}</button>`);
+    if ($('#hpEmptyNew')) $('#hpEmptyNew').addEventListener('click', openNewTicket);
+    return;
+  }
+  const card = (x) => {
+    const unread = !staff && x.user_unread;
+    const who = staff
+      ? [x.requester_name, x.department, x.region].filter(Boolean).map(esc).join(' · ')
+      : esc(helpCategoryLabel(x.category));
+    const last = x.last_body ? `<p class="hp-preview"><span class="hp-preview-who">${esc(x.last_from_staff ? t('Helpdesk') : (staff ? x.requester_name || t('Staff') : t('You')))}:</span> ${esc(x.last_body)}</p>` : '';
+    return `<button type="button" class="hp-ticket${unread ? ' hp-unread' : ''}" data-ticket="${x.id}">
+      <span class="hp-ticket-top">
+        <span class="hp-ticket-subj">${unread ? `<span class="hp-dot" aria-label="${esc(t('New reply'))}"></span>` : ''}${esc(x.subject)}</span>
+        ${ticketStatusChip(x.status)}
+      </span>
+      <span class="hp-ticket-meta"><span class="mono">#${x.id}</span><span>${who}</span>${staff ? `<span>${esc(helpCategoryLabel(x.category))}</span>` : ''}<span>${esc(fmtDateTime(x.updated_at))}</span></span>
+      ${last}
+    </button>`;
+  };
+  body.innerHTML = `
+    <div class="hp-wrap">
+      <div class="hp-toolbar">${helpSeg('hpTicketSeg', filters, f)}</div>
+      <div class="hp-list">${list.length ? list.map(card).join('')
+        : `<p class="muted hp-none">${esc(f === 'open' ? t('Nothing is waiting for an answer.') : t('No tickets here.'))}</p>`}</div>
+    </div>`;
+  $$('#hpTicketSeg [data-v]').forEach(b => b.addEventListener('click', () => { h.ticketFilter = b.dataset.v; renderTickets(); }));
+  $$('#helpBody [data-ticket]').forEach(b => b.addEventListener('click', () => openTicket(Number(b.dataset.ticket))));
+}
+
+function openNewTicket() {
+  openModal(`
+    <div class="modal-head">
+      <div><h2>${esc(t('New helpdesk ticket'))}</h2><p class="wn-sub">${esc(t('The helpdesk answers here, and you get an email when they do.'))}</p></div>
+      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form class="form" id="hpTicketForm" novalidate>
+        <label>${esc(t('What is it about?'))}
+          <select name="category">${HELP_CATEGORIES.map(([v, l]) => `<option value="${v}">${esc(t(l))}</option>`).join('')}</select>
+        </label>
+        <label>${esc(t('Subject'))}
+          <input name="subject" maxlength="120" autocomplete="off" placeholder="${esc(t('e.g. My claim was returned but I can’t edit it'))}" />
+        </label>
+        <label>${esc(t('Message'))}
+          <textarea name="message" rows="6" maxlength="4000" placeholder="${esc(t('Describe what happened. If it’s about a claim, include its number.'))}"></textarea>
+        </label>
+        <p class="form-error" id="hpTicketErr" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="hpTicketCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary" id="hpTicketSend">${esc(t('Send ticket'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal').classList.add('modal-help');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#hpTicketCancel').addEventListener('click', closeModal);
+  const form = $('#hpTicketForm');
+  form.subject.focus();
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#hpTicketErr');
+    const body = { category: form.category.value, subject: form.subject.value.trim(), message: form.message.value.trim() };
+    const miss = !body.subject ? t('Give the ticket a short subject') : !body.message ? t('Describe the question or problem') : '';
+    if (miss) { err.textContent = miss; err.hidden = false; (body.subject ? form.message : form.subject).focus(); return; }
+    $('#hpTicketSend').disabled = true;
+    try {
+      const r = await api('/help/tickets', { method: 'POST', body: JSON.stringify(body) });
+      closeModal();
+      toast(t('Ticket sent — the helpdesk will answer you here.'));
+      state.help.ticketFilter = 'active';
+      if (state.view === 'help') { await loadHelpTab(); if (r && r.id) openTicket(r.id); }
+    } catch (ex) {
+      err.textContent = t(ex.message); err.hidden = false;
+      $('#hpTicketSend').disabled = false;
+    }
+  });
+}
+
+// One ticket's conversation, with a reply box and close / reopen.
+async function openTicket(id) {
+  openModal(`
+    <div class="modal-head">
+      <div class="hp-th-head"><h2 id="hpThTitle">${esc(t('Ticket'))} #${id}</h2><p class="wn-sub" id="hpThSub"></p></div>
+      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body hp-th-body" id="hpThBody">${helpLoading()}</div>`);
+  $('#modal').classList.add('modal-help', 'modal-help-thread');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  let r;
+  try { r = await api(`/help/tickets/${id}`); }
+  catch (ex) { $('#hpThBody').innerHTML = `<p class="form-error">${esc(t(ex.message))}</p>`; return; }
+  const tk = r.ticket;
+  const closed = tk.status === 'closed';
+  $('#hpThTitle').textContent = tk.subject;
+  $('#hpThSub').innerHTML = [`<span class="mono">#${tk.id}</span>`, esc(helpCategoryLabel(tk.category)),
+    r.staff ? esc([tk.requester_name, tk.department, tk.region].filter(Boolean).join(' · ')) : '', ticketStatusChip(tk.status)]
+    .filter(Boolean).join('<span class="hp-sep">·</span>');
+  const bubble = (m) => {
+    const mine = m.author_id === state.user.id;
+    const name = mine ? t('You') : (m.author_name || (m.from_staff ? t('Helpdesk') : t('Staff')));
+    return `<div class="hp-msg ${mine ? 'hp-mine' : 'hp-theirs'}${m.from_staff ? ' hp-from-staff' : ''}">
+      <div class="hp-msg-meta"><strong>${esc(name)}</strong>${m.from_staff && !mine ? `<span class="hp-tag">${esc(t('Helpdesk'))}</span>` : ''}<span>${esc(fmtDateTime(m.created_at))}</span></div>
+      <div class="hp-msg-text">${esc(m.body)}</div>
+    </div>`;
+  };
+  const replyHint = closed
+    ? (r.mine ? t('This ticket is closed. Writing again reopens it.') : t('This ticket is closed. Answering reopens it for the requester.'))
+    : '';
+  $('#hpThBody').innerHTML = `
+    <div class="hp-thread" id="hpThread">${r.messages.map(bubble).join('')}</div>
+    <form class="hp-compose" id="hpReplyForm" novalidate>
+      ${replyHint ? `<p class="hp-compose-note">${esc(replyHint)}</p>` : ''}
+      <textarea name="message" rows="3" maxlength="4000" class="input" aria-label="${esc(t('Your reply'))}" placeholder="${esc(r.staff && !r.mine ? t('Write an answer…') : t('Write a reply…'))}"></textarea>
+      <p class="form-error" id="hpReplyErr" hidden></p>
+      <div class="hp-compose-acts">
+        <button type="button" class="btn btn-ghost btn-sm" id="hpStatusBtn">${esc(closed ? t('Reopen ticket') : t('Close ticket'))}</button>
+        <button type="submit" class="btn btn-primary btn-sm" id="hpReplySend" disabled>${esc(r.staff && !r.mine ? t('Send answer') : t('Send reply'))}</button>
+      </div>
+    </form>`;
+  const thread = $('#hpThread');
+  thread.scrollTop = thread.scrollHeight;
+  const form = $('#hpReplyForm');
+  form.message.addEventListener('input', () => { $('#hpReplySend').disabled = !form.message.value.trim(); });
+  // Ctrl/⌘+Enter sends.
+  form.message.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
+  });
+  const after = async (msg) => {
+    toast(msg);
+    if (state.view === 'help') await loadHelpTab();
+    openTicket(id);
+  };
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const message = form.message.value.trim();
+    if (!message) return;
+    $('#hpReplySend').disabled = true;
+    try {
+      await api(`/help/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ message }) });
+      after(r.staff && !r.mine ? t('Answer sent — they’ve been emailed.') : t('Reply sent.'));
+    } catch (ex) {
+      const err = $('#hpReplyErr'); err.textContent = t(ex.message); err.hidden = false;
+      $('#hpReplySend').disabled = false;
+    }
+  });
+  $('#hpStatusBtn').addEventListener('click', async () => {
+    $('#hpStatusBtn').disabled = true;
+    try {
+      await api(`/help/tickets/${id}/status`, { method: 'POST', body: JSON.stringify({ status: closed ? 'open' : 'closed' }) });
+      after(closed ? t('Ticket reopened.') : t('Ticket closed.'));
+    } catch (ex) { toast(t(ex.message), true); $('#hpStatusBtn').disabled = false; }
+  });
+  if (r.mine) loadHelpSummary(); // opening it cleared the "new reply" badge
+}
+
+// --- Feedback ---
+function renderFeedbackTab() {
+  if (isSuperUser()) renderFeedbackInbox(); else renderFeedbackForm();
+}
+function feedbackCard(x, staff) {
+  const who = staff ? (x.anonymous ? `<span class="hp-anon">${esc(t('Anonymous'))}</span>` : esc(x.sender_name || '—')) : '';
+  const meta = [who, staff && x.department ? esc(x.department) : '', staff && x.region ? esc(x.region) : '',
+    esc(feedbackTopicLabel(x.topic)), esc(fmtDateTime(x.created_at))].filter(Boolean);
+  const answer = x.response ? `
+    <div class="hp-answer"><div class="hp-answer-head">${esc(t('Answer from {name}', { name: x.responder_name || t('Helpdesk') }))}${x.responded_at ? ` · ${esc(fmtDateTime(x.responded_at))}` : ''}</div>
+      <div class="hp-answer-text">${esc(x.response)}</div></div>` : '';
+  const status = staff
+    ? (x.status === 'new' ? `<span class="hp-chip hp-st-open">${esc(t('New'))}</span>` : `<span class="hp-chip hp-st-closed">${esc(t('Read'))}</span>`)
+    : (x.response ? `<span class="hp-chip hp-st-answered">${esc(t('Answered'))}</span>`
+      : x.status === 'read' ? `<span class="hp-chip hp-st-closed">${esc(t('Read'))}</span>` : `<span class="hp-chip hp-st-open">${esc(t('Sent'))}</span>`);
+  const acts = staff ? `<div class="hp-fb-acts">
+      ${x.status === 'new' ? `<button type="button" class="btn btn-ghost btn-sm" data-fb-read="${x.id}">${esc(t('Mark as read'))}</button>` : ''}
+      ${!x.anonymous ? `<button type="button" class="btn btn-brand-soft btn-sm" data-fb-answer="${x.id}">${esc(x.response ? t('Edit answer') : t('Answer'))}</button>` : ''}
+    </div>` : '';
+  return `<article class="hp-fb${staff && x.status === 'new' ? ' hp-unread' : ''}">
+    <div class="hp-fb-top"><span class="hp-kind hp-kind-${esc(x.kind)}">${esc(feedbackKindLabel(x.kind))}</span>
+      <span class="hp-fb-meta">${meta.join('<span class="hp-sep">·</span>')}</span>${status}</div>
+    <p class="hp-fb-text">${esc(x.body)}</p>
+    ${answer}${acts}
+  </article>`;
+}
+function renderFeedbackForm() {
+  const body = $('#helpBody');
+  const h = state.help;
+  const kindCard = (v, title, desc) => `
+    <label class="hp-kind-opt"><input type="radio" name="kind" value="${v}" />
+      <span class="hp-kind-box"><strong>${esc(title)}</strong><span>${esc(desc)}</span></span></label>`;
+  const mine = h.feedback;
+  body.innerHTML = `
+    <div class="hp-wrap">
+      <form class="form hp-fb-form" id="hpFbForm" novalidate>
+        <fieldset class="hp-kind-pick"><legend>${esc(t('Is it criticism or a suggestion?'))}</legend>
+          ${kindCard('criticism', t('Criticism'), t('Something that doesn’t work well or bothers you'))}
+          ${kindCard('suggestion', t('Suggestion'), t('An idea to make things better'))}
+        </fieldset>
+        <label>${esc(t('About'))}
+          <select name="topic">${FEEDBACK_TOPICS.map(([v, l]) => `<option value="${v}">${esc(t(l))}</option>`).join('')}</select>
+        </label>
+        <label>${esc(t('Your feedback'))}
+          <textarea name="body" rows="5" maxlength="4000" placeholder="${esc(t('Be as specific as you can — what happened, and what would be better.'))}"></textarea>
+        </label>
+        <label class="hp-anon-opt"><input type="checkbox" name="anonymous" />
+          <span><strong>${esc(t('Send anonymously'))}</strong><span>${esc(t('Your name and department aren’t saved, so it won’t be listed below and can’t be answered.'))}</span></span></label>
+        <p class="form-error" id="hpFbErr" hidden></p>
+        <div class="hp-fb-send"><button type="submit" class="btn btn-primary" id="hpFbSend" disabled>${esc(t('Send feedback'))}</button></div>
+      </form>
+      <h3 class="hp-head">${esc(t('Your feedback'))}</h3>
+      <div class="hp-list" id="hpMine">${!mine ? helpLoading() : mine.length ? mine.map(x => feedbackCard(x, false)).join('')
+        : `<p class="muted hp-none">${esc(t('Feedback you send with your name shows here, with any answer.'))}</p>`}</div>
+    </div>`;
+  const form = $('#hpFbForm');
+  const ready = () => { $('#hpFbSend').disabled = !(form.querySelector('input[name="kind"]:checked') && form.body.value.trim()); };
+  form.addEventListener('change', ready);
+  form.body.addEventListener('input', ready);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const kind = form.querySelector('input[name="kind"]:checked');
+    if (!kind || !form.body.value.trim()) return;
+    const anonymous = form.anonymous.checked;
+    $('#hpFbSend').disabled = true;
+    try {
+      await api('/help/feedback', { method: 'POST', body: JSON.stringify({ kind: kind.value, topic: form.topic.value, body: form.body.value.trim(), anonymous }) });
+      toast(anonymous ? t('Thank you — your feedback was sent anonymously.') : t('Thank you — your feedback was sent.'));
+      loadHelpTab();
+    } catch (ex) {
+      const err = $('#hpFbErr'); err.textContent = t(ex.message); err.hidden = false;
+      $('#hpFbSend').disabled = false;
+    }
+  });
+}
+function renderFeedbackInbox() {
+  const body = $('#helpBody');
+  const h = state.help;
+  if (!h.feedback) { body.innerHTML = helpLoading(); return; }
+  const all = h.feedback;
+  if (!all.length) { body.innerHTML = helpEmpty(HOME_ICONS.feedback, t('No feedback yet'), t('Criticism and suggestions from staff will appear here.')); return; }
+  const byKind = all.filter(x => !h.fbKind || x.kind === h.fbKind);
+  const list = byKind.filter(x => h.fbStatus === 'all' || x.status === h.fbStatus);
+  const n = (fn) => byKind.filter(fn).length;
+  body.innerHTML = `
+    <div class="hp-wrap">
+      <div class="hp-toolbar">
+        ${helpSeg('hpFbStatus', [['new', t('New'), n(x => x.status === 'new')], ['read', t('Read'), n(x => x.status === 'read')], ['all', t('All'), byKind.length]], h.fbStatus)}
+        ${helpSeg('hpFbKind', [['', t('All kinds')], ['criticism', t('Criticism')], ['suggestion', t('Suggestion')]], h.fbKind)}
+      </div>
+      <div class="hp-list">${list.length ? list.map(x => feedbackCard(x, true)).join('')
+        : `<p class="muted hp-none">${esc(h.fbStatus === 'new' ? t('All feedback has been read.') : t('Nothing here.'))}</p>`}</div>
+    </div>`;
+  $$('#hpFbStatus [data-v]').forEach(b => b.addEventListener('click', () => { h.fbStatus = b.dataset.v; renderFeedbackInbox(); }));
+  $$('#hpFbKind [data-v]').forEach(b => b.addEventListener('click', () => { h.fbKind = b.dataset.v; renderFeedbackInbox(); }));
+  const review = async (id, response) => {
+    try {
+      await api(`/help/feedback/${id}/review`, { method: 'POST', body: JSON.stringify({ response: response || '' }) });
+      toast(response ? t('Answer sent — they’ve been emailed.') : t('Marked as read.'));
+      loadHelpTab();
+    } catch (ex) { toast(t(ex.message), true); }
+  };
+  $$('#helpBody [data-fb-read]').forEach(b => b.addEventListener('click', () => { b.disabled = true; review(b.dataset.fbRead, ''); }));
+  $$('#helpBody [data-fb-answer]').forEach(b => b.addEventListener('click', () => {
+    const fb = all.find(x => String(x.id) === b.dataset.fbAnswer);
+    if (fb) openFeedbackAnswer(fb, (text) => review(fb.id, text));
+  }));
+}
+function openFeedbackAnswer(fb, onSend) {
+  openModal(`
+    <div class="modal-head">
+      <div><h2>${esc(t('Answer feedback'))}</h2><p class="wn-sub">${esc(t('{name} sees your answer and gets an email.', { name: fb.sender_name || '—' }))}</p></div>
+      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body">
+      <form class="form" id="hpAnsForm" novalidate>
+        <div class="hp-quote"><span class="hp-kind hp-kind-${esc(fb.kind)}">${esc(feedbackKindLabel(fb.kind))}</span><p>${esc(fb.body)}</p></div>
+        <label>${esc(t('Your answer'))}
+          <textarea name="response" rows="5" maxlength="4000">${esc(fb.response || '')}</textarea>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="hpAnsCancel">${esc(t('Cancel'))}</button>
+          <button type="submit" class="btn btn-primary" id="hpAnsSend" ${fb.response ? '' : 'disabled'}>${esc(t('Send answer'))}</button>
+        </div>
+      </form>
+    </div>`);
+  $('#modal').classList.add('modal-help');
+  $('#modal .x-btn').addEventListener('click', closeModal);
+  $('#hpAnsCancel').addEventListener('click', closeModal);
+  const form = $('#hpAnsForm');
+  form.response.focus();
+  form.response.addEventListener('input', () => { $('#hpAnsSend').disabled = !form.response.value.trim(); });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = form.response.value.trim();
+    if (!text) return;
+    closeModal();
+    onSend(text);
+  });
 }
 
 // --- Meal allowance rates (per-region dropdown presets) ----------------------

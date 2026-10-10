@@ -28,6 +28,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.9',
+    date: '2026-10-10',
+    items: [
+      { kind: 'new', text: {
+        en: 'Help on the home menu: open a Helpdesk ticket when you have a question about a claim, your account, or something that isn’t working, and talk it through with the helpdesk right in the portal — you get an email when they answer. Next to it, Feedback & suggestions lets you send criticism or an idea to improve things, with your name or anonymously.',
+        id: 'Bantuan di menu utama: buat tiket Helpdesk jika Anda punya pertanyaan tentang klaim, akun Anda, atau sesuatu yang tidak berfungsi, lalu bahas langsung dengan helpdesk di portal — Anda mendapat email saat mereka menjawab. Di sebelahnya, Kritik & saran memungkinkan Anda mengirim kritik atau ide perbaikan, dengan nama atau secara anonim.',
+        th: 'เมนูความช่วยเหลือในหน้าหลัก: เปิดตั๋ว Helpdesk เมื่อมีคำถามเกี่ยวกับรายการเบิก บัญชีของคุณ หรือสิ่งที่ใช้งานไม่ได้ แล้วคุยกับ Helpdesk ได้ในพอร์ทัลโดยตรง — คุณจะได้รับอีเมลเมื่อมีคำตอบ ถัดไปคือ คำติชมและข้อเสนอแนะ ที่ให้คุณส่งคำติชมหรือไอเดียเพื่อการปรับปรุง โดยระบุชื่อหรือไม่ระบุชื่อก็ได้',
+        vi: 'Mục Hỗ trợ trên menu chính: tạo phiếu Helpdesk khi bạn có câu hỏi về yêu cầu, tài khoản, hoặc điều gì đó không hoạt động, và trao đổi với Helpdesk ngay trong cổng thông tin — bạn sẽ nhận email khi có trả lời. Bên cạnh là Góp ý & đề xuất, nơi bạn gửi góp ý hoặc ý tưởng cải thiện, kèm tên hoặc ẩn danh.',
+        km: 'ជំនួយនៅលើម៉ឺនុយដើម៖ បើកសំបុត្រ Helpdesk នៅពេលអ្នកមានសំណួរអំពីសំណើ គណនីរបស់អ្នក ឬអ្វីមួយដែលមិនដំណើរការ ហើយពិភាក្សាជាមួយ Helpdesk ផ្ទាល់នៅក្នុងវិបផតថល — អ្នកនឹងទទួលអ៊ីមែលនៅពេលពួកគេឆ្លើយ។ នៅក្បែរនោះ មតិរិះគន់ និងសំណូមពរ អនុញ្ញាតឱ្យអ្នកផ្ញើការរិះគន់ ឬគំនិតកែលម្អ ដោយមានឈ្មោះ ឬដោយអនាមិក។',
+        fil: 'Tulong sa home menu: magbukas ng Helpdesk ticket kapag may tanong ka tungkol sa isang claim, sa iyong account, o sa isang bagay na hindi gumagana, at pag-usapan ito kasama ang helpdesk mismo sa portal — makakatanggap ka ng email kapag sumagot sila. Katabi nito, sa Puna at mungkahi ay maaari kang magpadala ng puna o ideya para mapabuti ang mga bagay, nang may pangalan o anonimo.'
+      } },
+      { kind: 'new', audience: ['superadmin'], text: {
+        en: 'Super Admins are the helpdesk: the Helpdesk tile shows how many tickets are waiting for an answer, and each answer emails the person who asked. Feedback & suggestions lists everything staff sent — mark it read, or answer named feedback. New tickets and replies are emailed to every Super Admin.',
+        id: 'Super Admin adalah helpdesk: tile Helpdesk menampilkan berapa tiket yang menunggu jawaban, dan setiap jawaban dikirim lewat email ke penanya. Kritik & saran menampilkan semua yang dikirim staf — tandai dibaca, atau jawab kritik & saran yang bernama. Tiket dan balasan baru dikirim lewat email ke semua Super Admin.',
+        th: 'Super Admin ทำหน้าที่เป็น Helpdesk: ไทล์ Helpdesk แสดงจำนวนตั๋วที่รอคำตอบ และทุกคำตอบจะส่งอีเมลถึงผู้ถาม คำติชมและข้อเสนอแนะ แสดงทุกรายการที่พนักงานส่งมา — ทำเครื่องหมายว่าอ่านแล้ว หรือตอบคำติชมที่ระบุชื่อ ตั๋วและข้อความตอบกลับใหม่จะส่งอีเมลถึง Super Admin ทุกคน',
+        vi: 'Super Admin là Helpdesk: ô Helpdesk cho biết số phiếu đang chờ trả lời, và mỗi câu trả lời sẽ được gửi email cho người hỏi. Góp ý & đề xuất liệt kê mọi góp ý nhân viên gửi — đánh dấu đã đọc, hoặc trả lời góp ý có ghi tên. Phiếu và phản hồi mới được gửi email đến tất cả Super Admin.',
+        km: 'Super Admin គឺជា Helpdesk៖ ប្រអប់ Helpdesk បង្ហាញចំនួនសំបុត្រដែលកំពុងរង់ចាំចម្លើយ ហើយចម្លើយនីមួយៗផ្ញើអ៊ីមែលទៅអ្នកសួរ។ មតិរិះគន់ និងសំណូមពរ បង្ហាញអ្វីៗទាំងអស់ដែលបុគ្គលិកបានផ្ញើ — សម្គាល់ថាបានអាន ឬឆ្លើយមតិដែលមានឈ្មោះ។ សំបុត្រ និងការឆ្លើយតបថ្មីត្រូវបានផ្ញើអ៊ីមែលទៅ Super Admin គ្រប់រូប។',
+        fil: 'Ang mga Super Admin ang helpdesk: ipinapakita ng Helpdesk tile kung ilang ticket ang naghihintay ng sagot, at bawat sagot ay ini-email sa nagtanong. Nakalista sa Puna at mungkahi ang lahat ng ipinadala ng staff — markahang nabasa, o sagutin ang punang may pangalan. Ini-email sa bawat Super Admin ang mga bagong ticket at tugon.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.8',
     date: '2026-10-10',
     items: [

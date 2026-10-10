@@ -121,6 +121,7 @@ app.use(require('./routes/reports'));
 app.use(require('./routes/users'));
 app.use(require('./routes/lookups'));
 app.use(require('./routes/survey'));
+app.use(require('./routes/help'));
 
 // ---------------------------------------------------------------------------
 // Static frontend + error handling
