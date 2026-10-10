@@ -45,3 +45,13 @@ test('only a Super Admin reads the results', async (t) => {
   assert.equal((await call(null, 'GET', '/api/survey/results')).status, 401);
   assert.equal((await call(ROOT, 'GET', '/api/survey/results')).status, 200);
 });
+
+test('the "who has answered" list names people but never shows their scores', async (t) => {
+  await serve(t);
+  const sql = state.reads.filter(s => /LEFT JOIN survey_responses/.test(s));
+  const res = await call(ROOT, 'GET', '/api/survey/results');
+  assert.ok(Array.isArray(res.json.people));
+  const asked = state.reads.filter(s => /LEFT JOIN survey_responses/.test(s)).slice(sql.length);
+  assert.equal(asked.length, 1);
+  assert.doesNotMatch(asked[0], /_score/, 'the people query never selects a score');
+});

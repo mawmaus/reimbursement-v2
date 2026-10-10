@@ -26,8 +26,14 @@ router.post('/api/survey', requireAuth, ah(async (req, res) => {
 // Totals, a 1–10 spread per question, and a per-region breakdown. Eligible =
 // active accounts created before the cutoff (the same rule as surveyPending).
 router.get('/api/survey/results', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const [eligible, rows] = await Promise.all([
-    q(`SELECT COUNT(*)::int AS n FROM users WHERE active = TRUE AND created_at < $1::date`, [ELIGIBLE_BEFORE]),
+  // `people` says who has answered and when — never their scores, so the
+  // answers stay anonymous.
+  const [people, rows] = await Promise.all([
+    q(`SELECT u.id, u.full_name, u.region, u.department, s.created_at AS answered_at
+         FROM users u
+         LEFT JOIN survey_responses s ON s.user_id = u.id AND s.survey_key = $2
+        WHERE u.active = TRUE AND u.created_at < $1::date
+        ORDER BY s.created_at IS NULL, s.created_at DESC, lower(u.full_name)`, [ELIGIBLE_BEFORE, SURVEY_KEY]),
     q(`SELECT region, paper_score, digital_score, overall_score FROM survey_responses WHERE survey_key = $1`, [SURVEY_KEY])
   ]);
   const avg = (list, k) => list.length ? Math.round(list.reduce((s, r) => s + r[k], 0) / list.length * 10) / 10 : null;
@@ -47,8 +53,9 @@ router.get('/api/survey/results', requireAuth, requireRole('superadmin'), ah(asy
     region, n: list.length, ...Object.fromEntries(QUESTIONS.map(k => [k, avg(list, k)]))
   })).sort((a, b) => b.n - a.n || a.region.localeCompare(b.region));
   res.json({
-    eligible_before: ELIGIBLE_BEFORE, eligible: eligible[0] ? eligible[0].n : 0,
-    responses: rows.length, questions, regions
+    eligible_before: ELIGIBLE_BEFORE, eligible: people.length,
+    responses: rows.length, questions, regions,
+    people: people.map(p => ({ id: p.id, full_name: p.full_name, region: p.region || '', department: p.department || '', answered_at: p.answered_at || null }))
   });
 }));
 

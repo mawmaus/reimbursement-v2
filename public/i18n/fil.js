@@ -1000,5 +1000,11 @@ I18N.addDict('fil', {
   'Attach up to 4 screenshots': 'Hanggang 4 screenshot lang ang puwedeng ilakip',
   'Screenshots must be images (JPG, PNG, WebP or GIF)': 'Dapat larawan ang mga screenshot (JPG, PNG, WebP o GIF)',
   'Screenshot not found': 'Hindi nakita ang screenshot',
-  'Invalid screenshots': 'Di-wastong mga screenshot'
+  'Invalid screenshots': 'Di-wastong mga screenshot',
+  // Survey: who has answered
+  'Who has answered': 'Sino na ang sumagot',
+  'Not yet': 'Hindi pa',
+  'Answered {date}': 'Nasagot {date}',
+  'No matches.': 'Walang tugma.',
+  'name': 'pangalan'
 });

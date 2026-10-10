@@ -1023,5 +1023,11 @@ I18N.addDict('id', {
   'Attach up to 4 screenshots': 'Lampirkan maksimal 4 tangkapan layar',
   'Screenshots must be images (JPG, PNG, WebP or GIF)': 'Tangkapan layar harus berupa gambar (JPG, PNG, WebP, atau GIF)',
   'Screenshot not found': 'Tangkapan layar tidak ditemukan',
-  'Invalid screenshots': 'Tangkapan layar tidak valid'
+  'Invalid screenshots': 'Tangkapan layar tidak valid',
+  // Survey: who has answered
+  'Who has answered': 'Siapa yang sudah menjawab',
+  'Not yet': 'Belum',
+  'Answered {date}': 'Dijawab {date}',
+  'No matches.': 'Tidak ada yang cocok.',
+  'name': 'nama'
 });

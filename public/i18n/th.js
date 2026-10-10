@@ -1000,5 +1000,11 @@ I18N.addDict('th', {
   'Attach up to 4 screenshots': 'แนบภาพหน้าจอได้สูงสุด 4 ภาพ',
   'Screenshots must be images (JPG, PNG, WebP or GIF)': 'ภาพหน้าจอต้องเป็นไฟล์รูปภาพ (JPG, PNG, WebP หรือ GIF)',
   'Screenshot not found': 'ไม่พบภาพหน้าจอ',
-  'Invalid screenshots': 'ภาพหน้าจอไม่ถูกต้อง'
+  'Invalid screenshots': 'ภาพหน้าจอไม่ถูกต้อง',
+  // Survey: who has answered
+  'Who has answered': 'ใครตอบแล้วบ้าง',
+  'Not yet': 'ยังไม่ตอบ',
+  'Answered {date}': 'ตอบแล้ว {date}',
+  'No matches.': 'ไม่พบรายการที่ตรงกัน',
+  'name': 'ชื่อ'
 });

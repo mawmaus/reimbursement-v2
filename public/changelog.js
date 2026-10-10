@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.11',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['superadmin'], text: {
+        en: 'Survey results now list who has answered: every account that is asked, marked “Answered” with the date or “Not yet”, with a filter and a name search. Only names and dates are shown, never anyone’s scores.',
+        id: 'Hasil survei kini menampilkan siapa yang sudah menjawab: setiap akun yang ditanya, ditandai “Dijawab” beserta tanggalnya atau “Belum”, dengan filter dan pencarian nama. Hanya nama dan tanggal yang ditampilkan, tidak pernah nilai seseorang.',
+        th: 'ผลแบบสำรวจตอนนี้แสดงรายชื่อผู้ที่ตอบแล้ว: ทุกบัญชีที่ถูกถาม ระบุ “ตอบแล้ว” พร้อมวันที่ หรือ “ยังไม่ตอบ” พร้อมตัวกรองและการค้นหาชื่อ แสดงเฉพาะชื่อและวันที่ ไม่แสดงคะแนนของใคร',
+        vi: 'Kết quả khảo sát giờ liệt kê ai đã trả lời: mọi tài khoản được hỏi, đánh dấu “Đã trả lời” kèm ngày hoặc “Chưa trả lời”, có bộ lọc và tìm theo tên. Chỉ hiển thị tên và ngày, không bao giờ hiển thị điểm của ai.',
+        km: 'លទ្ធផលស្ទង់មតិឥឡូវបង្ហាញអ្នកដែលបានឆ្លើយ៖ គណនីនីមួយៗដែលត្រូវបានសួរ ត្រូវបានសម្គាល់ “បានឆ្លើយ” ជាមួយកាលបរិច្ឆេទ ឬ “មិនទាន់ឆ្លើយ” មានតម្រង និងការស្វែងរកតាមឈ្មោះ។ បង្ហាញតែឈ្មោះ និងកាលបរិច្ឆេទ មិនដែលបង្ហាញពិន្ទុរបស់នរណាម្នាក់ទេ។',
+        fil: 'Ipinapakita na ng resulta ng survey kung sino na ang sumagot: bawat account na tinanong, may markang “Nasagot” kasama ang petsa o “Hindi pa”, may filter at paghahanap ng pangalan. Pangalan at petsa lang ang ipinapakita, hindi kailanman ang marka ng sinuman.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.10',
     date: '2026-10-10',
     items: [

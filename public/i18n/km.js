@@ -1000,5 +1000,11 @@ I18N.addDict('km', {
   'Attach up to 4 screenshots': 'ភ្ជាប់រូបថតអេក្រង់អតិបរមា 4',
   'Screenshots must be images (JPG, PNG, WebP or GIF)': 'រូបថតអេក្រង់ត្រូវតែជារូបភាព (JPG, PNG, WebP ឬ GIF)',
   'Screenshot not found': 'រកមិនឃើញរូបថតអេក្រង់',
-  'Invalid screenshots': 'រូបថតអេក្រង់មិនត្រឹមត្រូវ'
+  'Invalid screenshots': 'រូបថតអេក្រង់មិនត្រឹមត្រូវ',
+  // Survey: who has answered
+  'Who has answered': 'អ្នកដែលបានឆ្លើយ',
+  'Not yet': 'មិនទាន់ឆ្លើយ',
+  'Answered {date}': 'បានឆ្លើយ {date}',
+  'No matches.': 'រកមិនឃើញ។',
+  'name': 'ឈ្មោះ'
 });

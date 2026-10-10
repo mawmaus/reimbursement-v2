@@ -1000,5 +1000,11 @@ I18N.addDict('vi', {
   'Attach up to 4 screenshots': 'Đính kèm tối đa 4 ảnh chụp màn hình',
   'Screenshots must be images (JPG, PNG, WebP or GIF)': 'Ảnh chụp màn hình phải là hình ảnh (JPG, PNG, WebP hoặc GIF)',
   'Screenshot not found': 'Không tìm thấy ảnh chụp màn hình',
-  'Invalid screenshots': 'Ảnh chụp màn hình không hợp lệ'
+  'Invalid screenshots': 'Ảnh chụp màn hình không hợp lệ',
+  // Survey: who has answered
+  'Who has answered': 'Ai đã trả lời',
+  'Not yet': 'Chưa trả lời',
+  'Answered {date}': 'Đã trả lời {date}',
+  'No matches.': 'Không có kết quả phù hợp.',
+  'name': 'tên'
 });

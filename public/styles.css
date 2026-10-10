@@ -3328,3 +3328,17 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .hp-shot { width: 64px; height: 64px; }
   .hp-attach-hint { flex-basis: 100%; }
 }
+
+/* Survey results: who has answered (names and dates only, never scores). */
+.svp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.svp-search { flex: 1 1 200px; min-width: 0; }
+.svp-list { max-height: 360px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
+.svp-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.svp-row + .svp-row { border-top: 1px solid var(--line-soft); }
+.svp-who { flex: 1 1 auto; min-width: 0; }
+.svp-name { font-size: .9rem; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svp-sub { margin-top: 2px; font-size: .78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.svp-pill { flex: none; white-space: nowrap; font-size: .74rem; font-weight: 650; padding: 3px 9px; border-radius: 99px; }
+.svp-done { color: var(--green); background: var(--green-tint); }
+.svp-todo { color: var(--amber); background: var(--amber-tint); }
+.svp-empty { margin: 0; padding: 22px 14px; text-align: center; color: var(--muted); font-size: .88rem; }
