@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.6',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Claim window shows the date range claimable today and which rule sets it. Each rule — a rolling limit in days and a fixed cutoff date — can be switched on or off, with quick choices like 30 / 60 / 90 days or the start of this month. Before you save, it says exactly which expense dates the change will block or reopen, and a cutoff in the future is caught.',
+        id: 'Pengaturan → Batas klaim kini menampilkan rentang tanggal yang bisa diklaim hari ini dan aturan mana yang menentukannya. Setiap aturan — batas bergulir dalam hari dan tanggal batas tetap — bisa diaktifkan atau dimatikan, dengan pilihan cepat seperti 30 / 60 / 90 hari atau awal bulan ini. Sebelum disimpan, ditampilkan tanggal pengeluaran mana yang akan diblokir atau dibuka kembali, dan tanggal batas di masa depan akan dicegah.',
+        th: 'การตั้งค่า → ช่วงเวลาเบิก แสดงช่วงวันที่ที่เบิกได้วันนี้และกฎที่กำหนด แต่ละกฎ — การจำกัดแบบนับย้อนเป็นวัน และวันที่ตัดรอบคงที่ — เปิดหรือปิดได้ พร้อมตัวเลือกด่วน เช่น 30 / 60 / 90 วัน หรือต้นเดือนนี้ ก่อนบันทึกจะบอกชัดเจนว่าการเปลี่ยนแปลงจะบล็อกหรือเปิดให้เบิกวันที่ใด และป้องกันการตั้งวันตัดรอบในอนาคต',
+        vi: 'Cài đặt → Khoảng thời gian yêu cầu giờ hiển thị khoảng ngày có thể yêu cầu hôm nay và quy tắc nào quyết định. Mỗi quy tắc — giới hạn cuốn chiếu theo ngày và ngày chốt cố định — có thể bật hoặc tắt, với các lựa chọn nhanh như 30 / 60 / 90 ngày hoặc đầu tháng này. Trước khi lưu, hệ thống cho biết chính xác những ngày chi phí nào sẽ bị chặn hoặc mở lại, và chặn ngày chốt ở tương lai.',
+        km: 'ការកំណត់ → រយៈពេលទាមទារ ឥឡូវបង្ហាញចន្លោះកាលបរិច្ឆេទដែលអាចទាមទារថ្ងៃនេះ និងច្បាប់ណាដែលកំណត់វា។ ច្បាប់នីមួយៗ — ដែនកំណត់រំកិលជាថ្ងៃ និងកាលបរិច្ឆេទកាត់ផ្តាច់ថេរ — អាចបើក ឬបិទបាន ជាមួយជម្រើសរហ័សដូចជា 30 / 60 / 90 ថ្ងៃ ឬដើមខែនេះ។ មុនពេលរក្សាទុក វាប្រាប់ច្បាស់ថាកាលបរិច្ឆេទចំណាយណាខ្លះនឹងត្រូវរារាំង ឬបើកវិញ ហើយការកាត់ផ្តាច់នៅអនាគតត្រូវបានរារាំង។',
+        fil: 'Ipinapakita na ng Settings → Claim window ang saklaw ng petsang mache-claim ngayon at kung aling patakaran ang nagtatakda nito. Maaaring i-on o i-off ang bawat patakaran — rolling na limit sa araw at takdang cutoff date — na may mabibilis na pagpipilian tulad ng 30 / 60 / 90 araw o simula ng buwang ito. Bago mag-save, sinasabi nito kung aling mga petsa ng gastos ang haharangin o muling bubuksan, at hinaharangan ang cutoff na nasa hinaharap.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.5',
     date: '2026-10-10',
     items: [

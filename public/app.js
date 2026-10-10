@@ -7211,51 +7211,138 @@ function renderSettingsTab() {
 }
 
 // --- Claim window (how far back an expense may be dated) ----------------------
-// Superadmin-only editor for the rolling window (N days) and the absolute cutoff
-// date. Both may be set; the effective floor shown is whichever is later.
+// Editor for the region's two date rules — a rolling limit (N days back from
+// today) and a fixed cutoff date. Either, both or neither may be on; the later
+// floor wins. A summary shows what is claimable today under the pending
+// settings, and before saving it spells out which dates the change blocks or
+// reopens. Mirrors lib/claim-window.js claimEarliestFrom.
 async function renderClaimWindowTab() {
   const panel = $('#settingsPanel');
   // Scoped to the workspace region. This is a separate context from the logged-in
   // user's own claim limit (state.claimLimit, set by loadLookups), so it must not
   // overwrite it.
-  const regionQS = settingsState.region ? `?region=${encodeURIComponent(settingsState.region)}` : '';
+  const region = settingsState.region || '';
+  const regionQS = region ? `?region=${encodeURIComponent(region)}` : '';
   let cw;
   try { cw = await api('/claim-window' + regionQS); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const status = cw.earliest
-    ? t('Only expenses dated {date} or later can be claimed.', { date: cw.earliest })
-    : t('No date limit is set — expenses of any date can be claimed.');
+  const today = cw.latest;
+  const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
+  const floorOf = (p) => {
+    const bounds = [];
+    if (p.daysOn && p.days > 0) bounds.push(addDays(today, -p.days));
+    if (p.dateOn && p.date) bounds.push(p.date);
+    return bounds.length ? bounds.reduce((a, b) => (a > b ? a : b)) : null;
+  };
+  const saved = { daysOn: cw.max_age_days != null, days: cw.max_age_days || 0, dateOn: !!cw.earliest_date, date: cw.earliest_date || '' };
+  const savedFloor = floorOf(saved);
+  const monthStart = today.slice(0, 8) + '01', yearStart = today.slice(0, 5) + '01-01';
+
   panel.innerHTML = `
-    <div class="settings-controls ws-card">
-      <form id="cwForm" class="form">
-        <label>${esc(t('Maximum age (days)'))}
-          <input name="max_age_days" type="number" min="0" max="3650" inputmode="numeric" placeholder="${esc(t('No limit'))}" value="${cw.max_age_days != null ? cw.max_age_days : ''}" />
-          <span class="form-note" style="font-weight:400;color:var(--muted);font-size:.8rem">${esc(t('Expenses older than this many days cannot be claimed. Leave blank for no limit.'))}</span>
-        </label>
-        <label>${esc(t('Earliest allowed expense date'))}
-          <input name="earliest_date" type="date" value="${esc(cw.earliest_date || '')}" />
-          <span class="form-note" style="font-weight:400;color:var(--muted);font-size:.8rem">${esc(t('No expense dated before this can be claimed. Leave blank for no limit.'))}</span>
-        </label>
-        <div class="ws-note">${esc(status)}</div>
-        <p class="form-error" id="cwErr" hidden></p>
-        <div class="ws-card-foot">
-          <button type="submit" class="btn btn-primary btn-sm">${esc(t('Save'))}</button>
+    <div class="settings-controls ws-card cw-card">
+      <div class="cw-now" id="cwNow"></div>
+      <div class="cw-rule" id="cwDaysRule">
+        <label class="cw-switch"><input type="checkbox" id="cwDaysOn" ${saved.daysOn ? 'checked' : ''} />
+          <span><b>${esc(t('Rolling limit'))}</b><small>${esc(t('Expenses older than a set number of days can’t be claimed.'))}</small></span></label>
+        <div class="cw-body">
+          <div class="cw-days"><input id="cwDays" class="input" type="number" min="1" max="3650" inputmode="numeric"
+            value="${saved.days || 60}" aria-label="${esc(t('Maximum age (days)'))}" /><span>${esc(t('days'))}</span></div>
+          <div class="cw-presets">${[30, 60, 90, 180].map(n => `<button type="button" class="cw-preset" data-days="${n}">${esc(t('{n} days', { n }))}</button>`).join('')}</div>
         </div>
-      </form>
+      </div>
+      <div class="cw-rule" id="cwDateRule">
+        <label class="cw-switch"><input type="checkbox" id="cwDateOn" ${saved.dateOn ? 'checked' : ''} />
+          <span><b>${esc(t('Fixed cutoff date'))}</b><small>${esc(t('Nothing dated before this day can be claimed — for example after the books are closed.'))}</small></span></label>
+        <div class="cw-body">
+          <input id="cwDate" class="input cw-date" type="date" max="${esc(today)}" value="${esc(saved.date || monthStart)}" aria-label="${esc(t('Earliest allowed expense date'))}" />
+          <div class="cw-presets">
+            <button type="button" class="cw-preset" data-date="${monthStart}">${esc(t('Start of this month'))}</button>
+            <button type="button" class="cw-preset" data-date="${yearStart}">${esc(t('Start of this year'))}</button>
+          </div>
+        </div>
+      </div>
+      <div class="cw-impact" id="cwImpact" hidden></div>
+      <p class="mr-hint">${esc(t('No expense can be dated after today. A returned claim is judged by the window it was first submitted into.'))}</p>
+      <p class="form-error" id="cwErr" hidden></p>
+      <div class="ws-card-foot mr-foot">
+        <span class="mr-dirty" id="cwDirty" hidden>${esc(t('Unsaved changes'))}</span>
+        <button type="button" class="btn btn-ghost btn-sm" id="cwDiscard" hidden>${esc(t('Discard'))}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="cwSave" disabled>${esc(t('Save'))}</button>
+      </div>
     </div>`;
-  $('#cwForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const err = $('#cwErr'); err.hidden = true;
-    const fd = new FormData(e.target);
+
+  const read = () => ({
+    daysOn: $('#cwDaysOn').checked, days: parseInt($('#cwDays').value, 10) || 0,
+    dateOn: $('#cwDateOn').checked, date: $('#cwDate').value || ''
+  });
+  // What would be wrong with the pending settings, or '' when they can be saved.
+  const problem = (p) => {
+    if (p.daysOn && !(p.days >= 1 && p.days <= 3650)) return t('Enter a number of days between 1 and 3650.');
+    if (p.dateOn && !p.date) return t('Choose a cutoff date.');
+    if (p.dateOn && p.date > today) return t('The cutoff can’t be in the future — nothing could be claimed until then.');
+    return '';
+  };
+  const range = (a, b) => (a === b ? a : `${a} – ${b}`);
+  const paint = () => {
+    const p = read();
+    $('#cwDaysRule').classList.toggle('off', !p.daysOn);
+    $('#cwDateRule').classList.toggle('off', !p.dateOn);
+    $('#cwDays').disabled = !p.daysOn; $('#cwDate').disabled = !p.dateOn;
+    $$('#cwDaysRule [data-days]').forEach(b => { b.disabled = !p.daysOn; b.classList.toggle('on', p.daysOn && +b.dataset.days === p.days); });
+    $$('#cwDateRule [data-date]').forEach(b => { b.disabled = !p.dateOn; b.classList.toggle('on', p.dateOn && b.dataset.date === p.date); });
+    const bad = problem(p);
+    const dirty = p.daysOn !== saved.daysOn || p.dateOn !== saved.dateOn
+      || (p.daysOn && p.days !== saved.days) || (p.dateOn && p.date !== saved.date);
+    const floor = bad ? savedFloor : floorOf(p);
+    // Summary: the claimable range today under the pending settings.
+    const byDays = p.daysOn && p.days > 0 ? addDays(today, -p.days) : null;
+    const source = !floor ? '' : (byDays === floor ? t('Set by the {n}-day limit', { n: p.days }) : t('Set by the cutoff date'));
+    $('#cwNow').innerHTML = `
+      <div class="cw-now-label">${esc(dirty && !bad ? t('Claimable today, after saving') : t('Claimable today'))}</div>
+      <div class="cw-range">${floor ? `<strong>${esc(floor)}</strong><span aria-hidden="true">→</span><strong>${esc(today)}</strong>`
+        : `<strong>${esc(t('Any date up to {date}', { date: today }))}</strong>`}</div>
+      <div class="cw-now-sub">${esc([floor ? t('{n} days', { n: daysBetween(floor, today) + 1 }) : t('No limit'), source,
+        cw.timezone ? t('today in {zone}', { zone: cw.timezone }) : ''].filter(Boolean).join(' · '))}</div>`;
+    // Impact of the change against what is saved now.
+    const imp = $('#cwImpact');
+    let msg = '', kind = '';
+    if (dirty && !bad && floor !== savedFloor) {
+      if (floor && (!savedFloor || floor > savedFloor)) {
+        kind = 'block';
+        msg = savedFloor ? t('Saving blocks expenses dated {range}.', { range: range(savedFloor, addDays(floor, -1)) })
+          : t('Saving blocks every expense dated before {date}.', { date: floor });
+      } else {
+        kind = 'open';
+        msg = floor ? t('Saving reopens expenses dated {range}.', { range: range(floor, addDays(savedFloor, -1)) })
+          : t('Saving removes the limit — expenses of any date become claimable.');
+      }
+    }
+    imp.hidden = !msg; imp.className = 'cw-impact ' + kind; imp.textContent = msg;
+    const err = $('#cwErr'); err.textContent = bad; err.hidden = !bad || !dirty;
+    $('#cwDirty').hidden = !dirty; $('#cwDiscard').hidden = !dirty;
+    $('#cwSave').disabled = !dirty || !!bad;
+  };
+  ['#cwDaysOn', '#cwDateOn'].forEach(s => $(s).addEventListener('change', paint));
+  $('#cwDays').addEventListener('input', paint);
+  $('#cwDate').addEventListener('input', paint);
+  $('#cwDate').addEventListener('change', paint);
+  $$('#settingsPanel [data-days]').forEach(b => b.addEventListener('click', () => { $('#cwDays').value = b.dataset.days; paint(); }));
+  $$('#settingsPanel [data-date]').forEach(b => b.addEventListener('click', () => { $('#cwDate').value = b.dataset.date; paint(); }));
+  $('#cwDiscard').addEventListener('click', () => renderClaimWindowTab());
+  $('#cwSave').addEventListener('click', async () => {
+    const p = read();
+    const btn = $('#cwSave'); btn.disabled = true;
     try {
       await api('/claim-window', { method: 'PUT', body: JSON.stringify({
-        max_age_days: fd.get('max_age_days'), earliest_date: fd.get('earliest_date'),
-        ...(settingsState.region ? { region: settingsState.region } : {})
+        max_age_days: p.daysOn ? p.days : '', earliest_date: p.dateOn ? p.date : '',
+        ...(region ? { region } : {})
       }) });
       toast(t('Claim date limit saved'));
       renderClaimWindowTab();
-    } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+    } catch (ex) { const err = $('#cwErr'); err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
   });
+  paint();
 }
 
 // --- Date-change requests ----------------------------------------------------

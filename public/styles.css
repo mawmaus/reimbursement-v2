@@ -3009,3 +3009,39 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .mr-rm { grid-column: 2; grid-row: 1; }
   .mr-meta { grid-column: 1 / -1; padding-left: 2px; }
 }
+
+/* --- Claim window ------------------------------------------------------------ */
+/* "Claimable today" summary on top; each rule a card with a switch that dims
+   its body when off; quick presets; an impact line before saving. */
+.cw-card { max-width: 640px; }
+.cw-now { margin: 0 0 16px; padding: 14px 16px; border-radius: 12px; background: var(--pine-tint); }
+.cw-now-label { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--pine-deep); }
+.cw-range { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 4px; font-size: 1.15rem;
+  color: var(--ink); font-variant-numeric: tabular-nums; }
+.cw-range span { color: var(--muted); }
+.cw-now-sub { margin-top: 4px; font-size: .8rem; color: var(--ink-soft); }
+.cw-rule { padding: 14px 0; border-top: 1px solid var(--line-soft); }
+.cw-switch { display: flex; align-items: flex-start; gap: 12px; margin: 0; cursor: pointer; font-weight: 400; }
+.cw-switch input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--pine); cursor: pointer; }
+.cw-switch b { display: block; font-size: .92rem; font-weight: 650; color: var(--ink); }
+.cw-switch small { display: block; margin-top: 2px; font-size: .8rem; line-height: 1.4; color: var(--muted); }
+.cw-body { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 10px 0 0 30px; }
+.cw-rule.off .cw-body { opacity: .45; }
+.cw-days { display: inline-flex; align-items: center; gap: 8px; }
+.cw-days .input { width: 96px; margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.cw-days span { font-size: .86rem; color: var(--ink-soft); }
+.cw-date { width: auto; min-width: 160px; margin: 0; }
+.cw-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.cw-preset { font: inherit; font-size: .8rem; font-weight: 600; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.cw-preset:hover:not(:disabled) { border-color: var(--muted); color: var(--ink); }
+.cw-preset.on { border-color: var(--pine); background: var(--pine-tint); color: var(--pine-deep); }
+.cw-preset:disabled { cursor: default; }
+.cw-impact { margin: 4px 0 0; padding: 9px 12px; border-radius: 10px; font-size: .84rem; font-weight: 600; line-height: 1.4; }
+.cw-impact.block { color: var(--amber); background: var(--amber-tint); }
+.cw-impact.open { color: var(--pine-deep); background: var(--pine-tint); }
+.cw-card .form-error { margin-top: 8px; }
+@media (max-width: 560px) {
+  .cw-body { margin-left: 0; }
+  .cw-range { font-size: 1.02rem; }
+}
