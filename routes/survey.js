@@ -26,10 +26,11 @@ router.post('/api/survey', requireAuth, ah(async (req, res) => {
 // Totals, a 1–10 spread per question, and a per-region breakdown. Eligible =
 // active accounts created before the cutoff (the same rule as surveyPending).
 router.get('/api/survey/results', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  // `people` says who has answered and when — never their scores, so the
-  // answers stay anonymous.
+  // `people`: every eligible account, with when it answered and its three
+  // scores (null while it hasn't). Super Admins only, like the rest.
   const [people, rows] = await Promise.all([
-    q(`SELECT u.id, u.full_name, u.region, u.department, s.created_at AS answered_at
+    q(`SELECT u.id, u.full_name, u.region, u.department, s.created_at AS answered_at,
+              s.paper_score, s.digital_score, s.overall_score
          FROM users u
          LEFT JOIN survey_responses s ON s.user_id = u.id AND s.survey_key = $2
         WHERE u.active = TRUE AND u.created_at < $1::date
@@ -55,7 +56,8 @@ router.get('/api/survey/results', requireAuth, requireRole('superadmin'), ah(asy
   res.json({
     eligible_before: ELIGIBLE_BEFORE, eligible: people.length,
     responses: rows.length, questions, regions,
-    people: people.map(p => ({ id: p.id, full_name: p.full_name, region: p.region || '', department: p.department || '', answered_at: p.answered_at || null }))
+    people: people.map(p => ({ id: p.id, full_name: p.full_name, region: p.region || '', department: p.department || '', answered_at: p.answered_at || null,
+      ...Object.fromEntries(QUESTIONS.map(k => [k, p[k] == null ? null : Number(p[k])])) }))
   });
 }));
 

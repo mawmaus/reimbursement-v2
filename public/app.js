@@ -576,8 +576,9 @@ async function openSurveyResults() {
   renderSurveyPeople(people);
 }
 
-// Who has answered (and when) — names only, never their scores. A filter
-// (All / Answered / Not yet) and a name search narrow the list in place.
+// Who has answered, when, and their three scores. A filter (All / Answered /
+// Not yet) and a name search narrow the list in place.
+const SURVEY_SCORE_LABELS = [['paper_score', 'Paper'], ['digital_score', 'Digital'], ['overall_score', 'Overall']];
 function renderSurveyPeople(people) {
   const box = $('#svpBox'); if (!box || !people.length) return;
   const done = people.filter(p => p.answered_at).length;
@@ -599,6 +600,9 @@ function renderSurveyPeople(people) {
           <div class="svp-name">${esc(p.full_name || '—')}</div>
           <div class="svp-sub">${esc([regionLabel(p.region), p.department].filter(x => x && x !== '—').join(' · ') || '—')}</div>
         </div>
+        ${p.answered_at && p.paper_score != null ? `<div class="svp-scores">${SURVEY_SCORE_LABELS.map(([k, label], i) => `
+          <span class="svp-score" title="${esc(t(SURVEY_QUESTIONS[i].text))}"><span>${esc(t(label))}</span><strong>${p[k]}</strong></span>`).join('')}
+        </div>` : ''}
         ${p.answered_at
           ? `<span class="svp-pill svp-done">${esc(t('Answered {date}', { date: releaseDate(String(p.answered_at).slice(0, 10)) }))}</span>`
           : `<span class="svp-pill svp-todo">${esc(t('Not yet'))}</span>`}

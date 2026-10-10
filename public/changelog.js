@@ -28,16 +28,30 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.12',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['superadmin'], text: {
+        en: 'Survey results → Who has answered now shows each person’s three scores (paper, digital and overall) next to their name.',
+        id: 'Hasil survei → Siapa yang sudah menjawab kini menampilkan tiga nilai setiap orang (kertas, digital, dan keseluruhan) di samping namanya.',
+        th: 'ผลแบบสำรวจ → ใครตอบแล้วบ้าง ตอนนี้แสดงคะแนนทั้งสามของแต่ละคน (กระดาษ ดิจิทัล และโดยรวม) ข้างชื่อ',
+        vi: 'Kết quả khảo sát → Ai đã trả lời giờ hiển thị ba điểm của từng người (giấy, số hóa và tổng thể) bên cạnh tên.',
+        km: 'លទ្ធផលស្ទង់មតិ → អ្នកដែលបានឆ្លើយ ឥឡូវបង្ហាញពិន្ទុទាំងបីរបស់មនុស្សម្នាក់ៗ (ក្រដាស ឌីជីថល និងជារួម) នៅជាប់ឈ្មោះ។',
+        fil: 'Resulta ng survey → Sino na ang sumagot: ipinapakita na ang tatlong marka ng bawat isa (papel, digital at kabuuan) sa tabi ng pangalan.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.11',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['superadmin'], text: {
-        en: 'Survey results now list who has answered: every account that is asked, marked “Answered” with the date or “Not yet”, with a filter and a name search. Only names and dates are shown, never anyone’s scores.',
-        id: 'Hasil survei kini menampilkan siapa yang sudah menjawab: setiap akun yang ditanya, ditandai “Dijawab” beserta tanggalnya atau “Belum”, dengan filter dan pencarian nama. Hanya nama dan tanggal yang ditampilkan, tidak pernah nilai seseorang.',
-        th: 'ผลแบบสำรวจตอนนี้แสดงรายชื่อผู้ที่ตอบแล้ว: ทุกบัญชีที่ถูกถาม ระบุ “ตอบแล้ว” พร้อมวันที่ หรือ “ยังไม่ตอบ” พร้อมตัวกรองและการค้นหาชื่อ แสดงเฉพาะชื่อและวันที่ ไม่แสดงคะแนนของใคร',
-        vi: 'Kết quả khảo sát giờ liệt kê ai đã trả lời: mọi tài khoản được hỏi, đánh dấu “Đã trả lời” kèm ngày hoặc “Chưa trả lời”, có bộ lọc và tìm theo tên. Chỉ hiển thị tên và ngày, không bao giờ hiển thị điểm của ai.',
-        km: 'លទ្ធផលស្ទង់មតិឥឡូវបង្ហាញអ្នកដែលបានឆ្លើយ៖ គណនីនីមួយៗដែលត្រូវបានសួរ ត្រូវបានសម្គាល់ “បានឆ្លើយ” ជាមួយកាលបរិច្ឆេទ ឬ “មិនទាន់ឆ្លើយ” មានតម្រង និងការស្វែងរកតាមឈ្មោះ។ បង្ហាញតែឈ្មោះ និងកាលបរិច្ឆេទ មិនដែលបង្ហាញពិន្ទុរបស់នរណាម្នាក់ទេ។',
-        fil: 'Ipinapakita na ng resulta ng survey kung sino na ang sumagot: bawat account na tinanong, may markang “Nasagot” kasama ang petsa o “Hindi pa”, may filter at paghahanap ng pangalan. Pangalan at petsa lang ang ipinapakita, hindi kailanman ang marka ng sinuman.'
+        en: 'Survey results now list who has answered: every account that is asked, marked “Answered” with the date or “Not yet”, with a filter and a name search.',
+        id: 'Hasil survei kini menampilkan siapa yang sudah menjawab: setiap akun yang ditanya, ditandai “Dijawab” beserta tanggalnya atau “Belum”, dengan filter dan pencarian nama.',
+        th: 'ผลแบบสำรวจตอนนี้แสดงรายชื่อผู้ที่ตอบแล้ว: ทุกบัญชีที่ถูกถาม ระบุ “ตอบแล้ว” พร้อมวันที่ หรือ “ยังไม่ตอบ” พร้อมตัวกรองและการค้นหาชื่อ',
+        vi: 'Kết quả khảo sát giờ liệt kê ai đã trả lời: mọi tài khoản được hỏi, đánh dấu “Đã trả lời” kèm ngày hoặc “Chưa trả lời”, có bộ lọc và tìm theo tên.',
+        km: 'លទ្ធផលស្ទង់មតិឥឡូវបង្ហាញអ្នកដែលបានឆ្លើយ៖ គណនីនីមួយៗដែលត្រូវបានសួរ ត្រូវបានសម្គាល់ “បានឆ្លើយ” ជាមួយកាលបរិច្ឆេទ ឬ “មិនទាន់ឆ្លើយ” មានតម្រង និងការស្វែងរកតាមឈ្មោះ។',
+        fil: 'Ipinapakita na ng resulta ng survey kung sino na ang sumagot: bawat account na tinanong, may markang “Nasagot” kasama ang petsa o “Hindi pa”, may filter at paghahanap ng pangalan.'
       } }
     ]
   },
