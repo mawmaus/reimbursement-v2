@@ -781,5 +781,20 @@ I18N.addDict('km', {
   'Move to top': 'ផ្លាស់ទៅខាងលើបំផុត',
   'Move to bottom': 'ផ្លាស់ទៅខាងក្រោមបំផុត',
   'Order saved': 'បានរក្សាទុកលំដាប់',
-  'Added at the bottom of the ladder — use the arrows to move it into place.': 'បានបន្ថែមនៅខាងក្រោមបំផុត — ប្រើព្រួញដើម្បីផ្លាស់វាទៅកន្លែងត្រឹមត្រូវ។'
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'បានបន្ថែមនៅខាងក្រោមបំផុត — ប្រើព្រួញដើម្បីផ្លាស់វាទៅកន្លែងត្រឹមត្រូវ។',
+  // Expense types: usage, sort, add several
+  'Used once': 'បានប្រើម្តង',
+  'Used {n} times': 'បានប្រើ {n} ដង',
+  'last {date}': 'ចុងក្រោយ {date}',
+  'Never used': 'មិនដែលប្រើ',
+  'Sort': 'តម្រៀប',
+  'Name A–Z': 'ឈ្មោះ A–Z',
+  'Most used': 'ប្រើច្រើនបំផុត',
+  'Recently used': 'ប្រើថ្មីៗ',
+  'Tip: paste a list, one per line, to add several at once.': 'គន្លឹះ៖ បិទភ្ជាប់បញ្ជី មួយបន្ទាត់មួយ ដើម្បីបន្ថែមច្រើនក្នុងពេលតែមួយ។',
+  '{name} is already in the list': '{name} មាននៅក្នុងបញ្ជីរួចហើយ',
+  'Added {n}': 'បានបន្ថែម {n}',
+  'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'បានប្រើ {n} ដង។ លុបចោលដដែលឬ? ការទាមទារដែលបានដាក់រួច នៅរក្សាឈ្មោះនេះ ប៉ុន្តែមិនអាចជ្រើសរើសបានទៀតទេ។ បិទវាជំនួសវិញ ដើម្បីរក្សាទុកក្នុងកំណត់ត្រា។',
+  'Renamed — {count} moved to the new name.': 'បានប្តូរឈ្មោះ — {count} បានផ្លាស់ទៅឈ្មោះថ្មី។',
+  'Renamed. Claims already filed keep the old name.': 'បានប្តូរឈ្មោះ។ ការទាមទារដែលបានដាក់រួច នៅរក្សាឈ្មោះចាស់។'
 });

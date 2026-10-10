@@ -33,7 +33,9 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
   // are filtered to the resolved region (a super admin with no ?region sees all).
   // `?manage=1` from a settings manager (the Settings tab) also returns disabled
   // entries — so they can be re-enabled — and, for lookups an account points at
-  // (`opts.memberCol`), how many active accounts in the region use each one.
+  // (`opts.memberCol`), how many active accounts in the region use each one;
+  // for expense types (`opts.usage`), how many claim and cash-advance lines in
+  // the region carry each one, and the latest such line's date.
   router.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
     const managing = req.query.manage === '1' && userCan(req.user, 'manage_settings');
     const onlyActive = req.user.role !== 'superadmin' && !managing;
@@ -52,8 +54,22 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
         `SELECT lower(trim(${opts.memberCol})) AS k, COUNT(*)::int AS n FROM users WHERE active = TRUE AND region = $1 GROUP BY 1`, [region]);
       members = new Map(rows.map(r => [r.k, r.n]));
     }
+    let usage = null;
+    if (managing && opts.usage && region) {
+      const rows = await q(
+        `SELECT k, SUM(n)::int AS n, MAX(d) AS last FROM (
+           SELECT lower(trim(l.expense_type)) AS k, COUNT(*) AS n, MAX(l.line_date) AS d
+             FROM claim_lines l JOIN claims c ON c.id = l.claim_id WHERE c.region = $1 GROUP BY 1
+           UNION ALL
+           SELECT lower(trim(l.expense_type)), COUNT(*), MAX(l.line_date)
+             FROM cash_advance_lines l JOIN cash_advances a ON a.id = l.advance_id WHERE a.region = $1 GROUP BY 1
+         ) u GROUP BY k`, [region]);
+      usage = new Map(rows.map(r => [r.k, { uses: r.n || 0, last_used: r.last || null }]));
+    }
+    const key = (i) => String(i.name).trim().toLowerCase();
     res.json({ items: items.map(i => ({ ...i, created_at: iso(i.created_at),
-      ...(members ? { members: members.get(String(i.name).trim().toLowerCase()) || 0 } : {}) })) });
+      ...(members ? { members: members.get(key(i)) || 0 } : {}),
+      ...(usage ? (usage.get(key(i)) || { uses: 0, last_used: null }) : {}) })) });
   }));
 
   // Reorder one region's ladder: body { region, order: [id, …] } sets rank =
@@ -131,7 +147,17 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
       if (req.body && req.body[f] !== undefined) push(f, isActive(req.body[f]));
     }
     params.push(item.id);
-    await q(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+    const updateSql = `UPDATE ${table} SET ${sets.join(', ')} WHERE id = $${params.length}`;
+    // Accounts point at a department / position by name, and their claim rights
+    // and rank are looked up by that name — so a rename carries the region's
+    // accounts along with it, in the same transaction.
+    if (opts.memberCol && newName !== item.name) {
+      const [, moved] = await transaction([qq(updateSql, params), qq(
+        `UPDATE users SET ${opts.memberCol} = $1 WHERE region = $2 AND lower(trim(${opts.memberCol})) = lower(trim($3)) RETURNING id`,
+        [newName, item.region || '', item.name])]);
+      return res.json({ ok: true, moved: (moved || []).length });
+    }
+    await q(updateSql, params);
     res.json({ ok: true });
   }));
 
@@ -153,7 +179,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
 // nor accept it — the columns are inert leftovers the migration backfill read.
 lookupRoutes('departments', 'departments', ['allow_claim', 'allow_meal'], { regional: true, memberCol: 'department' });
 lookupRoutes('positions', 'job_positions', ['allow_claim', 'allow_meal', 'can_manage'], { ranked: true, regional: true, memberCol: 'position' });
-lookupRoutes('expense-types', 'expense_types', [], { regional: true });
+lookupRoutes('expense-types', 'expense_types', [], { regional: true, usage: true });
 // Regions landing (super admin): per-region headcount and open workload, so the
 // list shows what each region holds — and what a delete would orphan.
 router.get('/api/regions/overview', requireAuth, requireRole('superadmin'), ah(async (req, res) => {

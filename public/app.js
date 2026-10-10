@@ -7569,6 +7569,8 @@ async function renderRolesTab() {
 // --- Generic lookup manager (departments / positions / expense types) --------
 // Status chip per lookup (by API path): 'all' | 'active' | 'disabled'.
 const lookupFilter = {};
+// Sort per lookup with usage (expense types): 'name' | 'uses' | 'recent'.
+const lookupSort = {};
 // Where the job-position ladder unlocks more reach. Mirrors lib/permissions.js
 // (accountsSeeAllDepts / insightsSeeAll / insightsCanView): the position with
 // that name, or — if it was renamed away — the seeded rank as a fallback.
@@ -7616,6 +7618,9 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
     const bits = [];
     if (it.members != null) bits.push(`<span class="lk-members${it.members ? '' : ' none'}">${esc(it.members
       ? t(it.members === 1 ? '{n} account' : '{n} accounts', { n: it.members }) : t('No accounts'))}</span>`);
+    if (it.uses != null) bits.push(`<span class="lk-members${it.uses ? '' : ' none'}">${esc(it.uses
+      ? t(it.uses === 1 ? 'Used once' : 'Used {n} times', { n: it.uses }) + (it.last_used ? ' · ' + t('last {date}', { date: it.last_used }) : '')
+      : t('Never used'))}</span>`);
     if (p && it.active && !it.allow_claim && !it.allow_meal) bits.push(`<span class="lk-warn">${esc(t('Can’t raise claims or meal allowances'))}</span>`);
     return bits.join('');
   };
@@ -7630,18 +7635,24 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const chips = counts.disabled ? `<div class="ws-chips" role="group" aria-label="${esc(t('Status'))}">${[['all', t('All')], ['active', t('Active')], ['disabled', t('Disabled')]].map(([k, label]) =>
     `<button type="button" class="ws-chip${lookupFilter[cfg.path] === k ? ' on' : ''}" data-lkfilter="${k}" aria-pressed="${lookupFilter[cfg.path] === k}">${esc(label)} <span>${counts[k]}</span></button>`).join('')}</div>`
     : `<span class="ws-count">${esc(t('{active} active · {disabled} disabled', { active: counts.active, disabled: 0 }))}</span>`;
+  const hasUsage = items.some(x => x.uses != null);
+  if (!lookupSort[cfg.path]) lookupSort[cfg.path] = 'name';
+  const sortSel = hasUsage ? `<label class="lk-sort"><span>${esc(t('Sort'))}</span><select id="lookupSort" class="input" aria-label="${esc(t('Sort'))}">${
+    [['name', t('Name A–Z')], ['uses', t('Most used')], ['recent', t('Recently used')]].map(([k, l]) =>
+      `<option value="${k}"${lookupSort[cfg.path] === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : '';
   setWsPage({ actions: `<button type="button" class="btn btn-primary btn-sm" id="lookupAddBtn">+ ${esc(t('Add {noun}', { noun }))}</button>` });
   panel.innerHTML = `
     <div class="settings-controls">
       <form id="lookupForm" class="rg-add" hidden>
-        <input name="name" class="input" required maxlength="80" placeholder="${esc(t('Name'))}" aria-label="${esc(t('Name'))}" />
+        <textarea name="name" class="input lk-add-input" rows="1" required placeholder="${esc(t('Name'))}" aria-label="${esc(t('Name'))}"></textarea>
         <button type="submit" class="btn btn-primary btn-sm">${esc(t('Add'))}</button>
         <button type="button" class="btn btn-ghost btn-sm" data-cancel>${esc(t('Cancel'))}</button>
+        <p class="lk-add-hint">${esc(t('Tip: paste a list, one per line, to add several at once.'))}</p>
         <p class="form-error" id="lookupErr" hidden></p>
       </form>
       <div class="ws-toolbar">
         <input id="lookupSearch" class="input" type="search" placeholder="${esc(t('Search {noun}…', { noun }))}" />
-        ${chips}
+        ${chips}${sortSel}
       </div>
     </div>
     <div class="settings-list ws-table">
@@ -7660,6 +7671,21 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
           : `<tr><td colspan="${colspan}" class="muted" style="padding:16px">${esc(t('No {noun} entries yet.', { noun }))}</td></tr>`}</tbody>
       </table>
     </div>`;
+  const applySort = () => {
+    if (!hasUsage) return;
+    const by = lookupSort[cfg.path];
+    const cmpName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
+    const sorted = [...items].sort((a, b) => by === 'uses' ? (b.uses || 0) - (a.uses || 0) || cmpName(a, b)
+      : by === 'recent' ? String(b.last_used || '').localeCompare(String(a.last_used || '')) || cmpName(a, b)
+      : cmpName(a, b));
+    const tbody = $('#settingsPanel .utable-lookup tbody');
+    const end = tbody.querySelector('.lk-none');
+    sorted.forEach(x => tbody.insertBefore(tbody.querySelector(`tr[data-id="${x.id}"]`), end));
+  };
+  if (hasUsage) {
+    $('#lookupSort').addEventListener('change', (e) => { lookupSort[cfg.path] = e.target.value; applySort(); });
+    applySort();
+  }
   // Search and the status chips filter the same rows together.
   const applyFilter = () => {
     const q = $('#lookupSearch').value.trim().toLowerCase();
@@ -7737,15 +7763,47 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
   const addForm = $('#lookupForm');
   $('#lookupAddBtn').addEventListener('click', () => { addForm.hidden = false; addForm.querySelector('input').focus(); });
   addForm.querySelector('[data-cancel]').addEventListener('click', () => { addForm.reset(); addForm.hidden = true; $('#lookupErr').hidden = true; });
+  // One name per line (a pasted list adds several); Enter adds, the box grows
+  // to show what was pasted. Names already in the list are skipped.
+  const addBox = addForm.querySelector('textarea');
+  const growAdd = () => { addBox.style.height = 'auto'; addBox.style.height = Math.min(addBox.scrollHeight, 160) + 'px'; };
+  addBox.addEventListener('input', growAdd);
+  addBox.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addForm.requestSubmit(); } });
   addForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = new FormData(e.target).get('name').trim();
-    try {
-      await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) });
-      toast(ranked ? t('Added at the bottom of the ladder — use the arrows to move it into place.') : t('Added'));
-      refreshAfterSettings();
+    const err = $('#lookupErr'); err.hidden = true;
+    const have = new Set(items.map(x => String(x.name).trim().toLowerCase()));
+    const names = [];
+    for (const raw of addBox.value.split(/\r?\n/)) {
+      const name = raw.trim().slice(0, 80);
+      if (name && !names.some(n => n.toLowerCase() === name.toLowerCase())) names.push(name);
     }
-    catch (ex) { const el = $('#lookupErr'); el.textContent = ex.message; el.hidden = false; }
+    const skipped = names.filter(n => have.has(n.toLowerCase()));
+    const todo = names.filter(n => !have.has(n.toLowerCase()));
+    const failed = [];
+    let added = 0;
+    const submit = addForm.querySelector('[type=submit]'); submit.disabled = true;
+    for (const name of todo) {
+      try { await api(cfg.path, { method: 'POST', body: JSON.stringify({ name, ...regionBody }) }); added++; }
+      catch (ex) { failed.push(`${name}: ${ex.message}`); }
+    }
+    submit.disabled = false;
+    const problems = [...skipped.map(n => t('{name} is already in the list', { name: n })), ...failed];
+    const showProblems = () => {
+      const f = $('#lookupForm'), box = f.querySelector('textarea'), el = $('#lookupErr');
+      f.hidden = false;
+      box.value = [...skipped, ...failed.map(x => x.split(': ')[0])].join('\n');
+      box.dispatchEvent(new Event('input'));
+      el.textContent = problems.join(' · '); el.hidden = false;
+    };
+    if (!added) return showProblems();
+    toast(ranked ? t('Added at the bottom of the ladder — use the arrows to move it into place.')
+      : added === 1 ? t('Added') : t('Added {n}', { n: added }));
+    loadLookups();
+    // Re-render with the new rows, then keep whatever could not be added in
+    // the box with the reason beside it.
+    await renderSettingsTab();
+    if (problems.length) showProblems();
   });
   $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -7763,7 +7821,9 @@ async function renderLookupTab(cfg, mountSel = '#settingsPanel') {
         catch (ex) { toast(ex.message, true); }
         return;
       }
-      const msg = it.members
+      const msg = it.uses
+        ? t('Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.', { n: it.uses })
+        : it.members
         ? t('{count} still use this {noun}. Delete it anyway? Their accounts keep the name, but it can no longer be chosen. Disable it instead to keep it on record.',
           { count: t(it.members === 1 ? '{n} account' : '{n} accounts', { n: it.members }), noun })
         : t('Delete this {noun}? Existing claims keep their recorded value.', { noun });
@@ -7809,7 +7869,12 @@ function startInlineRename(cell, it, cfg) {
   const save = async () => {
     const name = input.value.trim();
     if (!name || name === it.name) return cancel();
-    try { await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ name }) }); toast(t('Renamed')); refreshAfterSettings(); }
+    try {
+      const r = await api(`${cfg.path}/${it.id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+      toast(r && r.moved ? t('Renamed — {count} moved to the new name.', { count: t(r.moved === 1 ? '{n} account' : '{n} accounts', { n: r.moved }) })
+        : it.uses ? t('Renamed. Claims already filed keep the old name.') : t('Renamed'));
+      refreshAfterSettings();
+    }
     catch (ex) { toast(ex.message, true); }
   };
   cell.querySelector('[data-save]').addEventListener('click', save);

@@ -781,5 +781,20 @@ I18N.addDict('vi', {
   'Move to top': 'Chuyển lên đầu',
   'Move to bottom': 'Chuyển xuống cuối',
   'Order saved': 'Đã lưu thứ tự',
-  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Đã thêm vào cuối danh sách — dùng các mũi tên để chuyển đến vị trí phù hợp.'
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Đã thêm vào cuối danh sách — dùng các mũi tên để chuyển đến vị trí phù hợp.',
+  // Expense types: usage, sort, add several
+  'Used once': 'Đã dùng 1 lần',
+  'Used {n} times': 'Đã dùng {n} lần',
+  'last {date}': 'gần nhất {date}',
+  'Never used': 'Chưa từng dùng',
+  'Sort': 'Sắp xếp',
+  'Name A–Z': 'Tên A–Z',
+  'Most used': 'Dùng nhiều nhất',
+  'Recently used': 'Dùng gần đây',
+  'Tip: paste a list, one per line, to add several at once.': 'Mẹo: dán một danh sách, mỗi dòng một mục, để thêm nhiều mục cùng lúc.',
+  '{name} is already in the list': '{name} đã có trong danh sách',
+  'Added {n}': 'Đã thêm {n}',
+  'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'Đã dùng {n} lần. Vẫn xóa? Các yêu cầu đã nộp giữ nguyên tên này, nhưng không thể chọn lại nữa. Hãy vô hiệu hóa thay vì xóa để giữ lại hồ sơ.',
+  'Renamed — {count} moved to the new name.': 'Đã đổi tên — {count} đã chuyển sang tên mới.',
+  'Renamed. Claims already filed keep the old name.': 'Đã đổi tên. Các yêu cầu đã nộp vẫn giữ tên cũ.'
 });

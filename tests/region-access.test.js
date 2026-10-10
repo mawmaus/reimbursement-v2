@@ -92,3 +92,41 @@ test('only settings managers get disabled lookups and member counts', async (t) 
   assert.deepEqual(await ask(CMMD, '/api/departments'), { activeOnly: true, counted: false }, 'claim-form read unchanged');
   assert.deepEqual(await ask(CMMD, '/api/departments?manage=1'), { activeOnly: false, counted: true });
 });
+
+test('renaming a department or position carries its accounts along; expense types do not', async (t) => {
+  await serve(t);
+  state.tables.departments.push({ id: 71, name: 'Sales', region: 'Indonesia', active: true, allow_claim: true, allow_meal: true });
+  state.tables.expense_types.push({ id: 72, name: 'Taxi', region: 'Indonesia', active: true });
+  const writes = [];
+  state.onWrite = (sql, params) => writes.push([sql, params]);
+  t.after(() => { state.onWrite = null; });
+  const touchesUsers = () => writes.filter(([sql]) => /^UPDATE users/.test(sql));
+
+  let r = await call(CMMD, 'PUT', '/api/departments/71', { allow_meal: false });
+  assert.equal(r.status, 200, r.body);
+  assert.equal(touchesUsers().length, 0, 'a flag change leaves accounts alone');
+
+  r = await call(CMMD, 'PUT', '/api/departments/71', { name: 'Sales & Marketing' });
+  assert.equal(r.status, 200, r.body);
+  const [[sql, params]] = touchesUsers();
+  assert.match(sql, /SET department = \$1 WHERE region = \$2/);
+  assert.deepEqual(params, ['Sales & Marketing', 'Indonesia', 'Sales']);
+
+  writes.length = 0;
+  r = await call(CMMD, 'PUT', '/api/expense-types/72', { name: 'Taxi & ride-hailing' });
+  assert.equal(r.status, 200, r.body);
+  assert.equal(touchesUsers().length, 0);
+});
+
+test('expense types report their usage to settings managers only', async (t) => {
+  await serve(t);
+  const usageAsked = async (who, path) => {
+    state.reads.length = 0;
+    const r = await call(who, 'GET', path);
+    assert.equal(r.status, 200, r.body);
+    return state.reads.some(x => /FROM claim_lines l JOIN claims c/.test(x));
+  };
+  assert.equal(await usageAsked(FIN, '/api/expense-types?manage=1'), false);
+  assert.equal(await usageAsked(CMMD, '/api/expense-types'), false);
+  assert.equal(await usageAsked(CMMD, '/api/expense-types?manage=1'), true);
+});

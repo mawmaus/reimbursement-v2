@@ -2959,3 +2959,16 @@ a[data-open-doc]:hover { text-decoration: underline; }
 @keyframes lkMoved { from { background: var(--pine-tint-hi); } to { background: transparent; } }
 .utable-lookup tr.lk-moved td { animation: lkMoved 1.2s ease-out; }
 @media (prefers-reduced-motion: reduce) { .utable-lookup tr.lk-moved td { animation: none; } }
+
+/* --- Expense types: add box (takes a pasted list), usage sort ---------------- */
+.rg-add:has(.lk-add-input) { align-items: flex-start; }
+.lk-add-input { resize: none; overflow-y: auto; line-height: 1.4; min-height: 0; font: inherit; }
+.lk-add-hint { flex-basis: 100%; margin: -2px 0 0; font-size: .78rem; color: var(--muted); }
+.lk-sort { flex: none; display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.lk-sort > span { font-size: .82rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.lk-sort .msel { width: 210px; }
+.lk-sort .msel-trigger { padding-top: 7px; padding-bottom: 7px; font-size: .86rem; }
+@media (max-width: 900px) {
+  .lk-sort { flex: 1 1 100%; }
+  .lk-sort .msel { flex: 1; width: auto; }
+}

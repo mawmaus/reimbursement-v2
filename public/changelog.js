@@ -28,6 +28,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.4',
+    date: '2026-10-10',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Settings → Expense types shows how often each type has been used on claims and cash advances, and when it was last used. Sort by name, most used or recently used; paste a list (one per line) to add several at once; and deleting or renaming a type that is in use tells you what happens to claims already filed.',
+        id: 'Pengaturan → Jenis biaya kini menunjukkan seberapa sering setiap jenis dipakai pada klaim dan uang muka, serta kapan terakhir dipakai. Urutkan menurut nama, paling sering, atau terakhir dipakai; tempel daftar (satu per baris) untuk menambahkan beberapa sekaligus; dan saat menghapus atau mengganti nama jenis yang sedang dipakai, Anda diberi tahu dampaknya pada klaim yang sudah diajukan.',
+        th: 'การตั้งค่า → ประเภทค่าใช้จ่าย แสดงว่าแต่ละประเภทถูกใช้ในเคลมและเงินทดรองบ่อยแค่ไหน และใช้ล่าสุดเมื่อใด เรียงตามชื่อ ใช้บ่อยที่สุด หรือใช้ล่าสุดได้ วางรายการ (บรรทัดละหนึ่งชื่อ) เพื่อเพิ่มหลายรายการพร้อมกัน และเมื่อลบหรือเปลี่ยนชื่อประเภทที่มีการใช้งาน ระบบจะบอกว่าเกิดอะไรกับเคลมที่ยื่นแล้ว',
+        vi: 'Cài đặt → Loại chi phí giờ cho biết mỗi loại đã được dùng bao nhiêu lần trong yêu cầu và tạm ứng, và lần dùng gần nhất. Sắp xếp theo tên, dùng nhiều nhất hoặc dùng gần đây; dán một danh sách (mỗi dòng một mục) để thêm nhiều mục cùng lúc; và khi xóa hoặc đổi tên một loại đang được dùng, bạn sẽ được cho biết điều gì xảy ra với các yêu cầu đã nộp.',
+        km: 'ការកំណត់ → ប្រភេទចំណាយ ឥឡូវបង្ហាញថាប្រភេទនីមួយៗត្រូវបានប្រើលើការទាមទារ និងប្រាក់បុរេប្រទានប៉ុន្មានដង និងប្រើចុងក្រោយពេលណា។ តម្រៀបតាមឈ្មោះ ប្រើច្រើនបំផុត ឬប្រើថ្មីៗ បិទភ្ជាប់បញ្ជី (មួយបន្ទាត់មួយ) ដើម្បីបន្ថែមច្រើនក្នុងពេលតែមួយ ហើយពេលលុប ឬប្តូរឈ្មោះប្រភេទដែលកំពុងប្រើ អ្នកនឹងដឹងថាមានអ្វីកើតឡើងចំពោះការទាមទារដែលបានដាក់រួច។',
+        fil: 'Ipinapakita na ng Settings → Expense types kung gaano kadalas nagamit ang bawat uri sa mga claim at cash advance, at kung kailan ito huling ginamit. Ayusin ayon sa pangalan, pinakamadalas, o kamakailang ginamit; mag-paste ng listahan (isa bawat linya) para magdagdag ng marami nang sabay; at kapag binura o pinalitan ang pangalan ng uring ginagamit, sasabihin sa iyo kung ano ang mangyayari sa mga naisumiteng claim.'
+      } },
+      { kind: 'fixed', audience: ['settings'], text: {
+        en: 'Renaming a department or job position now moves the accounts in it to the new name. Before, those accounts kept the old name and could lose the ability to raise claims.',
+        id: 'Mengganti nama departemen atau jabatan kini ikut memindahkan akun di dalamnya ke nama baru. Sebelumnya, akun tersebut tetap memakai nama lama dan bisa kehilangan kemampuan mengajukan klaim.',
+        th: 'การเปลี่ยนชื่อแผนกหรือตำแหน่งงานจะย้ายบัญชีที่อยู่ในนั้นไปใช้ชื่อใหม่ด้วย ก่อนหน้านี้บัญชีเหล่านั้นยังใช้ชื่อเดิมและอาจยื่นเคลมไม่ได้',
+        vi: 'Đổi tên phòng ban hoặc chức vụ giờ sẽ chuyển các tài khoản trong đó sang tên mới. Trước đây, các tài khoản đó giữ tên cũ và có thể mất quyền tạo yêu cầu.',
+        km: 'ការប្តូរឈ្មោះនាយកដ្ឋាន ឬមុខតំណែង ឥឡូវផ្លាស់គណនីក្នុងនោះទៅឈ្មោះថ្មីផងដែរ។ ពីមុន គណនីទាំងនោះនៅរក្សាឈ្មោះចាស់ ហើយអាចបាត់បង់សិទ្ធិដាក់ការទាមទារ។',
+        fil: 'Kapag pinalitan ang pangalan ng department o job position, inililipat na rin sa bagong pangalan ang mga account na nasa loob nito. Dati, nananatili sa lumang pangalan ang mga account na iyon at maaaring hindi na sila makapag-claim.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.3',
     date: '2026-10-10',
     items: [

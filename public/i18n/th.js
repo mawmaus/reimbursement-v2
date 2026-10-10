@@ -781,5 +781,20 @@ I18N.addDict('th', {
   'Move to top': 'ย้ายไปบนสุด',
   'Move to bottom': 'ย้ายไปล่างสุด',
   'Order saved': 'บันทึกลำดับแล้ว',
-  'Added at the bottom of the ladder — use the arrows to move it into place.': 'เพิ่มไว้ล่างสุดของลำดับแล้ว — ใช้ปุ่มลูกศรเพื่อย้ายไปยังตำแหน่งที่ต้องการ'
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'เพิ่มไว้ล่างสุดของลำดับแล้ว — ใช้ปุ่มลูกศรเพื่อย้ายไปยังตำแหน่งที่ต้องการ',
+  // Expense types: usage, sort, add several
+  'Used once': 'ใช้ 1 ครั้ง',
+  'Used {n} times': 'ใช้ {n} ครั้ง',
+  'last {date}': 'ล่าสุด {date}',
+  'Never used': 'ยังไม่เคยใช้',
+  'Sort': 'เรียงตาม',
+  'Name A–Z': 'ชื่อ ก–ฮ',
+  'Most used': 'ใช้บ่อยที่สุด',
+  'Recently used': 'ใช้ล่าสุด',
+  'Tip: paste a list, one per line, to add several at once.': 'เคล็ดลับ: วางรายการ บรรทัดละหนึ่งชื่อ เพื่อเพิ่มหลายรายการพร้อมกัน',
+  '{name} is already in the list': '{name} มีอยู่ในรายการแล้ว',
+  'Added {n}': 'เพิ่ม {n} รายการแล้ว',
+  'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'ใช้ไปแล้ว {n} ครั้ง ต้องการลบหรือไม่ เคลมที่ยื่นแล้วจะยังใช้ชื่อนี้ แต่จะเลือกไม่ได้อีก ปิดใช้งานแทนเพื่อเก็บไว้ในระบบ',
+  'Renamed — {count} moved to the new name.': 'เปลี่ยนชื่อแล้ว — ย้าย {count} ไปใช้ชื่อใหม่แล้ว',
+  'Renamed. Claims already filed keep the old name.': 'เปลี่ยนชื่อแล้ว เคลมที่ยื่นแล้วจะยังใช้ชื่อเดิม'
 });

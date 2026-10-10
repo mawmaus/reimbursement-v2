@@ -804,5 +804,20 @@ I18N.addDict('id', {
   'Move to top': 'Pindah ke atas',
   'Move to bottom': 'Pindah ke bawah',
   'Order saved': 'Urutan disimpan',
-  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Ditambahkan di urutan paling bawah — gunakan tombol panah untuk memindahkannya.'
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Ditambahkan di urutan paling bawah — gunakan tombol panah untuk memindahkannya.',
+  // Expense types: usage, sort, add several
+  'Used once': 'Dipakai sekali',
+  'Used {n} times': 'Dipakai {n} kali',
+  'last {date}': 'terakhir {date}',
+  'Never used': 'Belum pernah dipakai',
+  'Sort': 'Urutkan',
+  'Name A–Z': 'Nama A–Z',
+  'Most used': 'Paling sering dipakai',
+  'Recently used': 'Terakhir dipakai',
+  'Tip: paste a list, one per line, to add several at once.': 'Tips: tempel daftar, satu per baris, untuk menambahkan beberapa sekaligus.',
+  '{name} is already in the list': '{name} sudah ada di daftar',
+  'Added {n}': '{n} ditambahkan',
+  'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'Dipakai {n} kali. Tetap hapus? Klaim yang sudah diajukan tetap memakai nama ini, tetapi tidak bisa dipilih lagi. Nonaktifkan saja agar tetap tercatat.',
+  'Renamed — {count} moved to the new name.': 'Diganti nama — {count} dipindahkan ke nama baru.',
+  'Renamed. Claims already filed keep the old name.': 'Diganti nama. Klaim yang sudah diajukan tetap memakai nama lama.'
 });

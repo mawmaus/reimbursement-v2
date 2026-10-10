@@ -781,5 +781,20 @@ I18N.addDict('fil', {
   'Move to top': 'Ilipat sa itaas',
   'Move to bottom': 'Ilipat sa ibaba',
   'Order saved': 'Na-save ang pagkakasunod',
-  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Idinagdag sa pinakaibaba — gamitin ang mga arrow para ilipat ito sa tamang puwesto.'
+  'Added at the bottom of the ladder — use the arrows to move it into place.': 'Idinagdag sa pinakaibaba — gamitin ang mga arrow para ilipat ito sa tamang puwesto.',
+  // Expense types: usage, sort, add several
+  'Used once': 'Nagamit nang isang beses',
+  'Used {n} times': 'Nagamit nang {n} beses',
+  'last {date}': 'huli noong {date}',
+  'Never used': 'Hindi pa nagagamit',
+  'Sort': 'Ayusin ayon sa',
+  'Name A–Z': 'Pangalan A–Z',
+  'Most used': 'Pinakamadalas gamitin',
+  'Recently used': 'Kamakailang ginamit',
+  'Tip: paste a list, one per line, to add several at once.': 'Tip: mag-paste ng listahan, isa bawat linya, para magdagdag ng marami nang sabay.',
+  '{name} is already in the list': 'Nasa listahan na ang {name}',
+  'Added {n}': 'Naidagdag ang {n}',
+  'Used {n} times. Delete it anyway? Claims already filed keep the name, but it can no longer be chosen. Disable it instead to keep it on record.': 'Nagamit nang {n} beses. Burahin pa rin? Mananatili ang pangalang ito sa mga naisumiteng claim, pero hindi na ito mapipili. I-disable na lang para manatili sa record.',
+  'Renamed — {count} moved to the new name.': 'Napalitan ang pangalan — inilipat ang {count} sa bagong pangalan.',
+  'Renamed. Claims already filed keep the old name.': 'Napalitan ang pangalan. Mananatili ang lumang pangalan sa mga naisumiteng claim.'
 });

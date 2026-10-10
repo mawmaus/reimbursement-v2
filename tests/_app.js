@@ -19,7 +19,8 @@ const state = {
   users: new Map(),        // id -> account row
   settings: {},            // app_settings key -> value (objects are JSON-encoded)
   positions: [],           // job_positions rows { name, rank, can_manage }
-  tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [] },
+  tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [],
+    departments: [], job_positions: [], expense_types: [] },
   writes: [],
   reads: [],               // every query's text, so a test can see what was asked
   onWrite: null
@@ -35,7 +36,7 @@ async function q(text, params = []) {
   }
   if (/^SELECT .* FROM users WHERE id = \$1/.test(sql)) { const u = state.users.get(Number(params[0])); return u ? [{ ...u }] : []; }
   if (/^SELECT name, rank, can_manage FROM job_positions/.test(sql)) return state.positions.map(p => ({ ...p }));
-  if ((m = sql.match(/^SELECT \* FROM (claims|meal_claims|cash_advances) WHERE id ?= ?\$1$/))) {
+  if ((m = sql.match(/^SELECT \* FROM (claims|meal_claims|cash_advances|departments|job_positions|expense_types) WHERE id ?= ?\$1$/))) {
     return state.tables[m[1]].filter(r => r.id === Number(params[0])).map(r => ({ ...r }));
   }
   if ((m = sql.match(/^SELECT \* FROM (claim_lines|meal_claim_lines|cash_advance_lines) WHERE (\w+) = \$1/)) && LINE_FK[m[1]] === m[2]) {
