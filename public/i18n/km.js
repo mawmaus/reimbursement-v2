@@ -870,7 +870,6 @@ I18N.addDict('km', {
   'Very easy': 'ងាយណាស់',
   'Very bad': 'អាក្រក់ណាស់',
   'Very good': 'ល្អណាស់',
-  'Maybe later': 'ពេលក្រោយ',
   'Send answers': 'ផ្ញើចម្លើយ',
   'Thank you for your feedback!': 'សូមអរគុណចំពោះមតិរបស់អ្នក!',
   'Survey results': 'លទ្ធផលស្ទង់មតិ',

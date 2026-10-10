@@ -453,8 +453,10 @@ function openWhatsNew() {
 
 // ---------------------------------------------------------------------------
 // Experience survey — accounts that knew the paper process (created before
-// August 2026) are asked once, a moment after signing in, to score paper vs
-// digital (lib/survey.js). "Maybe later" asks again at the next sign-in; a
+// August 2026) are asked once, right after signing in, to score paper vs
+// digital (lib/survey.js). The window can't be closed until it's answered:
+// while surveyLock is set, closeModal() and openModal() leave it in place (so
+// the ×-less window survives the scrim, Escape and anything else opening). A
 // Super Admin reads the results from the Regions screen.
 // ---------------------------------------------------------------------------
 const SURVEY_QUESTIONS = [
@@ -462,16 +464,12 @@ const SURVEY_QUESTIONS = [
   { key: 'digital_score', text: 'From 1 to 10, how hard is it to reimburse digitally now?', short: 'Digital, now', lo: 'Very hard', hi: 'Very easy' },
   { key: 'overall_score', text: 'From 1 to 10, how good is this digital reimbursement?', short: 'This portal overall', lo: 'Very bad', hi: 'Very good' }
 ];
-const surveyLaterKey = () => `reimb.surveyLater.${state.user ? state.user.id : ''}`;
+let surveyLock = false;
 function scheduleSurvey() {
   const u = state.user;
-  if (!u || !u.survey_pending) return;
-  try { if (sessionStorage.getItem(surveyLaterKey())) return; } catch { /* storage blocked: ask */ }
-  // Let the home screen settle first; never cover something the user opened.
-  setTimeout(() => {
-    if (state.user !== u || !$('#modal').hidden || !$('#drawer').hidden) return;
-    openSurvey();
-  }, 1200);
+  if (!u || !u.survey_pending || surveyLock) return;
+  if (!$('#drawer').hidden) closeDrawer();
+  openSurvey();
 }
 function openSurvey() {
   const question = (item, i) => `
@@ -485,25 +483,18 @@ function openSurvey() {
   openModal(`
     <div class="modal-head">
       <div><h2>${esc(t('Quick survey'))}</h2><p class="wn-sub">${esc(t('Three quick questions about reimbursing before and after the portal.'))}</p></div>
-      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
     <form class="modal-body sv-body" id="surveyForm" novalidate>
       <p class="sv-scale-note">${esc(t('1 means very bad, 10 means very good.'))}</p>
       ${SURVEY_QUESTIONS.map(question).join('')}
       <p class="form-error" id="svErr" hidden></p>
       <div class="modal-actions sv-actions">
-        <button type="button" class="btn btn-ghost" id="svLater">${esc(t('Maybe later'))}</button>
         <button type="submit" class="btn btn-primary" id="svSend" disabled>${esc(t('Send answers'))}</button>
       </div>
     </form>`);
   $('#modal').classList.add('modal-survey');
+  surveyLock = true;
   const form = $('#surveyForm');
-  const later = () => {
-    try { sessionStorage.setItem(surveyLaterKey(), '1'); } catch { /* asked again on reload */ }
-    closeModal();
-  };
-  $('#modal .x-btn').addEventListener('click', later);
-  $('#svLater').addEventListener('click', later);
   const answers = () => SURVEY_QUESTIONS.map(item => form.querySelector(`input[name="${item.key}"]:checked`));
   form.addEventListener('change', () => { $('#svSend').disabled = answers().some(a => !a); });
   form.addEventListener('submit', async (e) => {
@@ -515,6 +506,7 @@ function openSurvey() {
     try {
       await api('/survey', { method: 'POST', body: JSON.stringify(body) });
       if (state.user) state.user.survey_pending = false;
+      surveyLock = false;
       closeModal();
       toast(t('Thank you for your feedback!'));
     } catch (ex) {
@@ -3614,6 +3606,7 @@ function syncScrollLock() {
 // — its ×, the scrim, or Escape — which all funnel through closeModal().
 let modalCloseHook = null;
 function openModal(html) {
+  if (surveyLock) return; // the survey stays until it's answered
   modalCloseHook = null; // a new modal supersedes any pending hook
   // If a modal opens while the drawer is floating above a previous one (the
   // insights drill-down window), that window is being replaced by a drawer
@@ -3632,6 +3625,7 @@ function openModal(html) {
   syncScrollLock();
 }
 function closeModal() {
+  if (surveyLock) return;
   leaveGhost($('#modal')); leaveGhost($('#modalScrim'));
   $('#modal').hidden = true; $('#modalScrim').hidden = true;
   $('#modal').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-confirm', 'modal-ws', 'modal-ma', 'modal-adv', 'modal-export', 'modal-profile', 'modal-survey');

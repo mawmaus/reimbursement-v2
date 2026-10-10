@@ -893,7 +893,6 @@ I18N.addDict('id', {
   'Very easy': 'Sangat mudah',
   'Very bad': 'Sangat buruk',
   'Very good': 'Sangat baik',
-  'Maybe later': 'Nanti saja',
   'Send answers': 'Kirim jawaban',
   'Thank you for your feedback!': 'Terima kasih atas masukan Anda!',
   'Survey results': 'Hasil survei',

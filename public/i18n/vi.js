@@ -870,7 +870,6 @@ I18N.addDict('vi', {
   'Very easy': 'Rất dễ',
   'Very bad': 'Rất tệ',
   'Very good': 'Rất tốt',
-  'Maybe later': 'Để sau',
   'Send answers': 'Gửi câu trả lời',
   'Thank you for your feedback!': 'Cảm ơn bạn đã góp ý!',
   'Survey results': 'Kết quả khảo sát',

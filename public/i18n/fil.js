@@ -870,7 +870,6 @@ I18N.addDict('fil', {
   'Very easy': 'Napakadali',
   'Very bad': 'Napakasama',
   'Very good': 'Napakahusay',
-  'Maybe later': 'Mamaya na lang',
   'Send answers': 'Ipadala ang sagot',
   'Thank you for your feedback!': 'Salamat sa iyong feedback!',
   'Survey results': 'Resulta ng survey',

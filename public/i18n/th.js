@@ -870,7 +870,6 @@ I18N.addDict('th', {
   'Very easy': 'ง่ายมาก',
   'Very bad': 'แย่มาก',
   'Very good': 'ดีมาก',
-  'Maybe later': 'ไว้ทีหลัง',
   'Send answers': 'ส่งคำตอบ',
   'Thank you for your feedback!': 'ขอบคุณสำหรับความคิดเห็น!',
   'Survey results': 'ผลแบบสำรวจ',
