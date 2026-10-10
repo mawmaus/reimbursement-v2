@@ -3279,3 +3279,52 @@ a[data-open-doc]:hover { text-decoration: underline; }
 }
 /* The Help subtitle is a sentence, not a one-line scope: let it wrap. */
 #helpSub, #helpSub > span { white-space: normal; overflow: visible; text-overflow: clip; }
+
+/* Helpdesk screenshots: picker thumbnails, in-thread images, full-size view. */
+.hp-attach { display: flex; flex-direction: column; gap: 10px; }
+.hp-attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.hp-attach-btn { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.hp-attach-btn svg, .hp-attach-icon svg { width: 16px; height: 16px; flex: none; }
+.hp-attach-btn:disabled, .hp-attach-icon:disabled { opacity: .45; cursor: not-allowed; }
+.hp-attach-hint { font-size: .78rem; font-weight: 400; color: var(--muted); }
+.hp-attach-icon { display: inline-grid; place-items: center; width: 34px; padding-left: 0; padding-right: 0; align-self: stretch; }
+.hp-compose-left { display: flex; align-items: stretch; gap: 8px; }
+.hp-shots { display: flex; flex-wrap: wrap; gap: 8px; }
+.hp-shots[hidden] { display: none; }
+.hp-shot { position: relative; width: 76px; height: 76px; margin: 0; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--paper); }
+.hp-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hp-shot-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; font-size: 15px; line-height: 1; cursor: pointer;
+  background: var(--scrim); color: var(--on-accent); }
+.hp-shot-x:hover { background: var(--danger-fill); }
+.hp-shot-x:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+.hp-shot-busy { display: grid; place-items: center; padding: 6px; text-align: center; font-size: .72rem; color: var(--muted);
+  border-style: dashed; animation: hp-pulse 1.2s ease-in-out infinite; }
+@keyframes hp-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .hp-shot-busy { animation: none; } }
+/* A file dragged over the form. */
+.hp-drop { outline: 2px dashed var(--pine); outline-offset: 4px; border-radius: 12px; }
+.hp-compose.hp-drop { outline-offset: -6px; }
+
+.hp-msg-shots { display: flex; flex-wrap: wrap; gap: 6px; }
+.hp-mine .hp-msg-shots { justify-content: flex-end; }
+.hp-msg-shot { width: 132px; height: 96px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: var(--surface); cursor: zoom-in; transition: border-color .12s, box-shadow .12s; }
+.hp-msg-shot:hover { border-color: var(--pine); box-shadow: var(--shadow-sm); }
+.hp-msg-shot:focus-visible { outline: 2px solid var(--pine); outline-offset: 1px; }
+.hp-msg-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hp-clip { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
+.hp-clip svg { width: 13px; height: 13px; }
+
+.modal.modal-hp-lb { display: flex; flex-direction: column; overflow: hidden; }
+.hp-lb-head { flex: none; gap: 12px; }
+.hp-lb-name { flex: 1 1 auto; min-width: 0; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-lb-head .btn { flex: none; white-space: nowrap; }
+.hp-lb { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; padding: 16px; overflow: auto; background: var(--paper); }
+.hp-lb img { max-width: 100%; max-height: calc(90vh - 110px); object-fit: contain; border-radius: 8px; box-shadow: var(--shadow-sm); }
+@media (max-width: 560px) {
+  .hp-msg-shot { width: 108px; height: 80px; }
+  .hp-shot { width: 64px; height: 64px; }
+  .hp-attach-hint { flex-basis: 100%; }
+}

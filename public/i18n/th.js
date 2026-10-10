@@ -985,5 +985,20 @@ I18N.addDict('th', {
   'Choose criticism or suggestion': 'เลือกคำติชมหรือข้อเสนอแนะ',
   'Choose what the question is about': 'เลือกว่าคำถามเกี่ยวกับเรื่องอะไร',
   'This ticket is already open': 'ตั๋วนี้เปิดอยู่แล้ว',
-  'This ticket is already closed': 'ตั๋วนี้ปิดไปแล้ว'
+  'This ticket is already closed': 'ตั๋วนี้ปิดไปแล้ว',
+  // Helpdesk & feedback (kritik & saran)
+  'Screenshot': 'ภาพหน้าจอ',
+  '{n} screenshots': 'ภาพหน้าจอ {n} ภาพ',
+  'Up to {n} screenshots per message.': 'แนบภาพหน้าจอได้สูงสุด {n} ภาพต่อข้อความ',
+  'Only images can be attached as screenshots.': 'แนบได้เฉพาะไฟล์รูปภาพเป็นภาพหน้าจอ',
+  '{name} couldn’t be attached — try a smaller image.': 'ไม่สามารถแนบ {name} ได้ — ลองใช้รูปที่เล็กกว่านี้',
+  'Attach screenshot': 'แนบภาพหน้าจอ',
+  'Open full size': 'เปิดขนาดเต็ม',
+  'Up to {n} images. You can also paste a screenshot into the message.': 'สูงสุด {n} ภาพ คุณยังสามารถวางภาพหน้าจอลงในข้อความได้',
+  'Uploading screenshots…': 'กำลังอัปโหลดภาพหน้าจอ…',
+  'View screenshot {name}': 'ดูภาพหน้าจอ {name}',
+  'Attach up to 4 screenshots': 'แนบภาพหน้าจอได้สูงสุด 4 ภาพ',
+  'Screenshots must be images (JPG, PNG, WebP or GIF)': 'ภาพหน้าจอต้องเป็นไฟล์รูปภาพ (JPG, PNG, WebP หรือ GIF)',
+  'Screenshot not found': 'ไม่พบภาพหน้าจอ',
+  'Invalid screenshots': 'ภาพหน้าจอไม่ถูกต้อง'
 });

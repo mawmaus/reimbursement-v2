@@ -985,5 +985,20 @@ I18N.addDict('km', {
   'Choose criticism or suggestion': 'ជ្រើសរើសការរិះគន់ ឬសំណូមពរ',
   'Choose what the question is about': 'ជ្រើសរើសថាសំណួរនេះអំពីអ្វី',
   'This ticket is already open': 'សំបុត្រនេះកំពុងបើករួចហើយ',
-  'This ticket is already closed': 'សំបុត្រនេះត្រូវបានបិទរួចហើយ'
+  'This ticket is already closed': 'សំបុត្រនេះត្រូវបានបិទរួចហើយ',
+  // Helpdesk & feedback (kritik & saran)
+  'Screenshot': 'រូបថតអេក្រង់',
+  '{n} screenshots': 'រូបថតអេក្រង់ {n}',
+  'Up to {n} screenshots per message.': 'រូបថតអេក្រង់អតិបរមា {n} ក្នុងមួយសារ។',
+  'Only images can be attached as screenshots.': 'អាចភ្ជាប់បានតែរូបភាពជារូបថតអេក្រង់ប៉ុណ្ណោះ។',
+  '{name} couldn’t be attached — try a smaller image.': 'មិនអាចភ្ជាប់ {name} បានទេ — សូមសាកល្បងរូបភាពតូចជាងនេះ។',
+  'Attach screenshot': 'ភ្ជាប់រូបថតអេក្រង់',
+  'Open full size': 'បើកទំហំពេញ',
+  'Up to {n} images. You can also paste a screenshot into the message.': 'រូបភាពអតិបរមា {n}។ អ្នកក៏អាចបិទភ្ជាប់រូបថតអេក្រង់ចូលក្នុងសារបានដែរ។',
+  'Uploading screenshots…': 'កំពុងផ្ទុករូបថតអេក្រង់ឡើង…',
+  'View screenshot {name}': 'មើលរូបថតអេក្រង់ {name}',
+  'Attach up to 4 screenshots': 'ភ្ជាប់រូបថតអេក្រង់អតិបរមា 4',
+  'Screenshots must be images (JPG, PNG, WebP or GIF)': 'រូបថតអេក្រង់ត្រូវតែជារូបភាព (JPG, PNG, WebP ឬ GIF)',
+  'Screenshot not found': 'រកមិនឃើញរូបថតអេក្រង់',
+  'Invalid screenshots': 'រូបថតអេក្រង់មិនត្រឹមត្រូវ'
 });

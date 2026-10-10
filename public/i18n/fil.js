@@ -985,5 +985,20 @@ I18N.addDict('fil', {
   'Choose criticism or suggestion': 'Piliin ang puna o mungkahi',
   'Choose what the question is about': 'Piliin kung tungkol saan ang tanong',
   'This ticket is already open': 'Bukas na ang ticket na ito',
-  'This ticket is already closed': 'Sarado na ang ticket na ito'
+  'This ticket is already closed': 'Sarado na ang ticket na ito',
+  // Helpdesk & feedback (kritik & saran)
+  'Screenshot': 'Screenshot',
+  '{n} screenshots': '{n} screenshot',
+  'Up to {n} screenshots per message.': 'Hanggang {n} screenshot bawat mensahe.',
+  'Only images can be attached as screenshots.': 'Mga larawan lang ang puwedeng ilakip bilang screenshot.',
+  '{name} couldn’t be attached — try a smaller image.': 'Hindi mailakip ang {name} — subukan ang mas maliit na larawan.',
+  'Attach screenshot': 'Maglakip ng screenshot',
+  'Open full size': 'Buksan sa buong laki',
+  'Up to {n} images. You can also paste a screenshot into the message.': 'Hanggang {n} larawan. Puwede ka ring mag-paste ng screenshot sa mensahe.',
+  'Uploading screenshots…': 'Ina-upload ang mga screenshot…',
+  'View screenshot {name}': 'Tingnan ang screenshot {name}',
+  'Attach up to 4 screenshots': 'Hanggang 4 screenshot lang ang puwedeng ilakip',
+  'Screenshots must be images (JPG, PNG, WebP or GIF)': 'Dapat larawan ang mga screenshot (JPG, PNG, WebP o GIF)',
+  'Screenshot not found': 'Hindi nakita ang screenshot',
+  'Invalid screenshots': 'Di-wastong mga screenshot'
 });

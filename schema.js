@@ -610,6 +610,20 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_helpdesk_tickets_user ON helpdesk_tickets(user_id, updated_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_helpdesk_messages_ticket ON helpdesk_messages(ticket_id, id)`,
+  // Screenshots attached to a helpdesk message (2026-10-10). Images only; the
+  // file lives in the receipt Blob store and is served through
+  // /api/help/attachments/:id to the ticket's owner and the helpdesk.
+  `CREATE TABLE IF NOT EXISTS helpdesk_attachments (
+    id             SERIAL PRIMARY KEY,
+    ticket_id      INTEGER NOT NULL REFERENCES helpdesk_tickets(id) ON DELETE CASCADE,
+    message_id     INTEGER NOT NULL REFERENCES helpdesk_messages(id) ON DELETE CASCADE,
+    blob_url       TEXT NOT NULL,
+    original_name  TEXT NOT NULL DEFAULT '',
+    mime_type      TEXT NOT NULL,
+    size_bytes     INTEGER NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_helpdesk_attachments_ticket ON helpdesk_attachments(ticket_id, id)`,
   // Feedback (kritik & saran): one-way notes to the Super Admins, who mark them
   // read and may answer. An anonymous note keeps no account and no department,
   // only the region.

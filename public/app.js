@@ -3680,7 +3680,7 @@ function openModal2(html) {
   $('#modal2').hidden = false;
   syncScrollLock();
 }
-function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp'); syncScrollLock(); }
+function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp', 'modal-hp-lb'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // ---------------------------------------------------------------------------
@@ -7725,13 +7725,14 @@ function renderTickets() {
     const who = staff
       ? [x.requester_name, x.department, x.region].filter(Boolean).map(esc).join(' · ')
       : esc(helpCategoryLabel(x.category));
-    const last = x.last_body ? `<p class="hp-preview"><span class="hp-preview-who">${esc(x.last_from_staff ? t('Helpdesk') : (staff ? x.requester_name || t('Staff') : t('You')))}:</span> ${esc(x.last_body)}</p>` : '';
+    const last = x.last_from_staff != null ? `<p class="hp-preview"><span class="hp-preview-who">${esc(x.last_from_staff ? t('Helpdesk') : (staff ? x.requester_name || t('Staff') : t('You')))}:</span> ${x.last_body ? esc(x.last_body) : `<em>${esc(t('Screenshot'))}</em>`}</p>` : '';
+    const clip = x.attachment_count ? `<span class="hp-clip" title="${esc(t('{n} screenshots', { n: x.attachment_count }))}">${PAPERCLIP_ICON}${x.attachment_count}</span>` : '';
     return `<button type="button" class="hp-ticket${unread ? ' hp-unread' : ''}" data-ticket="${x.id}">
       <span class="hp-ticket-top">
         <span class="hp-ticket-subj">${unread ? `<span class="hp-dot" aria-label="${esc(t('New reply'))}"></span>` : ''}${esc(x.subject)}</span>
         ${ticketStatusChip(x.status)}
       </span>
-      <span class="hp-ticket-meta"><span class="mono">#${x.id}</span><span>${who}</span>${staff ? `<span>${esc(helpCategoryLabel(x.category))}</span>` : ''}<span>${esc(fmtDateTime(x.updated_at))}</span></span>
+      <span class="hp-ticket-meta"><span class="mono">#${x.id}</span><span>${who}</span>${staff ? `<span>${esc(helpCategoryLabel(x.category))}</span>` : ''}<span>${esc(fmtDateTime(x.updated_at))}</span>${clip}</span>
       ${last}
     </button>`;
   };
@@ -7743,6 +7744,97 @@ function renderTickets() {
     </div>`;
   $$('#hpTicketSeg [data-v]').forEach(b => b.addEventListener('click', () => { h.ticketFilter = b.dataset.v; renderTickets(); }));
   $$('#helpBody [data-ticket]').forEach(b => b.addEventListener('click', () => openTicket(Number(b.dataset.ticket))));
+}
+
+// --- Screenshots on a ticket message ---
+// Images only, up to four per message: picked, pasted (Ctrl+V into the message
+// box) or dropped onto the form. iPhone HEIC is converted and big images are
+// compressed so they go up through our own origin (uploadReceipts). No photo
+// editor — a screenshot needs no crop or capture stamp.
+const MAX_HELP_SHOTS = 4;
+const PAPERCLIP_ICON = svgI('<path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>');
+function makeShotPicker({ list, button, dropZone, pasteTarget, onChange }) {
+  const shots = []; // { file, url }
+  let busy = 0;
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.hidden = true;
+  list.after(input);
+  const changed = () => { render(); if (onChange) onChange(); };
+  function render() {
+    list.hidden = !shots.length && !busy;
+    list.innerHTML = shots.map((s, i) => `
+      <figure class="hp-shot"><img src="${esc(s.url)}" alt="${esc(s.file.name)}" />
+        <button type="button" class="hp-shot-x" data-rm="${i}" aria-label="${esc(t('Remove'))}" title="${esc(t('Remove'))}">×</button></figure>`).join('')
+      + (busy ? `<span class="hp-shot hp-shot-busy" aria-live="polite">${esc(t('Preparing…'))}</span>` : '');
+    $$('[data-rm]', list).forEach(b => b.addEventListener('click', () => {
+      const [s] = shots.splice(Number(b.dataset.rm), 1);
+      if (s) URL.revokeObjectURL(s.url);
+      changed();
+    }));
+    button.disabled = shots.length + busy >= MAX_HELP_SHOTS;
+  }
+  async function add(fileList) {
+    for (let file of [...fileList]) {
+      if (shots.length + busy >= MAX_HELP_SHOTS) { toast(t('Up to {n} screenshots per message.', { n: MAX_HELP_SHOTS }), true); break; }
+      if (!(String(file.type).startsWith('image/') || isHeic(file))) { toast(t('Only images can be attached as screenshots.'), true); continue; }
+      busy++; changed();
+      try {
+        if (isHeic(file)) file = await heicToJpeg(file);
+        if (file.size > COMPRESS_TARGET) {
+          if (file.type === 'image/gif') throw new Error('too big');
+          file = await compressImage(file, COMPRESS_TARGET);
+        }
+        // A pasted image arrives as "image.png"; give it a name worth keeping.
+        if (/^image\.\w+$/i.test(file.name || '') || !file.name) {
+          const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+          file = new File([file], `screenshot-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.${ext}`, { type: file.type });
+        }
+        shots.push({ file, url: URL.createObjectURL(file) });
+      } catch {
+        toast(t('{name} couldn’t be attached — try a smaller image.', { name: file.name || t('Screenshot') }), true);
+      } finally { busy--; changed(); }
+    }
+  }
+  button.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { add(input.files); input.value = ''; });
+  pasteTarget.addEventListener('paste', (e) => {
+    const files = [...((e.clipboardData && e.clipboardData.items) || [])]
+      .filter(it => it.kind === 'file' && it.type.startsWith('image/')).map(it => it.getAsFile()).filter(Boolean);
+    if (!files.length) return; // plain text pastes as usual
+    e.preventDefault();
+    add(files);
+  });
+  dropZone.addEventListener('dragover', (e) => {
+    if (![...(e.dataTransfer.types || [])].includes('Files')) return;
+    e.preventDefault(); dropZone.classList.add('hp-drop');
+  });
+  dropZone.addEventListener('dragleave', (e) => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('hp-drop'); });
+  dropZone.addEventListener('drop', (e) => {
+    if (!e.dataTransfer.files.length) return;
+    e.preventDefault(); dropZone.classList.remove('hp-drop');
+    add(e.dataTransfer.files);
+  });
+  render();
+  return {
+    files: () => shots.map(s => s.file),
+    count: () => shots.length,
+    busy: () => busy > 0,
+    clear: () => { shots.splice(0).forEach(s => URL.revokeObjectURL(s.url)); }
+  };
+}
+const shotAttachHtml = (id) => `<button type="button" class="btn btn-ghost btn-sm hp-attach-btn" id="${id}">${PAPERCLIP_ICON}<span>${esc(t('Attach screenshot'))}</span></button>`;
+// A screenshot at full size, over the ticket.
+function openShot(att) {
+  const src = `/api/help/attachments/${att.id}`;
+  openModal2(`
+    <div class="modal-head hp-lb-head">
+      <h2 class="hp-lb-name">${esc(att.original_name || t('Screenshot'))}</h2>
+      <a class="btn btn-ghost btn-sm" href="${src}" target="_blank" rel="noopener">${esc(t('Open full size'))}</a>
+      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body hp-lb"><img src="${src}" alt="${esc(att.original_name || t('Screenshot'))}" /></div>`);
+  $('#modal2').classList.add('modal-xwide', 'modal-hp-lb');
+  $('#modal2 .x-btn').addEventListener('click', closeModal2);
 }
 
 function openNewTicket() {
@@ -7762,6 +7854,10 @@ function openNewTicket() {
         <label>${esc(t('Message'))}
           <textarea name="message" rows="6" maxlength="4000" placeholder="${esc(t('Describe what happened. If it’s about a claim, include its number.'))}"></textarea>
         </label>
+        <div class="hp-attach">
+          <div class="hp-shots" id="hpNewShots" hidden></div>
+          <div class="hp-attach-row">${shotAttachHtml('hpNewAttach')}<span class="hp-attach-hint">${esc(t('Up to {n} images. You can also paste a screenshot into the message.', { n: MAX_HELP_SHOTS }))}</span></div>
+        </div>
         <p class="form-error" id="hpTicketErr" hidden></p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="hpTicketCancel">${esc(t('Cancel'))}</button>
@@ -7773,15 +7869,26 @@ function openNewTicket() {
   $('#modal .x-btn').addEventListener('click', closeModal);
   $('#hpTicketCancel').addEventListener('click', closeModal);
   const form = $('#hpTicketForm');
+  const picker = makeShotPicker({ list: $('#hpNewShots'), button: $('#hpNewAttach'), dropZone: form, pasteTarget: form.message,
+    onChange: () => { $('#hpTicketSend').disabled = picker && picker.busy(); } });
+  modalCloseHook = picker.clear;
   form.subject.focus();
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#hpTicketErr');
+    if (picker.busy()) return;
     const body = { category: form.category.value, subject: form.subject.value.trim(), message: form.message.value.trim() };
     const miss = !body.subject ? t('Give the ticket a short subject') : !body.message ? t('Describe the question or problem') : '';
     if (miss) { err.textContent = miss; err.hidden = false; (body.subject ? form.message : form.subject).focus(); return; }
-    $('#hpTicketSend').disabled = true;
+    const send = $('#hpTicketSend');
+    const label = send.textContent;
+    send.disabled = true;
     try {
+      if (picker.count()) {
+        send.textContent = t('Uploading screenshots…');
+        body.attachments = await uploadReceipts(picker.files());
+        send.textContent = label;
+      }
       const r = await api('/help/tickets', { method: 'POST', body: JSON.stringify(body) });
       closeModal();
       toast(t('Ticket sent — the helpdesk will answer you here.'));
@@ -7789,7 +7896,8 @@ function openNewTicket() {
       if (state.view === 'help') { await loadHelpTab(); if (r && r.id) openTicket(r.id); }
     } catch (ex) {
       err.textContent = t(ex.message); err.hidden = false;
-      $('#hpTicketSend').disabled = false;
+      send.textContent = label;
+      send.disabled = false;
     }
   });
 }
@@ -7818,9 +7926,13 @@ async function openTicket(id) {
     const name = mine ? t('You') : (m.author_name || (m.from_staff ? t('Helpdesk') : t('Staff')));
     return `<div class="hp-msg ${mine ? 'hp-mine' : 'hp-theirs'}${m.from_staff ? ' hp-from-staff' : ''}">
       <div class="hp-msg-meta"><strong>${esc(name)}</strong>${m.from_staff && !mine ? `<span class="hp-tag">${esc(t('Helpdesk'))}</span>` : ''}<span>${esc(fmtDateTime(m.created_at))}</span></div>
-      <div class="hp-msg-text">${esc(m.body)}</div>
+      ${m.body ? `<div class="hp-msg-text">${esc(m.body)}</div>` : ''}
+      ${(m.attachments || []).length ? `<div class="hp-msg-shots">${m.attachments.map(a => `
+        <button type="button" class="hp-msg-shot" data-shot="${a.id}" aria-label="${esc(t('View screenshot {name}', { name: a.original_name }))}">
+          <img src="/api/help/attachments/${a.id}" alt="" loading="lazy" /></button>`).join('')}</div>` : ''}
     </div>`;
   };
+  const shotById = new Map(r.messages.flatMap(m => (m.attachments || []).map(a => [String(a.id), a])));
   const replyHint = closed
     ? (r.mine ? t('This ticket is closed. Writing again reopens it.') : t('This ticket is closed. Answering reopens it for the requester.'))
     : '';
@@ -7829,16 +7941,27 @@ async function openTicket(id) {
     <form class="hp-compose" id="hpReplyForm" novalidate>
       ${replyHint ? `<p class="hp-compose-note">${esc(replyHint)}</p>` : ''}
       <textarea name="message" rows="3" maxlength="4000" class="input" aria-label="${esc(t('Your reply'))}" placeholder="${esc(r.staff && !r.mine ? t('Write an answer…') : t('Write a reply…'))}"></textarea>
+      <div class="hp-shots" id="hpReplyShots" hidden></div>
       <p class="form-error" id="hpReplyErr" hidden></p>
       <div class="hp-compose-acts">
-        <button type="button" class="btn btn-ghost btn-sm" id="hpStatusBtn">${esc(closed ? t('Reopen ticket') : t('Close ticket'))}</button>
+        <div class="hp-compose-left">
+          <button type="button" class="btn btn-ghost btn-sm" id="hpStatusBtn">${esc(closed ? t('Reopen ticket') : t('Close ticket'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm hp-attach-icon" id="hpReplyAttach" aria-label="${esc(t('Attach screenshot'))}" title="${esc(t('Attach screenshot'))}">${PAPERCLIP_ICON}</button>
+        </div>
         <button type="submit" class="btn btn-primary btn-sm" id="hpReplySend" disabled>${esc(r.staff && !r.mine ? t('Send answer') : t('Send reply'))}</button>
       </div>
     </form>`;
   const thread = $('#hpThread');
-  thread.scrollTop = thread.scrollHeight;
+  const toBottom = () => { thread.scrollTop = thread.scrollHeight; };
+  toBottom();
+  // Screenshots load after the first paint; keep the newest message in view.
+  $$('img', thread).forEach(img => img.addEventListener('load', toBottom, { once: true }));
+  $$('[data-shot]', thread).forEach(b => b.addEventListener('click', () => { const a = shotById.get(b.dataset.shot); if (a) openShot(a); }));
   const form = $('#hpReplyForm');
-  form.message.addEventListener('input', () => { $('#hpReplySend').disabled = !form.message.value.trim(); });
+  const canSend = () => { $('#hpReplySend').disabled = picker.busy() || !(form.message.value.trim() || picker.count()); };
+  const picker = makeShotPicker({ list: $('#hpReplyShots'), button: $('#hpReplyAttach'), dropZone: form, pasteTarget: form.message, onChange: () => canSend() });
+  modalCloseHook = picker.clear;
+  form.message.addEventListener('input', canSend);
   // Ctrl/⌘+Enter sends.
   form.message.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
@@ -7851,14 +7974,23 @@ async function openTicket(id) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const message = form.message.value.trim();
-    if (!message) return;
-    $('#hpReplySend').disabled = true;
+    if (picker.busy() || !(message || picker.count())) return;
+    const send = $('#hpReplySend');
+    const label = send.textContent;
+    send.disabled = true;
     try {
-      await api(`/help/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ message }) });
+      let attachments = [];
+      if (picker.count()) {
+        send.textContent = t('Uploading screenshots…');
+        attachments = await uploadReceipts(picker.files());
+      }
+      await api(`/help/tickets/${id}/messages`, { method: 'POST', body: JSON.stringify({ message, attachments }) });
+      picker.clear(); // frees the picked images; the ticket re-renders below
       after(r.staff && !r.mine ? t('Answer sent — they’ve been emailed.') : t('Reply sent.'));
     } catch (ex) {
       const err = $('#hpReplyErr'); err.textContent = t(ex.message); err.hidden = false;
-      $('#hpReplySend').disabled = false;
+      send.textContent = label;
+      send.disabled = false;
     }
   });
   $('#hpStatusBtn').addEventListener('click', async () => {

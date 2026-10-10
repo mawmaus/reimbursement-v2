@@ -1008,5 +1008,20 @@ I18N.addDict('id', {
   'Choose criticism or suggestion': 'Pilih kritik atau saran',
   'Choose what the question is about': 'Pilih topik pertanyaannya',
   'This ticket is already open': 'Tiket ini sudah terbuka',
-  'This ticket is already closed': 'Tiket ini sudah ditutup'
+  'This ticket is already closed': 'Tiket ini sudah ditutup',
+  // Helpdesk & feedback (kritik & saran)
+  'Screenshot': 'Tangkapan layar',
+  '{n} screenshots': '{n} tangkapan layar',
+  'Up to {n} screenshots per message.': 'Maksimal {n} tangkapan layar per pesan.',
+  'Only images can be attached as screenshots.': 'Hanya gambar yang bisa dilampirkan sebagai tangkapan layar.',
+  '{name} couldn’t be attached — try a smaller image.': '{name} tidak bisa dilampirkan — coba gambar yang lebih kecil.',
+  'Attach screenshot': 'Lampirkan tangkapan layar',
+  'Open full size': 'Buka ukuran penuh',
+  'Up to {n} images. You can also paste a screenshot into the message.': 'Maksimal {n} gambar. Anda juga bisa menempelkan tangkapan layar ke dalam pesan.',
+  'Uploading screenshots…': 'Mengunggah tangkapan layar…',
+  'View screenshot {name}': 'Lihat tangkapan layar {name}',
+  'Attach up to 4 screenshots': 'Lampirkan maksimal 4 tangkapan layar',
+  'Screenshots must be images (JPG, PNG, WebP or GIF)': 'Tangkapan layar harus berupa gambar (JPG, PNG, WebP, atau GIF)',
+  'Screenshot not found': 'Tangkapan layar tidak ditemukan',
+  'Invalid screenshots': 'Tangkapan layar tidak valid'
 });

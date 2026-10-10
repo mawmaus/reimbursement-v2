@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-10.10',
+    date: '2026-10-10',
+    items: [
+      { kind: 'new', text: {
+        en: 'Helpdesk tickets can now carry screenshots: up to 4 images per message, picked with Attach screenshot, pasted straight into the message box (Ctrl+V), or dragged onto it. They show in the conversation — tap one to see it full size. A reply can be just a screenshot.',
+        id: 'Tiket Helpdesk kini bisa disertai tangkapan layar: maksimal 4 gambar per pesan, dipilih lewat Lampirkan tangkapan layar, ditempel langsung ke kotak pesan (Ctrl+V), atau diseret ke sana. Gambar tampil di percakapan — ketuk untuk melihat ukuran penuh. Balasan juga boleh berupa tangkapan layar saja.',
+        th: 'ตั๋ว Helpdesk แนบภาพหน้าจอได้แล้ว: สูงสุด 4 ภาพต่อข้อความ โดยเลือกจาก แนบภาพหน้าจอ วางลงในช่องข้อความโดยตรง (Ctrl+V) หรือลากมาวาง ภาพจะแสดงในบทสนทนา — แตะเพื่อดูขนาดเต็ม และการตอบกลับจะมีเพียงภาพหน้าจอก็ได้',
+        vi: 'Phiếu Helpdesk giờ có thể kèm ảnh chụp màn hình: tối đa 4 ảnh mỗi tin nhắn, chọn bằng Đính kèm ảnh chụp màn hình, dán thẳng vào ô nội dung (Ctrl+V) hoặc kéo thả vào. Ảnh hiển thị trong cuộc trao đổi — chạm vào để xem kích thước đầy đủ. Phản hồi cũng có thể chỉ là ảnh chụp màn hình.',
+        km: 'សំបុត្រ Helpdesk ឥឡូវអាចភ្ជាប់រូបថតអេក្រង់បាន៖ រូបភាពអតិបរមា 4 ក្នុងមួយសារ ដោយជ្រើសតាម ភ្ជាប់រូបថតអេក្រង់ បិទភ្ជាប់ដោយផ្ទាល់ក្នុងប្រអប់សារ (Ctrl+V) ឬអូសទម្លាក់។ រូបភាពបង្ហាញក្នុងការសន្ទនា — ចុចលើវាដើម្បីមើលទំហំពេញ។ ការឆ្លើយតបអាចមានតែរូបថតអេក្រង់ក៏បាន។',
+        fil: 'Puwede nang may screenshot ang mga Helpdesk ticket: hanggang 4 na larawan bawat mensahe, pinili gamit ang Maglakip ng screenshot, i-paste mismo sa kahon ng mensahe (Ctrl+V), o i-drag dito. Makikita ang mga ito sa usapan — i-tap para makita sa buong laki. Puwede ring screenshot lang ang tugon.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.9',
     date: '2026-10-10',
     items: [

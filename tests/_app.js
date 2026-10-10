@@ -21,7 +21,7 @@ const state = {
   positions: [],           // job_positions rows { name, rank, can_manage }
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [],
     departments: [], job_positions: [], expense_types: [], survey_responses: [],
-    helpdesk_tickets: [], helpdesk_messages: [], feedback: [] },
+    helpdesk_tickets: [], helpdesk_messages: [], helpdesk_attachments: [], feedback: [] },
   writes: [],
   reads: [],               // every query's text, so a test can see what was asked
   onWrite: null
@@ -106,8 +106,9 @@ function helpQuery(sql, params) {
     const [user_id, region, department, category, subject, body] = params;
     const id = T.helpdesk_tickets.length + 1;
     T.helpdesk_tickets.push({ id, user_id, region, department, category, subject, status: 'open', user_unread: false });
-    T.helpdesk_messages.push({ id: T.helpdesk_messages.length + 1, ticket_id: id, author_id: user_id, from_staff: false, body });
-    return [{ id, subject }];
+    const message_id = T.helpdesk_messages.length + 1;
+    T.helpdesk_messages.push({ id: message_id, ticket_id: id, author_id: user_id, from_staff: false, body });
+    return [{ id, subject, message_id }];
   }
   if (/^SELECT \* FROM helpdesk_tickets WHERE id = \$1/.test(sql)) { const r = ticket(params[0]); return r ? [{ ...r }] : []; }
   if (/^SELECT t\.id, .* FROM helpdesk_tickets t/.test(sql)) {
@@ -118,8 +119,26 @@ function helpQuery(sql, params) {
   if (/^INSERT INTO helpdesk_messages/.test(sql)) {
     write();
     const [ticket_id, author_id, from_staff, body] = params;
-    T.helpdesk_messages.push({ id: T.helpdesk_messages.length + 1, ticket_id, author_id, from_staff, body });
+    const id = T.helpdesk_messages.length + 1;
+    T.helpdesk_messages.push({ id, ticket_id, author_id, from_staff, body });
+    return [{ id }];
+  }
+  if (/^INSERT INTO helpdesk_attachments/.test(sql)) {
+    write();
+    const [ticket_id, message_id, ...rest] = params;
+    for (let i = 0; i < rest.length; i += 4) {
+      T.helpdesk_attachments.push({ id: T.helpdesk_attachments.length + 1, ticket_id, message_id,
+        blob_url: rest[i], original_name: rest[i + 1], mime_type: rest[i + 2], size_bytes: rest[i + 3] });
+    }
     return [];
+  }
+  if (/^SELECT id, message_id, original_name, mime_type, size_bytes FROM helpdesk_attachments/.test(sql)) {
+    return T.helpdesk_attachments.filter(a => a.ticket_id === params[0]).map(a => ({ ...a }));
+  }
+  if (/^SELECT a.blob_url, .* FROM helpdesk_attachments a JOIN helpdesk_tickets t/.test(sql)) {
+    const a = T.helpdesk_attachments.find(x => x.id === params[0]);
+    const tk = a && ticket(a.ticket_id);
+    return a && tk ? [{ blob_url: a.blob_url, original_name: a.original_name, mime_type: a.mime_type, user_id: tk.user_id }] : [];
   }
   if (/^UPDATE helpdesk_tickets SET/.test(sql)) {
     write();

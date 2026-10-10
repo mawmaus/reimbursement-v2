@@ -985,5 +985,20 @@ I18N.addDict('vi', {
   'Choose criticism or suggestion': 'Chọn góp ý hoặc đề xuất',
   'Choose what the question is about': 'Chọn câu hỏi thuộc về vấn đề gì',
   'This ticket is already open': 'Phiếu này đang mở',
-  'This ticket is already closed': 'Phiếu này đã đóng'
+  'This ticket is already closed': 'Phiếu này đã đóng',
+  // Helpdesk & feedback (kritik & saran)
+  'Screenshot': 'Ảnh chụp màn hình',
+  '{n} screenshots': '{n} ảnh chụp màn hình',
+  'Up to {n} screenshots per message.': 'Tối đa {n} ảnh chụp màn hình cho mỗi tin nhắn.',
+  'Only images can be attached as screenshots.': 'Chỉ có thể đính kèm hình ảnh làm ảnh chụp màn hình.',
+  '{name} couldn’t be attached — try a smaller image.': 'Không thể đính kèm {name} — hãy thử ảnh nhỏ hơn.',
+  'Attach screenshot': 'Đính kèm ảnh chụp màn hình',
+  'Open full size': 'Mở kích thước đầy đủ',
+  'Up to {n} images. You can also paste a screenshot into the message.': 'Tối đa {n} ảnh. Bạn cũng có thể dán ảnh chụp màn hình vào nội dung.',
+  'Uploading screenshots…': 'Đang tải ảnh chụp màn hình lên…',
+  'View screenshot {name}': 'Xem ảnh chụp màn hình {name}',
+  'Attach up to 4 screenshots': 'Đính kèm tối đa 4 ảnh chụp màn hình',
+  'Screenshots must be images (JPG, PNG, WebP or GIF)': 'Ảnh chụp màn hình phải là hình ảnh (JPG, PNG, WebP hoặc GIF)',
+  'Screenshot not found': 'Không tìm thấy ảnh chụp màn hình',
+  'Invalid screenshots': 'Ảnh chụp màn hình không hợp lệ'
 });
