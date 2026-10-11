@@ -16,6 +16,7 @@ process.env.DATABASE_URL = 'postgres://test:test@localhost/test';
 process.env.SESSION_SECRET = 'endpoint-tests';
 
 const state = {
+  throttle: new Map(),
   users: new Map(),        // id -> account row
   settings: {},            // app_settings key -> value (objects are JSON-encoded)
   positions: [],           // job_positions rows { name, rank, can_manage }
@@ -67,6 +68,13 @@ async function q(text, params = []) {
     const [survey_key, user_id, region, department, paper_score, digital_score, overall_score] = params;
     state.tables.survey_responses.push({ survey_key, user_id, region, department, paper_score, digital_score, overall_score });
     return [];
+  }
+  // Send limits (lib/throttle.js): a counter per key, never expiring here.
+  if (/^INSERT INTO login_attempts .* RETURNING fails, first_at$/.test(sql)) {
+    state.writes.push(sql.slice(0, 70));
+    const n = (state.throttle.get(params[0]) || 0) + 1;
+    state.throttle.set(params[0], n);
+    return [{ fails: n, first_at: new Date().toISOString() }];
   }
   // Helpdesk tickets and feedback (routes/help.js).
   const help = helpQuery(sql, params);

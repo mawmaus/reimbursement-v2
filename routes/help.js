@@ -14,6 +14,7 @@ const {
 } = require('../lib/help');
 const { deleteReceipt, sendReceipt } = require('../lib/blob');
 const { notifyHelpdeskStaff, notifyHelpdeskAnswered, notifyFeedbackAnswered } = require('../lib/notify');
+const { overLimit } = require('../lib/throttle');
 
 const router = express.Router();
 
@@ -25,6 +26,21 @@ const withShots = (body, n) => [body, n ? `[${n} screenshot${n === 1 ? '' : 's'}
 const requireHelpStaff = (req, res, next) => (isHelpStaff(req.user) ? next()
   : res.status(403).json({ error: 'You do not have permission for this action' }));
 const idParam = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
+
+// Send limits per account, per hour, so nobody can flood the helpdesk's inbox
+// (or its email) — anonymous feedback included. The helpdesk itself is exempt.
+const HOUR = 60 * 60 * 1000;
+const LIMITS = { ticket: 10, reply: 60, feedback: 10 };
+const TOO_MANY = 'You’ve sent a lot in a short time. Please wait a while and try again.';
+async function rateLimited(req, res, kind) {
+  if (isHelpStaff(req.user) || !(await overLimit(`help-${kind}`, req.user.id, LIMITS[kind], HOUR))) return false;
+  res.status(429).json({ error: TOO_MANY });
+  return true;
+}
+// The list endpoints return every ticket/feedback still needing attention, but
+// only the most recent of the finished ones, so a growing archive can never
+// push a waiting ticket off the list.
+const ARCHIVE_MAX = 200;
 
 // Screenshots are saved in the same statement as their message (a CTE named
 // `m` that returns id and ticket_id), so a message never lands without them.
@@ -64,6 +80,8 @@ router.get('/api/help/tickets', requireAuth, ah(async (req, res) => {
   const status = String(req.query.status || '');
   if (TICKET_STATUSES.includes(status)) { params.push(status); where.push(`t.status = $${params.length}`); }
   if (staff && req.query.region) { params.push(String(req.query.region)); where.push(`t.region = $${params.length}`); }
+  where.push(`(t.status <> 'closed' OR t.id IN (SELECT c.id FROM helpdesk_tickets c WHERE c.status = 'closed'${staff ? '' : ' AND c.user_id = $1'}
+                                                ORDER BY c.updated_at DESC LIMIT ${ARCHIVE_MAX}))`);
   const rows = await q(
     `SELECT t.id, t.user_id, t.region, t.department, t.category, t.subject, t.status, t.user_unread,
             t.created_at, t.updated_at, u.full_name AS requester_name,
@@ -74,8 +92,8 @@ router.get('/api/help/tickets', requireAuth, ah(async (req, res) => {
        LEFT JOIN users u ON u.id = t.user_id
        LEFT JOIN LATERAL (SELECT body, from_staff FROM helpdesk_messages m
                            WHERE m.ticket_id = t.id ORDER BY m.id DESC LIMIT 1) lm ON TRUE
-      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-      ORDER BY t.updated_at DESC LIMIT 300`, params);
+      WHERE ${where.join(' AND ')}
+      ORDER BY t.updated_at DESC`, params);
   res.json({ staff, tickets: rows });
 }));
 
@@ -89,6 +107,7 @@ router.post('/api/help/tickets', requireAuth, ah(async (req, res) => {
   if (message.error) return res.status(400).json({ error: message.error });
   const shots = await verifyScreenshots(b.attachments);
   if (shots.error) return res.status(400).json({ error: shots.error });
+  if (await rateLimited(req, res, 'ticket')) return;
   const rows = await withShotCleanup(shots.items, () => q(
     `WITH t AS (
        INSERT INTO helpdesk_tickets (user_id, region, department, category, subject)
@@ -155,6 +174,7 @@ router.post('/api/help/tickets/:id/messages', requireAuth, ah(async (req, res) =
   const message = shots.items.length && !String(b.message || '').trim()
     ? { value: '' } : text(b.message, BODY_MAX, 'Write a message first');
   if (message.error) return res.status(400).json({ error: message.error });
+  if (await rateLimited(req, res, 'reply')) return;
   const mine = Number(ticket.user_id) === req.user.id;
   const fromStaff = !mine && isHelpStaff(req.user);
   await withShotCleanup(shots.items, () => transaction([
@@ -209,9 +229,13 @@ router.post('/api/help/feedback', requireAuth, ah(async (req, res) => {
   const body = text(b.body, BODY_MAX, 'Write your feedback first');
   if (body.error) return res.status(400).json({ error: body.error });
   const anonymous = b.anonymous === true;
+  if (await rateLimited(req, res, 'feedback')) return;
+  // Anonymous feedback keeps only the day it was sent (stored as noon UTC, so
+  // it reads as the same date in every region): an exact time could be matched
+  // against who was online.
   await q(
-    `INSERT INTO feedback (user_id, anonymous, region, department, kind, topic, body)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO feedback (user_id, anonymous, region, department, kind, topic, body, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $2 THEN date_trunc('day', now()) + interval '12 hours' ELSE now() END)`,
     [anonymous ? null : req.user.id, anonymous, String(req.user.region || ''),
       anonymous ? '' : String(req.user.department || ''), kind, topic, body.value]);
   res.json({ ok: true });
@@ -228,14 +252,16 @@ router.get('/api/help/feedback', requireAuth, ah(async (req, res) => {
   if (staff && ['new', 'read'].includes(req.query.status)) { params.push(req.query.status); where.push(`f.status = $${params.length}`); }
   if (FEEDBACK_KINDS.includes(req.query.kind)) { params.push(req.query.kind); where.push(`f.kind = $${params.length}`); }
   if (staff && req.query.region) { params.push(String(req.query.region)); where.push(`f.region = $${params.length}`); }
+  where.push(`(f.status = 'new' OR f.id IN (SELECT r.id FROM feedback r WHERE r.status <> 'new'${staff ? '' : ' AND r.user_id = $1'}
+                                           ORDER BY r.created_at DESC LIMIT ${ARCHIVE_MAX}))`);
   const rows = await q(
     `SELECT f.id, f.anonymous, f.region, f.department, f.kind, f.topic, f.body, f.status, f.response,
             f.responded_at, f.created_at, u.full_name AS sender_name, r.full_name AS responder_name
        FROM feedback f
        LEFT JOIN users u ON u.id = f.user_id
        LEFT JOIN users r ON r.id = f.responded_by
-      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-      ORDER BY f.created_at DESC LIMIT 300`, params);
+      WHERE ${where.join(' AND ')}
+      ORDER BY f.created_at DESC, f.id DESC`, params);
   res.json({ staff, feedback: rows.map(r => (r.anonymous ? { ...r, sender_name: '' } : r)) });
 }));
 

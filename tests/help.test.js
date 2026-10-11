@@ -96,3 +96,20 @@ test('feedback: validated, anonymous keeps no account, only the helpdesk reviews
   assert.deepEqual([named.status, named.response, anon.status, anon.response], ['read', 'Coming soon', 'read', '']);
   assert.equal((await call(ROOT, 'POST', '/api/help/feedback/999/review', {})).status, 404);
 });
+
+test('send limits: 10 tickets and 10 feedback an hour per account; the helpdesk is exempt', async (t) => {
+  await serve(t);
+  state.throttle.clear();
+  t.after(() => state.throttle.clear());
+  for (let i = 0; i < 10; i++) assert.equal((await call(BEN, 'POST', '/api/help/tickets', ticket)).status, 200);
+  const r = await call(BEN, 'POST', '/api/help/tickets', ticket);
+  assert.equal(r.status, 429);
+  assert.match(r.json.error, /short time/);
+  assert.equal((await call(ANA, 'POST', '/api/help/tickets', ticket)).status, 200, 'another account is unaffected');
+  for (let i = 0; i < 11; i++) assert.equal((await call(ROOT, 'POST', '/api/help/tickets', ticket)).status, 200);
+  const fb = { kind: 'suggestion', body: 'More coffee', anonymous: true };
+  for (let i = 0; i < 10; i++) assert.equal((await call(BEN, 'POST', '/api/help/feedback', fb)).status, 200);
+  assert.equal((await call(BEN, 'POST', '/api/help/feedback', { ...fb, anonymous: false })).status, 429, 'anonymous and named share the count');
+  // The counter's key never carries the account id in the clear.
+  assert.ok([...state.throttle.keys()].every(k => /^help-[a-z]+:[0-9a-f]{32}$/.test(k) && !k.endsWith(':' + BEN)));
+});

@@ -28,6 +28,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-11.1',
+    date: '2026-10-11',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Anonymous feedback is now more anonymous: besides your name and department, the time you sent it isn’t saved either — only the date.',
+        id: 'Kritik & saran anonim kini lebih anonim: selain nama dan departemen, jam pengiriman juga tidak disimpan — hanya tanggalnya.',
+        th: 'ข้อเสนอแนะแบบไม่ระบุตัวตนเป็นความลับมากขึ้น: นอกจากชื่อและแผนกแล้ว ระบบจะไม่บันทึกเวลาที่ส่งด้วย — บันทึกเพียงวันที่',
+        vi: 'Góp ý ẩn danh giờ kín đáo hơn: ngoài tên và phòng ban, giờ gửi cũng không được lưu — chỉ lưu ngày.',
+        km: 'មតិកែលម្អអនាមិកឥឡូវកាន់តែអនាមិក៖ ក្រៅពីឈ្មោះ និងនាយកដ្ឋាន ម៉ោងដែលអ្នកផ្ញើក៏មិនត្រូវបានរក្សាទុកដែរ — មានតែកាលបរិច្ឆេទប៉ុណ្ណោះ។',
+        fil: 'Mas anonymous na ang anonymous na feedback: bukod sa pangalan at departamento, hindi na rin itinatabi ang oras ng pagpapadala — ang petsa lang.'
+      } },
+      { kind: 'fixed', audience: ['superadmin'], text: {
+        en: 'Helpdesk: a ticket still waiting for an answer can no longer drop off the list as closed tickets pile up, and accounts can send at most 10 tickets and 10 feedback messages an hour.',
+        id: 'Helpdesk: tiket yang masih menunggu jawaban tidak lagi bisa hilang dari daftar saat tiket tertutup menumpuk, dan setiap akun bisa mengirim paling banyak 10 tiket dan 10 kritik & saran per jam.',
+        th: 'Helpdesk: ทิกเก็ตที่ยังรอคำตอบจะไม่หลุดออกจากรายการอีกต่อไปเมื่อทิกเก็ตที่ปิดแล้วมีมากขึ้น และแต่ละบัญชีส่งได้ไม่เกิน 10 ทิกเก็ตและ 10 ข้อเสนอแนะต่อชั่วโมง',
+        vi: 'Helpdesk: phiếu còn chờ trả lời không còn bị rơi khỏi danh sách khi phiếu đã đóng tăng lên, và mỗi tài khoản gửi tối đa 10 phiếu và 10 góp ý mỗi giờ.',
+        km: 'Helpdesk៖ សំបុត្រដែលនៅរង់ចាំចម្លើយ លែងបាត់ពីបញ្ជីទៀតហើយ នៅពេលសំបុត្របិទកើនឡើង ហើយគណនីនីមួយៗអាចផ្ញើបានយ៉ាងច្រើន 10 សំបុត្រ និង 10 មតិកែលម្អក្នុងមួយម៉ោង។',
+        fil: 'Helpdesk: hindi na mawawala sa listahan ang ticket na naghihintay pa ng sagot habang dumarami ang mga saradong ticket, at hanggang 10 ticket at 10 feedback kada oras lang ang maipapadala ng bawat account.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-10.12',
     date: '2026-10-10',
     items: [

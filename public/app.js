@@ -8060,7 +8060,9 @@ function renderFeedbackTab() {
 function feedbackCard(x, staff) {
   const who = staff ? (x.anonymous ? `<span class="hp-anon">${esc(t('Anonymous'))}</span>` : esc(x.sender_name || '—')) : '';
   const meta = [who, staff && x.department ? esc(x.department) : '', staff && x.region ? esc(x.region) : '',
-    esc(feedbackTopicLabel(x.topic)), esc(fmtDateTime(x.created_at))].filter(Boolean);
+    esc(feedbackTopicLabel(x.topic)),
+    // Anonymous feedback keeps only its date (the server stores noon UTC).
+    esc(x.anonymous ? fmtDateTime(x.created_at).slice(0, 10) : fmtDateTime(x.created_at))].filter(Boolean);
   const answer = x.response ? `
     <div class="hp-answer"><div class="hp-answer-head">${esc(t('Answer from {name}', { name: x.responder_name || t('Helpdesk') }))}${x.responded_at ? ` · ${esc(fmtDateTime(x.responded_at))}` : ''}</div>
       <div class="hp-answer-text">${esc(x.response)}</div></div>` : '';
@@ -8100,7 +8102,7 @@ function renderFeedbackForm() {
           <textarea name="body" rows="5" maxlength="4000" placeholder="${esc(t('Be as specific as you can — what happened, and what would be better.'))}"></textarea>
         </label>
         <label class="hp-anon-opt"><input type="checkbox" name="anonymous" />
-          <span><strong>${esc(t('Send anonymously'))}</strong><span>${esc(t('Your name and department aren’t saved, so it won’t be listed below and can’t be answered.'))}</span></span></label>
+          <span><strong>${esc(t('Send anonymously'))}</strong><span>${esc(t('Your name, department and the time you sent it aren’t saved — only the date — so it won’t be listed below and can’t be answered.'))}</span></span></label>
         <p class="form-error" id="hpFbErr" hidden></p>
         <div class="hp-fb-send"><button type="submit" class="btn btn-primary" id="hpFbSend" disabled>${esc(t('Send feedback'))}</button></div>
       </form>
