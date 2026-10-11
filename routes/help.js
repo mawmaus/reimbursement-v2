@@ -26,19 +26,22 @@ const requireHelpStaff = (req, res, next) => (isHelpStaff(req.user) ? next()
   : res.status(403).json({ error: 'You do not have permission for this action' }));
 const idParam = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
 
-// Link verified screenshots to a message. If that fails the blobs would be
+// Screenshots are saved in the same statement as their message (a CTE named
+// `m` that returns id and ticket_id), so a message never lands without them.
+// SHOTS_SQL takes the four arrays from shotParams at $n..$n+3.
+const SHOTS_SQL = (n) => `a AS (
+       INSERT INTO helpdesk_attachments (ticket_id, message_id, blob_url, original_name, mime_type, size_bytes)
+       SELECT m.ticket_id, m.id, x.url, x.name, x.mime, x.size
+         FROM m, unnest($${n}::text[], $${n + 1}::text[], $${n + 2}::text[], $${n + 3}::int[]) AS x(url, name, mime, size)
+     )`;
+const shotParams = (items) => [items.map(a => a.url), items.map(a => a.original_name),
+  items.map(a => a.mime), items.map(a => a.size)];
+
+// Run a write that saves screenshots; if it fails the uploaded blobs would be
 // orphaned, so they're deleted before the error goes on.
-async function saveScreenshots(ticketId, messageId, items) {
-  if (!items.length) return;
-  const params = [ticketId, messageId];
-  const rows = items.map(a => {
-    params.push(a.url, a.original_name, a.mime, a.size);
-    const n = params.length;
-    return `($1, $2, $${n - 3}, $${n - 2}, $${n - 1}, $${n})`;
-  });
+async function withShotCleanup(items, run) {
   try {
-    await q(`INSERT INTO helpdesk_attachments (ticket_id, message_id, blob_url, original_name, mime_type, size_bytes)
-             VALUES ${rows.join(', ')}`, params);
+    return await run();
   } catch (e) {
     await Promise.all(items.map(a => deleteReceipt(a.url)));
     throw e;
@@ -86,18 +89,18 @@ router.post('/api/help/tickets', requireAuth, ah(async (req, res) => {
   if (message.error) return res.status(400).json({ error: message.error });
   const shots = await verifyScreenshots(b.attachments);
   if (shots.error) return res.status(400).json({ error: shots.error });
-  const rows = await q(
+  const rows = await withShotCleanup(shots.items, () => q(
     `WITH t AS (
        INSERT INTO helpdesk_tickets (user_id, region, department, category, subject)
        VALUES ($1, $2, $3, $4, $5) RETURNING id, subject
      ), m AS (
        INSERT INTO helpdesk_messages (ticket_id, author_id, from_staff, body)
        SELECT id, $1, FALSE, $6 FROM t RETURNING id, ticket_id
-     )
+     ), ${SHOTS_SQL(7)}
      SELECT t.id, t.subject, m.id AS message_id FROM t, m`,
-    [req.user.id, String(req.user.region || ''), String(req.user.department || ''), category, subject.value, message.value]);
+    [req.user.id, String(req.user.region || ''), String(req.user.department || ''), category, subject.value, message.value,
+      ...shotParams(shots.items)]));
   const ticket = rows[0];
-  if (ticket) await saveScreenshots(ticket.id, ticket.message_id, shots.items);
   if (ticket) await notifyHelpdeskStaff(ticket, withShots(message.value, shots.items.length), req.user.full_name, true);
   res.json({ ok: true, id: ticket ? ticket.id : null });
 }));
@@ -154,14 +157,15 @@ router.post('/api/help/tickets/:id/messages', requireAuth, ah(async (req, res) =
   if (message.error) return res.status(400).json({ error: message.error });
   const mine = Number(ticket.user_id) === req.user.id;
   const fromStaff = !mine && isHelpStaff(req.user);
-  const [inserted] = await transaction([
-    qq('INSERT INTO helpdesk_messages (ticket_id, author_id, from_staff, body) VALUES ($1, $2, $3, $4) RETURNING id',
-      [ticket.id, req.user.id, fromStaff, message.value]),
+  await withShotCleanup(shots.items, () => transaction([
+    qq(`WITH m AS (
+       INSERT INTO helpdesk_messages (ticket_id, author_id, from_staff, body)
+       VALUES ($1, $2, $3, $4) RETURNING id, ticket_id
+     ), ${SHOTS_SQL(5)}
+     SELECT id FROM m`, [ticket.id, req.user.id, fromStaff, message.value, ...shotParams(shots.items)]),
     qq(`UPDATE helpdesk_tickets SET status = $2, user_unread = $3, updated_at = now() WHERE id = $1`,
       [ticket.id, fromStaff ? 'answered' : 'open', fromStaff])
-  ]);
-  const messageId = inserted && inserted[0] && inserted[0].id;
-  if (messageId) await saveScreenshots(ticket.id, messageId, shots.items);
+  ]));
   const mailText = withShots(message.value, shots.items.length);
   if (fromStaff) await notifyHelpdeskAnswered(Number(ticket.user_id), ticket, mailText, req.user.full_name);
   else await notifyHelpdeskStaff(ticket, mailText, req.user.full_name, false);

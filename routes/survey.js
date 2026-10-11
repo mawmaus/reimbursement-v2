@@ -24,7 +24,9 @@ router.post('/api/survey', requireAuth, ah(async (req, res) => {
 }));
 
 // Totals, a 1–10 spread per question, and a per-region breakdown. Eligible =
-// active accounts created before the cutoff (the same rule as surveyPending).
+// active accounts created before the cutoff (the same rule as surveyPending),
+// plus anyone who answered and has since been deactivated — their answer still
+// counts, so they stay in the list and the numbers add up.
 router.get('/api/survey/results', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
   // `people`: every eligible account, with when it answered and its three
   // scores (null while it hasn't). Super Admins only, like the rest.
@@ -33,7 +35,7 @@ router.get('/api/survey/results', requireAuth, requireRole('superadmin'), ah(asy
               s.paper_score, s.digital_score, s.overall_score
          FROM users u
          LEFT JOIN survey_responses s ON s.user_id = u.id AND s.survey_key = $2
-        WHERE u.active = TRUE AND u.created_at < $1::date
+        WHERE (u.active = TRUE AND u.created_at < $1::date) OR s.user_id IS NOT NULL
         ORDER BY s.created_at IS NULL, s.created_at DESC, lower(u.full_name)`, [ELIGIBLE_BEFORE, SURVEY_KEY]),
     q(`SELECT region, paper_score, digital_score, overall_score FROM survey_responses WHERE survey_key = $1`, [SURVEY_KEY])
   ]);

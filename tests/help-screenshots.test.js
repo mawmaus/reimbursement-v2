@@ -10,6 +10,8 @@ const assert = require('node:assert/strict');
 const blob = require('../lib/blob');
 blob.statReceipt = async (url) => ({ size: 1200, pathname: url.split('/').pop(),
   contentType: url.endsWith('.pdf') ? 'application/pdf' : 'image/png' });
+const deleted = [];
+blob.deleteReceipt = async (url) => { deleted.push(url); };
 const { state, account, serve, call } = require('./_app');
 
 const ANA = 1, BEN = 2, ROOT = 3;
@@ -54,4 +56,24 @@ test('only the owner and the helpdesk open a screenshot', async (t) => {
     assert.equal(r.status, 200);
     assert.equal(r.body, 'PNGDATA');
   }
+});
+
+test('if the screenshots cannot be saved, nothing is: no ticket, no reply, blobs removed', async (t) => {
+  await serve(t);
+  const before = { tickets: state.tables.helpdesk_tickets.length, messages: state.tables.helpdesk_messages.length };
+  state.failShots = true;
+  t.after(() => { state.failShots = false; });
+  deleted.length = 0;
+  assert.equal((await call(ANA, 'POST', '/api/help/tickets', { ...ticket, attachments: [shot('lost.png')] })).status, 500);
+  assert.equal(state.tables.helpdesk_tickets.length, before.tickets);
+  assert.equal(state.tables.helpdesk_messages.length, before.messages);
+  assert.deepEqual(deleted, [shot('lost.png').url]);
+  state.failShots = false;
+  const r = await call(ANA, 'POST', '/api/help/tickets', ticket);
+  state.failShots = true;
+  const status = state.tables.helpdesk_tickets.find(x => x.id === r.json.id).status;
+  assert.equal((await call(ROOT, 'POST', `/api/help/tickets/${r.json.id}/messages`, { message: 'Look', attachments: [shot('gone.png')] })).status, 500);
+  assert.equal(state.tables.helpdesk_messages.filter(m => m.ticket_id === r.json.id).length, 1);
+  assert.equal(state.tables.helpdesk_tickets.find(x => x.id === r.json.id).status, status);
+  assert.deepEqual(deleted, [shot('lost.png').url, shot('gone.png').url]);
 });

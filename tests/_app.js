@@ -96,6 +96,9 @@ function helpQuery(sql, params) {
   const T = state.tables;
   const write = () => state.writes.push(sql.slice(0, 70));
   const ticket = (id) => T.helpdesk_tickets.find(x => x.id === Number(id));
+  const addShots = (ticket_id, message_id, [urls, names, mimes, sizes]) => urls.forEach((url, i) =>
+    T.helpdesk_attachments.push({ id: T.helpdesk_attachments.length + 1, ticket_id, message_id,
+      blob_url: url, original_name: names[i], mime_type: mimes[i], size_bytes: sizes[i] }));
   if (/^SELECT COUNT\(\*\)::int AS n FROM helpdesk_tickets WHERE status = 'open'/.test(sql)) return [{ n: T.helpdesk_tickets.filter(x => x.status === 'open').length }];
   if (/^SELECT COUNT\(\*\)::int AS n FROM feedback WHERE status = 'new'/.test(sql)) return [{ n: T.feedback.filter(x => x.status === 'new').length }];
   if (/^SELECT COUNT\(\*\)::int AS n FROM helpdesk_tickets WHERE user_id = \$1 AND user_unread/.test(sql)) {
@@ -103,11 +106,13 @@ function helpQuery(sql, params) {
   }
   if (/^WITH t AS \( INSERT INTO helpdesk_tickets/.test(sql)) {
     write();
-    const [user_id, region, department, category, subject, body] = params;
+    const [user_id, region, department, category, subject, body, ...shots] = params;
+    if (state.failShots && shots[0].length) throw new Error('attachments insert failed');
     const id = T.helpdesk_tickets.length + 1;
     T.helpdesk_tickets.push({ id, user_id, region, department, category, subject, status: 'open', user_unread: false });
     const message_id = T.helpdesk_messages.length + 1;
     T.helpdesk_messages.push({ id: message_id, ticket_id: id, author_id: user_id, from_staff: false, body });
+    addShots(id, message_id, shots);
     return [{ id, subject, message_id }];
   }
   if (/^SELECT \* FROM helpdesk_tickets WHERE id = \$1/.test(sql)) { const r = ticket(params[0]); return r ? [{ ...r }] : []; }
@@ -116,21 +121,15 @@ function helpQuery(sql, params) {
     return T.helpdesk_tickets.filter(x => !mine || x.user_id === params[0]).map(x => ({ ...x }));
   }
   if (/^SELECT m\.id, .* FROM helpdesk_messages m/.test(sql)) return T.helpdesk_messages.filter(m => m.ticket_id === params[0]).map(m => ({ ...m }));
-  if (/^INSERT INTO helpdesk_messages/.test(sql)) {
+  // A message and its screenshots in one statement (routes/help.js SHOTS_SQL).
+  if (/^WITH m AS \( INSERT INTO helpdesk_messages/.test(sql)) {
     write();
-    const [ticket_id, author_id, from_staff, body] = params;
+    const [ticket_id, author_id, from_staff, body, ...shots] = params;
+    if (state.failShots && shots[0].length) throw new Error('attachments insert failed');
     const id = T.helpdesk_messages.length + 1;
     T.helpdesk_messages.push({ id, ticket_id, author_id, from_staff, body });
+    addShots(ticket_id, id, shots);
     return [{ id }];
-  }
-  if (/^INSERT INTO helpdesk_attachments/.test(sql)) {
-    write();
-    const [ticket_id, message_id, ...rest] = params;
-    for (let i = 0; i < rest.length; i += 4) {
-      T.helpdesk_attachments.push({ id: T.helpdesk_attachments.length + 1, ticket_id, message_id,
-        blob_url: rest[i], original_name: rest[i + 1], mime_type: rest[i + 2], size_bytes: rest[i + 3] });
-    }
-    return [];
   }
   if (/^SELECT id, message_id, original_name, mime_type, size_bytes FROM helpdesk_attachments/.test(sql)) {
     return T.helpdesk_attachments.filter(a => a.ticket_id === params[0]).map(a => ({ ...a }));
