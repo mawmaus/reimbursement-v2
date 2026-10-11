@@ -32,9 +32,12 @@ const UI_KEYS = ["What's new", 'New', 'Improved', 'Fixed', 'Latest', 'Recent cha
 const errors = [];
 
 // Audience keys: declared in changelog.js, and each must have a matcher in
-// app.js's NOTE_AUDIENCE, or the item would silently show to nobody.
+// app.js's NOTE_AUDIENCE, or the item would silently show to nobody. (Read
+// across app.js and the feature scripts in js/, wherever it lives.)
 const AUDIENCES = sandbox.window.CHANGELOG_AUDIENCES || [];
-const appSrc = fs.readFileSync(path.join(pub, 'app.js'), 'utf8');
+const jsDir = path.join(pub, 'js');
+const appSrc = [path.join(pub, 'app.js'), ...(fs.existsSync(jsDir) ? fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).map(f => path.join(jsDir, f)) : [])]
+  .map(f => fs.readFileSync(f, 'utf8')).join('\n');
 const matcherBlock = (appSrc.match(/const NOTE_AUDIENCE = \{([\s\S]*?)\n\};/) || [])[1] || '';
 const matchers = new Set([...matcherBlock.matchAll(/^\s*(\w+):/gm)].map(m => m[1]));
 for (const k of AUDIENCES) if (!matchers.has(k)) errors.push(`app.js NOTE_AUDIENCE has no matcher for audience "${k}"`);
