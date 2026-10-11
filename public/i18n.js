@@ -14,7 +14,7 @@
 // follows them across devices. app.js reconciles the two after /login and /me.
 //
 // PDF output is intentionally NOT translated here — its embedded Helvetica font
-// is Latin-only (see pdfSafe in app.js), so Thai/Khmer/Vietnamese/etc. glyphs
+// is Latin-only (see pdfSafe in js/selection.js), so Thai/Khmer/Vietnamese/etc. glyphs
 // cannot be drawn into the document.
 // ---------------------------------------------------------------------------
 (function () {
