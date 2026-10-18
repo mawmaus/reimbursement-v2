@@ -108,12 +108,64 @@ function renderInsights() {
     .concat((d.dbNos || []).map(x => `<option value="${esc(x)}"${x === f.db ? ' selected' : ''}>${esc(dbFmt(x))}</option>`)).join('');
 
   const k = d.kpis;
+  // Each headline figure carries its change against the previous period (the
+  // month before, or the year before; cut at the same day while this one runs).
+  const p = d.prev || null;
+  const prevLabel = p ? (p.month ? monthNames[parseInt(p.month, 10) - 1] : p.year) : '';
+  const prevTitle = p ? t('Compared with {from} – {to}', { from: p.from, to: p.to }) : '';
+  const delta = (curV, prevV) => p ? deltaChip(curV, prevV, prevLabel, prevTitle) : '';
   const kpiCards = [
-    { l: t('Total spend'), v: moneyShort(k.total_cents / 100, cur) },
-    { l: t('Claims'), v: String(k.claims) },
-    { l: t('Top category'), v: k.top_type ? `${esc(k.top_type)} <span class="kpi-sub">${k.top_share}%</span>` : '—' },
-    { l: t('Avg per claim'), v: k.claims ? moneyShort(k.avg_cents / 100, cur) : '—' }
-  ].map(c => `<div class="kpi"><div class="kpi-l">${esc(c.l)}</div><div class="kpi-v">${c.v}</div></div>`).join('');
+    { l: t('Total spend'), v: moneyShort(k.total_cents / 100, cur), dl: delta(k.total_cents, p && p.total_cents) },
+    { l: t('Claims'), v: String(k.claims), dl: delta(k.claims, p && p.claims) },
+    { l: t('Avg per claim'), v: k.claims ? moneyShort(k.avg_cents / 100, cur) : '—', dl: delta(k.avg_cents, p && p.avg_cents) },
+    { l: t('Top category'), v: k.top_type ? `${esc(k.top_type)} <span class="kpi-sub">${k.top_share}%</span>` : '—', dl: '' }
+  ].map(c => `<div class="kpi"><div class="kpi-l">${esc(c.l)}</div><div class="kpi-v">${c.v}</div>${c.dl}</div>`).join('');
+  const kpiNote = p && p.partial
+    ? `<p class="in-note">${esc(t('{period} is still running, so changes compare with the same days of {prev} ({from} – {to}).', { period: periodLabel, prev: p.month ? `${prevLabel} ${p.year}` : p.year, from: p.from, to: p.to }))}</p>`
+    : '';
+
+  // Pipeline (as of now) and speed (for the selected period).
+  const pl = d.pipeline || {};
+  const sp = d.speed || {};
+  const waitCard = (label, s) => {
+    if (!s) return '';
+    const foot = s.n
+      ? [t(s.n === 1 ? '1 document' : '{n} documents', { n: s.n.toLocaleString() }),
+         s.oldest_days != null ? t('oldest {n}', { n: s.oldest_days < 1 ? t('under a day') : daysLabel(s.oldest_days) }) : ''].filter(Boolean).join(' · ')
+      : t('Nothing waiting');
+    const flag = s.stale ? `<div class="kpi-flag">${esc(t(s.stale === 1 ? '1 waiting over a week' : '{n} waiting over a week', { n: s.stale.toLocaleString() }))}</div>` : '';
+    return `<div class="kpi"><div class="kpi-l">${esc(label)}</div>
+      <div class="kpi-v">${s.n ? esc(moneyShort(s.cents / 100, cur)) : '0'}</div>
+      <div class="kpi-foot">${esc(foot)}</div>${flag}</div>`;
+  };
+  const speedCard = (label, s, doneLabel) => {
+    if (!s) return '';
+    const v = s.avg_days == null ? '—' : esc(daysLabel(s.avg_days));
+    const foot = s.n ? t(doneLabel, { n: s.n.toLocaleString(), period: periodLabel }) : t('Nothing in {period}', { period: periodLabel });
+    return `<div class="kpi"><div class="kpi-l">${esc(label)}</div><div class="kpi-v">${v}</div>
+      <div class="kpi-foot">${esc(s.n ? t('Average') + ' · ' + foot : foot)}</div></div>`;
+  };
+  const flowCards = [
+    waitCard(t('Awaiting approval'), pl.approval),
+    waitCard(t('Awaiting payment'), pl.payment),
+    speedCard(t('Time to approve'), sp.approve, '{n} approved in {period}'),
+    speedCard(t('Time to pay'), sp.pay, '{n} paid in {period}')
+  ].join('');
+
+  // Who and where: ranked like the type chart. A card whose dimension is
+  // already pinned by a filter would show one bar, so it steps aside.
+  const rankCards = [
+    !f.department && { dim: 'dept', title: t('Spend by department') },
+    !f.name && { dim: 'name', title: t('Top employees') },
+    !f.db && { dim: 'db', title: t('Spend by DB number') }
+  ].filter(Boolean).map(c => `
+      <div class="chart-card">
+        <div class="chart-head"><div>
+          <div class="chart-title">${esc(c.title)}</div>
+          <div class="chart-sub">${esc(periodLabel)} · ${esc(t('Click a bar to see its expenses'))}</div>
+        </div></div>
+        <div id="rank-${c.dim}" class="type-bars"></div>
+      </div>`).join('');
 
   $('#insightsBody').innerHTML = `
     <div class="in-toolbar">
@@ -130,6 +182,12 @@ function renderInsights() {
       <label>${esc(t('Employee'))}<select id="inName" class="input" data-freetext="always">${nameOpts}</select></label>
     </div>
     <div class="insights-kpis">${kpiCards}</div>
+    ${kpiNote}
+    <div class="in-section">
+      <div class="in-section-h">${esc(t('Pipeline & speed'))}</div>
+      <div class="in-section-sub">${esc(t('Waiting is as of now, whatever the status filter. Speed covers reimbursements and meal allowances in {period}.', { period: periodLabel }))}</div>
+    </div>
+    <div class="insights-kpis insights-flow">${flowCards}</div>
     <div class="insights-charts">
       <div class="chart-card">
         <div class="chart-head"><div>
@@ -151,9 +209,14 @@ function renderInsights() {
         </div>
         <div id="trendChart" class="trend-chart"></div>
       </div>
-    </div>`;
+    </div>
+    ${rankCards ? `<div class="insights-charts insights-ranks">${rankCards}</div>` : ''}`;
 
+  state.insights.groups = {};
   renderTypeBars();
+  renderRankBars('dept', d.byDept, k => k || t('No department'));
+  renderRankBars('name', d.byEmployee, k => k || '—');
+  renderRankBars('db', d.byDb, k => k ? dbFmt(k) : t('No DB'));
   renderTrend();
 
   // Filters — every one is a dropdown now, so all refetch on change.
@@ -190,64 +253,92 @@ function currentStatusLabel(v) {
   return p ? t(p.l) : v;
 }
 
-// Horizontal bars for spend-by-type. Long tails past 10 rows fold into "Other".
-// Each bar is clickable (pivot-style): it drills into the individual expense
-// lines that make up that type. `typeGroups` maps each visible bar to the real
-// expense type(s) it stands for (the "Other" bar covers the folded tail).
+// "▲ 12% vs Sep" under a KPI. Spending more isn't good or bad by itself, so the
+// arrow carries the direction and the colour stays neutral.
+function deltaChip(cur, prev, label, title) {
+  if (!prev) {
+    return `<div class="kpi-delta flat" title="${esc(title)}">${esc(t('None in {period}', { period: label }))}</div>`;
+  }
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  const dir = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+  const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '=';
+  return `<div class="kpi-delta ${dir}" title="${esc(title)}"><b>${arrow} ${Math.abs(pct)}%</b> ${esc(t('vs {period}', { period: label }))}</div>`;
+}
+
+// "3.6 days" / "1 day" — whole numbers drop the decimal.
+function daysLabel(n) {
+  const v = Math.round(n * 10) / 10;
+  return v === 1 ? t('1 day') : t('{n} days', { n: v.toLocaleString(undefined, { maximumFractionDigits: 1 }) });
+}
+
+// Ranked horizontal bars: spend by expense type, department, employee and DB
+// number. Long tails past 10 rows fold into "Other". Each bar is clickable
+// (pivot-style): it drills into the individual expense lines behind it.
+// `state.insights.groups[dim]` maps each visible bar to the real key(s) it
+// stands for (the "Other" bar covers the folded tail).
+// Which detail-row field each chart groups by.
+const INSIGHT_DIM_FIELD = { type: r => r.type, dept: r => r.dept || '', name: r => r.name || '', db: r => r.db || '' };
+
 function renderTypeBars() {
   const d = state.insights.data;
+  paintBars('type', $('#typeBars'), d.byType.map(x => ({ key: x.type, cents: x.cents })), k => k);
+}
+function renderRankBars(dim, items, labelOf) {
+  const wrap = $('#rank-' + dim);
+  if (!wrap) return; // card hidden because its own filter is set
+  paintBars(dim, wrap, (items || []).map(x => ({ key: x.key, cents: x.cents })), labelOf);
+}
+
+function paintBars(dim, wrap, items, labelOf) {
+  const d = state.insights.data;
   const cur = d.currency || 'IDR';
-  const wrap = $('#typeBars');
-  const items = d.byType.slice();
   // A fresh render of the bars starts with no open drill-down (the detail window,
-  // if any, was already closed — it blocks the page while open), so clear any
-  // stale selection before we paint the highlight below.
+  // if any, was already closed — it blocks the page while open).
   state.insights.drill = null;
   if (!items.length) {
     wrap.innerHTML = `<p class="muted chart-empty">${esc(t('No expenses match these filters.'))}</p>`;
     return;
   }
-  // Build the visible bars and, alongside, the label→real-types grouping used by
-  // the drill-down. Fold everything past the top 9 into a single "Other" bar.
+  // Fold everything past the top 9 into a single "Other" bar.
   let bars;
   if (items.length > 10) {
-    const head = items.slice(0, 9).map(x => ({ label: x.type, cents: x.cents, types: [x.type] }));
+    const head = items.slice(0, 9).map(x => ({ label: labelOf(x.key), cents: x.cents, keys: [x.key] }));
     const tail = items.slice(9);
-    head.push({ label: t('Other'), cents: tail.reduce((s, x) => s + x.cents, 0), types: tail.map(x => x.type) });
+    head.push({ label: t('Other ({n})', { n: tail.length }), cents: tail.reduce((s, x) => s + x.cents, 0), keys: tail.map(x => x.key), other: true });
     bars = head;
   } else {
-    bars = items.map(x => ({ label: x.type, cents: x.cents, types: [x.type] }));
+    bars = items.map(x => ({ label: labelOf(x.key), cents: x.cents, keys: [x.key] }));
   }
-  state.insights.typeGroups = bars;
+  state.insights.groups[dim] = bars;
 
   const max = Math.max(...bars.map(i => i.cents), 1);
   const sum = bars.reduce((x, i) => x + i.cents, 0) || 1;
   wrap.innerHTML = bars.map((i, idx) => {
     const pct = Math.max(2, Math.round((i.cents / max) * 100));
-    const on = state.insights.drill === i.label;
-    return `<button type="button" class="bar-row${on ? ' on' : ''}" data-bar="${idx}"
-      aria-pressed="${on ? 'true' : 'false'}" title="${esc(t('Show expenses'))}: ${esc(i.label)}">
+    return `<button type="button" class="bar-row" data-bar="${idx}"
+      aria-pressed="false" title="${esc(t('Show expenses'))}: ${esc(i.label)}">
       <span class="bar-label">${esc(i.label)}</span>
-      <span class="bar-track"><span class="bar-fill" style="width:${pct}%"></span></span>
+      <span class="bar-track"><span class="bar-fill${i.other ? ' other' : ''}" style="width:${pct}%"></span></span>
       <span class="bar-val">${esc(moneyShort(i.cents / 100, cur))}<span class="bar-pct">${Math.round((i.cents / sum) * 100)}%</span></span>
     </button>`;
   }).join('');
 
   // Clicking a bar opens the drill-down as a modal window over the page. The
-  // clicked bar stays highlighted underneath so it's clear which type is open;
+  // clicked bar stays highlighted underneath so it's clear which one is open;
   // the highlight is cleared when the window closes (see clearTypeDrill).
-  $$('#typeBars .bar-row').forEach(b => b.addEventListener('click', () => {
+  wrap.querySelectorAll('.bar-row').forEach(b => b.addEventListener('click', () => {
     const idx = Number(b.dataset.bar);
-    const bar = state.insights.typeGroups[idx];
-    if (!bar) return;
-    state.insights.drill = bar.label;
-    $$('#typeBars .bar-row').forEach(x => {
-      const on = Number(x.dataset.bar) === idx;
-      x.classList.toggle('on', on);
-      x.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
+    if (!state.insights.groups[dim] || !state.insights.groups[dim][idx]) return;
+    state.insights.drill = { dim, idx };
+    clearBarHighlight();
+    b.classList.add('on');
+    b.setAttribute('aria-pressed', 'true');
     renderTypeDetailModal();
   }));
+}
+
+function clearBarHighlight() {
+  $$('#insightsBody .bar-row.on').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
 }
 
 // Active column sort for the drill-down table. Default: amount, largest first,
@@ -262,6 +353,7 @@ function sortTypeDetail(rows) {
     no:   r => String(r.no || '').toLowerCase(),
     date: r => String(r.date || ''),
     db:   r => String(r.db || '').toLowerCase(),
+    dept: r => String(r.dept || '').toLowerCase(),
     type: r => String(r.type || '').toLowerCase(),
     amount: r => r.cents,
   }[key] || (r => r.cents);
@@ -273,54 +365,66 @@ function sortTypeDetail(rows) {
   });
 }
 
-// Clear the active drill-down: drop the highlighted bar and the selected type.
+// Clear the active drill-down: drop the highlighted bar and the selection.
 // Runs whenever the detail window closes (its × / the scrim / Escape), so the
 // insights page returns to a clean, un-highlighted state.
 function clearTypeDrill() {
   state.insights.drill = null;
-  $$('#typeBars .bar-row').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+  clearBarHighlight();
 }
 
-// Drill-down for the selected expense type — the individual expense lines behind
-// that bar (employee, date, DB, amount) — shown in a modal window over the
-// insights page rather than inline beneath the charts. Sortable by any column;
-// each row opens its source claim. Rebuilt in place when a column is re-sorted.
+// Drill-down for the selected bar — the individual expense lines behind it
+// (employee, date, DB, amount, and the type or department when the chart isn't
+// already grouped by it) — shown in a modal window over the insights page.
+// Sortable by any column; each row opens its source claim. Rebuilt in place
+// when a column is re-sorted.
 function renderTypeDetailModal() {
   const d = state.insights.data;
-  const label = state.insights.drill;
-  const bar = (state.insights.typeGroups || []).find(g => g.label === label);
-  if (!label || !bar) { closeModal(); return; }
+  const sel = state.insights.drill;
+  const bar = sel && (state.insights.groups[sel.dim] || [])[sel.idx];
+  if (!bar) { closeModal(); return; }
+  const label = bar.label;
 
   const cur = d.currency || 'IDR';
-  const set = new Set(bar.types);
-  const rows = (d.details || []).filter(r => set.has(r.type));
+  const set = new Set(bar.keys);
+  const field = INSIGHT_DIM_FIELD[sel.dim];
+  const rows = (d.details || []).filter(r => set.has(field(r)));
   const total = rows.reduce((s, r) => s + r.cents, 0);
   sortTypeDetail(rows); // apply the active column sort (defaults to amount desc)
 
-  // The "Other" bar spans several types, so it gets an extra Type column.
-  const showType = bar.types.length > 1;
+  // Columns: the chart's own dimension is the same on every row, so it's left
+  // out — unless the bar is "Other", which spans several values.
+  const multi = bar.keys.length > 1;
+  const showName = sel.dim !== 'name' || multi;
+  const showType = sel.dim !== 'type' || multi;
+  const showDept = (sel.dim === 'dept' && multi) || sel.dim === 'name';
+  const showDb = sel.dim !== 'db' || multi;
   // A clickable header cell that sorts by `key` and shows the active arrow.
   const th = (key, label, numeric) => {
     const on = typeDetailSort.key === key;
     const arrow = on ? (typeDetailSort.dir === 1 ? ' ▲' : ' ▼') : '';
     return `<th class="sortable${numeric ? ' num' : ''}" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (typeDetailSort.dir === 1 ? 'ascending' : 'descending') : 'none'}" style="cursor:pointer;user-select:none;white-space:nowrap">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
   };
+  // The first column is the card's headline on phones (pv-name), so it's the
+  // employee where shown, else the document number.
   const body = rows.length ? `
     <div class="type-detail-scroll">
       <table class="pivot-table">
         <thead><tr>
-          ${th('name', t('Employee'))}
+          ${showName ? th('name', t('Employee')) : ''}
           ${th('no', t('Doc No'))}
           ${th('date', t('Date'))}
-          ${th('db', t('DB No'))}
+          ${showDb ? th('db', t('DB No')) : ''}
+          ${showDept ? th('dept', t('Department')) : ''}
           ${showType ? th('type', t('Type')) : ''}
           ${th('amount', t('Amount'), true)}
         </tr></thead>
         <tbody>${rows.map(r => `<tr${r.cid ? ` class="row-open" data-cid="${esc(r.cid)}" tabindex="0" role="button" title="${esc(t('Open claim'))}"` : ''}>
-          <td class="pv-name" data-label="${esc(t('Employee'))}">${esc(r.name || '—')}</td>
-          <td data-label="${esc(t('Doc No'))}">${esc(r.no || '—')}</td>
+          ${showName ? `<td class="pv-name" data-label="${esc(t('Employee'))}">${esc(r.name || '—')}</td>` : ''}
+          <td${showName ? '' : ' class="pv-name"'} data-label="${esc(t('Doc No'))}">${esc(r.no || '—')}</td>
           <td data-label="${esc(t('Date'))}">${esc(r.date || '—')}</td>
-          <td data-label="${esc(t('DB No'))}">${esc(dbFmt(r.db) || '—')}</td>
+          ${showDb ? `<td data-label="${esc(t('DB No'))}">${esc(dbFmt(r.db) || '—')}</td>` : ''}
+          ${showDept ? `<td data-label="${esc(t('Department'))}">${esc(r.dept || '—')}</td>` : ''}
           ${showType ? `<td data-label="${esc(t('Type'))}">${esc(r.type || '—')}</td>` : ''}
           <td class="num" data-label="${esc(t('Amount'))}">${esc(money(r.cents / 100, cur))}</td>
         </tr>`).join('')}</tbody>
@@ -331,7 +435,7 @@ function renderTypeDetailModal() {
     <div class="modal-head">
       <div>
         <h2>${esc(label)}</h2>
-        <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc(t('{n} expenses', { n: rows.length }))} · ${esc(money(total / 100, cur))}</p>
+        <p class="muted" style="margin:4px 0 0;font-size:.85rem">${esc({ type: t('Expense type'), dept: t('Department'), name: t('Employee'), db: t('DB No') }[sel.dim])} · ${esc(t('{n} expenses', { n: rows.length }))} · ${esc(money(total / 100, cur))}</p>
       </div>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>
@@ -386,6 +490,10 @@ function renderTrend() {
   const points = monthly
     ? d.byMonth.map((m, i) => ({ label: monthNames[i], value: m.cents / 100 }))
     : d.byYear.map(y => ({ label: y.year, value: y.cents / 100 }));
+  // Monthly view: last year's months as a dashed comparison line, when it has data.
+  const prevYear = String(Number(d.year) - 1);
+  const prevPts = (monthly && (d.byMonthPrev || []).some(m => m.cents > 0))
+    ? d.byMonthPrev.map(m => m.cents / 100) : null;
 
   const sub = $('#trendSub');
   // Name the high point, so the chart's takeaway reads without hovering.
@@ -403,7 +511,7 @@ function renderTrend() {
   // Axis text lives in HTML around the SVG (SVG text shrinks with the chart).
   const W = 720, H = 220, padL = 10, padR = 12, padT = 8, padB = 6;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const max = Math.max(...points.map(p => p.value), 1);
+  const max = Math.max(...points.map(p => p.value), ...(prevPts || []), 1);
   const n = points.length;
   const xAt = i => padL + (n <= 1 ? plotW / 2 : (plotW * i) / (n - 1));
   const yAt = v => padT + plotH * (1 - v / max);
@@ -416,6 +524,7 @@ function renderTrend() {
   }
   const line = points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.value).toFixed(1)}`).join(' ');
   const area = `M ${xAt(0).toFixed(1)},${(padT + plotH).toFixed(1)} L ${line.split(' ').join(' L ')} L ${xAt(n - 1).toFixed(1)},${(padT + plotH).toFixed(1)} Z`;
+  const prevLine = prevPts ? prevPts.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(' ') : '';
   // Emphasise the month currently picked in the Month filter (monthly view only).
   const selMo = (monthly && state.insights.month) ? (parseInt(state.insights.month, 10) - 1) : -1;
   const dots = points.map((p, i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="${i === selMo ? 5.5 : 3.5}" class="dot${i === selMo ? ' dot-sel' : ''}" />`).join('');
@@ -425,7 +534,8 @@ function renderTrend() {
   const hits = points.map((p, i) =>
     `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="16" fill="transparent"
        data-x="${((xAt(i) / W) * 100).toFixed(2)}" data-y="${((yAt(p.value) / H) * 100).toFixed(2)}"
-       data-lab="${esc(p.label)}" data-val="${esc(money(p.value, cur))}" class="hit" />`).join('');
+       data-lab="${esc(monthly ? `${p.label} ${d.year}` : p.label)}" data-val="${esc(money(p.value, cur))}"
+       ${prevPts ? `data-prev="${esc(`${p.label} ${prevYear}: ${money(prevPts[i], cur)}`)}"` : ''} class="hit" />`).join('');
 
   host.innerHTML = `
     <div class="trend-tip" id="trendTip" hidden></div>
@@ -434,16 +544,19 @@ function renderTrend() {
          aria-label="${monthly ? 'Monthly' : 'Yearly'} expense total for ${esc(d.year)}">
       ${grid}
       <path d="${area}" class="area" />
+      ${prevLine ? `<polyline points="${prevLine}" class="line-prev" />` : ''}
       <polyline points="${line}" class="line" />
       ${dots}
       ${hits}
     </svg>
-    <div class="trend-x${n > 8 ? ' dense' : ''}" aria-hidden="true">${xlabels}</div>`;
+    <div class="trend-x${n > 8 ? ' dense' : ''}" aria-hidden="true">${xlabels}</div>
+    ${prevPts ? `<div class="trend-legend"><span class="lg-cur">${esc(d.year)}</span><span class="lg-prev">${esc(prevYear)}</span></div>` : ''}`;
 
   const tip = $('#trendTip');
   $$('#trendChart .hit').forEach(h => {
     h.addEventListener('mouseenter', () => {
-      tip.innerHTML = `<span class="tip-lab">${h.dataset.lab}</span><span class="tip-val">${h.dataset.val}</span>`;
+      tip.innerHTML = `<span class="tip-lab">${esc(h.dataset.lab)}</span><span class="tip-val">${esc(h.dataset.val)}</span>`
+        + (h.dataset.prev ? `<span class="tip-lab">${esc(h.dataset.prev)}</span>` : '');
       tip.style.left = h.dataset.x + '%';
       tip.style.top = h.dataset.y + '%';
       tip.hidden = false;

@@ -2761,6 +2761,42 @@ a[data-open-doc]:hover { text-decoration: underline; }
 }
 /* Every bar's value column is the same width, so the tracks line up. */
 .bar-val { min-width: 7.6em; text-align: right; }
+/* The folded "Other (n)" bar reads as a remainder, not a ranked entry. */
+.bar-fill.other { background: var(--muted); opacity: .45; }
+
+/* KPI change vs the previous period, and the footnote when it's year/month-to-date. */
+.kpi-delta { margin-top: 6px; font-size: .74rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-delta b { font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.kpi-delta.up b, .kpi-delta.down b { color: var(--pine-deep); }
+.in-note { margin: -8px 0 18px; font-size: .76rem; color: var(--muted); }
+/* Pipeline & speed: same cards as the KPIs, with a footer line and a flag. */
+.in-section { margin: 6px 0 10px; }
+.in-section-h { font-size: 1rem; font-weight: 650; }
+.in-section-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
+.kpi-v small { font-size: .6em; font-weight: 650; color: var(--muted); }
+.kpi-foot { margin-top: 6px; font-size: .74rem; color: var(--muted); }
+.kpi-flag {
+  display: inline-block; margin-top: 7px; padding: 2px 8px; border-radius: 999px;
+  font-size: .72rem; font-weight: 650; background: var(--amber-tint); color: var(--amber);
+}
+/* The who/where charts sit below in three columns (two, then one, as it narrows). */
+.insights-ranks { margin-top: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+/* These cards are narrower, so each bar row stacks: name and amount on one
+   line, the bar full width beneath — the track never gets squeezed out. */
+.insights-ranks .bar-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'label val' 'track track'; row-gap: 5px; }
+.insights-ranks .bar-label { grid-area: label; -webkit-line-clamp: 1; }
+.insights-ranks .bar-val { grid-area: val; min-width: 0; }
+.insights-ranks .bar-track { grid-area: track; height: 8px; }
+/* Last year's line on the monthly trend, and its legend. */
+.trend-svg .line-prev { fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-dasharray: 5 4; opacity: .8; }
+.trend-legend { display: flex; gap: 16px; justify-content: flex-end; margin-top: 8px; font-size: .74rem; color: var(--muted); }
+.trend-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.trend-legend span::before { content: ''; width: 18px; border-top: 2px solid var(--pine-deep); }
+.trend-legend .lg-prev::before { border-top: 2px dashed var(--muted); }
+@media (max-width: 720px) {
+  .in-note { margin: -4px 0 14px; }
+  .kpi-foot, .kpi-delta { font-size: .72rem; }
+}
 
 /* --- Show / hide password: an eye icon (was an emoji that rendered differently
    on every OS). The emoji text stays in the markup as a no-CSS fallback. --- */

@@ -14,6 +14,7 @@ const { normaliseClaimLines } = require('./lib/claims');
 const { claimHeaderFromLines, slimForList } = require('./lib/documents');
 const { normaliseMealLines } = require('./lib/meals');
 const { normaliseAdvanceRequest, settlementFor, planAdvanceRevert } = require('./lib/advances');
+const { insightPeriods, summarize, rankBy, speedStats, pipelineStats } = require('./lib/insights');
 const {
   subDaysISO, dateInZone, todayInZone, claimWindowSettings, claimEarliestFrom,
   resubmitEarliest, dateFloorFor
@@ -155,5 +156,6 @@ module.exports.rules = {
   fillMatrix, capsFor, userCan, editableRolesFor, hasDelegation, creatablePositions,
   canManageAccount, insightsCanView, insightsSeeAll, accountsSeeAllDepts,
   applyListStatusFilter, applyLedgerWindow, slimForList,
-  OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL, CAPABILITIES, sessionCurrent, startSession
+  OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL, CAPABILITIES, sessionCurrent, startSession,
+  insightPeriods, summarize, rankBy, speedStats, pipelineStats
 };

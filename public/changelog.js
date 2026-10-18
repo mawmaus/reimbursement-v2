@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-18.1',
+    date: '2026-10-18',
+    items: [
+      { kind: 'new', audience: ['insights'], text: {
+        en: 'Insights shows much more: each headline figure now compares with the previous month or year, the monthly trend draws last year as a dashed line, new charts rank spend by department, employee and DB number (click a bar to see its expenses), and a Pipeline & speed row shows what is waiting for approval or payment right now and how many days approving and paying take.',
+        id: 'Insights kini menampilkan jauh lebih banyak: setiap angka utama dibandingkan dengan bulan atau tahun sebelumnya, tren bulanan menampilkan tahun lalu sebagai garis putus-putus, grafik baru mengurutkan pengeluaran per departemen, karyawan, dan nomor DB (klik batang untuk melihat pengeluarannya), dan baris Alur & kecepatan menunjukkan apa yang sedang menunggu persetujuan atau pembayaran serta berapa hari proses persetujuan dan pembayaran.',
+        th: 'Insights แสดงข้อมูลมากขึ้น: ตัวเลขหลักแต่ละตัวเทียบกับเดือนหรือปีก่อนหน้า กราฟแนวโน้มรายเดือนแสดงปีที่แล้วเป็นเส้นประ กราฟใหม่จัดอันดับค่าใช้จ่ายตามแผนก พนักงาน และเลข DB (คลิกแถบเพื่อดูค่าใช้จ่าย) และแถวสถานะงานและความเร็วแสดงรายการที่รออนุมัติหรือรอจ่ายเงินตอนนี้ และใช้เวลากี่วันในการอนุมัติและจ่ายเงิน',
+        vi: 'Insights hiển thị nhiều hơn hẳn: mỗi chỉ số chính giờ được so với tháng hoặc năm trước, xu hướng theo tháng vẽ năm ngoái bằng đường nét đứt, biểu đồ mới xếp hạng chi tiêu theo phòng ban, nhân viên và số DB (bấm vào thanh để xem chi tiêu), và hàng Tiến độ & tốc độ cho biết những gì đang chờ duyệt hoặc chờ thanh toán ngay lúc này và việc duyệt, thanh toán mất bao nhiêu ngày.',
+        km: 'Insights បង្ហាញច្រើនជាងមុន៖ តួលេខសំខាន់នីមួយៗប្រៀបធៀបជាមួយខែ ឬឆ្នាំមុន និន្នាការប្រចាំខែបង្ហាញឆ្នាំមុនជាបន្ទាត់ដាច់ៗ តារាងថ្មីតម្រៀបការចំណាយតាមនាយកដ្ឋាន បុគ្គលិក និងលេខ DB (ចុចលើរបារដើម្បីមើលការចំណាយ) ហើយជួរ ដំណើរការ និងល្បឿន បង្ហាញអ្វីដែលកំពុងរង់ចាំការអនុម័ត ឬការទូទាត់ឥឡូវនេះ និងរយៈពេលប៉ុន្មានថ្ងៃសម្រាប់ការអនុម័ត និងការទូទាត់។',
+        fil: 'Mas marami na ang ipinapakita ng Insights: ikinukumpara na ang bawat pangunahing numero sa nakaraang buwan o taon, ipinapakita ng buwanang trend ang nakaraang taon bilang putol-putol na linya, may mga bagong chart na nagraranggo ng gastos ayon sa departamento, empleyado at DB number (i-click ang bar para makita ang mga gastos), at ipinapakita ng hanay na Daloy at bilis kung ano ang naghihintay ng approval o bayad ngayon at ilang araw ang inaabot ng pag-approve at pagbabayad.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-11.1',
     date: '2026-10-11',
     items: [

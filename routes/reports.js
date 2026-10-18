@@ -11,6 +11,7 @@ const {
   viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions
 } = require('../lib/settings');
 const { todayInZone } = require('../lib/claim-window');
+const { insightPeriods, summarize, rankBy, speedStats, pipelineStats } = require('../lib/insights');
 
 const router = express.Router();
 
@@ -108,7 +109,7 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   // claimant name so the client can drill into a type and search by employee.
   const rows = await q(
     `SELECT category, substring(d,1,4) AS yr, substring(d,6,2) AS mo, d,
-            cents::bigint AS cents, cid, db, no, claimant
+            cents::bigint AS cents, cid, db, no, claimant, department AS dept
        FROM (
          SELECT l.expense_type AS category, c.department, l.line_date AS d,
                 l.amount_cents AS cents, c.status, COALESCE(l.db_no,'') AS db, 'c' || c.id AS cid,
@@ -175,7 +176,7 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   // Line-level detail for the selected scope, biggest first, so the client can
   // drill into any expense type (pivot-style) and show each underlying line.
   const details = inScope
-    .map(r => ({ cid: r.cid || '', no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', type: r.category, cents: Number(r.cents) }))
+    .map(r => ({ cid: r.cid || '', no: r.no || '', name: r.claimant || '', date: r.d, db: r.db || '', dept: r.dept || '', type: r.category, cents: Number(r.cents) }))
     .sort((a, b) => b.cents - a.cents);
 
   // The monthly trend always spans the whole year (it's the "in context" view);
@@ -184,16 +185,115 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   for (const r of inYear) { const m = Number(r.mo); if (m >= 1 && m <= 12) monthCents[m - 1] += Number(r.cents); }
   const byMonth = monthCents.map((cents, i) => ({ month: String(i + 1).padStart(2, '0'), cents }));
 
-  const total = inScope.reduce((s, r) => s + Number(r.cents), 0);
-  const claims = new Set(inScope.map(r => r.cid)).size;
+  const sum = summarize(inScope);
+  const total = sum.total_cents;
   const top = byType[0] || null;
   const kpis = {
-    total_cents: total,
-    claims,
-    avg_cents: claims ? Math.round(total / claims) : 0,
+    ...sum,
     top_type: top ? top.type : '',
     top_share: top && total ? Math.round((top.cents / total) * 100) : 0
   };
+
+  // The comparison period (previous month / year, cut at the same day while the
+  // selected one is still running — see insightPeriods), drawn from the same
+  // filtered rows, so every filter applies to both sides.
+  const vrPrefs = await regionPrefsFor(vr || req.user.region);
+  const tz = vrPrefs.timezone;
+  const today = todayInZone(tz);
+  const per = insightPeriods(year, month, today);
+  const prevRows = rows.filter(r => r.d >= per.prevStart && r.d <= per.prevEnd);
+  const prev = { ...summarize(prevRows), year: per.prevYear, month: per.prevMonth, partial: per.partial, from: per.prevStart, to: per.prevEnd };
+
+  // Last year's monthly totals, overlaid on the monthly trend for context.
+  const prevYearCents = Array(12).fill(0);
+  for (const r of rows) {
+    if (r.yr !== String(Number(year) - 1)) continue;
+    const m = Number(r.mo); if (m >= 1 && m <= 12) prevYearCents[m - 1] += Number(r.cents);
+  }
+  const byMonthPrev = prevYearCents.map((cents, i) => ({ month: String(i + 1).padStart(2, '0'), cents }));
+
+  // Who and where the money goes, for the selected scope (same as byType).
+  const byDept = rankBy(inScope, r => r.dept || '');
+  const byEmployee = rankBy(inScope, r => r.claimant || '');
+  const byDb = rankBy(inScope, r => r.db || '');
+
+  // Pipeline (what is waiting right now) and speed (how long the steps took) are
+  // document-level, so they get their own queries. Both honour the viewer's
+  // scope and the department / employee / DB filters; the status filter doesn't
+  // apply (the pipeline IS a status view), and the pipeline isn't tied to the
+  // period either — it's "as of now".
+  const docConds = (params) => {
+    const c = [];
+    if (mode === 'approver') { params.push(req.user.id); c.push(`$${params.length} = ANY(appr)`); }
+    if (vr !== null) { params.push(vr); c.push(`region = $${params.length}`); }
+    if (deptFilter) { params.push(deptFilter); c.push(`lower(department) = lower($${params.length})`); }
+    if (nameFilter) { params.push(likeContains(nameFilter)); c.push(`claimant ILIKE $${params.length}`); }
+    if (db) { params.push(likeContains(db)); c.push(`dbs ILIKE $${params.length}`); }
+    return c.length ? 'WHERE ' + c.join(' AND ') : '';
+  };
+  const docCols = (t, lines, fk, dbCol) =>
+    `${t}.department, ${t}.region, ${t}.approver_ids AS appr, ${t}.claimant_name AS claimant,
+              (SELECT string_agg(COALESCE(l.${dbCol},''), ' ') FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL) AS dbs`;
+  const liveSum = (t, lines, fk) =>
+    `(SELECT COALESCE(SUM(l.amount_cents),0) FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL)`;
+  // The last time the document entered review: a (re)submission, not one of the
+  // intermediate approval steps (those log submitted -> submitted).
+  const lastSubmit = (t, hist, fk, to, upToDecision) =>
+    `(SELECT MAX(h.created_at) FROM ${hist} h WHERE h.${fk} = ${t}.id AND h.to_status IN (${to}) AND h.from_status IS DISTINCT FROM h.to_status${upToDecision ? ` AND h.created_at <= ${t}.decided_at` : ''})`;
+
+  // Waiting for approval: submitted claims / meals, advance requests and
+  // submitted realizations (aged from their last (re)submission). Waiting for
+  // payment: fully approved claims / meals and approved advance requests (aged
+  // from the final approval). A realized advance awaiting settlement isn't
+  // counted — its money already went out with the advance.
+  const pipeParams = [];
+  const pipeWhere = docConds(pipeParams);
+  const pipeRows = await q(
+    `SELECT stage, cents::bigint AS cents, EXTRACT(EPOCH FROM now() - since) / 86400 AS wait_days FROM (
+       SELECT CASE c.status WHEN 'submitted' THEN 'approval' ELSE 'payment' END AS stage,
+              ${liveSum('c', 'claim_lines', 'claim_id')} AS cents,
+              CASE c.status WHEN 'submitted' THEN COALESCE(${lastSubmit('c', 'claim_history', 'claim_id', "'submitted'")}, c.created_at)
+                            ELSE c.decided_at END AS since,
+              ${docCols('c', 'claim_lines', 'claim_id', 'db_no')}
+         FROM claims c WHERE c.status IN ('submitted','approved')
+       UNION ALL
+       SELECT CASE m.status WHEN 'submitted' THEN 'approval' ELSE 'payment' END,
+              ${liveSum('m', 'meal_claim_lines', 'meal_claim_id')},
+              CASE m.status WHEN 'submitted' THEN COALESCE(${lastSubmit('m', 'meal_claim_history', 'meal_claim_id', "'submitted'")}, m.created_at)
+                            ELSE m.decided_at END,
+              ${docCols('m', 'meal_claim_lines', 'meal_claim_id', 'site')}
+         FROM meal_claims m WHERE m.status IN ('submitted','approved')
+       UNION ALL
+       SELECT CASE a.status WHEN 'approved' THEN 'payment' ELSE 'approval' END,
+              CASE a.status WHEN 'realize_submitted' THEN ${liveSum('a', 'cash_advance_lines', 'advance_id')} ELSE a.amount_cents END,
+              CASE a.status WHEN 'approved' THEN a.decided_at
+                            ELSE COALESCE(${lastSubmit('a', 'cash_advance_history', 'advance_id', "'submitted','realize_submitted'")}, a.created_at) END,
+              ${docCols('a', 'cash_advance_lines', 'advance_id', 'db_no')}
+         FROM cash_advances a WHERE a.status IN ('submitted','approved','realize_submitted')
+     ) p ${pipeWhere}`, pipeParams);
+  const pipeline = pipelineStats(pipeRows);
+
+  // Speed, for reimbursement claims and meal allowances approved / paid inside
+  // the selected period. (Cash advances are left out: their approval time is
+  // overwritten when the realization is approved.) The approval date is read in
+  // the region's zone; paid_at is a payment DATE stored as midnight UTC. The SQL
+  // window is a day wider each side; speedStats applies the exact dates.
+  const spParams = [tz, per.start, per.end];
+  const spWhere = docConds(spParams);
+  const near = (t) => `((${t}.decided_at >= $2::date - 1 AND ${t}.decided_at < $3::date + 2) OR (${t}.paid_at >= $2::date - 1 AND ${t}.paid_at < $3::date + 2))`;
+  const spRows = await q(
+    `SELECT status, EXTRACT(EPOCH FROM sub_at) * 1000 AS sub_ms, EXTRACT(EPOCH FROM decided_at) * 1000 AS dec_ms,
+            to_char(decided_at AT TIME ZONE $1, 'YYYY-MM-DD') AS dec_d,
+            to_char(paid_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS paid_d FROM (
+       SELECT c.status, c.decided_at, c.paid_at, ${lastSubmit('c', 'claim_history', 'claim_id', "'submitted'", true)} AS sub_at,
+              ${docCols('c', 'claim_lines', 'claim_id', 'db_no')}
+         FROM claims c WHERE c.status IN ('approved','paid') AND c.decided_at IS NOT NULL AND ${near('c')}
+       UNION ALL
+       SELECT m.status, m.decided_at, m.paid_at, ${lastSubmit('m', 'meal_claim_history', 'meal_claim_id', "'submitted'", true)},
+              ${docCols('m', 'meal_claim_lines', 'meal_claim_id', 'site')}
+         FROM meal_claims m WHERE m.status IN ('approved','paid') AND m.decided_at IS NOT NULL AND ${near('m')}
+     ) s ${spWhere}`, spParams);
+  const speed = speedStats(spRows, per.start, per.end);
 
   // Department options for the filter dropdown. See-all viewers get every
   // department (scoped to the picked region when one is chosen); approver-scoped
@@ -254,9 +354,9 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
     scope: { mode, department: deptFilter || null },
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
-    currency: vr ? (await regionPrefsFor(vr)).currency : DEFAULT_CURRENCY,
+    currency: vr ? vrPrefs.currency : DEFAULT_CURRENCY,
     year, years, month, months, status: statuses, db, name: nameFilter, departments, employees, dbNos,
-    byType, byMonth, byYear, kpis, details
+    byType, byMonth, byMonthPrev, byYear, kpis, prev, byDept, byEmployee, byDb, pipeline, speed, details
   });
 }));
 
