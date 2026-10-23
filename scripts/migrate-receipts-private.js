@@ -99,7 +99,8 @@ async function main() {
   async function worker() {
     while (next < todo.length) {
       const r = todo[next++];
-      try { copied += await copyOne(sql, auth, r.blob_url); }
+      // Await first: `copied += await …` would add to a stale total.
+      try { const n = await copyOne(sql, auth, r.blob_url); copied += n; }
       catch (e) { failed.push({ url: r.blob_url, error: e.message || String(e) }); }
       if (++done % 25 === 0 || done === todo.length) console.log(`  ${done}/${todo.length}  (${mb(copied)} copied)`);
     }
