@@ -44,6 +44,9 @@ async function q(text, params = []) {
   if ((m = sql.match(/^SELECT \* FROM (claim_lines|meal_claim_lines|cash_advance_lines) WHERE (\w+) = \$1/)) && LINE_FK[m[1]] === m[2]) {
     return state.tables[m[1]].filter(l => l[m[2]] === Number(params[0])).map(l => ({ ...l }));
   }
+  if (/^SELECT \* FROM meal_claim_lines WHERE id = \$1 AND meal_claim_id = \$2$/.test(sql)) {
+    return state.tables.meal_claim_lines.filter(l => l.id === Number(params[0]) && l.meal_claim_id === Number(params[1])).map(l => ({ ...l }));
+  }
   if ((m = sql.match(/^SELECT \* FROM (claims|meal_claims|cash_advances) WHERE id = ANY\(\$1::int\[\]\) AND status = \$2/))) {
     const ids = String(params[0]).replace(/[{}]/g, '').split(',').map(Number);
     return state.tables[m[1]].filter(r => ids.includes(r.id) && r.status === params[1]).map(r => ({ ...r }));

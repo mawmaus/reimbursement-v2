@@ -190,6 +190,8 @@ const reclaimableLines = (c) => (c.lines || []).filter(l => lineRejected(l) && !
 // (a cash advance only once realized), and at least two are still live — with
 // one, rejecting it is just "Reject & return".
 function canDecideLines(c, u) {
+  // A GPS meal claim is trimmed through each line's approved amount instead.
+  if (c.scheme === 'gps') return false;
   if (!inApprovalStage(c) || !canApprove(u, c)) return false;
   if (c.type === 'advance' && c.status !== 'realize_submitted') return false;
   return activeLines(c).length >= 2;
@@ -199,6 +201,8 @@ function canDecideLines(c, u) {
 // claimant has ticked to re-claim.
 let lineMarks = new Map();
 let reclaimPicks = new Set();
+// The GPS meal line whose approved amount is being edited (id), or null.
+let adjustingLine = null;
 // The document's payable total (what the header carries), and the part of it the
 // approver's pending marks would take out.
 const payableOf = (c) => c.type === 'meal' ? (c.total_amount || 0) : c.type === 'advance' ? (c.realized_total || 0) : (c.amount || 0);
@@ -214,6 +218,7 @@ function lineColumns(c) {
     ? `<div class="line-receipt-list">${atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/${c.type === 'advance' ? 'cash-advances' : 'claims'}/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join('')}</div>`
     : `<span class="muted">${esc(t('—'))}</span>`;
   const dash = '<span class="muted">—</span>';
+  if (c.type === 'meal' && c.scheme === 'gps') return gpsLineColumns(c, dash);
   if (c.type === 'meal') return [
     { h: 'Date', cls: 'mono', v: l => esc(l.line_date) },
     { h: 'DB Number Site', v: l => l.site ? esc(dbFmt(l.site)) : dash },
@@ -229,6 +234,84 @@ function lineColumns(c) {
     { h: 'Description / purpose', v: l => l.description ? esc(l.description) : dash },
     { h: 'Receipts', cls: 'line-receipts', v: l => receiptLinks(l.attachments) }
   ];
+}
+// --- GPS meal lines -------------------------------------------------------------
+// Columns for a GPS meal claim: the trip, where the claimant was against their
+// base, what the line pays (with the claimed amount when an approver lowered
+// it), receipts and the optional job details. Amount stays the 4th column.
+const fmtKm = (km) => (Math.round(km * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 });
+function gpsLineColumns(c, dash) {
+  const tripText = (l) => l.trip_type === 'out_of_town'
+    ? `<b>${esc(t('Out of town'))}</b><div class="gl-sub">${esc(l.meals.length === 1 ? t('1 meal') : t('{n} meals', { n: l.meals.length }))}: ${l.meals.map(m => esc(money(m, c.currency))).join(' + ')}</div>`
+    : `<b>${esc(t('In town'))}</b>`;
+  const where = (l) => {
+    if (!l.gps) return dash;
+    const fixDay = l.gps.at ? new Intl.DateTimeFormat('en-CA', { timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(l.gps.at)) : '';
+    const km = l.distance_km == null ? t('Location recorded')
+      : t('{km} km from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') });
+    return `<b>${esc(km)}</b>
+      <div class="gl-sub"><a href="https://www.google.com/maps?q=${encodeURIComponent(l.gps.lat + ',' + l.gps.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>${l.gps.accuracy_m ? ` · ±${esc(String(l.gps.accuracy_m))}&nbsp;m` : ''}</div>
+      ${fixDay && fixDay !== l.line_date ? `<div class="gl-flag">${esc(t('Recorded {when}', { when: fmtDateTime(l.gps.at) }))}</div>` : ''}`;
+  };
+  const amount = (l) => {
+    const btn = c.can_adjust_approved && !lineRejected(l) && adjustingLine !== l.id
+      ? `<button type="button" class="btn btn-ghost btn-xs gl-adjust" data-adjust="${l.id}">${esc(t('Adjust'))}</button>` : '';
+    return `<span class="amt-v">${esc(money(l.payable_amount, c.currency))}</span>
+      ${l.approved_amount != null ? `<div class="gl-sub"><s>${esc(money(l.amount, c.currency))}</s> ${esc(t('claimed'))}</div>
+        <div class="gl-sub">${esc(t('Approved by {name}', { name: l.approved_by || t('approver') }))}${l.approved_note ? ` — ${esc(l.approved_note)}` : ''}</div>` : ''}
+      ${btn}`;
+  };
+  const receipts = (l) => (l.attachments && l.attachments.length)
+    ? `<div class="line-receipt-list">${l.attachments.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/meal-claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join('')}</div>`
+    : dash;
+  const details = (l) => [l.site ? dbFmt(l.site) : '', l.job_category, l.description].filter(Boolean).map(esc).join('<br>') || dash;
+  return [
+    { h: 'Date', cls: 'mono', v: l => esc(l.line_date) },
+    { h: 'Trip', v: tripText },
+    { h: 'Location', cls: 'gl-where', v: where },
+    { h: 'Amount', cls: 'meal-amt', v: amount },
+    // Same slots as a reimbursement claim's description / receipts, so the
+    // phone card layout (styles.css .drawer-lines) places them alike.
+    { h: 'Details', v: details },
+    { h: 'Receipts', cls: 'line-receipts', v: receipts }
+  ];
+}
+// The inline editor under a line: what this line pays, and why.
+function adjustFormHtml(c, l) {
+  return `<div class="gl-adjust-form">
+      <label>${esc(t('Approved amount'))}
+        <div class="amt-field"><span class="amt-cur">${esc(c.currency)}</span>
+          <input data-adj-amt inputmode="numeric" autocomplete="off" value="${esc(groupAmount(String(Math.round(l.payable_amount))))}" /></div></label>
+      <label class="gl-adjust-note">${esc(t('Note for the claimant (optional)'))}
+        <input data-adj-note maxlength="500" value="${esc(l.approved_note || '')}" placeholder="${esc(t('e.g. the receipt shows 20,000'))}" /></label>
+      <div class="gl-adjust-acts">
+        <button type="button" class="btn btn-ghost btn-sm" data-adj-cancel>${esc(t('Cancel'))}</button>
+        <button type="button" class="btn btn-primary btn-sm" data-adj-save="${l.id}">${esc(t('Save'))}</button>
+      </div>
+      <p class="gl-adjust-hint">${esc(t('Up to the {amt} claimed. Set it back to that amount to undo.', { amt: money(l.amount, c.currency) }))}</p>
+    </div>`;
+}
+function wireAdjust(c, box) {
+  box.querySelectorAll('[data-adjust]').forEach(b => b.addEventListener('click', () => {
+    adjustingLine = Number(b.dataset.adjust); renderDrawerLines(c);
+    const inp = box.querySelector('[data-adj-amt]'); if (inp) { inp.focus(); inp.select(); }
+  }));
+  const amt = box.querySelector('[data-adj-amt]');
+  if (!amt) return;
+  amt.addEventListener('input', () => { amt.value = groupAmount(amt.value); });
+  box.querySelector('[data-adj-cancel]').addEventListener('click', () => { adjustingLine = null; renderDrawerLines(c); });
+  const save = box.querySelector('[data-adj-save]');
+  save.addEventListener('click', async () => {
+    save.disabled = true;
+    try {
+      await api(`/meal-claims/${c.id}/lines/${save.dataset.adjSave}/approved`, {
+        method: 'PUT', body: JSON.stringify({ amount: mealAmount(amt.value), note: box.querySelector('[data-adj-note]').value.trim() })
+      });
+      toast(t('Approved amount saved'));
+      await openDrawer(c.id, 'meal');
+      loadAll();
+    } catch (ex) { toast(ex.message, true); save.disabled = false; }
+  });
 }
 // The note under a rejected line: why and by whom, then where it went — re-claimed
 // on another document, or (for the claimant) a tick to include it in a re-claim.
@@ -267,7 +350,9 @@ function drawerLinesHtml(c) {
     const decide = deciding ? `<td class="line-decide">${rejected ? '' : marked
       ? `<button type="button" class="btn btn-ghost btn-xs" data-unmark="${l.id}">${esc(t('Keep line'))}</button>`
       : `<button type="button" class="btn btn-ghost btn-xs lr-reject-btn" data-mark="${l.id}">${esc(t('Reject line'))}</button>`}</td>` : '';
-    const main = `<tr class="${cls}${sub ? ' has-sub' : ''}">${cells}${decide}</tr>`;
+    const adjusting = adjustingLine === l.id && !rejected;
+    const main = `<tr class="${cls}${sub || adjusting ? ' has-sub' : ''}">${cells}${decide}</tr>`;
+    if (adjusting) return main + `<tr class="line-sub line-sub-adjust"><td colspan="${span}">${adjustFormHtml(c, l)}</td></tr>`;
     if (rejected) return main + `<tr class="line-sub line-sub-rejected"><td colspan="${span}">${rejectedNoteHtml(c, l, isOwner, pickable)}</td></tr>`;
     if (marked) return main + `<tr class="line-sub line-sub-marked"><td colspan="${span}">
         <label class="lr-reason-field">${esc(t('Reason for rejecting this line'))}
@@ -282,8 +367,12 @@ function drawerLinesHtml(c) {
   const footRow = (label, amount, cls) => `<tr class="${cls}">
       <td colspan="3" class="meal-total-label">${esc(label)}</td>
       <td class="meal-total">${esc(amount)}</td>${rest > 0 ? `<td colspan="${rest}"></td>` : ''}</tr>`;
-  const foot = (out ? footRow(t('Rejected lines'), '− ' + money(out, c.currency), 'lr-foot-rejected') : '')
-    + footRow(out ? t(c.type === 'advance' ? 'Counted against the advance' : 'Payable') : t(totalLabel), money(payableOf(c) - pending, c.currency), '');
+  // A GPS claim whose approvers lowered lines shows what was claimed, then what is paid.
+  const trimmed = c.scheme === 'gps' ? (c.claimed_amount || 0) - out - payableOf(c) : 0;
+  const foot = (trimmed > 0 ? footRow(t('Claimed'), money(c.claimed_amount - out, c.currency), 'lr-foot-claimed')
+      + footRow(t('Lowered by approvers'), '− ' + money(trimmed, c.currency), 'lr-foot-rejected') : '')
+    + (out ? footRow(t('Rejected lines'), '− ' + money(out, c.currency), 'lr-foot-rejected') : '')
+    + footRow(out || trimmed > 0 ? t(c.type === 'advance' ? 'Counted against the advance' : 'Payable') : t(totalLabel), money(payableOf(c) - pending, c.currency), '');
   const heading = c.type === 'meal' ? t('Meal allowance lines') : c.type === 'advance' ? t('Realization — actual transactions') : t('Expense lines');
   const hint = deciding ? `<p class="lr-hint">${esc(t('To leave a line out, press "Reject line" on it and give a reason. The rest is approved without it, and the claimant re-claims that line on a new claim.'))}</p>` : '';
   return `
@@ -318,6 +407,7 @@ function renderDrawerLines(c) {
     syncLineActions(c);
   }));
   wireDocLinks(box);
+  wireAdjust(c, box);
   syncLineActions(c);
 }
 // Links to another document (a re-claim, or the claim it came from) open it in
@@ -474,6 +564,7 @@ async function openDrawer(id, type = 'reimbursement') {
   // Fresh per-line choices for this document: no marks yet, and every rejected
   // line the claimant can still re-claim starts ticked.
   lineMarks = new Map();
+  adjustingLine = null;
   reclaimPicks = new Set(reclaimableLines(c).map(l => l.id));
   const rejectedCount = (c.lines || []).filter(lineRejected).length;
 
@@ -486,7 +577,7 @@ async function openDrawer(id, type = 'reimbursement') {
   // Header = what an approver needs at a glance: what it is, how much, where it
   // stands, and whose it is. The headline amount is what would be paid (or, for
   // an advance, what was asked for); the line table below breaks it down.
-  const typeLabel = type === 'meal' ? t('Meal allowance') : type === 'advance' ? t('Cash advance') : t('Reimbursement');
+  const typeLabel = type === 'meal' ? (c.scheme === 'gps' ? t('Meal allowance (GPS)') : t('Meal allowance')) : type === 'advance' ? t('Cash advance') : t('Reimbursement');
   const headAmt = type === 'advance' ? c.amount : payableOf(c);
   const headAmtLabel = type === 'advance' ? t('Advance requested') : rejectedCount ? t('Payable') : t('Total');
   const meta = [c.claimant_name, c.department, t('Submitted {time}', { time: fmtDateTime(c.created_at) })].filter(Boolean);
@@ -551,6 +642,7 @@ async function handleAction(act, c) {
     } else if (act === 'reject') {
       return openRejectModal(c);
     } else if (act === 'edit') {
+      if (c.type === 'meal' && c.scheme === 'gps') return openMealGpsModal(c);
       return c.type === 'meal' ? openMealAllowanceModal(c) : c.type === 'advance' ? openAdvanceRequestModal(c) : openClaimModal(c);
     }
     closeDrawer(); loadAll();

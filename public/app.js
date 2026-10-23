@@ -559,7 +559,7 @@ function advanceHoldReason() {
 function applyAdvanceHold() {
   const n = advanceHold();
   const why = advanceHoldReason();
-  for (const sel of ['#newClaimBtn', '#newMealBtn']) {
+  for (const sel of ['#newClaimBtn', '#newMealBtn', '#newMealGpsBtn']) {
     const btn = $(sel);
     if (!btn) continue;
     btn.disabled = n > 0;
@@ -645,6 +645,7 @@ function showApp() {
   const purposes = u.purposes || { claim: false, meal: false, advance: false };
   $('#newClaimBtn').hidden = !purposes.claim;
   $('#newMealBtn').hidden = !purposes.meal;
+  showMealGpsItem();
   $('#newAdvanceBtn').hidden = !purposes.advance;
   // An unrealized cash advance greys out New Claim / New Meal Allowance. The
   // count arrives on the user payload, so this is right before the first fetch;
@@ -972,7 +973,13 @@ $('#backHome').addEventListener('click', goHome);
 // New claim / meal allowance / cash advance live in one dropdown. The items
 // keep their old ids, so everything that gates them (showApp, the advance hold,
 // draft dots) is untouched; syncNewMenu() derives the trigger's state from them.
-const NEW_ITEMS = ['#newClaimBtn', '#newMealBtn', '#newAdvanceBtn'];
+// The GPS meal allowance: the meal allowance's own gate, in a region that has
+// it switched on (Settings → Meal allowance (GPS)).
+function showMealGpsItem() {
+  $('#newMealGpsBtn').hidden = !(state.user && state.user.meal_gps && state.user.meal_gps.allowed);
+  syncNewMenu();
+}
+const NEW_ITEMS = ['#newClaimBtn', '#newMealBtn', '#newMealGpsBtn', '#newAdvanceBtn'];
 function newMenuItems(enabledOnly) {
   return NEW_ITEMS.map(s => $(s)).filter(b => b && !b.hidden && !(enabledOnly && b.disabled));
 }
@@ -1201,7 +1208,7 @@ function rowView(c) {
     const first = (c.lines && c.lines[0] && c.lines[0].line_date) || (c.created_at || '').slice(0, 10);
     // Meal claims carry a "DB number site" per line; surface the first one.
     const site = (c.lines && c.lines[0] && c.lines[0].site) || '';
-    return { typeLabel: t('Meal allowance'), date: first, amount: c.total_amount, db: site };
+    return { typeLabel: c.scheme === 'gps' ? t('Meal allowance (GPS)') : t('Meal allowance'), date: first, amount: c.total_amount, db: site };
   }
   if (c.type === 'advance') {
     // The ledger amount is the requested/disbursed advance; the date is when it

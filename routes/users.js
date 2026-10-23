@@ -19,6 +19,8 @@ const {
 } = require('../lib/permissions');
 const { parseApprovalLimit } = require('../lib/money');
 const { openClaimsAwaitingApprover } = require('../lib/workflow');
+const { parseBaseInput } = require('../lib/meal-gps');
+const { httpError } = require('../lib/errors');
 
 const router = express.Router();
 
@@ -87,6 +89,19 @@ async function adminAutoApproverChain(dept) { // eslint-disable-line no-unused-v
   return ids;
 }
 
+// Store (or clear, with null) an account's base location. Kept apart from the
+// main account writes so those keep working on a database that predates the
+// GPS meal migration: there, clearing is a no-op and setting one says why it can't.
+async function saveBase(userId, base) {
+  try {
+    await q('UPDATE users SET base_name = $1, base_lat = $2, base_lng = $3 WHERE id = $4',
+      [base ? base.name : '', base ? base.lat : null, base ? base.lng : null, userId]);
+  } catch (e) {
+    if (!(e && e.code === '42703')) throw e;
+    if (base) throw httpError(409, 'The account was saved, but base locations need the GPS meal allowance database update first');
+  }
+}
+
 router.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
   const pos = await loadPositions(req.user.region);
@@ -97,10 +112,15 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
   if (!isSuper && !hasDelegation(req.user, pos)) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, active, created_by, created_by_name, created_at';
+  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, active, created_by, created_by_name, created_at, base_name, base_lat, base_lng';
+  // Before the GPS meal migration the base columns don't exist yet (42703).
+  const qCols = async (sql, params) => {
+    try { return await q(sql, params); }
+    catch (e) { if (e && e.code === '42703') return q(sql.replace(', base_name, base_lat, base_lng', ''), params); throw e; }
+  };
   let users;
   if (isSuper) {
-    users = await q(`SELECT ${cols} FROM users ORDER BY id`);
+    users = await qCols(`SELECT ${cols} FROM users ORDER BY id`);
   } else {
     const where = [];
     const params = [];
@@ -113,7 +133,7 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
     // Region isolation: a region-scoped manager sees only same-region accounts.
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
     const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    users = await q(`SELECT ${cols} FROM users ${clause} ORDER BY id`, params);
+    users = await qCols(`SELECT ${cols} FROM users ${clause} ORDER BY id`, params);
   }
   res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at) })) });
 }));
@@ -165,6 +185,9 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
   // caller omits both fields, preserving the historical any-amount behaviour.
   const limit = parseApprovalLimit(req.body || {});
   if (limit.error) return res.status(400).json({ error: limit.error });
+  // Base location (GPS meal allowance): super admins set it; blank is allowed.
+  const baseIn = isSuper ? parseBaseInput((req.body || {}).base_name, (req.body || {}).base_coords) : { base: null };
+  if (baseIn.error) return res.status(400).json({ error: baseIn.error });
   const rows = await q(
     `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, created_by, created_by_name)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16,$17,$18) RETURNING id`,
@@ -174,6 +197,7 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
      String(bank_account_no || '').trim(), intArrayLiteral(apprIds),
      intArrayLiteral(appr1Ids), canMarkPaidFlag, allowAdvanceFlag, limit.cents,
      req.user.id, req.user.full_name || req.user.username || '']);
+  if (baseIn.base) await saveBase(rows[0].id, baseIn.base);
   res.status(201).json({ id: rows[0].id });
 }));
 router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
@@ -235,6 +259,11 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
     if (lim.error) return res.status(400).json({ error: lim.error });
     nextLimit = lim.cents;
   }
+  // Base location: only touched when the caller sends it (checked before
+  // anything is saved, like the fields above).
+  const sendsBase = Object.prototype.hasOwnProperty.call(b, 'base_name') || Object.prototype.hasOwnProperty.call(b, 'base_coords');
+  const parsedBase = sendsBase ? parseBaseInput(b.base_name, b.base_coords) : null;
+  if (parsedBase && parsedBase.error) return res.status(400).json({ error: parsedBase.error });
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
              can_mark_paid=$12, approver1_options=$14::int[], region=$15, approval_limit_cents=$16,
@@ -257,6 +286,7 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
     nextLimit,
     allow_advance !== undefined ? isActive(allow_advance) : u.allow_advance
   ]);
+  if (parsedBase) await saveBase(u.id, parsedBase.base);
   if (password) {
     // Signs the account out everywhere (keeping the admin signed in if it is their own).
     const [{ session_version }] = await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(password), 10), u.id]);

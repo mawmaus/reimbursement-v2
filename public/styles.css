@@ -996,6 +996,7 @@ input[type="search"] { min-width: 220px; }
 
 /* Meal + reimbursement forms: frozen action bar on top, scrolling table below. */
 .modal-flex #mealForm,
+.modal-flex #mgForm,
 .modal-flex #claimForm,
 .modal-flex #realizeForm { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -1438,7 +1439,7 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 .new-menu-btn[aria-expanded="true"] .nm-caret { transform: rotate(180deg); }
 .new-menu {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
-  min-width: 220px; max-width: min(300px, calc(100vw - 32px)); padding: 5px;
+  width: max-content; min-width: 220px; max-width: min(300px, calc(100vw - 32px)); padding: 5px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 11px;
   box-shadow: 0 16px 32px -14px rgba(0,0,0,.35), var(--shadow-sm);
 }
@@ -3387,3 +3388,95 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .svp-who { flex-basis: calc(100% - 140px); }
   .svp-scores { order: 3; width: 100%; }
 }
+
+/* ---------- GPS meal allowance (public/js/meal-gps.js) ---------- */
+.mg-base { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start;
+  margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.mg-base-ic { font-size: 1.3rem; line-height: 1.2; }
+.mg-base-l { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.mg-base-n { font-weight: 650; color: var(--ink); overflow-wrap: anywhere; }
+.mg-base a, .mg-loc a { color: var(--pine-deep); font-weight: 600; }
+.mg-rules { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.mg-rules li { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  font-size: .78rem; font-weight: 560; color: var(--ink-soft); }
+.mg-nobase, .mg-geo { margin: 0 0 14px; }
+.mg-days { display: flex; flex-direction: column; gap: 12px; }
+.mg-day { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--surface); }
+.mg-day.has-err { border-color: var(--red-line); }
+.mg-day-head { display: flex; align-items: center; gap: 10px; margin: -2px 0 -2px; }
+.mg-day-n { font-weight: 700; color: var(--ink); }
+.mg-day-sum { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 650; color: var(--ink-soft); }
+.mg-day-sum:empty { display: none; }
+.mg-day-head .x-btn { margin-left: auto; }
+.mg-day-sum:not(:empty) + .x-btn { margin-left: 0; }
+.mg-row { display: grid; grid-template-columns: minmax(150px, 210px) minmax(0, 1fr); gap: 12px; align-items: end; }
+.mg-trip { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 560; color: var(--ink-soft); min-width: 0; }
+.mg-trip .ph-seg button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; }
+.mg-trip .ph-seg button small { font-size: .72rem; font-weight: 500; color: var(--muted); }
+.mg-trip .ph-seg button.on { color: var(--pine-deep); }
+.mg-loc { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--paper); }
+.mg-loc-ic { font-size: 1.15rem; }
+.mg-loc-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: .82rem; color: var(--muted); }
+.mg-loc-txt b { font-size: .9rem; color: var(--ink); }
+.mg-loc-ok { border-color: var(--green-tint); background: var(--green-tint); }
+.mg-loc-ok .mg-loc-txt b { color: var(--green); }
+.mg-loc-bad { border-color: var(--red-line); background: var(--red-tint); }
+.mg-loc-bad .mg-loc-txt b { color: var(--red); }
+.mg-loc .btn { white-space: nowrap; }
+.mg-meals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mg-meals-one { grid-template-columns: minmax(0, 260px); }
+.mg-cap { margin: -4px 0 0; font-size: .8rem; color: var(--muted); }
+.mg-receipts { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 560; color: var(--ink-soft); }
+.mg-receipt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mg-receipt-row .file-chips { margin-top: 0; }
+.mg-receipt-row .file-chips:empty { display: none; }
+.mg-extra { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.mg-msgs { display: flex; flex-direction: column; gap: 6px; }
+.mg-msgs:empty { display: none; }
+.mg-msg { margin: 0; padding: 7px 11px; border-radius: 8px; font-size: .82rem; line-height: 1.4; }
+.mg-msg-err { color: var(--red); background: var(--red-tint); }
+.mg-msg-warn { color: var(--amber); background: var(--amber-tint); }
+@media (max-width: 720px) {
+  .mg-row, .mg-extra { grid-template-columns: minmax(0, 1fr); }
+  .mg-meals { grid-template-columns: minmax(0, 1fr); }
+  .mg-meals-one { grid-template-columns: minmax(0, 1fr); }
+  .mg-loc { grid-template-columns: auto minmax(0, 1fr); }
+  .mg-loc .btn { grid-column: 1 / -1; justify-self: stretch; }
+  .mg-day { padding: 12px 12px 14px; }
+}
+
+/* GPS meal lines in the drawer: trip / location detail and the approved-amount editor. */
+.drawer-lines .gl-sub { margin-top: 2px; font-size: .76rem; color: var(--muted); }
+.drawer-lines .gl-sub a { color: var(--pine-deep); font-weight: 600; }
+.drawer-lines .gl-flag { display: inline-block; margin-top: 4px; padding: 2px 7px; border-radius: 6px;
+  background: var(--amber-tint); color: var(--amber); font-size: .74rem; font-weight: 600; }
+.drawer-lines .gl-adjust { display: block; margin-top: 6px; }
+.drawer-lines tr.line-sub-adjust td { box-shadow: inset 3px 0 0 var(--pine); background: var(--pine-tint); }
+.gl-adjust-form { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) auto; gap: 10px 12px; align-items: end; padding-top: 4px; }
+.gl-adjust-form label { display: flex; flex-direction: column; gap: 4px; font-size: .74rem; font-weight: 650; color: var(--pine-deep); }
+.drawer-lines .gl-adjust-form input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--surface); font: inherit; font-size: .9rem; color: var(--ink); }
+.drawer-lines .gl-adjust-form .amt-field input { border: 0; border-radius: 0; font-family: var(--mono); }
+.gl-adjust-acts { display: flex; gap: 8px; }
+.gl-adjust-hint { grid-column: 1 / -1; margin: 0; font-size: .76rem; color: var(--ink-soft); }
+.drawer-lines tfoot tr.lr-foot-claimed td { color: var(--muted); }
+@media (max-width: 900px) {
+  .drawer-lines tbody tr.line-sub-adjust { box-shadow: inset 3px 0 0 var(--pine); background: var(--pine-tint); }
+  .gl-adjust-form { grid-template-columns: minmax(0, 1fr); }
+  .gl-adjust-acts { justify-content: flex-end; }
+}
+
+/* Settings → Meal allowance (GPS). */
+.mgs-now.off { background: var(--paper); }
+.mgs-now.off .cw-now-label { color: var(--muted); }
+.mgs-now-txt { margin-top: 4px; font-size: .9rem; line-height: 1.45; color: var(--ink); }
+.mgs-rules { margin: 8px 0 0; padding-left: 18px; font-size: .86rem; line-height: 1.6; color: var(--ink-soft); }
+.mgs-bases { margin: 8px 0 10px; font-size: .86rem; line-height: 1.45; color: var(--ink-soft); }
+.mgs-bases.warn { padding: 9px 12px; border-radius: 10px; color: var(--amber); background: var(--amber-tint); font-weight: 600; }
+/* Account editor: what the pasted base coordinates read as. */
+.base-read a { color: var(--pine-deep); font-weight: 600; }
+.base-read.bad { color: var(--red); }
+.mg-trip .ph-seg button small:empty { display: none; }
+.drawer-lines td.meal-amt .gl-sub { white-space: normal; overflow-wrap: anywhere; }

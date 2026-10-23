@@ -29,6 +29,8 @@ const { claimDateViolation, carriedLineDates } = require('../lib/claim-window');
 const { liveDateChange, dateChangeGranted, consumeDateChange } = require('../lib/date-changes');
 const { approvalLimitError } = require('../lib/money');
 const { logMealHistory } = require('../lib/documents');
+const { deleteReceiptIfUnused } = require('../lib/lines');
+const { submitGpsMeal, resubmitGpsMeal, canAdjustApproved } = require('./meals-gps');
 
 const router = express.Router();
 
@@ -95,6 +97,7 @@ router.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   // The claimant's Approver 1 candidates ride along on the detail read so the
   // drawer can offer a re-pick when a revert sends this back to step 1.
   claim.approver1_choices = await claimantApprover1Choices(row.employee_id);
+  claim.can_adjust_approved = canAdjustApproved(req.user, row);
   res.json({ claim });
 }));
 
@@ -105,17 +108,23 @@ router.delete('/api/meal-claims/:id', requireAuth, requireCap('delete_claims'), 
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
   const claimId = Number(row.id);
+  // GPS lines carry receipts; their rows go with the lines, the blobs after commit.
+  const atts = await q(
+    `SELECT a.blob_url FROM attachments a JOIN meal_claim_lines l ON l.id = a.meal_line_id
+      WHERE l.meal_claim_id = $1`, [claimId]);
   await transaction([
     qq('DELETE FROM meal_claim_lines WHERE meal_claim_id = $1', [claimId]),
     qq('DELETE FROM meal_claim_history WHERE meal_claim_id = $1', [claimId]),
     qq('DELETE FROM meal_claims WHERE id = $1', [claimId]),
     ...releaseCarriedQueries(['meal'], row.claim_no)
   ]);
+  for (const a of atts) await deleteReceiptIfUnused(a.blob_url);
   res.json({ ok: true });
 }));
 
 router.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   const b = req.body || {};
+  if (b.scheme === 'gps') return submitGpsMeal(req, res);
   // A re-claim of rejected lines isn't a new claim (see POST /api/claims).
   const src = await resolveLineSource(req, 'meal', b.source);
   if (src && src.error) return res.status(400).json({ error: src.error });
@@ -147,6 +156,7 @@ router.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   if (row.status !== 'rejected') {
     return res.status(409).json({ error: 'Only rejected meal claims can be edited and resubmitted' });
   }
+  if (row.scheme === 'gps') return resubmitGpsMeal(req, res, row);
   const parsed = normaliseMealLines((req.body || {}).lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   // Same rule as reimbursement claims: judged by the window it was first
@@ -199,6 +209,10 @@ router.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => 
   if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a meal claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
+  // A GPS claim is trimmed per line through its approved amounts instead.
+  if (row.scheme === 'gps' && Array.isArray(req.body && req.body.rejected_lines) && req.body.rejected_lines.length) {
+    return res.status(400).json({ error: 'Lower the line’s approved amount instead of rejecting it' });
+  }
   const plan = await planLineRejections('meal', row, req.body && req.body.rejected_lines);
   if (plan.error) return res.status(400).json({ error: plan.error });
   const le = approvalLimitError(req.user, plan.remainingCents, row.currency);

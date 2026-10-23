@@ -342,6 +342,21 @@ function syncApprover1Options() {
   });
 }
 
+// Coordinates out of pasted text — "lat, lng" or a Google Maps link — mirroring
+// lib/meal-gps.js parseCoords. Returns { lat, lng } or null.
+function parseCoordsText(input) {
+  let s = String(input || '').trim();
+  try { s = decodeURIComponent(s); } catch { /* keep as typed */ }
+  const num = '(-?\\d{1,3}(?:\\.\\d+)?)';
+  for (const re of [new RegExp(`!3d${num}!4d${num}`), new RegExp(`@${num},\\s*${num}`),
+    new RegExp(`[?&](?:q|query|ll|center|destination)=${num},\\s*${num}`), new RegExp(`^${num}\\s*[,;\\s]\\s*${num}$`)]) {
+    const m = s.match(re);
+    if (!m) continue;
+    const lat = Number(m[1]), lng = Number(m[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) return { lat, lng };
+  }
+  return null;
+}
 function renderUserForm(u) {
   const isEdit = !!u;
   const isSuper = state.user.role === 'superadmin';
@@ -419,7 +434,13 @@ function renderUserForm(u) {
             <label>${esc(t('Bank name'))}<input name="bank_name" value="${isEdit ? esc(u.bank_name || '') : ''}" /></label>
             <label>${esc(t('Recipient name'))}<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
             <label>${esc(t('Bank account no.'))}<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
-          </div>`]
+          </div>`],
+    ...(isSuper ? [['base', t('Base location'), t('Where this person’s GPS meal allowance distances are measured from — usually their office or branch.'), `
+          <div class="grid2">
+            <label>${esc(t('Base name'))}<input name="base_name" maxlength="120" value="${isEdit ? esc(u.base_name || '') : ''}" placeholder="${esc(t('e.g. Jakarta office'))}" /></label>
+            <label>${esc(t('Coordinates or Google Maps link'))}<input name="base_coords" autocomplete="off" value="${isEdit && u.base_lat != null ? esc(`${u.base_lat}, ${u.base_lng}`) : ''}" placeholder="-6.2088, 106.8456" /></label>
+          </div>
+          <p class="ue-hint base-read" id="baseRead"></p>`]] : [])
   ];
   openModal2(`
     <div class="modal-head ue-head">
@@ -480,6 +501,23 @@ function renderUserForm(u) {
     firstInvalid = false; setTimeout(() => { firstInvalid = true; });
     const s = e.target.closest('.ue-sec'); if (s) mark(s.dataset.sec);
   }, true);
+  // Base location: say what the pasted text reads as, so a wrong paste shows
+  // before saving (the server reads it the same way).
+  const coords = $('#uForm [name="base_coords"]');
+  if (coords) {
+    const read = () => {
+      const v = coords.value.trim();
+      const ll = parseCoordsText(v);
+      const box = $('#baseRead');
+      box.classList.toggle('bad', !!v && !ll);
+      box.innerHTML = !v ? esc(t('Paste "latitude, longitude" or a Google Maps link from the address bar. Leave both fields blank for no base.'))
+        : ll ? `${esc(t('Reads as {lat}, {lng}', { lat: ll.lat, lng: ll.lng }))} · <a href="https://www.google.com/maps?q=${encodeURIComponent(ll.lat + ',' + ll.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`
+          : esc(/goo\.gl|maps\.app/i.test(v)
+            ? t('Short share links don’t carry coordinates — open the link, then copy the full address-bar link or right-click the spot to copy its coordinates.')
+            : t('Can’t read coordinates from this — use "latitude, longitude", e.g. -6.2088, 106.8456.'));
+    };
+    coords.addEventListener('input', read); read();
+  }
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
   if (state.user.role === 'superadmin') {
@@ -540,6 +578,8 @@ function renderUserForm(u) {
       approver_ids: acctApprovers.filter(Boolean).map(Number)
     };
     if (state.user.role === 'superadmin') {
+      payload.base_name = String(fd.get('base_name') || '').trim();
+      payload.base_coords = String(fd.get('base_coords') || '').trim();
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
       payload.allow_advance = fd.get('allow_advance') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);

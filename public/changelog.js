@@ -28,6 +28,36 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-23.2',
+    date: '2026-10-23',
+    items: [
+      { kind: 'new', audience: ['meal'], text: {
+        en: 'New meal allowance (GPS), for days from 1 November 2026 wherever it is switched on: one card per day, in town or out of town, with your location recorded and measured from your base, and the receipt attached. In town under 30 km can’t be claimed; 30 km or more is up to IDR 35,000 a day; out of town is up to 3 meals and IDR 120,000 a day. Allow location for this site so every day can be recorded.',
+        id: 'Tunjangan makan baru (GPS), untuk hari mulai 1 November 2026 di wilayah yang mengaktifkannya: satu kartu per hari, dalam kota atau luar kota, dengan lokasi Anda direkam dan diukur dari base Anda, serta struk dilampirkan. Dalam kota di bawah 30 km tidak dapat diklaim; 30 km atau lebih maksimal IDR 35.000 per hari; luar kota maksimal 3 kali makan dan IDR 120.000 per hari. Izinkan akses lokasi untuk situs ini agar setiap hari bisa direkam.',
+        th: 'ค่าอาหารแบบใหม่ (GPS) สำหรับวันตั้งแต่ 1 พฤศจิกายน 2026 ในพื้นที่ที่เปิดใช้: หนึ่งการ์ดต่อวัน ในเมืองหรือนอกเมือง บันทึกตำแหน่งของคุณและวัดระยะจากฐาน พร้อมแนบใบเสร็จ ในเมืองที่ต่ำกว่า 30 กม. เบิกไม่ได้ ตั้งแต่ 30 กม. ขึ้นไปเบิกได้สูงสุด IDR 35,000 ต่อวัน นอกเมืองไม่เกิน 3 มื้อและ IDR 120,000 ต่อวัน อนุญาตตำแหน่งสำหรับเว็บไซต์นี้เพื่อให้บันทึกได้ทุกวัน',
+        vi: 'Phụ cấp ăn mới (GPS), cho các ngày từ 1/11/2026 ở nơi được bật: mỗi ngày một thẻ, trong hoặc ngoài thành phố, ghi lại vị trí của bạn và đo khoảng cách từ cơ sở, kèm hóa đơn. Trong thành phố dưới 30 km không được thanh toán; từ 30 km trở lên tối đa IDR 35.000 mỗi ngày; ngoài thành phố tối đa 3 bữa và IDR 120.000 mỗi ngày. Hãy cho phép vị trí cho trang này để ghi lại được mỗi ngày.',
+        km: 'ប្រាក់ឧបត្ថម្ភអាហារថ្មី (GPS) សម្រាប់ថ្ងៃចាប់ពី ១ វិច្ឆិកា ២០២៦ នៅកន្លែងដែលបានបើក៖ មួយកាតក្នុងមួយថ្ងៃ ក្នុងក្រុង ឬក្រៅក្រុង ដោយកត់ត្រាទីតាំងរបស់អ្នក និងវាស់ពីមូលដ្ឋាន ព្រមទាំងភ្ជាប់វិក្កយបត្រ។ ក្នុងក្រុងក្រោម 30 គ.ម មិនអាចទាមទារ; ចាប់ពី 30 គ.ម អតិបរមា IDR 35,000 ក្នុងមួយថ្ងៃ; ក្រៅក្រុងអាហារមិនលើស 3 ពេល និង IDR 120,000 ក្នុងមួយថ្ងៃ។ សូមអនុញ្ញាតទីតាំងសម្រាប់គេហទំព័រនេះ ដើម្បីកត់ត្រាបានរាល់ថ្ងៃ។',
+        fil: 'Bagong meal allowance (GPS), para sa mga araw mula 1 Nobyembre 2026 kung saan ito naka-on: isang card kada araw, sa loob o labas ng bayan, naka-record ang lokasyon mo at sinusukat mula sa base mo, at may kalakip na resibo. Hindi ma-claim ang sa loob ng bayan na wala pang 30 km; 30 km o higit pa ay hanggang IDR 35,000 kada araw; sa labas ng bayan ay hanggang 3 kain at IDR 120,000 kada araw. Payagan ang lokasyon para sa site na ito para ma-record ang bawat araw.'
+      } },
+      { kind: 'new', audience: ['meal', 'pay'], text: {
+        en: 'Approving a GPS meal allowance: the Manager, or Finance AP before paying, can lower a day’s approved amount — say to the IDR 20,000 on the receipt when IDR 35,000 was claimed. The claim then pays the approved amount, and the claimant sees what changed and why.',
+        id: 'Menyetujui tunjangan makan GPS: Manager, atau Finance AP sebelum membayar, dapat menurunkan nominal disetujui per hari — misalnya menjadi IDR 20.000 sesuai struk saat yang diklaim IDR 35.000. Klaim lalu membayar nominal yang disetujui, dan pengklaim melihat apa yang diubah dan alasannya.',
+        th: 'การอนุมัติค่าอาหาร GPS: Manager หรือ Finance AP ก่อนจ่ายเงิน สามารถลดจำนวนเงินที่อนุมัติของแต่ละวันได้ เช่น เป็น IDR 20,000 ตามใบเสร็จเมื่อเบิกมา IDR 35,000 จากนั้นคำขอจะจ่ายตามจำนวนที่อนุมัติ และผู้เบิกจะเห็นว่าเปลี่ยนอะไรและเพราะอะไร',
+        vi: 'Duyệt phụ cấp ăn GPS: Manager, hoặc Finance AP trước khi thanh toán, có thể giảm số tiền được duyệt của một ngày — ví dụ xuống IDR 20.000 theo hóa đơn khi đã yêu cầu IDR 35.000. Yêu cầu sau đó được trả theo số tiền được duyệt, và người yêu cầu thấy điều gì đã thay đổi và lý do.',
+        km: 'ការអនុម័តប្រាក់ឧបត្ថម្ភអាហារ GPS៖ Manager ឬ Finance AP មុនពេលទូទាត់ អាចបន្ថយចំនួនទឹកប្រាក់ដែលបានអនុម័តរបស់ថ្ងៃមួយ — ឧ. មក IDR 20,000 តាមវិក្កយបត្រ ពេលដែលបានទាមទារ IDR 35,000។ បន្ទាប់មកការទាមទារនឹងទូទាត់តាមចំនួនដែលបានអនុម័ត ហើយអ្នកទាមទារឃើញអ្វីដែលបានផ្លាស់ប្តូរ និងមូលហេតុ។',
+        fil: 'Pag-approve ng GPS meal allowance: puwedeng ibaba ng Manager, o ng Finance AP bago magbayad, ang halagang in-approve sa isang araw — hal. sa IDR 20,000 na nasa resibo kapag IDR 35,000 ang na-claim. Ang halagang in-approve na ang babayaran, at makikita ng nag-claim kung ano ang binago at bakit.'
+      } },
+      { kind: 'new', audience: ['settings', 'accounts'], text: {
+        en: 'Settings → Meal allowance (GPS) switches the new form on or off for each region and shows how many accounts still need a base. Every account now has a base location (Accounts → Base location): paste coordinates or a Google Maps link.',
+        id: 'Pengaturan → Tunjangan makan (GPS) mengaktifkan atau menonaktifkan formulir baru per wilayah dan menunjukkan berapa akun yang masih perlu base. Setiap akun kini memiliki lokasi base (Akun → Lokasi base): tempel koordinat atau tautan Google Maps.',
+        th: 'การตั้งค่า → ค่าอาหาร (GPS) เปิดหรือปิดแบบฟอร์มใหม่สำหรับแต่ละพื้นที่ และแสดงจำนวนบัญชีที่ยังต้องตั้งฐาน ทุกบัญชีมีตำแหน่งฐานแล้ว (บัญชี → ตำแหน่งฐาน): วางพิกัดหรือลิงก์ Google Maps',
+        vi: 'Cài đặt → Phụ cấp ăn (GPS) bật hoặc tắt biểu mẫu mới cho từng khu vực và cho biết còn bao nhiêu tài khoản cần cơ sở. Mỗi tài khoản giờ có vị trí cơ sở (Tài khoản → Vị trí cơ sở): dán tọa độ hoặc liên kết Google Maps.',
+        km: 'ការកំណត់ → ប្រាក់ឧបត្ថម្ភអាហារ (GPS) បើក ឬបិទទម្រង់ថ្មីសម្រាប់តំបន់នីមួយៗ ហើយបង្ហាញចំនួនគណនីដែលនៅត្រូវការមូលដ្ឋាន។ គណនីនីមួយៗឥឡូវមានទីតាំងមូលដ្ឋាន (គណនី → ទីតាំងមូលដ្ឋាន)៖ បិទភ្ជាប់កូអរដោនេ ឬតំណ Google Maps។',
+        fil: 'Ina-on o ina-off ng Settings → Meal allowance (GPS) ang bagong form para sa bawat rehiyon at ipinapakita kung ilang account pa ang kailangan ng base. May base location na ang bawat account (Accounts → Base location): mag-paste ng coordinates o Google Maps link.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-18.1',
     date: '2026-10-18',
     items: [

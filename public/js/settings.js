@@ -26,6 +26,8 @@ const SETTINGS_TABS = [
     desc: 'The expense types claimants in {region} choose from on each reimbursement line.' },
   { key: 'meal-rates', label: 'Meal allowance', group: 'Claims', cap: 'manage_settings',
     desc: 'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.' },
+  { key: 'meal-gps', label: 'Meal allowance (GPS)', group: 'Claims', cap: 'manage_settings',
+    desc: 'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.' },
   { key: 'claim-window', label: 'Claim window', group: 'Claims', cap: 'manage_settings',
     desc: 'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.' },
   { key: 'region-prefs', label: 'Currency, time zone & bank', group: 'Region', regionPrefs: true,
@@ -353,6 +355,7 @@ function renderSettingsTab() {
   if (settingsState.tab === 'accounts') return renderAccountsTab();
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
   if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
+  if (settingsState.tab === 'meal-gps') return renderMealGpsTab();
   if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
@@ -622,6 +625,69 @@ async function renderMealRatesTab() {
       toast(removedInUse.length ? t('Saved. Removed amounts stay on claims already filed.') : t('Meal allowance amounts saved'));
       renderMealRatesTab();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; paint(); }
+  });
+}
+
+// --- GPS meal allowance (per-region on/off) -------------------------------------
+// One switch per region, saved via PUT /api/meal-gps-settings (manage_settings).
+// The page also shows the fixed rules and how many of the region's accounts
+// already have a base — an account without one can't submit.
+async function renderMealGpsTab() {
+  const panel = $('#settingsPanel');
+  const region = settingsState.region || '';
+  let data;
+  try { data = await api('/meal-gps-settings' + (region ? `?region=${encodeURIComponent(region)}` : '')); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const r = data.rules || {};
+  const cur = data.currency || regionCurrency();
+  const where = region || t('this region');
+  const missing = Math.max(0, (data.accounts || 0) - (data.with_base || 0));
+  panel.innerHTML = `
+    <div class="settings-controls ws-card cw-card mgs-card">
+      <div class="cw-now mgs-now ${data.enabled ? 'on' : 'off'}">
+        <div class="cw-now-label">${esc(data.enabled ? t('On') : t('Off'))}</div>
+        <div class="mgs-now-txt">${esc(data.enabled
+          ? t('Employees in {region} whose department and job position allow the meal allowance see “New meal allowance (GPS)” in the New menu.', { region: where })
+          : t('Nobody in {region} sees the GPS meal allowance. The standard meal allowance is not affected.', { region: where }))}</div>
+      </div>
+      <div class="cw-rule">
+        <label class="cw-switch"><input type="checkbox" id="mgsOn" ${data.enabled ? 'checked' : ''} />
+          <span><b>${esc(t('Offer the GPS meal allowance in {region}', { region: where }))}</b>
+          <small>${esc(t('Days from {date} can be claimed. Claims already submitted carry on through approval and payment whichever way this is set.', { date: r.effectiveFrom || '2026-11-01' }))}</small></span></label>
+      </div>
+      <div class="cw-rule">
+        <div class="ws-card-label">${esc(t('Rules'))}</div>
+        <ul class="mgs-rules">
+          <li>${esc(t('In town, under {min} km from the base: not claimable', { min: r.minKm }))}</li>
+          <li>${esc(t('In town, {min} km or more: up to {cap} a day', { min: r.minKm, cap: money((r.inTownCapCents || 0) / 100, cur) }))}</li>
+          <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: r.maxMeals, cap: money((r.outOfTownCapCents || 0) / 100, cur) }))}</li>
+          <li>${esc(t('Every day needs the claimant’s location and its receipt'))}</li>
+          <li>${esc(t('The Manager or Finance AP may lower a day’s approved amount, never above what was claimed'))}</li>
+        </ul>
+      </div>
+      <div class="cw-rule">
+        <div class="ws-card-label">${esc(t('Bases'))}</div>
+        <p class="mgs-bases ${missing ? 'warn' : ''}">${esc(missing
+          ? t('{n} of {m} active accounts in {region} have no base location yet — they can’t submit until one is set.', { n: missing, m: data.accounts || 0, region: where })
+          : t('Every active account in {region} has a base location.', { region: where }))}</p>
+        ${state.user.role === 'superadmin' ? `<button type="button" class="btn btn-ghost btn-sm" id="mgsAccounts">${esc(t('Set bases in Accounts'))}</button>` : ''}
+      </div>
+      <p class="form-error" id="mgsErr" hidden></p>
+    </div>`;
+  const acc = $('#mgsAccounts');
+  if (acc) acc.addEventListener('click', () => { const b = $('#settingsTabs [data-tab="accounts"]'); if (b) b.click(); });
+  $('#mgsOn').addEventListener('change', async (e) => {
+    const box = e.target;
+    box.disabled = true;
+    try {
+      await api('/meal-gps-settings', { method: 'PUT', body: JSON.stringify({ enabled: box.checked, ...(region ? { region } : {}) }) });
+      toast(box.checked ? t('GPS meal allowance switched on for {region}', { region: where }) : t('GPS meal allowance switched off for {region}', { region: where }));
+      // The signed-in account's own menu follows a change to its own region.
+      if (!region || region === state.user.region) {
+        try { const me = await api('/me'); state.user = { ...state.user, meal_gps: me.user.meal_gps }; showMealGpsItem(); } catch { /* next sign-in picks it up */ }
+      }
+      renderMealGpsTab();
+    } catch (ex) { box.checked = !box.checked; box.disabled = false; const err = $('#mgsErr'); err.textContent = ex.message; err.hidden = false; }
   });
 }
 

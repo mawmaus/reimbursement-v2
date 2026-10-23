@@ -118,7 +118,7 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
           WHERE l.rejected_at IS NULL
          UNION ALL
          SELECT 'Meal allowance' AS category, m.department, l.line_date AS d,
-                l.amount_cents AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
+                COALESCE(l.approved_cents, l.amount_cents) AS cents, m.status, COALESCE(l.site,'') AS db, 'm' || m.id AS cid,
                 m.approver_ids AS appr, m.region AS region, m.claim_no AS no, m.claimant_name AS claimant
            FROM meal_claim_lines l JOIN meal_claims m ON m.id = l.meal_claim_id
           WHERE l.rejected_at IS NULL
@@ -234,8 +234,9 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   const docCols = (t, lines, fk, dbCol) =>
     `${t}.department, ${t}.region, ${t}.approver_ids AS appr, ${t}.claimant_name AS claimant,
               (SELECT string_agg(COALESCE(l.${dbCol},''), ' ') FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL) AS dbs`;
+  // A GPS meal line pays its approved amount where one was set (only meal lines carry it).
   const liveSum = (t, lines, fk) =>
-    `(SELECT COALESCE(SUM(l.amount_cents),0) FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL)`;
+    `(SELECT COALESCE(SUM(${lines === 'meal_claim_lines' ? 'COALESCE(l.approved_cents, l.amount_cents)' : 'l.amount_cents'}),0) FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL)`;
   // The last time the document entered review: a (re)submission, not one of the
   // intermediate approval steps (those log submitted -> submitted).
   const lastSubmit = (t, hist, fk, to, upToDecision) =>
@@ -466,7 +467,8 @@ router.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (r
       `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
               m.bank_account_no, m.currency, m.status, m.current_step, m.manager_comment, m.decided_at, m.paid_at,
               m.created_at, u.username AS employee_username, fa.first_approved_at,
-              l.line_date, l.site, l.job_category, l.amount_cents, l.description, l.sort_order
+              l.line_date, l.site, l.job_category, COALESCE(l.approved_cents, l.amount_cents) AS amount_cents,
+              l.description, l.sort_order
        FROM meal_claim_lines l
        JOIN meal_claims m ON m.id = l.meal_claim_id
        JOIN users u ON u.id = m.employee_id

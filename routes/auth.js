@@ -17,6 +17,7 @@ const { regionPrefsFor } = require('../lib/settings');
 const { computePurposes, unrealizedAdvanceCount, approver1Choices } = require('../lib/workflow');
 const { loadUser, requireAuth, SET_PASSWORD_SQL, startSession } = require('../lib/auth');
 const { surveyPending } = require('../lib/survey');
+const { mealGpsSession } = require('../lib/meal-gps');
 
 const router = express.Router();
 
@@ -96,7 +97,8 @@ async function sessionExtras(u) {
     surveyPending(u.id), attachCaps(u)
   ]);
   return {
-    language: normLang(u.language), ...prefs, purposes, creatable_positions: creatablePositions(u, pos),
+    language: normLang(u.language), ...prefs, purposes, meal_gps: await mealGpsSession(u, purposes),
+    creatable_positions: creatablePositions(u, pos),
     my_unrealized_advances: unrealized, approver1_choices: approver1,
     can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
     sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey

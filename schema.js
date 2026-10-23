@@ -642,7 +642,38 @@ const SCHEMA = [
     responded_at  TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC)`
+  `CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id, created_at DESC)`,
+  // --- GPS meal allowance (effective 2026-11-01) ---------------------------------
+  // Each account has a base: the place its distance rules are measured from
+  // (lib/meal-gps.js). Set in the account editor; blank until an admin fills it.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS base_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS base_lat  DOUBLE PRECISION`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS base_lng  DOUBLE PRECISION`,
+  // A meal claim is either the original preset-amount form ('standard') or the
+  // GPS form ('gps'), which runs through the same approval chain and payment.
+  `ALTER TABLE meal_claims ADD COLUMN IF NOT EXISTS scheme TEXT NOT NULL DEFAULT 'standard'`,
+  // A GPS line is one day: in town (one meal) or out of town (up to three, kept
+  // in `meals` as a JSON list of cents), where the claimant was (gps_*), the base
+  // it was measured from at the time (base_*, a snapshot) and the distance
+  // between them. approved_cents is the amount the Manager or Finance AP let
+  // through (NULL = the claimed amount); the payable total follows it.
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS trip_type        TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS meals            TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS gps_lat          DOUBLE PRECISION`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS gps_lng          DOUBLE PRECISION`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS gps_accuracy_m   INTEGER`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS gps_at           TIMESTAMPTZ`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS base_name        TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS base_lat         DOUBLE PRECISION`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS base_lng         DOUBLE PRECISION`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS distance_m       INTEGER`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS approved_cents   BIGINT CHECK (approved_cents >= 0)`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS approved_by_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS approved_note    TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS approved_at      TIMESTAMPTZ`,
+  // Meal receipts hang off the meal line (claim_id stays NULL on these rows).
+  `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS meal_line_id INTEGER REFERENCES meal_claim_lines(id) ON DELETE CASCADE`,
+  `CREATE INDEX IF NOT EXISTS idx_attach_meal_line ON attachments(meal_line_id)`
 ];
 
 module.exports = { SCHEMA };

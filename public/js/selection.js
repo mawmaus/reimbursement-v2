@@ -391,7 +391,7 @@ async function buildClaimsPdf(claims) {
 
   const claimHeader = (c) => {
     newPage();
-    const title = c.type === 'meal' ? 'Meal Allowance Claim' : c.type === 'advance' ? 'Cash Advance' : 'Reimbursement Claim';
+    const title = c.type === 'meal' ? (c.scheme === 'gps' ? 'Meal Allowance Claim (GPS)' : 'Meal Allowance Claim') : c.type === 'advance' ? 'Cash Advance' : 'Reimbursement Claim';
     if (logo) { const lw = 104, lh = lw * 213 / 631; page.drawImage(logo, { x: M, y: H - M - lh, width: lw, height: lh }); }
     else page.drawText('Cibes', { x: M, y: H - M - 20, size: 22, font: bold, color: orange });
     const rx = M + 128;
@@ -442,6 +442,26 @@ async function buildClaimsPdf(claims) {
         line(msg, { size: 10 });
         if (c.status === 'settled' && c.settlement_note) line(c.settlement_note, { size: 9, color: muted });
       }
+    } else if (c.type === 'meal' && c.scheme === 'gps') {
+      // GPS meal allowance: each day's trip, distance from base and what it pays.
+      kvRow('Claimant', c.claimant_name, 'Department', c.department);
+      kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);
+      kvRow('Account no.', c.bank_account_no);
+      section('Meal allowance (GPS) - days');
+      const cols = [
+        { title: 'Date', w: 66 }, { title: 'Trip', w: 84 }, { title: 'Distance from base', w: 130 },
+        { title: 'Amount', w: 80, align: 'right' }, { title: 'Details', w: CW - 360 }
+      ];
+      const trip = (l) => l.trip_type === 'out_of_town' ? `Out of town (${l.meals.length} meal${l.meals.length === 1 ? '' : 's'})` : 'In town';
+      const where = (l) => l.distance_km == null ? '' : `${(Math.round(l.distance_km * 10) / 10).toFixed(1)} km from ${pdfSafe((l.base && l.base.name) || 'base')}`
+        + (l.gps ? ` (${l.gps.lat.toFixed(5)}, ${l.gps.lng.toFixed(5)})` : '');
+      const amt = (l) => l.approved_amount != null
+        ? `${money(l.payable_amount, c.currency)} (claimed ${money(l.amount, c.currency)})` : pdfAmt(l, c);
+      const details = (l) => [l.approved_amount != null && l.approved_note ? `Approved by ${l.approved_by}: ${l.approved_note}` : '',
+        dbFmt(l.site), l.job_category, pdfDesc(l)].filter(Boolean).join(' | ');
+      const rows = (c.lines || []).map(l => [l.line_date, trip(l), where(l), amt(l), details(l)]);
+      table(cols, rows.length ? rows : [['', '', 'No lines', '', '']],
+        [{ text: pdfTotal(c, 'TOTAL'), bold: true, span: 3 }, '', '', { text: money(c.total_amount, c.currency), bold: true }, '']);
     } else if (c.type === 'meal') {
       kvRow('Claimant', c.claimant_name, 'Department', c.department);
       kvRow('Recipient', c.recipient_name, 'Bank', c.bank_name);

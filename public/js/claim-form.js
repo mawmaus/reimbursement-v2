@@ -434,7 +434,7 @@ function openCalcModal(rowIndex) {
 // successful submit clears the draft. A reopened form shows a banner with a
 // "Start fresh" option to drop the draft.
 // ---------------------------------------------------------------------------
-const DRAFT_BTN = { claim: '#newClaimBtn', meal: '#newMealBtn', advance: '#newAdvanceBtn' };
+const DRAFT_BTN = { claim: '#newClaimBtn', meal: '#newMealBtn', mealgps: '#newMealGpsBtn', advance: '#newAdvanceBtn' };
 function draftKey(kind) { return `draft:${kind}:${state.user ? state.user.id : 'anon'}`; }
 function loadDraft(kind) {
   try { const raw = localStorage.getItem(draftKey(kind)); return raw ? JSON.parse(raw) : null; }
