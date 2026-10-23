@@ -248,8 +248,8 @@ function gpsLineColumns(c, dash) {
     if (!l.gps) return dash;
     const fixDay = l.gps.at ? new Intl.DateTimeFormat('en-CA', { timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(l.gps.at)) : '';
     const km = l.distance_km == null ? t('Location recorded')
-      : t('{km} km from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') });
-    return `<b>${esc(km)}</b>
+      : t('{km} km {radius} from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') });
+    return `<b>${withRadius(km)}</b>
       <div class="gl-sub"><a href="https://www.google.com/maps?q=${encodeURIComponent(l.gps.lat + ',' + l.gps.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>${l.gps.accuracy_m ? ` · ±${esc(String(l.gps.accuracy_m))}&nbsp;m` : ''}</div>
       ${fixDay && fixDay !== l.line_date ? `<div class="gl-flag">${esc(t('Recorded {when}', { when: fmtDateTime(l.gps.at) }))}</div>` : ''}`;
   };

@@ -449,11 +449,11 @@ async function buildClaimsPdf(claims) {
       kvRow('Account no.', c.bank_account_no);
       section('Meal allowance (GPS) - days');
       const cols = [
-        { title: 'Date', w: 66 }, { title: 'Trip', w: 84 }, { title: 'Distance from base', w: 130 },
+        { title: 'Date', w: 66 }, { title: 'Trip', w: 84 }, { title: 'Radius from base', w: 130 },
         { title: 'Amount', w: 80, align: 'right' }, { title: 'Details', w: CW - 360 }
       ];
       const trip = (l) => l.trip_type === 'out_of_town' ? `Out of town (${l.meals.length} meal${l.meals.length === 1 ? '' : 's'})` : 'In town';
-      const where = (l) => l.distance_km == null ? '' : `${(Math.round(l.distance_km * 10) / 10).toFixed(1)} km from ${pdfSafe((l.base && l.base.name) || 'base')}`
+      const where = (l) => l.distance_km == null ? '' : `${(Math.round(l.distance_km * 10) / 10).toFixed(1)} km RADIUS from ${pdfSafe((l.base && l.base.name) || 'base')}`
         + (l.gps ? ` (${l.gps.lat.toFixed(5)}, ${l.gps.lng.toFixed(5)})` : '');
       const amt = (l) => l.approved_amount != null
         ? `${money(l.payable_amount, c.currency)} (claimed ${money(l.amount, c.currency)})` : pdfAmt(l, c);

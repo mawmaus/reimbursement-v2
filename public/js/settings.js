@@ -660,9 +660,10 @@ async function renderMealGpsTab() {
       </div>
       <div class="cw-rule">
         <div class="ws-card-label">${esc(t('Rules'))}</div>
+        ${radiusNoteHtml(r.minKm)}
         <ul class="mgs-rules">
-          <li>${esc(t('In town, under {min} km from the base: not claimable', { min: r.minKm }))}</li>
-          <li>${esc(t('In town, {min} km or more: up to {cap} a day', { min: r.minKm, cap: money((r.inTownCapCents || 0) / 100, cur) }))}</li>
+          <li>${withRadius(t('In town, within {min} km {radius}: not claimable', { min: r.minKm }))}</li>
+          <li>${withRadius(t('In town, {min} km {radius} or more: up to {cap} a day', { min: r.minKm, cap: money((r.inTownCapCents || 0) / 100, cur) }))}</li>
           <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: r.maxMeals, cap: money((r.outOfTownCapCents || 0) / 100, cur) }))}</li>
           <li>${esc(t('Every day needs the claimant’s location and its receipt'))}</li>
           <li>${esc(t('The Manager or Finance AP may lower a day’s approved amount, never above what was claimed'))}</li>

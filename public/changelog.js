@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-23.5',
+    date: '2026-10-23',
+    items: [
+      { kind: 'improved', audience: ['meal', 'pay', 'settings'], text: {
+        en: 'GPS meal allowance: every distance now says RADIUS in bold red. The 30 km is a straight line from your base to where you are — not the distance you travel by road.',
+        id: 'Tunjangan makan GPS: setiap jarak kini bertuliskan RADIUS tebal berwarna merah. 30 km adalah garis lurus dari base ke lokasi Anda — bukan jarak tempuh di jalan.',
+        th: 'ค่าอาหาร GPS: ทุกระยะทางมีคำว่า รัศมี ตัวหนาสีแดง 30 กม. คือเส้นตรงจากฐานถึงตำแหน่งของคุณ — ไม่ใช่ระยะทางที่เดินทางบนถนน',
+        vi: 'Phụ cấp ăn GPS: mọi khoảng cách giờ ghi BÁN KÍNH bằng chữ đậm màu đỏ. 30 km là đường thẳng từ cơ sở đến nơi bạn đang ở — không phải quãng đường bạn đi trên đường bộ.',
+        km: 'ប្រាក់ឧបត្ថម្ភអាហារ GPS៖ រាល់ចម្ងាយឥឡូវបង្ហាញពាក្យ កាំ ជាអក្សរដិតពណ៌ក្រហម។ 30 គ.ម គឺជាបន្ទាត់ត្រង់ពីមូលដ្ឋានទៅកន្លែងដែលអ្នកនៅ — មិនមែនចម្ងាយដែលអ្នកធ្វើដំណើរតាមផ្លូវទេ។',
+        fil: 'GPS meal allowance: nakasulat na ang RADIUS na makapal at pula sa bawat layo. Ang 30 km ay tuwid na linya mula sa base mo hanggang sa kinaroroonan mo — hindi ang layo ng biyahe sa kalsada.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-23.4',
     date: '2026-10-23',
     items: [

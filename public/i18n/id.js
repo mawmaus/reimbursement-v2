@@ -1193,5 +1193,14 @@ I18N.addDict('id', {
   'Without a base this person can’t claim the GPS meal allowance.': 'Tanpa base, orang ini tidak dapat mengklaim tunjangan makan GPS.',
   '— No base —': '— Tanpa base —',
   'Another location (type it in)…': 'Lokasi lain (ketik sendiri)…',
-  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'Tempat kerja akun-akun di {region}. Tunjangan makan GPS mengukur jarak setiap hari dari base akun. Pilih akun mana yang termasuk di setiap base di sini.'
+  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'Tempat kerja akun-akun di {region}. Tunjangan makan GPS mengukur jarak setiap hari dari base akun. Pilih akun mana yang termasuk di setiap base di sini.',
+  // RADIUS wording (2026-10-23)
+  'RADIUS': 'RADIUS',
+  '{radius} — not travel distance. The {min} km is a straight line from the base to where you are, not the road.': '{radius} — bukan jarak tempuh. {min} km diukur dalam garis lurus dari base ke lokasi Anda, bukan mengikuti jalan.',
+  'You were {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.': 'Anda berada {km} {radius} dari {base} — makan dalam kota dalam {min} km tidak dapat diklaim.',
+  '{km} {radius} from {base}': '{km} {radius} dari {base}',
+  'In town, within {min} km {radius}: not claimable': 'Dalam kota, dalam {min} km {radius}: tidak dapat diklaim',
+  'In town, {min} km {radius} or more: up to {cap} a day': 'Dalam kota, {min} km {radius} atau lebih: maksimal {cap} per hari',
+  '{km} km {radius} from {base}': '{km} km {radius} dari {base}',
+  '{min} km {radius} or more from your base: up to {cap} a day.': '{min} km {radius} atau lebih dari base Anda: maksimal {cap} per hari.'
 });

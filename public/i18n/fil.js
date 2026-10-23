@@ -1170,5 +1170,14 @@ I18N.addDict('fil', {
   'Without a base this person can’t claim the GPS meal allowance.': 'Kung walang base, hindi makakapag-claim ng GPS meal allowance ang taong ito.',
   '— No base —': '— Walang base —',
   'Another location (type it in)…': 'Ibang lokasyon (itipa ito)…',
-  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'Ang mga lugar na pinagtatrabahuhan ng mga account sa {region}. Sinusukat ng GPS meal allowance ang layo bawat araw mula sa base ng account. Piliin dito kung aling mga account ang kabilang sa bawat base.'
+  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'Ang mga lugar na pinagtatrabahuhan ng mga account sa {region}. Sinusukat ng GPS meal allowance ang layo bawat araw mula sa base ng account. Piliin dito kung aling mga account ang kabilang sa bawat base.',
+  // RADIUS wording (2026-10-23)
+  'RADIUS': 'RADIUS',
+  '{radius} — not travel distance. The {min} km is a straight line from the base to where you are, not the road.': '{radius} — hindi layo ng biyahe. Ang {min} km ay tuwid na linya mula sa base hanggang sa kinaroroonan mo, hindi ayon sa kalsada.',
+  'You were {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.': '{km} {radius} ka mula sa {base} — hindi ma-claim ang pagkain sa loob ng bayan na nasa loob ng {min} km.',
+  '{km} {radius} from {base}': '{km} {radius} mula sa {base}',
+  'In town, within {min} km {radius}: not claimable': 'Sa loob ng bayan, sa loob ng {min} km {radius}: hindi ma-claim',
+  'In town, {min} km {radius} or more: up to {cap} a day': 'Sa loob ng bayan, {min} km {radius} o higit pa: hanggang {cap} kada araw',
+  '{km} km {radius} from {base}': '{km} km {radius} mula sa {base}',
+  '{min} km {radius} or more from your base: up to {cap} a day.': '{min} km {radius} o higit pa mula sa base mo: hanggang {cap} kada araw.'
 });

@@ -1170,5 +1170,14 @@ I18N.addDict('vi', {
   'Without a base this person can’t claim the GPS meal allowance.': 'Không có cơ sở thì người này không thể yêu cầu phụ cấp ăn GPS.',
   '— No base —': '— Không có cơ sở —',
   'Another location (type it in)…': 'Vị trí khác (tự nhập)…',
-  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'Nơi làm việc của các tài khoản ở {region}. Phụ cấp ăn GPS đo khoảng cách mỗi ngày từ cơ sở của tài khoản. Chọn tài khoản thuộc mỗi cơ sở tại đây.'
+  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'Nơi làm việc của các tài khoản ở {region}. Phụ cấp ăn GPS đo khoảng cách mỗi ngày từ cơ sở của tài khoản. Chọn tài khoản thuộc mỗi cơ sở tại đây.',
+  // RADIUS wording (2026-10-23)
+  'RADIUS': 'BÁN KÍNH',
+  '{radius} — not travel distance. The {min} km is a straight line from the base to where you are, not the road.': '{radius} — không phải quãng đường đi. {min} km được đo theo đường thẳng từ cơ sở đến nơi bạn đang ở, không theo đường bộ.',
+  'You were {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.': 'Bạn cách {base} {km} ({radius}) — bữa ăn trong thành phố trong vòng {min} km không được thanh toán.',
+  '{km} {radius} from {base}': 'cách {base} {km} ({radius})',
+  'In town, within {min} km {radius}: not claimable': 'Trong thành phố, trong vòng {min} km ({radius}): không được thanh toán',
+  'In town, {min} km {radius} or more: up to {cap} a day': 'Trong thành phố, từ {min} km ({radius}): tối đa {cap} mỗi ngày',
+  '{km} km {radius} from {base}': 'cách {base} {km} km ({radius})',
+  '{min} km {radius} or more from your base: up to {cap} a day.': 'Cách cơ sở từ {min} km ({radius}) trở lên: tối đa {cap} mỗi ngày.'
 });

@@ -37,6 +37,14 @@ const mgKm = (km) => t('{km} km', { km: (Math.round(km * 10) / 10).toLocaleStrin
 // The date a GPS fix was taken, in the region's time zone.
 const mgFixDate = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 
+// The word RADIUS — bold and red — wherever a distance from the base shows: the
+// limit is a straight-line radius around the base, not the road distance, and
+// people kept reading it as the trip length. A translated string carries a
+// {radius} slot that t() leaves alone; withRadius escapes it, then fills it.
+const radiusTag = () => `<strong class="radius-tag">${esc(t('RADIUS'))}</strong>`;
+const withRadius = (s) => esc(s).replace('{radius}', radiusTag());
+const radiusNoteHtml = (min) => `<p class="radius-note">${withRadius(t('{radius} — not travel distance. The {min} km is a straight line from the base to where you are, not the road.', { min }))}</p>`;
+
 // What one day amounts to and what is wrong with it, for the card and the total.
 function mgCheck(r) {
   const R = mgRules();
@@ -50,7 +58,7 @@ function mgCheck(r) {
   if (!r.gps) errs.push(t('Record your location for this day.'));
   else if (r.gps.accuracy > R.maxAcc) errs.push(t('Your location is only accurate to {km} — turn on precise location / GPS and record it again.', { km: mgKm(r.gps.accuracy / 1000) }));
   const tooClose = r.trip === 'in_town' && km != null && km < R.minKm;
-  if (tooClose) errs.push(t('You were {km} from {base} — in-town meals under {min} km can’t be claimed.', { km: mgKm(km), base: base.name || t('your base'), min: R.minKm }));
+  if (tooClose) errs.push(t('You were {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.', { km: mgKm(km), base: base.name || t('your base'), min: R.minKm }));
   if (r.trip === 'in_town' && !tooClose && sum > R.inCap) errs.push(t('In town is capped at {cap} a day.', { cap: money(R.inCap, regionCurrency()) }));
   if (r.trip === 'out_of_town' && sum > R.outCap) errs.push(t('Out of town is capped at {cap} a day for up to {n} meals.', { cap: money(R.outCap, regionCurrency()), n: R.maxMeals }));
   if (r.trip && !tooClose && !sum) errs.push(r.trip === 'out_of_town' ? t('Enter at least one meal amount.') : t('Enter the meal amount.'));
@@ -123,7 +131,7 @@ function mgLocationHtml(r, i, chk) {
     </div>`;
   }
   const cls = chk.tooClose ? 'mg-loc-bad' : 'mg-loc-ok';
-  const dist = chk.km == null ? '' : `<span class="mg-dist">${esc(t('{km} from {base}', { km: mgKm(chk.km), base: (base && base.name) || t('base') }))}</span>`;
+  const dist = chk.km == null ? '' : `<span class="mg-dist">${withRadius(t('{km} {radius} from {base}', { km: mgKm(chk.km), base: (base && base.name) || t('base') }))}</span>`;
   return `<div class="mg-loc ${cls}">
     <span class="mg-loc-ic" aria-hidden="true">📍</span>
     <div class="mg-loc-txt">
@@ -149,7 +157,7 @@ function mgDayHtml(r, i) {
        <p class="mg-cap">${esc(t('Up to {n} meals, {cap} a day in total.', { n: R.maxMeals, cap: money(R.outCap, regionCurrency()) }))}</p>`
     : r.trip === 'in_town'
       ? `<div class="mg-meals mg-meals-one">${mgAmountField('amount', r.amount, t('Meal amount'), i)}</div>
-         <p class="mg-cap">${esc(t('{min} km or more from your base: up to {cap} a day.', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</p>`
+         <p class="mg-cap">${withRadius(t('{min} km {radius} or more from your base: up to {cap} a day.', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</p>`
       : '';
   return `<article class="mg-day${chk.errs.length && mgTouched(r) ? ' has-err' : ''}" data-i="${i}">
     <header class="mg-day-head">
@@ -194,7 +202,7 @@ function mgDateInput(r) {
 // Problems show once the claimant has put something in a day, so a fresh card isn't red.
 function mgMsgsHtml(r, chk) {
   const errs = mgTouched(r) ? chk.errs : [];
-  return errs.map(m => `<p class="mg-msg mg-msg-err">${esc(m)}</p>`).join('')
+  return errs.map(m => `<p class="mg-msg mg-msg-err">${withRadius(m)}</p>`).join('')
     + chk.warns.map(m => `<p class="mg-msg mg-msg-warn">${esc(m)}</p>`).join('');
 }
 // Copy the typed fields back into mgRows (gps / files / kept live only there).
@@ -269,9 +277,10 @@ function mgBaseHtml() {
     <span class="mg-base-ic" aria-hidden="true">🏢</span>
     <div><div class="mg-base-l">${esc(t('Your base'))}</div>
       <div class="mg-base-n">${esc(base.name || t('Base'))} · <a href="${esc(mgMapUrl(base))}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></div></div>
+    ${radiusNoteHtml(R.minKm)}
     <ul class="mg-rules">
-      <li>${esc(t('In town, under {min} km: not claimable', { min: R.minKm }))}</li>
-      <li>${esc(t('In town, {min} km or more: up to {cap} a day', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</li>
+      <li>${withRadius(t('In town, within {min} km {radius}: not claimable', { min: R.minKm }))}</li>
+      <li>${withRadius(t('In town, {min} km {radius} or more: up to {cap} a day', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</li>
       <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: R.maxMeals, cap: money(R.outCap, regionCurrency()) }))}</li>
       <li>${esc(t('Every day needs your location and its receipt'))}</li>
     </ul>

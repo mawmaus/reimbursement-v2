@@ -1170,5 +1170,14 @@ I18N.addDict('th', {
   'Without a base this person can’t claim the GPS meal allowance.': 'หากไม่มีฐาน บุคคลนี้จะเบิกค่าอาหาร GPS ไม่ได้',
   '— No base —': '— ไม่มีฐาน —',
   'Another location (type it in)…': 'ตำแหน่งอื่น (พิมพ์เอง)…',
-  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'สถานที่ทำงานของบัญชีใน {region} ค่าอาหาร GPS วัดระยะทางของแต่ละวันจากฐานของบัญชี เลือกบัญชีที่อยู่ในแต่ละฐานได้ที่นี่'
+  'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.': 'สถานที่ทำงานของบัญชีใน {region} ค่าอาหาร GPS วัดระยะทางของแต่ละวันจากฐานของบัญชี เลือกบัญชีที่อยู่ในแต่ละฐานได้ที่นี่',
+  // RADIUS wording (2026-10-23)
+  'RADIUS': 'รัศมี',
+  '{radius} — not travel distance. The {min} km is a straight line from the base to where you are, not the road.': '{radius} — ไม่ใช่ระยะทางเดินทาง {min} กม. วัดเป็นเส้นตรงจากฐานถึงตำแหน่งของคุณ ไม่ใช่ตามถนน',
+  'You were {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.': 'คุณอยู่ห่างจาก {base} {km} ({radius}) — ค่าอาหารในเมืองภายใน {min} กม. เบิกไม่ได้',
+  '{km} {radius} from {base}': 'ห่างจาก {base} {km} ({radius})',
+  'In town, within {min} km {radius}: not claimable': 'ในเมือง ภายใน {min} กม. ({radius}): เบิกไม่ได้',
+  'In town, {min} km {radius} or more: up to {cap} a day': 'ในเมือง {min} กม. ({radius}) ขึ้นไป: สูงสุด {cap} ต่อวัน',
+  '{km} km {radius} from {base}': 'ห่างจาก {base} {km} กม. ({radius})',
+  '{min} km {radius} or more from your base: up to {cap} a day.': 'ห่างจากฐาน {min} กม. ({radius}) ขึ้นไป: สูงสุด {cap} ต่อวัน'
 });

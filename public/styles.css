@@ -3535,3 +3535,11 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .ba-foot { flex: none; margin-top: 0; }
 .ba-count { margin-right: auto; font-size: .84rem; font-weight: 600; color: var(--ink-soft); }
 @media (max-width: 560px) { .ba-row { grid-template-columns: auto minmax(0, 1fr); } .ba-tag { grid-column: 2; justify-self: start; } }
+
+/* The word RADIUS beside every distance from the base (meal-gps.js withRadius):
+   the 30 km limit is a straight-line radius, not road distance. */
+.radius-tag { color: var(--red); font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.radius-note { grid-column: 1 / -1; margin: 10px 0 0; padding: 9px 12px; border: 1.5px solid var(--red); border-radius: 10px;
+  background: var(--red-tint); color: var(--ink); font-size: .86rem; font-weight: 600; line-height: 1.45; }
+.radius-note .radius-tag { font-size: 1.02rem; }
+.mgs-rules + .radius-note, .cw-rule .radius-note { margin: 8px 0 4px; }

@@ -25,7 +25,7 @@ test('distance is the straight line from the base', () => {
 });
 
 test('in town under 30 km is refused; 30 km or more is capped at 35,000 a day', () => {
-  assert.match(run([line({ gps: gpsAt(KEMANG) })]).error, /under 30 km can't be claimed/);
+  assert.match(run([line({ gps: gpsAt(KEMANG) })]).error, /RADIUS \(straight line, not road distance\).*within 30 km can't be claimed/);
   const ok = run([line({ amount: 35000 })]);
   assert.equal(ok.error, undefined);
   assert.equal(ok.totalCents, 3500000);
