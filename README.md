@@ -31,7 +31,6 @@ Every claim keeps a full history/audit trail.
 |------------------------|--------------------------------------------------------|
 | `DATABASE_URL`         | Neon Postgres connection string (set by the Neon integration) |
 | `PRIVATE_READ_WRITE_TOKEN` | Token of the **private** receipt Blob store (connected with the `PRIVATE` prefix) |
-| `BLOB_READ_WRITE_TOKEN`| Old public Blob store — read/delete only, until every receipt is migrated |
 | `SESSION_SECRET`       | Long random string used to sign the login cookie       |
 | `SEED_ADMIN_PASSWORD`  | First admin password, used only by the one-time DB setup |
 
@@ -97,7 +96,7 @@ and create your members in **Users**.
 ```bash
 npm install
 # pull the env vars Vercel set (Neon URL + Blob token), or set them yourself:
-#   export DATABASE_URL=... BLOB_READ_WRITE_TOKEN=... SESSION_SECRET=dev
+#   export DATABASE_URL=... PRIVATE_READ_WRITE_TOKEN=... SESSION_SECRET=dev
 npm start          # http://localhost:3000
 ```
 

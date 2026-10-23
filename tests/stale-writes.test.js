@@ -10,7 +10,8 @@ const http = require('node:http');
 const express = require('express');
 const { state, account, doc, serve, call } = require('./_app');
 const { likeContains } = require('../lib/util');
-const { sendReceipt } = require('../lib/blob');
+const blob = require('../lib/blob');
+const { sendReceipt } = blob;
 
 const CLAIMANT = 10, APPROVER1 = 21, APPROVER2 = 22, PAYER = 40, ROOT = 1;
 for (const u of [
@@ -157,7 +158,7 @@ test('search text matches % and _ literally', () => {
 });
 
 test('a receipt download streams and keeps its real file name', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => new Response('receipt-bytes', { headers: { 'content-length': '13' } }));
+  t.mock.method(blob, 'openReceipt', async () => ({ body: new Response('receipt-bytes').body, length: '13' }));
   const app = express();
   app.get('/r', (req, res, next) => sendReceipt(res, { blob_url: 'https://x', mime_type: 'application/pdf', original_name: "Kwitansi Maret (Ø's).pdf" }).catch(next));
   const s = http.createServer(app).listen(0, '127.0.0.1');
