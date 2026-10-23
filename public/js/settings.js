@@ -28,6 +28,8 @@ const SETTINGS_TABS = [
     desc: 'Set the preset amounts the Meal Allowance form offers in its Amount dropdown.' },
   { key: 'meal-gps', label: 'Meal allowance (GPS)', group: 'Claims', cap: 'manage_settings',
     desc: 'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.' },
+  { key: 'bases', label: 'Bases', group: 'Claims', cap: 'manage_settings',
+    desc: 'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.' },
   { key: 'claim-window', label: 'Claim window', group: 'Claims', cap: 'manage_settings',
     desc: 'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.' },
   { key: 'region-prefs', label: 'Currency, time zone & bank', group: 'Region', regionPrefs: true,
@@ -356,6 +358,7 @@ function renderSettingsTab() {
   if (settingsState.tab === 'claim-window') return renderClaimWindowTab();
   if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
   if (settingsState.tab === 'meal-gps') return renderMealGpsTab();
+  if (settingsState.tab === 'bases') return renderBasesTab();
   if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
@@ -670,12 +673,12 @@ async function renderMealGpsTab() {
         <p class="mgs-bases ${missing ? 'warn' : ''}">${esc(missing
           ? t('{n} of {m} active accounts in {region} have no base location yet — they can’t submit until one is set.', { n: missing, m: data.accounts || 0, region: where })
           : t('Every active account in {region} has a base location.', { region: where }))}</p>
-        ${state.user.role === 'superadmin' ? `<button type="button" class="btn btn-ghost btn-sm" id="mgsAccounts">${esc(t('Set bases in Accounts'))}</button>` : ''}
+        <button type="button" class="btn btn-ghost btn-sm" id="mgsAccounts">${esc(t('Manage bases'))}</button>
       </div>
       <p class="form-error" id="mgsErr" hidden></p>
     </div>`;
   const acc = $('#mgsAccounts');
-  if (acc) acc.addEventListener('click', () => { const b = $('#settingsTabs [data-tab="accounts"]'); if (b) b.click(); });
+  if (acc) acc.addEventListener('click', () => { const b = $('#settingsTabs [data-tab="bases"]'); if (b) b.click(); });
   $('#mgsOn').addEventListener('change', async (e) => {
     const box = e.target;
     box.disabled = true;
@@ -689,6 +692,160 @@ async function renderMealGpsTab() {
       renderMealGpsTab();
     } catch (ex) { box.checked = !box.checked; box.disabled = false; const err = $('#mgsErr'); err.textContent = ex.message; err.hidden = false; }
   });
+}
+
+// --- Bases (per region) -----------------------------------------------------------
+// The places the region's accounts work from. Each row can be renamed / moved
+// (accounts on it follow), deleted once empty, and given its accounts through a
+// checklist, so a base is set for many people at once instead of one account
+// editor at a time.
+const coordsReadHtml = (v) => {
+  const s = String(v || '').trim();
+  const ll = parseCoordsText(s);
+  if (!s) return esc(t('Paste "latitude, longitude" or a Google Maps link from the address bar.'));
+  if (ll) return `${esc(t('Reads as {lat}, {lng}', { lat: ll.lat, lng: ll.lng }))} · <a href="https://www.google.com/maps?q=${encodeURIComponent(ll.lat + ',' + ll.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`;
+  return esc(/goo\.gl|maps\.app/i.test(s)
+    ? t('Short share links don’t carry coordinates — open the link, then copy the full address-bar link or right-click the spot to copy its coordinates.')
+    : t('Can’t read coordinates from this — use "latitude, longitude", e.g. -6.2088, 106.8456.'));
+};
+// A name + coordinates pair with its live "reads as" line; `id` prefixes the fields.
+const baseFieldsHtml = (id, name, coords) => `
+  <label class="bs-field">${esc(t('Base name'))}<input class="input" id="${id}Name" maxlength="120" value="${esc(name)}" placeholder="${esc(t('e.g. Jakarta office'))}" /></label>
+  <label class="bs-field">${esc(t('Coordinates or Google Maps link'))}<input class="input" id="${id}Coords" autocomplete="off" value="${esc(coords)}" placeholder="-6.2088, 106.8456" /></label>
+  <p class="bs-read" id="${id}Read">${coordsReadHtml(coords)}</p>`;
+function wireCoordsRead(id) {
+  const inp = $(`#${id}Coords`), out = $(`#${id}Read`);
+  const paint = () => { out.innerHTML = coordsReadHtml(inp.value); out.classList.toggle('bad', !!inp.value.trim() && !parseCoordsText(inp.value)); };
+  inp.addEventListener('input', paint); paint();
+}
+
+async function renderBasesTab(editingId = null) {
+  const panel = $('#settingsPanel');
+  const region = settingsState.region || '';
+  let data;
+  try { data = await api('/bases?manage=1' + (region ? `&region=${encodeURIComponent(region)}` : '')); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const where = region || t('this region');
+  const accounts = data.accounts || [];
+  const without = accounts.filter(a => a.base_id == null && a.custom_base == null).length;
+  const custom = accounts.filter(a => a.custom_base != null).length;
+  const bases = data.bases || [];
+  const row = (b) => b.id === editingId ? `
+      <div class="bs-row bs-editing" data-id="${b.id}">
+        <div class="bs-edit">${baseFieldsHtml('bsEdit', b.name, `${b.lat}, ${b.lng}`)}</div>
+        <div class="bs-acts">
+          <button type="button" class="btn btn-ghost btn-sm" data-cancel>${esc(t('Cancel'))}</button>
+          <button type="button" class="btn btn-primary btn-sm" data-save="${b.id}">${esc(t('Save'))}</button>
+        </div>
+        ${b.members ? `<p class="bs-note">${esc(t('The {n} account(s) on this base move with it.', { n: b.members }))}</p>` : ''}
+      </div>` : `
+      <div class="bs-row" data-id="${b.id}">
+        <span class="bs-ic" aria-hidden="true">🏢</span>
+        <div class="bs-main"><b>${esc(b.name)}</b>
+          <span>${esc(`${b.lat}, ${b.lng}`)} · <a href="https://www.google.com/maps?q=${encodeURIComponent(b.lat + ',' + b.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
+        <button type="button" class="bs-count" data-members="${b.id}">${esc(b.members === 1 ? t('1 account') : t('{n} accounts', { n: b.members }))}</button>
+        <div class="bs-acts">
+          <button type="button" class="btn btn-brand-soft btn-sm" data-members="${b.id}">${esc(t('Choose accounts'))}</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit="${b.id}">${esc(t('Edit'))}</button>
+          <button type="button" class="x-btn" data-del="${b.id}" aria-label="${esc(t('Delete'))}" title="${esc(t('Delete'))}">×</button>
+        </div>
+      </div>`;
+  panel.innerHTML = `
+    <div class="settings-controls ws-card bs-card">
+      <p class="bs-summary ${without ? 'warn' : ''}">${esc(without
+        ? t('{n} of {m} active accounts in {region} have no base yet.', { n: without, m: accounts.length, region: where })
+        : t('Every active account in {region} has a base.', { region: where }))}${custom ? ' ' + esc(t('{n} account(s) use a location typed into the account instead of a base from this list.', { n: custom })) : ''}</p>
+      <div class="bs-list">${bases.length ? bases.map(row).join('') : `<p class="bs-empty">${esc(t('No bases in {region} yet — add the first one below.', { region: where }))}</p>`}</div>
+      <div class="ws-card-label ws-card-split">${esc(t('Add a base'))}</div>
+      <div class="bs-add">${baseFieldsHtml('bsNew', '', '')}
+        <button type="button" class="btn btn-primary btn-sm" id="bsAdd">${esc(t('Add base'))}</button></div>
+      <p class="form-error" id="bsErr" hidden></p>
+    </div>`;
+  const fail = (ex) => { const e = $('#bsErr'); e.textContent = ex.message; e.hidden = false; };
+  wireCoordsRead('bsNew');
+  if (editingId != null && $('#bsEditCoords')) { wireCoordsRead('bsEdit'); $('#bsEditName').focus(); }
+  $('#bsAdd').addEventListener('click', async () => {
+    try {
+      await api('/bases', { method: 'POST', body: JSON.stringify({ name: $('#bsNewName').value, coords: $('#bsNewCoords').value, ...(region ? { region } : {}) }) });
+      toast(t('Base added')); renderBasesTab();
+    } catch (ex) { fail(ex); }
+  });
+  panel.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => renderBasesTab(Number(b.dataset.edit))));
+  panel.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => renderBasesTab()));
+  panel.querySelectorAll('[data-save]').forEach(b => b.addEventListener('click', async () => {
+    try {
+      await api('/bases/' + b.dataset.save, { method: 'PUT', body: JSON.stringify({ name: $('#bsEditName').value, coords: $('#bsEditCoords').value }) });
+      toast(t('Base saved')); renderBasesTab();
+    } catch (ex) { fail(ex); }
+  }));
+  panel.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+    const base = bases.find(x => x.id === Number(b.dataset.del));
+    if (!confirm(t('Delete {name}?', { name: base.name }))) return;
+    try { await api('/bases/' + base.id, { method: 'DELETE' }); toast(t('Base deleted')); renderBasesTab(); }
+    catch (ex) { fail(ex); }
+  }));
+  panel.querySelectorAll('[data-members]').forEach(b => b.addEventListener('click', () =>
+    openBaseAccountsModal(bases.find(x => x.id === Number(b.dataset.members)), bases, accounts)));
+}
+
+// The checklist of the region's active accounts for one base. Ticked = on this
+// base; ticking someone on another base moves them here when saved.
+function openBaseAccountsModal(base, bases, accounts) {
+  const names = new Map(bases.map(b => [b.id, b.name]));
+  const picked = new Set(accounts.filter(a => a.base_id === base.id).map(a => a.id));
+  let filter = 'all';
+  const where = (a) => a.base_id === base.id ? '' : a.base_id != null ? t('On {base}', { base: names.get(a.base_id) || t('another base') })
+    : a.custom_base != null ? t('Typed location: {name}', { name: a.custom_base || '—' }) : t('No base');
+  openModal2(`
+    <div class="modal-head"><div><h2>${esc(t('Accounts on {base}', { base: base.name }))}</h2>
+      <div class="lf-sub"><span>${esc(base.region)}</span></div></div>
+      <button type="button" class="x-btn" id="baClose">×</button></div>
+    <div class="modal-body ba-body">
+      <div class="ba-tools">
+        <input class="input" id="baSearch" type="search" placeholder="${esc(t('Search name, department or position…'))}" />
+        <div class="ws-chips ba-chips">
+          <button type="button" class="ws-chip on" data-f="all">${esc(t('All'))}</button>
+          <button type="button" class="ws-chip" data-f="none">${esc(t('No base'))}</button>
+          <button type="button" class="ws-chip" data-f="here">${esc(t('On this base'))}</button>
+        </div>
+      </div>
+      <div class="ba-list" id="baList"></div>
+      <div class="modal-actions ba-foot">
+        <span class="ba-count" id="baCount"></span>
+        <button type="button" class="btn btn-ghost" id="baCancel">${esc(t('Cancel'))}</button>
+        <button type="button" class="btn btn-primary" id="baSave">${esc(t('Save'))}</button>
+      </div>
+    </div>`);
+  $('#modal2').classList.add('modal-wide', 'modal-flex');
+  const paint = () => {
+    const qy = $('#baSearch').value.trim().toLowerCase();
+    const shown = accounts.filter(a => (filter === 'all' || (filter === 'here' ? picked.has(a.id) : a.base_id == null && a.custom_base == null))
+      && (!qy || `${a.name} ${a.department} ${a.position}`.toLowerCase().includes(qy)));
+    $('#baList').innerHTML = shown.length ? shown.map(a => `
+      <label class="ba-row"><input type="checkbox" data-u="${a.id}" ${picked.has(a.id) ? 'checked' : ''} />
+        <span class="ba-who"><b>${esc(a.name)}</b><small>${esc([a.department, a.position].filter(Boolean).join(' · '))}</small></span>
+        <span class="ba-tag ${a.base_id == null && a.custom_base == null ? 'none' : ''}">${esc(picked.has(a.id) && a.base_id !== base.id ? t('Moves here') : where(a))}</span>
+      </label>`).join('') : `<p class="bs-empty">${esc(t('No accounts match.'))}</p>`;
+    $('#baCount').textContent = picked.size === 1 ? t('1 account on this base') : t('{n} accounts on this base', { n: picked.size });
+    $$('#baList [data-u]').forEach(cb => cb.addEventListener('change', () => {
+      const id = Number(cb.dataset.u); if (cb.checked) picked.add(id); else picked.delete(id); paint();
+    }));
+  };
+  $('#baSearch').addEventListener('input', paint);
+  $$('#modal2 .ba-chips [data-f]').forEach(b => b.addEventListener('click', () => {
+    filter = b.dataset.f; $$('#modal2 .ba-chips [data-f]').forEach(x => x.classList.toggle('on', x === b)); paint();
+  }));
+  $('#baClose').addEventListener('click', closeModal2);
+  $('#baCancel').addEventListener('click', closeModal2);
+  $('#baSave').addEventListener('click', async () => {
+    const btn = $('#baSave'); btn.disabled = true;
+    try {
+      await api(`/bases/${base.id}/accounts`, { method: 'PUT', body: JSON.stringify({ user_ids: [...picked] }) });
+      closeModal2(); toast(t('Accounts on {base} saved', { base: base.name })); renderBasesTab();
+    } catch (ex) { toast(ex.message, true); btn.disabled = false; }
+  });
+  paint();
+  $('#baSearch').focus();
 }
 
 // --- Currency, time zone & bank (per-region defaults) --------------------------

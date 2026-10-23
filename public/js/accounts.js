@@ -435,8 +435,9 @@ function renderUserForm(u) {
             <label>${esc(t('Recipient name'))}<input name="recipient_name" value="${isEdit ? esc(u.recipient_name || '') : ''}" /></label>
             <label>${esc(t('Bank account no.'))}<input name="bank_account_no" inputmode="numeric" value="${isEdit ? esc(u.bank_account_no || '') : ''}" /></label>
           </div>`],
-    ...(isSuper ? [['base', t('Base location'), t('Where this person’s GPS meal allowance distances are measured from — usually their office or branch.'), `
-          <div class="grid2">
+    ...(isSuper ? [['base', t('Base location'), t('Where this person’s GPS meal allowance distances are measured from — pick one of the region’s bases (Settings → Bases).'), `
+          <div class="grid2"><label>${esc(t('Base'))}<div id="ueBasePick"><select disabled><option>${esc(t('Loading…'))}</option></select></div></label></div>
+          <div class="grid2 ue-base-custom" id="ueBaseCustom" hidden>
             <label>${esc(t('Base name'))}<input name="base_name" maxlength="120" value="${isEdit ? esc(u.base_name || '') : ''}" placeholder="${esc(t('e.g. Jakarta office'))}" /></label>
             <label>${esc(t('Coordinates or Google Maps link'))}<input name="base_coords" autocomplete="off" value="${isEdit && u.base_lat != null ? esc(`${u.base_lat}, ${u.base_lng}`) : ''}" placeholder="-6.2088, 106.8456" /></label>
           </div>
@@ -501,22 +502,46 @@ function renderUserForm(u) {
     firstInvalid = false; setTimeout(() => { firstInvalid = true; });
     const s = e.target.closest('.ue-sec'); if (s) mark(s.dataset.sec);
   }, true);
-  // Base location: say what the pasted text reads as, so a wrong paste shows
-  // before saving (the server reads it the same way).
-  const coords = $('#uForm [name="base_coords"]');
-  if (coords) {
-    const read = () => {
+  // Base: a dropdown of the account's region's bases (Settings → Bases), or a
+  // location typed for this account alone. Reloaded when the Region changes.
+  if ($('#ueBasePick')) {
+    const initialCustom = isEdit && u.base_id == null && u.base_lat != null;
+    let current = isEdit && u.base_id != null ? String(u.base_id) : initialCustom ? 'custom' : '';
+    const coords = $('#uForm [name="base_coords"]');
+    const syncBase = () => {
+      const custom = current === 'custom';
+      $('#ueBaseCustom').hidden = !custom;
+      const box = $('#baseRead');
       const v = coords.value.trim();
       const ll = parseCoordsText(v);
-      const box = $('#baseRead');
-      box.classList.toggle('bad', !!v && !ll);
-      box.innerHTML = !v ? esc(t('Paste "latitude, longitude" or a Google Maps link from the address bar. Leave both fields blank for no base.'))
+      box.classList.toggle('bad', custom && !!v && !ll);
+      box.innerHTML = !custom ? esc(current ? '' : t('Without a base this person can’t claim the GPS meal allowance.'))
+        : !v ? esc(t('Paste "latitude, longitude" or a Google Maps link from the address bar.'))
         : ll ? `${esc(t('Reads as {lat}, {lng}', { lat: ll.lat, lng: ll.lng }))} · <a href="https://www.google.com/maps?q=${encodeURIComponent(ll.lat + ',' + ll.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`
-          : esc(/goo\.gl|maps\.app/i.test(v)
-            ? t('Short share links don’t carry coordinates — open the link, then copy the full address-bar link or right-click the spot to copy its coordinates.')
-            : t('Can’t read coordinates from this — use "latitude, longitude", e.g. -6.2088, 106.8456.'));
+        : esc(/goo.gl|maps.app/i.test(v)
+          ? t('Short share links don’t carry coordinates — open the link, then copy the full address-bar link or right-click the spot to copy its coordinates.')
+          : t('Can’t read coordinates from this — use "latitude, longitude", e.g. -6.2088, 106.8456.'));
     };
-    coords.addEventListener('input', read); read();
+    const loadBases = async () => {
+      const regionSel = $('#uForm select[name="region"]');
+      const region = regionSel ? regionSel.value : (isEdit ? u.region : '');
+      let bases = [];
+      if (region && region !== '*') {
+        try { bases = (await api('/bases?region=' + encodeURIComponent(region))).bases || []; } catch { bases = []; }
+      }
+      if (current && current !== 'custom' && !bases.some(b => String(b.id) === current)) current = '';
+      $('#ueBasePick').innerHTML = `<select name="base_id">
+          <option value="" ${current ? '' : 'selected'}>${esc(t('— No base —'))}</option>
+          ${bases.map(b => `<option value="${b.id}" ${String(b.id) === current ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}
+          <option value="custom" ${current === 'custom' ? 'selected' : ''}>${esc(t('Another location (type it in)…'))}</option>
+        </select>`;
+      $('#ueBasePick select').addEventListener('change', (e) => { current = e.target.value; syncBase(); });
+      syncBase();
+    };
+    coords.addEventListener('input', syncBase);
+    const regionSel = $('#uForm select[name="region"]');
+    if (regionSel) regionSel.addEventListener('change', loadBases);
+    loadBases();
   }
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
@@ -578,8 +603,14 @@ function renderUserForm(u) {
       approver_ids: acctApprovers.filter(Boolean).map(Number)
     };
     if (state.user.role === 'superadmin') {
-      payload.base_name = String(fd.get('base_name') || '').trim();
-      payload.base_coords = String(fd.get('base_coords') || '').trim();
+      const baseChoice = String(fd.get('base_id') || '');
+      if (baseChoice === 'custom') {
+        payload.base_id = null;
+        payload.base_name = String(fd.get('base_name') || '').trim();
+        payload.base_coords = String(fd.get('base_coords') || '').trim();
+      } else if ($('#ueBasePick select[name="base_id"]')) {
+        payload.base_id = baseChoice ? Number(baseChoice) : null;
+      }
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
       payload.allow_advance = fd.get('allow_advance') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);

@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-23.4',
+    date: '2026-10-23',
+    items: [
+      { kind: 'new', audience: ['settings', 'accounts'], text: {
+        en: 'Settings → Bases keeps each region’s list of bases (offices, branches). Add one once, then tick which accounts belong to it — no more typing coordinates per account. The account editor now picks a base from this list, and moving a base moves everyone on it.',
+        id: 'Pengaturan → Base menyimpan daftar base setiap wilayah (kantor, cabang). Tambahkan sekali, lalu centang akun mana yang termasuk — tidak perlu lagi mengetik koordinat per akun. Editor akun kini memilih base dari daftar ini, dan memindahkan base ikut memindahkan semua akun di dalamnya.',
+        th: 'การตั้งค่า → ฐาน เก็บรายการฐานของแต่ละพื้นที่ (สำนักงาน สาขา) เพิ่มครั้งเดียว แล้วติ๊กว่าบัญชีใดอยู่ในฐานนั้น — ไม่ต้องพิมพ์พิกัดทีละบัญชีอีกต่อไป ตัวแก้ไขบัญชีจะเลือกฐานจากรายการนี้ และการย้ายฐานจะย้ายทุกคนในฐานนั้นไปด้วย',
+        vi: 'Cài đặt → Cơ sở lưu danh sách cơ sở của từng khu vực (văn phòng, chi nhánh). Thêm một lần, rồi tích chọn tài khoản thuộc cơ sở đó — không cần nhập tọa độ cho từng tài khoản nữa. Trình sửa tài khoản giờ chọn cơ sở từ danh sách này, và dời một cơ sở sẽ dời mọi người thuộc cơ sở đó.',
+        km: 'ការកំណត់ → មូលដ្ឋាន រក្សាបញ្ជីមូលដ្ឋានរបស់តំបន់នីមួយៗ (ការិយាល័យ សាខា)។ បន្ថែមម្តង រួចធីកគណនីដែលជាកម្មសិទ្ធិរបស់វា — មិនចាំបាច់វាយកូអរដោនេម្តងមួយគណនីទៀតទេ។ កម្មវិធីកែគណនីឥឡូវជ្រើសមូលដ្ឋានពីបញ្ជីនេះ ហើយការផ្លាស់ទីមូលដ្ឋាននឹងផ្លាស់ទីអ្នកទាំងអស់នៅលើវា។',
+        fil: 'Iniingatan ng Settings → Bases ang listahan ng mga base ng bawat rehiyon (opisina, branch). Idagdag nang isang beses, saka i-tick kung aling mga account ang kabilang dito — hindi na kailangang magtipa ng coordinates sa bawat account. Pumipili na ang account editor ng base mula sa listahang ito, at kapag inilipat ang base, sumasama ang lahat ng nasa base.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-23.3',
     date: '2026-10-23',
     items: [

@@ -116,6 +116,7 @@ app.use(require('./routes/claims'));
 app.use(require('./routes/uploads'));
 app.use(require('./routes/meals'));
 app.use(require('./routes/meals-gps').router);
+app.use(require('./routes/bases'));
 app.use(require('./routes/advances'));
 app.use(require('./routes/bulk-payments'));
 app.use(require('./routes/cron'));

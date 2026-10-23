@@ -673,7 +673,31 @@ const SCHEMA = [
   `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS approved_at      TIMESTAMPTZ`,
   // Meal receipts hang off the meal line (claim_id stays NULL on these rows).
   `ALTER TABLE attachments ADD COLUMN IF NOT EXISTS meal_line_id INTEGER REFERENCES meal_claim_lines(id) ON DELETE CASCADE`,
-  `CREATE INDEX IF NOT EXISTS idx_attach_meal_line ON attachments(meal_line_id)`
+  `CREATE INDEX IF NOT EXISTS idx_attach_meal_line ON attachments(meal_line_id)`,
+  // --- Bases (2026-10-23) ---------------------------------------------------------
+  // The places a region's accounts work from (Settings → Bases), so an account
+  // picks a base instead of typing coordinates. users.base_id points at one; the
+  // account's base_name/lat/lng stay as the copy every reader uses, and are
+  // rewritten when the base itself is edited.
+  `CREATE TABLE IF NOT EXISTS bases (
+    id         SERIAL PRIMARY KEY,
+    region     TEXT NOT NULL DEFAULT '',
+    name       TEXT NOT NULL,
+    lat        DOUBLE PRECISION NOT NULL,
+    lng        DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_bases_region_name ON bases(region, lower(name))`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES bases(id) ON DELETE SET NULL`,
+  // One-time: bases already typed onto accounts become the region's first bases.
+  `INSERT INTO bases (region, name, lat, lng)
+     SELECT DISTINCT ON (region, lower(base_name)) region, base_name, base_lat, base_lng FROM users
+      WHERE base_lat IS NOT NULL AND base_name <> '' AND region NOT IN ('', '*')
+      ORDER BY region, lower(base_name), id
+     ON CONFLICT DO NOTHING`,
+  `UPDATE users u SET base_id = b.id FROM bases b
+    WHERE u.base_id IS NULL AND b.region = u.region AND lower(b.name) = lower(u.base_name)
+      AND b.lat = u.base_lat AND b.lng = u.base_lng`
 ];
 
 module.exports = { SCHEMA };
