@@ -18,7 +18,7 @@
 // match is hidden whole, and never lights the dot. Keys (app.js NOTE_AUDIENCE):
 //   claim / meal / advance  may raise that purpose (New claim / meal / advance)
 //   pay                     may mark claims paid (Finance AP)
-//   export                  may export CSV
+//   export                  may export claims (Excel)
 //   view_all                may open "View all claims"
 //   accounts                may manage accounts
 //   settings                may open Settings
@@ -27,6 +27,20 @@
 // ---------------------------------------------------------------------------
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
+  {
+    id: '2026-10-23.3',
+    date: '2026-10-23',
+    items: [
+      { kind: 'improved', audience: ['export'], text: {
+        en: 'Export now downloads an Excel workbook (.xlsx) instead of a CSV file. Amounts are real numbers you can total straight away, dates and times are real Excel dates, and the header row stays frozen with filters already switched on.',
+        id: 'Ekspor kini mengunduh buku kerja Excel (.xlsx), bukan file CSV. Nominal berupa angka sungguhan yang bisa langsung dijumlahkan, tanggal dan waktu berupa tanggal Excel sungguhan, dan baris judul tetap terkunci dengan filter yang sudah aktif.',
+        th: 'การส่งออกตอนนี้ดาวน์โหลดเป็นไฟล์ Excel (.xlsx) แทนไฟล์ CSV จำนวนเงินเป็นตัวเลขจริงที่รวมยอดได้ทันที วันที่และเวลาเป็นวันที่ของ Excel จริง และแถวหัวตารางถูกตรึงไว้พร้อมเปิดตัวกรองไว้แล้ว',
+        vi: 'Xuất dữ liệu giờ tải về sổ làm việc Excel (.xlsx) thay cho tệp CSV. Số tiền là số thật có thể cộng ngay, ngày giờ là ngày Excel thật, và hàng tiêu đề được cố định với bộ lọc đã bật sẵn.',
+        km: 'ការនាំចេញឥឡូវទាញយកជាសៀវភៅការងារ Excel (.xlsx) ជំនួសឱ្យឯកសារ CSV។ ចំនួនទឹកប្រាក់ជាលេខពិតដែលអាចបូកសរុបបានភ្លាមៗ កាលបរិច្ឆេទ និងម៉ោងជាកាលបរិច្ឆេទ Excel ពិត ហើយជួរក្បាលតារាងត្រូវបានចាក់សោជាមួយតម្រងដែលបានបើករួចហើយ។',
+        fil: 'Excel workbook (.xlsx) na ang dina-download ng Export sa halip na CSV file. Totoong numero na ang mga halaga kaya puwede agad i-total, totoong Excel date ang mga petsa at oras, at nakapirmi ang header row na may naka-on nang mga filter.'
+      } }
+    ]
+  },
   {
     id: '2026-10-23.2',
     date: '2026-10-23',

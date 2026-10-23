@@ -1,6 +1,6 @@
 'use strict';
 
-// Export (finance): CSV by date range, status and type.
+// Export (finance): Excel workbook by date range, status and type.
 // A plain <script> sharing globals with app.js (loaded after it; see
 // index.html). Nothing here runs app code at load beyond wiring listeners —
 // js/start.js boots the app once every script is in.
@@ -33,7 +33,7 @@ async function openExportModal() {
   users.sort((a, b) => String(a.full_name).localeCompare(String(b.full_name)));
 
   openModal(`
-    ${formHeadHtml(t('Export claims to CSV'))}
+    ${formHeadHtml(t('Export claims to Excel'))}
     <div class="modal-body">
       <form id="exportForm" class="form lf-form ex-form">
         <div class="meal-scroll">
@@ -92,7 +92,7 @@ async function openExportModal() {
         <div class="modal-actions meal-foot">
           <div class="lf-total ex-summary" id="exSummary"></div>
           <button type="button" class="btn btn-ghost" id="exportCancel">${esc(t('Cancel'))}</button>
-          <button type="submit" class="btn btn-primary">${esc(t('Download CSV'))}</button>
+          <button type="submit" class="btn btn-primary">${esc(t('Download Excel'))}</button>
         </div>
       </form>
     </div>`);
@@ -180,7 +180,7 @@ async function openExportModal() {
     if (to) p.set('to', to);
     // Remember the chosen range for next time.
     state.filters.exportFrom = from; state.filters.exportTo = to;
-    window.location.href = '/api/export.csv?' + p.toString();
+    window.location.href = '/api/export.xlsx?' + p.toString();
     closeModal();
   });
 }

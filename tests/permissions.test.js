@@ -123,7 +123,7 @@ test('settings, accounts and reports are closed to accounts without the right', 
   await refused(t, COLLEAGUE, 'POST', '/api/users/10/set-active', { active: false }, 403);
   await refused(t, APPROVER1, 'POST', '/api/users/22/reset-password', { password: 'abcdefgh' }, 403, /permission/);
   await refused(t, CMMD, 'POST', '/api/test-email', {}, 403);
-  await refused(t, CLAIMANT, 'GET', '/api/export.csv', null, 403);
+  await refused(t, CLAIMANT, 'GET', '/api/export.xlsx', null, 403);
   await refused(t, CLAIMANT, 'GET', '/api/insights', null, 403, /access to insights/);
   await refused(t, CMMD, 'POST', '/api/date-change-requests/1/decide', { decision: 'grant' }, 403);
 });

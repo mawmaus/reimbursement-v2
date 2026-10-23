@@ -1,6 +1,6 @@
 'use strict';
 
-// Expense insights and the CSV export.
+// Expense insights and the Excel (.xlsx) claims export.
 
 const express = require('express');
 const { q } = require('../db');
@@ -12,16 +12,13 @@ const {
 } = require('../lib/settings');
 const { todayInZone } = require('../lib/claim-window');
 const { insightPeriods, summarize, rankBy, speedStats, pipelineStats } = require('../lib/insights');
+const { buildXlsx, XLSX_MIME } = require('../lib/xlsx');
 
 const router = express.Router();
 
 // ---------------------------------------------------------------------------
-// Export CSV (finance)
+// Export to Excel (finance)
 // ---------------------------------------------------------------------------
-function csvCell(v) {
-  const s = v === null || v === undefined ? '' : (v instanceof Date ? v.toISOString() : String(v));
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
 // "Pending review" (DB status 'submitted') is split for export by which approver
 // is next: step 1 is still with the department Manager; once the Manager has
 // signed off the claim advances to step >= 2 and is with FinanceAP. So finance can
@@ -41,7 +38,7 @@ function exportStatusCondition(tokens, statusExpr, stepExpr) {
   }
   return parts.length ? `(${parts.join(' OR ')})` : '';
 }
-// Human label for the CSV Status column. A 'submitted' base status splits into the
+// Human label for the export's Status column. A 'submitted' base status splits into the
 // two pending-review buckets by step; every other status passes through unchanged
 // (matching what the export showed before).
 function exportStatusLabel(baseStatus, step) {
@@ -361,13 +358,14 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   });
 }));
 
-// Export both reimbursement claims and meal allowance claims in one CSV.
+// Export reimbursement, meal allowance and realized cash-advance claims in one
+// Excel workbook (.xlsx).
 // Filters: `status` (comma-separated, any of the four), `from`/`to` (inclusive,
 // applied to each row's expense/meal date), and `types` (comma-separated:
 // reimbursement, meal \u2014 defaults to both). Reimbursement claims export one row
 // each; meal allowances export one row per line item (per day), so finance sees
 // the full daily breakdown. A shared column set carries both.
-router.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (req, res) => {
+router.get('/api/export.xlsx', requireAuth, requireCap('export_csv'), ah(async (req, res) => {
   const { from, to } = req.query;
   const statuses = String(req.query.status || '').split(',').map(s => s.trim())
     .filter(s => EXPORT_STATUSES.includes(s));
@@ -383,9 +381,9 @@ router.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (r
     .map(s => Number(s.trim())).filter(n => Number.isInteger(n) && n > 0);
 
   // Timestamps export in the exporting user's region time zone — the same zone
-  // the portal renders them in (see the client's fmtDateTime) — so a CSV cell and
+  // the portal renders them in (see the client's fmtDateTime) — so a sheet cell and
   // the on-screen claim never disagree about the date. The offset goes in the
-  // column headers, which keeps the cells parseable as dates by Excel.
+  // column headers; the cells themselves are real Excel date-times.
   const { timezone } = await regionPrefsFor(req.user.region);
   const ts = (v) => tsInZone(v, timezone);
   const zone = tzOffsetLabel(timezone);
@@ -553,18 +551,22 @@ router.get('/api/export.csv', requireAuth, requireCap('export_csv'), ah(async (r
 
   out.sort((a, b) => String(a.key).localeCompare(String(b.key)));
 
-  const headers = ['Type', 'Claim No', 'Submitted By', 'Claimant Name', 'Department',
-    'Bank Name', 'Recipient Name', 'Bank Account No', 'Date', 'Category', 'Site', 'Amount',
-    'Currency', 'Description', 'Status', 'Manager Comment',
-    ...['First Approved At', 'Decided At'].map(h => (zone ? h + ' (' + zone + ')' : h)),
-    'Payment Date', zone ? 'Created At (' + zone + ')' : 'Created At'];
-  const lines = [headers.map(csvCell).join(',')];
-  for (const r of out) lines.push(r.cells.map(csvCell).join(','));
+  const tz = (h) => (zone ? h + ' (' + zone + ')' : h);
+  // Header, cell type and width per column. Money / date / datetime cells are
+  // real Excel numbers and dates, so the sheet sums, sorts and filters natively.
+  const columns = [
+    ['Type', 'text', 15], ['Claim No', 'text', 18], ['Submitted By', 'text', 16], ['Claimant Name', 'text', 24],
+    ['Department', 'text', 18], ['Bank Name', 'text', 16], ['Recipient Name', 'text', 24], ['Bank Account No', 'text', 20],
+    ['Date', 'date', 12], ['Category', 'text', 20], ['Site', 'text', 14], ['Amount', 'money', 14],
+    ['Currency', 'text', 10], ['Description', 'text', 40], ['Status', 'text', 26], ['Manager Comment', 'text', 30],
+    [tz('First Approved At'), 'datetime', 22], [tz('Decided At'), 'datetime', 22], ['Payment Date', 'date', 14],
+    [tz('Created At'), 'datetime', 22]
+  ].map(([header, type, width]) => ({ header, type, width }));
 
-  const csv = '\uFEFF' + lines.join('\r\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="claims-${todayInZone(timezone)}.csv"`);
-  res.send(csv);
+  const xlsx = buildXlsx({ sheetName: 'Claims', columns, rows: out.map(r => r.cells) });
+  res.setHeader('Content-Type', XLSX_MIME);
+  res.setHeader('Content-Disposition', `attachment; filename="claims-${todayInZone(timezone)}.xlsx"`);
+  res.send(xlsx);
 }));
 
 // The submitter picker for the export dialog. Deliberately separate from

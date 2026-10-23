@@ -20,7 +20,7 @@ managed services:
   Bank Account No., Type of Expense, Amount, Description) and attach receipts.
 - **Managers** approve, or reject with a reason — rejected claims go back to the
   claimant to edit and resubmit.
-- **Finance** marks approved claims paid and exports everything to CSV.
+- **Finance** marks approved claims paid and exports everything to Excel (.xlsx).
 - **Admin** creates and manages user accounts. There is no self-signup.
 
 Every claim keeps a full history/audit trail.
@@ -139,7 +139,7 @@ first, so a deploy that breaks one of these rules fails instead of going live.
   recycles — still useful, but not a substitute for a shared rate limiter at
   higher scale.
 - **Backups:** Neon keeps automatic history/branching; Blob has its own
-  durability. Export to CSV any time from the Finance view.
+  durability. Export to Excel any time from the Finance view.
 
 ## Tech
 

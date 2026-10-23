@@ -709,7 +709,7 @@ function showApp() {
 // theme switch, the icon actions and Sign out. The actions are proxies: each
 // row clicks the real top-bar button, and a row shows only while that button
 // is visible — so all gating (roles, capabilities) stays in one place.
-const TB_PROXIES = [['exportBtn', 'Export CSV'], ['profileBtn', 'Profile'], ['accountsBtn', 'Manage accounts'], ['settingsBtn', 'Settings']];
+const TB_PROXIES = [['exportBtn', 'Export Excel'], ['profileBtn', 'Profile'], ['accountsBtn', 'Manage accounts'], ['settingsBtn', 'Settings']];
 const phoneBar = window.matchMedia('(max-width: 720px)');
 // Leaving the phone layout (rotation / wider window) closes an open panel.
 phoneBar.addEventListener('change', (e) => { if (!e.matches) closeTbSheet(); });
