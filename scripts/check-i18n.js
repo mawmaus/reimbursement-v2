@@ -2,6 +2,8 @@
 
 // Verifies the UI translations are complete and carry no dead weight.
 //   node scripts/check-i18n.js        (npm run check:i18n)
+// Runs in the Vercel build (vercel.json), before stamp-assets minifies public/,
+// so a failure here blocks the deploy.
 // The language tables (public/i18n/<code>.js) are keyed by English source text.
 // Fails (exit 1) when:
 //  - missing: a string the UI shows has no entry in some language. Counted as

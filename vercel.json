@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "npm test && node scripts/stamp-assets.js --minify",
+  "buildCommand": "npm test && npm run check:i18n && node scripts/stamp-assets.js --minify",
   "outputDirectory": "public",
   "redirects": [
     {
