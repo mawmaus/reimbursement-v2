@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-23.6',
+    date: '2026-10-23',
+    items: [
+      { kind: 'fixed', audience: ['claim', 'meal', 'advance', 'insights', 'accounts'], text: {
+        en: 'The receipt photo editor (crop, scan filter, rotate, date & location stamp) now appears in your language, as do the Insights month filter and the Accounts scope notes.',
+        id: 'Editor foto struk (potong, filter pindai, putar, cap tanggal & lokasi) kini tampil dalam bahasa Anda, begitu juga filter bulan di Insight dan catatan cakupan di Akun.',
+        th: 'ตัวแก้ไขรูปใบเสร็จ (ครอบตัด ฟิลเตอร์สแกน หมุน ประทับวันที่และตำแหน่ง) แสดงเป็นภาษาของคุณแล้ว รวมถึงตัวกรองเดือนในข้อมูลเชิงลึก และคำอธิบายขอบเขตในหน้าบัญชี',
+        vi: 'Trình chỉnh sửa ảnh hóa đơn (cắt, bộ lọc quét, xoay, đóng dấu ngày & vị trí) giờ hiển thị bằng ngôn ngữ của bạn, cũng như bộ lọc tháng trong Thống kê và ghi chú phạm vi trong Tài khoản.',
+        km: 'កម្មវិធីកែរូបបង្កាន់ដៃ (កាត់ តម្រងស្កេន បង្វិល បោះត្រាកាលបរិច្ឆេទ និងទីតាំង) ឥឡូវបង្ហាញជាភាសារបស់អ្នក ព្រមទាំងតម្រងខែក្នុងការវិភាគ និងកំណត់ចំណាំវិសាលភាពក្នុងគណនី។',
+        fil: 'Nasa wika mo na ang receipt photo editor (crop, scan filter, pag-ikot, tatak ng petsa at lokasyon), pati ang filter ng buwan sa Insights at ang mga paalala sa saklaw sa Accounts.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-23.5',
     date: '2026-10-23',
     items: [
