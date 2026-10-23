@@ -74,7 +74,9 @@ async function api(pathName, opts = {}) {
   }
   let data = null;
   try { data = await res.json(); } catch { /* non-json */ }
-  if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
+  // Server messages are English source text, translated here once for every
+  // caller (npm run check:i18n keeps their translations complete).
+  if (!res.ok) throw new Error((data && data.error) ? t(data.error) : `Request failed (${res.status})`);
   return data;
 }
 

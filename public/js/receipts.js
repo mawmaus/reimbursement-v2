@@ -1356,7 +1356,7 @@ function xhrSend(method, url, body, contentType, onProgress) {
         catch { reject(new Error('the upload response could not be read')); }
       } else {
         let msg = `the server returned ${xhr.status}`;
-        try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = j.error; } catch { /* keep default */ }
+        try { const j = JSON.parse(xhr.responseText); if (j && j.error) msg = t(j.error); } catch { /* keep default */ }
         // Attach the status (and any Retry-After) so the caller can tell a
         // transient 429 rate-limit apart from a deterministic 4xx/5xx.
         const err = new Error(msg);

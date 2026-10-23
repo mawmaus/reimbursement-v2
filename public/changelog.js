@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-23.7',
+    date: '2026-10-23',
+    items: [
+      { kind: 'fixed', text: {
+        en: 'Error messages — a wrong password, a missing field, an action you can’t take — now appear in your language instead of English.',
+        id: 'Pesan kesalahan — kata sandi salah, kolom yang belum diisi, tindakan yang tidak diizinkan — kini tampil dalam bahasa Anda, bukan bahasa Inggris.',
+        th: 'ข้อความแจ้งข้อผิดพลาด เช่น รหัสผ่านผิด ช่องที่ยังไม่ได้กรอก หรือการดำเนินการที่คุณไม่มีสิทธิ์ ตอนนี้แสดงเป็นภาษาของคุณแทนภาษาอังกฤษแล้ว',
+        vi: 'Thông báo lỗi — sai mật khẩu, thiếu trường bắt buộc, thao tác bạn không được phép — giờ hiển thị bằng ngôn ngữ của bạn thay vì tiếng Anh.',
+        km: 'សារកំហុស — ពាក្យសម្ងាត់ខុស វាលដែលមិនទាន់បំពេញ សកម្មភាពដែលអ្នកមិនអាចធ្វើបាន — ឥឡូវបង្ហាញជាភាសារបស់អ្នក ជំនួសឱ្យភាសាអង់គ្លេស។',
+        fil: 'Nasa wika mo na ang mga error message — maling password, kulang na field, aksyong hindi mo puwedeng gawin — sa halip na Ingles.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-23.6',
     date: '2026-10-23',
     items: [

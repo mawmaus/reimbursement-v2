@@ -96,7 +96,7 @@ $('#resetForm').addEventListener('submit', async (e) => {
       body: JSON.stringify({ token, new_password: newPw })
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error((data && data.error) || tt('Could not reset your password.'));
+    if (!res.ok) throw new Error((data && data.error) ? tt(data.error) : tt('Could not reset your password.'));
     $('#resetForm').hidden = true;
     $('#resetIntro').hidden = true;
     $('#resetBack').hidden = true;
