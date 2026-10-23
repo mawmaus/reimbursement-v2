@@ -30,7 +30,8 @@ Every claim keeps a full history/audit trail.
 | Variable               | What it is                                              |
 |------------------------|--------------------------------------------------------|
 | `DATABASE_URL`         | Neon Postgres connection string (set by the Neon integration) |
-| `BLOB_READ_WRITE_TOKEN`| Vercel Blob token (set by the Blob integration)        |
+| `PRIVATE_READ_WRITE_TOKEN` | Token of the **private** receipt Blob store (connected with the `PRIVATE` prefix) |
+| `BLOB_READ_WRITE_TOKEN`| Old public Blob store — read/delete only, until every receipt is migrated |
 | `SESSION_SECRET`       | Long random string used to sign the login cookie       |
 | `SEED_ADMIN_PASSWORD`  | First admin password, used only by the one-time DB setup |
 
@@ -60,10 +61,11 @@ to the project automatically sets `DATABASE_URL` for you.
 
 ### 4. Add file storage — Vercel Blob
 
-Project → **Storage → Create → Blob**. This sets `BLOB_READ_WRITE_TOKEN`
-automatically. A **public** store is fine: receipt URLs get an unguessable random
-suffix and are never sent to the browser — downloads are proxied through an
-authenticated route, so access is still gated by login.
+Project → **Storage → Create → Blob**, access **Private**, connected with the
+environment-variable prefix `PRIVATE` (this sets `PRIVATE_READ_WRITE_TOKEN`).
+A private blob opens only with the store's credentials, so a receipt can be
+seen only through the app's signed-in attachment routes. Receipts from the old
+public store are copied across by `node scripts/migrate-receipts-private.js`.
 
 ### 5. Set the remaining env vars
 

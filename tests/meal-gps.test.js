@@ -14,7 +14,7 @@ const BOGOR = { lat: -6.5971, lng: 106.8060 };
 const KEMANG = { lat: -6.2607, lng: 106.8137 };
 const NOW = Date.parse('2026-11-05T10:00:00Z');
 const gpsAt = (p) => ({ ...p, accuracy: 15, at: '2026-11-04T05:00:00Z' });
-const receipt = [{ url: 'https://x.public.blob.vercel-storage.com/r.jpg', original_name: 'r.jpg' }];
+const receipt = [{ url: 'https://x.private.blob.vercel-storage.com/r.jpg', original_name: 'r.jpg' }];
 const line = (props) => ({ date: '2026-11-04', trip_type: 'in_town', amount: 30000, gps: gpsAt(BOGOR), attachments: receipt, ...props });
 const run = (lines) => normaliseGpsLines(lines, BASE, 'IDR', { now: NOW });
 

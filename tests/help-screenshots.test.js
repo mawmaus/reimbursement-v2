@@ -18,7 +18,7 @@ const ANA = 1, BEN = 2, ROOT = 3;
 state.users.set(ANA, account({ id: ANA }));
 state.users.set(BEN, account({ id: BEN }));
 state.users.set(ROOT, account({ id: ROOT, role: 'superadmin', region: '*' }));
-const shot = (name) => ({ url: `https://abc123.public.blob.vercel-storage.com/receipts/${name}`, original_name: name });
+const shot = (name) => ({ url: `https://abc123.private.blob.vercel-storage.com/receipts/${name}`, original_name: name });
 const ticket = { category: 'bug', subject: 'Upload stuck', message: 'See the screenshot' };
 
 test('screenshots must be our own images, at most four', async (t) => {
@@ -46,7 +46,7 @@ test('a ticket and a reply carry their screenshots; a reply may be only screensh
 
 test('only the owner and the helpdesk open a screenshot', async (t) => {
   await serve(t);
-  t.mock.method(globalThis, 'fetch', async () => new Response('PNGDATA', { headers: { 'content-length': '7' } }));
+  t.mock.method(blob, 'openReceipt', async () => ({ body: new Response('PNGDATA').body, length: '7' }));
   const id = state.tables.helpdesk_attachments[0].id;
   assert.equal((await call(BEN, 'GET', `/api/help/attachments/${id}`)).status, 404);
   assert.equal((await call(null, 'GET', `/api/help/attachments/${id}`)).status, 401);
