@@ -128,6 +128,24 @@ test('settings, accounts and reports are closed to accounts without the right', 
   await refused(t, CMMD, 'POST', '/api/date-change-requests/1/decide', { decision: 'grant' }, 403);
 });
 
+test('Managed by: the assigned person (and their manager) may reset / enable-disable, nobody else', async (t) => {
+  await serve(t);
+  const TECH = 60, LEAD = 61, HEAD = 62;
+  state.users.set(HEAD, account({ id: HEAD, department: 'General Affair' }));
+  state.users.set(LEAD, account({ id: LEAD, department: 'General Affair', managed_by: HEAD }));
+  state.users.set(TECH, account({ id: TECH, department: 'Technician', managed_by: LEAD }));
+  t.after(() => { for (const id of [TECH, LEAD, HEAD]) state.users.delete(id); });
+  // Staff with no delegation flag, other department: allowed only through the assignment.
+  await allowed(LEAD, 'POST', `/api/users/${TECH}/set-active`, { active: true });
+  await allowed(HEAD, 'POST', `/api/users/${TECH}/set-active`, { active: true });
+  await refused(t, COLLEAGUE, 'POST', `/api/users/${TECH}/reset-password`, { password: 'abcdefgh' }, 403);
+  await refused(t, TECH, 'POST', `/api/users/${LEAD}/reset-password`, { password: 'abcdefgh' }, 403);
+  assert.equal((await call(LEAD, 'GET', '/api/users')).status, 200, 'assigned people open Manage accounts');
+  // A Super Admin can't close a loop: HEAD is above TECH, so TECH can't manage HEAD.
+  await refused(t, ROOT, 'PUT', `/api/users/${HEAD}`, { managed_by: TECH }, 400, /already managed/);
+  await refused(t, ROOT, 'PUT', `/api/users/${HEAD}`, { managed_by: HEAD }, 400, /itself/);
+});
+
 test('the reminder job needs its secret', async (t) => {
   await serve(t);
   process.env.CRON_SECRET = 'cron-secret';

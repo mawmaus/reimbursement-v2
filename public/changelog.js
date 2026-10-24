@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-24.1',
+    date: '2026-10-24',
+    items: [
+      { kind: 'new', audience: ['accounts', 'superadmin'], text: {
+        en: 'Accounts can now be assigned to a specific person with “Managed by”. That person — and whoever manages them — sees the account in Manage accounts and can reset its password or enable/disable it, even across departments.',
+        id: 'Akun kini dapat ditugaskan ke orang tertentu lewat “Dikelola oleh”. Orang tersebut — dan atasannya — melihat akun itu di Kelola akun serta dapat mereset kata sandi atau mengaktifkan/menonaktifkannya, meski beda departemen.',
+        th: 'ตอนนี้สามารถมอบหมายบัญชีให้บุคคลที่ระบุผ่าน “ดูแลโดย” ได้แล้ว บุคคลนั้นและผู้ที่ดูแลเขาจะเห็นบัญชีในหน้าจัดการบัญชี และรีเซ็ตรหัสผ่านหรือเปิด/ปิดบัญชีได้ แม้อยู่ต่างแผนก',
+        vi: 'Giờ có thể giao tài khoản cho một người cụ thể bằng “Quản lý bởi”. Người đó — và người quản lý của họ — sẽ thấy tài khoản trong Quản lý tài khoản và có thể đặt lại mật khẩu hoặc bật/tắt, kể cả khác phòng ban.',
+        km: 'ឥឡូវអាចចាត់គណនីឱ្យមនុស្សជាក់លាក់តាម “គ្រប់គ្រងដោយ”។ អ្នកនោះ — និងអ្នកដែលគ្រប់គ្រងពួកគេ — ឃើញគណនីក្នុងការគ្រប់គ្រងគណនី ហើយអាចកំណត់ពាក្យសម្ងាត់ឡើងវិញ ឬបើក/បិទវា ទោះនៅផ្នែកផ្សេងក៏ដោយ។',
+        fil: 'Puwede nang italaga ang account sa isang partikular na tao gamit ang “Pinamamahalaan ni”. Makikita ito ng taong iyon — at ng namamahala sa kanila — sa Manage accounts at puwede nilang i-reset ang password o i-enable/i-disable ito, kahit ibang departamento.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-23.7',
     date: '2026-10-23',
     items: [

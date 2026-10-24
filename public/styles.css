@@ -1054,6 +1054,7 @@ input[type="search"] { min-width: 220px; }
 .tab.active { color: var(--pine-deep); border-bottom-color: var(--pine); }
 
 .line-row { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 8px; margin-bottom: 8px; }
+.line-row.ue-managed { grid-template-columns: minmax(0, 1fr) auto; max-width: 560px; }
 .line-step {
   display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
   background: var(--pine-tint); color: var(--pine-deep); font-size: .8rem; font-weight: 700;

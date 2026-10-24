@@ -11,7 +11,7 @@ const { sendEmail, layout, button } = require('../lib/email');
 const { ah, normLang, normEmail, EMAIL_RE, sha256, baseUrl, escHtml } = require('../lib/util');
 const {
   loadPositions, attachCaps, creatablePositions, hasDelegation,
-  insightsCanView, accountsSeeAllDepts
+  insightsCanView, accountsSeeAllDepts, loadReportIds
 } = require('../lib/permissions');
 const { regionPrefsFor } = require('../lib/settings');
 const { computePurposes, unrealizedAdvanceCount, approver1Choices } = require('../lib/workflow');
@@ -91,16 +91,17 @@ router.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: tr
 // /api/me and the profile saves; the lookups are independent so they run
 // together. Attaches u.caps as a side effect.
 async function sessionExtras(u) {
-  const [pos, prefs, purposes, unrealized, approver1, survey] = await Promise.all([
+  const [pos, prefs, purposes, unrealized, approver1, survey, reports] = await Promise.all([
     loadPositions(u.region), regionPrefsFor(u.region), computePurposes(u),
     unrealizedAdvanceCount(u.id), approver1Choices(u.approver1_options),
-    surveyPending(u.id), attachCaps(u)
+    surveyPending(u.id), loadReportIds(u.id), attachCaps(u)
   ]);
   return {
     language: normLang(u.language), ...prefs, purposes, meal_gps: await mealGpsSession(u, purposes),
     creatable_positions: creatablePositions(u, pos),
     my_unrealized_advances: unrealized, approver1_choices: approver1,
-    can_manage_accounts: hasDelegation(u, pos), can_view_insights: insightsCanView(u, pos),
+    can_manage_accounts: hasDelegation(u, pos) || reports.size > 0, managed_reports: reports.size,
+    can_view_insights: insightsCanView(u, pos),
     sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey
   };
 }

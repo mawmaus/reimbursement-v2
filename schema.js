@@ -697,7 +697,13 @@ const SCHEMA = [
      ON CONFLICT DO NOTHING`,
   `UPDATE users u SET base_id = b.id FROM bases b
     WHERE u.base_id IS NULL AND b.region = u.region AND lower(b.name) = lower(u.base_name)
-      AND b.lat = u.base_lat AND b.lng = u.base_lng`
+      AND b.lat = u.base_lat AND b.lng = u.base_lng`,
+  // --- Managed-by (2026-10-24) ------------------------------------------------------
+  // An account a Super Admin assigns to a specific person, on top of the
+  // department + rank rule: that person (and whoever they in turn report to)
+  // manages it in Manage accounts. NULL = no explicit assignment.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_users_managed_by ON users(managed_by)`
 ];
 
 module.exports = { SCHEMA };

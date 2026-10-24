@@ -1275,5 +1275,16 @@ I18N.addDict('vi', {
   'A purpose for the cash advance is required': 'Cần nêu mục đích của khoản tạm ứng',
   'A receipt reference is invalid — please re-attach it': 'Tham chiếu hóa đơn không hợp lệ — vui lòng đính kèm lại',
   'A receipt upload could not be verified — please re-attach it and retry': 'Không thể xác minh hóa đơn đã tải lên — vui lòng đính kèm lại và thử lại',
-  'A receipt exceeds the size limit': 'Có hóa đơn vượt quá giới hạn dung lượng'
+  'A receipt exceeds the size limit': 'Có hóa đơn vượt quá giới hạn dung lượng',
+  "People assigned to you. You can reset their passwords and enable/disable their accounts.": "Những người được giao cho bạn. Bạn có thể đặt lại mật khẩu và bật/tắt tài khoản của họ.",
+  "Also includes the people assigned to you.": "Bao gồm cả những người được giao cho bạn.",
+  "Managed by {name}": "Quản lý bởi {name}",
+  "Managed by": "Quản lý bởi",
+  "The person who manages this account in Manage accounts (reset password, enable/disable), on top of the department and rank rule. Whoever manages them sees this account too. It does not change who approves claims.": "Người quản lý tài khoản này trong Quản lý tài khoản (đặt lại mật khẩu, bật/tắt), ngoài quy tắc phòng ban và cấp bậc. Người quản lý của họ cũng thấy tài khoản này. Không thay đổi người duyệt yêu cầu.",
+  "Pick who manages this account from the list": "Chọn người quản lý tài khoản này từ danh sách",
+  "An account cannot manage itself": "Tài khoản không thể tự quản lý chính mình",
+  "That account no longer exists — reload and pick another": "Tài khoản đó không còn tồn tại — tải lại và chọn người khác",
+  "The managing account must be in the same region as the account": "Tài khoản quản lý phải cùng khu vực với tài khoản này",
+  "That person is already managed by this account — pick someone above them": "Người đó đã do tài khoản này quản lý — hãy chọn người cấp trên",
+  "The account was saved, but \"Managed by\" needs the database update first": "Đã lưu tài khoản, nhưng \"Quản lý bởi\" cần cập nhật cơ sở dữ liệu trước"
 });

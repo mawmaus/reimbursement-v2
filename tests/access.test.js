@@ -65,6 +65,18 @@ test('canManageAccount: Director and above reach across departments, not regions
   assert.equal(R.canManageAccount(user({ role: 'superadmin' }), user({ role: 'vp' }), P), true);
 });
 
+test('canManageAccount: accounts assigned via Managed by, whatever the department or rank', () => {
+  const staff = user({ id: 5, position: 'Staff', department: 'General Affair' });
+  const assigned = user({ id: 9, position: 'Staff', department: 'Technician' });
+  const reports = new Set([9]);
+  assert.equal(R.canManageAccount(staff, assigned, P, reports), true, 'no delegation flag, other dept, same rank');
+  assert.equal(R.canManageAccount(staff, assigned, P), false, 'without the assignment');
+  assert.equal(R.canManageAccount(staff, user({ id: 9, role: 'vp' }), P, reports), false, 'never a VP');
+  assert.equal(R.canManageAccount(staff, user({ id: 9, role: 'superadmin' }), P, reports), false, 'never a super admin');
+  const mgr = user({ id: 2, position: 'Manager', department: 'Sales' });
+  assert.equal(R.canManageAccount(mgr, user({ id: 3, position: 'Staff', department: 'Sales' }), P, new Set()), true, 'department rule still applies');
+});
+
 test('Insights: who may open it, and who sees company-wide data', () => {
   const at = (position, extra) => user({ position, ...extra });
   assert.equal(R.insightsCanView(at('Staff'), P), false);

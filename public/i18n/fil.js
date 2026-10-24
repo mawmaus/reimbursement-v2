@@ -1275,5 +1275,16 @@ I18N.addDict('fil', {
   'A purpose for the cash advance is required': 'Kailangan ang layunin ng cash advance',
   'A receipt reference is invalid — please re-attach it': 'Hindi wasto ang reference ng resibo — ilakip itong muli',
   'A receipt upload could not be verified — please re-attach it and retry': 'Hindi ma-verify ang na-upload na resibo — ilakip itong muli at subukang muli',
-  'A receipt exceeds the size limit': 'May resibong lumampas sa limitasyon ng laki'
+  'A receipt exceeds the size limit': 'May resibong lumampas sa limitasyon ng laki',
+  "People assigned to you. You can reset their passwords and enable/disable their accounts.": "Mga taong itinalaga sa iyo. Puwede mong i-reset ang kanilang password at i-enable/i-disable ang kanilang account.",
+  "Also includes the people assigned to you.": "Kasama rin ang mga taong itinalaga sa iyo.",
+  "Managed by {name}": "Pinamamahalaan ni {name}",
+  "Managed by": "Pinamamahalaan ni",
+  "The person who manages this account in Manage accounts (reset password, enable/disable), on top of the department and rank rule. Whoever manages them sees this account too. It does not change who approves claims.": "Ang taong namamahala sa account na ito sa Manage accounts (reset ng password, enable/disable), bukod sa patakaran ng departamento at ranggo. Nakikita rin ito ng namamahala sa kanila. Hindi nito binabago kung sino ang nag-aapruba ng claim.",
+  "Pick who manages this account from the list": "Piliin sa listahan kung sino ang mamamahala sa account na ito",
+  "An account cannot manage itself": "Hindi puwedeng pamahalaan ng account ang sarili nito",
+  "That account no longer exists — reload and pick another": "Wala na ang account na iyon — i-reload at pumili ng iba",
+  "The managing account must be in the same region as the account": "Dapat nasa parehong rehiyon ang namamahalang account",
+  "That person is already managed by this account — pick someone above them": "Pinamamahalaan na ng account na ito ang taong iyon — pumili ng mas nakatataas",
+  "The account was saved, but \"Managed by\" needs the database update first": "Na-save ang account, pero kailangan munang i-update ang database para sa \"Pinamamahalaan ni\""
 });

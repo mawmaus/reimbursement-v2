@@ -15,7 +15,7 @@ const {
 const { ALL_REGIONS, seesAllRegions, normRegion } = require('../lib/settings');
 const {
   loadPositions, hasDelegation, accountsSeeAllDepts, ROLES, creatableRolesFor,
-  canManageAccount
+  canManageAccount, loadReportIds
 } = require('../lib/permissions');
 const { parseApprovalLimit } = require('../lib/money');
 const { openClaimsAwaitingApprover } = require('../lib/workflow');
@@ -121,6 +121,37 @@ async function resolveBaseInput(body, region) {
   return has('base_id') ? { base: null, baseId: null } : null;
 }
 
+// The managed-by an account save asks for (Super Admin only): null/'' clears it,
+// else it must be another account in the same region (All-regions on either side
+// is fine) that isn't already managed by this one — that would make a loop.
+// Returns undefined when the body doesn't mention it, else { id } or { error }.
+async function resolveManagedBy(body, accountId, region) {
+  if (!Object.prototype.hasOwnProperty.call(body, 'managed_by')) return undefined;
+  const raw = body.managed_by;
+  if (raw == null || raw === '') return { id: null };
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) return { error: 'Pick who manages this account from the list' };
+  if (accountId && id === Number(accountId)) return { error: 'An account cannot manage itself' };
+  const m = (await q('SELECT id, region FROM users WHERE id = $1', [id]))[0];
+  if (!m) return { error: 'That account no longer exists — reload and pick another' };
+  if (region && region !== ALL_REGIONS && m.region !== ALL_REGIONS && m.region !== region) {
+    return { error: 'The managing account must be in the same region as the account' };
+  }
+  if (accountId && (await loadReportIds(accountId)).has(id)) {
+    return { error: 'That person is already managed by this account — pick someone above them' };
+  }
+  return { id };
+}
+// Kept apart from the main account writes (like saveBase) so those still work
+// before the managed-by migration.
+async function saveManagedBy(userId, managedBy) {
+  try { await q('UPDATE users SET managed_by = $1 WHERE id = $2', [managedBy, userId]); }
+  catch (e) {
+    if (!(e && e.code === '42703')) throw e;
+    if (managedBy != null) throw httpError(409, 'The account was saved, but "Managed by" needs the database update first');
+  }
+}
+
 router.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
   const pos = await loadPositions(req.user.region);
@@ -128,14 +159,22 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
   // own department's accounts (to populate Manage-accounts) — except Director-and-
   // above positions, which read every department (region-bounded). Everyone else
   // is forbidden.
-  if (!isSuper && !hasDelegation(req.user, pos)) {
+  // Accounts a Super Admin assigned to this person (managed_by, down the chain)
+  // are theirs to manage too — even without the delegation flag.
+  const reports = isSuper ? new Set() : await loadReportIds(req.user.id);
+  const delegated = isSuper || hasDelegation(req.user, pos);
+  if (!delegated && !reports.size) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
   }
-  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, active, created_by, created_by_name, created_at, base_name, base_lat, base_lng, base_id';
-  // Before the GPS meal migration the base columns don't exist yet (42703).
+  const cols = 'id, username, full_name, email, role, department, position, region, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, active, created_by, created_by_name, created_at, base_name, base_lat, base_lng, base_id, managed_by';
+  // Before the GPS meal / managed-by migrations those columns don't exist yet (42703).
   const qCols = async (sql, params) => {
     try { return await q(sql, params); }
-    catch (e) { if (e && e.code === '42703') return q(sql.replace(', base_name, base_lat, base_lng, base_id', ''), params); throw e; }
+    catch (e) {
+      if (!(e && e.code === '42703')) throw e;
+      try { return await q(sql.replace(', managed_by', ''), params); }
+      catch (e2) { if (e2 && e2.code === '42703') return q(sql.replace(', base_name, base_lat, base_lng, base_id, managed_by', ''), params); throw e2; }
+    }
   };
   let users;
   if (isSuper) {
@@ -143,6 +182,7 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
   } else {
     const where = [];
     const params = [];
+    if (!delegated) where.push('FALSE');
     // Department scope: own department only, unless a Director-and-above position
     // (which sees every department).
     if (!accountsSeeAllDepts(req.user, pos)) {
@@ -151,10 +191,17 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
     }
     // Region isolation: a region-scoped manager sees only same-region accounts.
     if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
-    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    users = await qCols(`SELECT ${cols} FROM users ${clause} ORDER BY id`, params);
+    let clause = where.length ? `(${where.join(' AND ')})` : 'TRUE';
+    if (reports.size) { params.push(intArrayLiteral([...reports])); clause = `(${clause} OR id = ANY($${params.length}::int[]))`; }
+    users = await qCols(`SELECT ${cols} FROM users WHERE ${clause} ORDER BY id`, params);
   }
-  res.json({ users: users.map(u => ({ ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at) })) });
+  // can_manage: whether this viewer may reset / enable-disable the row — the
+  // server's own rule, so the client doesn't have to mirror it.
+  res.json({ users: users.map(u => ({
+    ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at),
+    managed_by: u.managed_by == null ? null : Number(u.managed_by),
+    can_manage: canManageAccount(req.user, u, pos, reports)
+  })) });
 }));
 // Account creation is super-admin only. Everyone else — including admins and
 // senior positions — can no longer create accounts (they may still reset /
@@ -207,6 +254,8 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
   // Base location (GPS meal allowance): super admins set it; blank is allowed.
   const baseIn = isSuper ? await resolveBaseInput(req.body || {}, region) : null;
   if (baseIn && baseIn.error) return res.status(400).json({ error: baseIn.error });
+  const managedIn = isSuper ? await resolveManagedBy(req.body || {}, null, region) : undefined;
+  if (managedIn && managedIn.error) return res.status(400).json({ error: managedIn.error });
   const rows = await q(
     `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, created_by, created_by_name)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::int[],$13::int[],$14,$15,$16,$17,$18) RETURNING id`,
@@ -217,6 +266,7 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
      intArrayLiteral(appr1Ids), canMarkPaidFlag, allowAdvanceFlag, limit.cents,
      req.user.id, req.user.full_name || req.user.username || '']);
   if (baseIn && baseIn.base) await saveBase(rows[0].id, baseIn.base, baseIn.baseId);
+  if (managedIn && managedIn.id != null) await saveManagedBy(rows[0].id, managedIn.id);
   res.status(201).json({ id: rows[0].id });
 }));
 router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
@@ -282,6 +332,8 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
   // anything is saved, like the fields above).
   const parsedBase = await resolveBaseInput(b, nextRegion);
   if (parsedBase && parsedBase.error) return res.status(400).json({ error: parsedBase.error });
+  const managedIn = await resolveManagedBy(b, u.id, nextRegion);
+  if (managedIn && managedIn.error) return res.status(400).json({ error: managedIn.error });
   await q(`UPDATE users SET username=$1, full_name=$2, role=$3, department=$4, position=$5, active=$6,
              bank_name=$7, recipient_name=$8, bank_account_no=$9, approver_ids=$10::int[], email=$11,
              can_mark_paid=$12, approver1_options=$14::int[], region=$15, approval_limit_cents=$16,
@@ -305,6 +357,7 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
     allow_advance !== undefined ? isActive(allow_advance) : u.allow_advance
   ]);
   if (parsedBase) await saveBase(u.id, parsedBase.base, parsedBase.baseId);
+  if (managedIn) await saveManagedBy(u.id, managedIn.id);
   if (password) {
     // Signs the account out everywhere (keeping the admin signed in if it is their own).
     const [{ session_version }] = await q(SET_PASSWORD_SQL, [bcrypt.hashSync(String(password), 10), u.id]);
@@ -321,7 +374,7 @@ router.post('/api/users/:id/reset-password', requireAuth, ah(async (req, res) =>
   const rows = await q('SELECT id, role, department, position, region FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target, await loadPositions(target.region))) {
+  if (!canManageAccount(req.user, target, await loadPositions(target.region), await loadReportIds(req.user.id))) {
     return res.status(403).json({ error: 'You do not have permission to reset this account\'s password' });
   }
   const password = (req.body && req.body.password) || '';
@@ -340,7 +393,7 @@ router.post('/api/users/:id/set-active', requireAuth, ah(async (req, res) => {
   const rows = await q('SELECT id, role, department, position, active, region FROM users WHERE id = $1', [req.params.id]);
   const target = rows[0];
   if (!target) return res.status(404).json({ error: 'User not found' });
-  if (!canManageAccount(req.user, target, await loadPositions(target.region))) {
+  if (!canManageAccount(req.user, target, await loadPositions(target.region), await loadReportIds(req.user.id))) {
     return res.status(403).json({ error: 'You do not have permission to change this account' });
   }
   const next = isActive(req.body && req.body.active);

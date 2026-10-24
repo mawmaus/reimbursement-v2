@@ -60,6 +60,14 @@ async function q(text, params = []) {
     if (r && r.status === params[1] && (r.current_step || 0) === params[2]) return [{ ok: 1 }];
     throw Object.assign(new Error('division by zero'), { code: '22012' }); // lib/workflow stillAsRead
   }
+  // Managed-by reports (lib/permissions loadReportIds): everyone under $1.
+  if (/^WITH RECURSIVE r AS \( SELECT id FROM users WHERE managed_by = \$1/.test(sql.replace(/\s+/g, ' '))) {
+    const out = new Set(); const walk = (id) => {
+      for (const u of state.users.values()) if (u.managed_by === id && !out.has(u.id)) { out.add(u.id); walk(u.id); }
+    };
+    walk(Number(params[0]));
+    return [...out].map(id => ({ id }));
+  }
   // The experience survey (lib/survey.js): eligibility, and the answer itself.
   if (/^SELECT 1 AS pending FROM users u WHERE u.id = \$1 AND u.created_at < \$2::date/.test(sql)) {
     const u = state.users.get(Number(params[0]));

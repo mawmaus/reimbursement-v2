@@ -1275,5 +1275,16 @@ I18N.addDict('km', {
   'A purpose for the cash advance is required': 'ត្រូវការគោលបំណងនៃប្រាក់បុរេប្រទាន',
   'A receipt reference is invalid — please re-attach it': 'ឯកសារយោងបង្កាន់ដៃមិនត្រឹមត្រូវ — សូមភ្ជាប់វាម្តងទៀត',
   'A receipt upload could not be verified — please re-attach it and retry': 'មិនអាចផ្ទៀងផ្ទាត់បង្កាន់ដៃដែលបានផ្ទុកឡើងបានទេ — សូមភ្ជាប់វាម្តងទៀត ហើយសាកល្បងម្តងទៀត',
-  'A receipt exceeds the size limit': 'មានបង្កាន់ដៃមួយលើសទំហំកំណត់'
+  'A receipt exceeds the size limit': 'មានបង្កាន់ដៃមួយលើសទំហំកំណត់',
+  "People assigned to you. You can reset their passwords and enable/disable their accounts.": "អ្នកដែលត្រូវបានចាត់ឱ្យអ្នក។ អ្នកអាចកំណត់ពាក្យសម្ងាត់ឡើងវិញ និងបើក/បិទគណនីរបស់ពួកគេ។",
+  "Also includes the people assigned to you.": "រួមទាំងអ្នកដែលត្រូវបានចាត់ឱ្យអ្នកផងដែរ។",
+  "Managed by {name}": "គ្រប់គ្រងដោយ {name}",
+  "Managed by": "គ្រប់គ្រងដោយ",
+  "The person who manages this account in Manage accounts (reset password, enable/disable), on top of the department and rank rule. Whoever manages them sees this account too. It does not change who approves claims.": "អ្នកដែលគ្រប់គ្រងគណនីនេះក្នុងការគ្រប់គ្រងគណនី (កំណត់ពាក្យសម្ងាត់ឡើងវិញ បើក/បិទ) បន្ថែមលើច្បាប់ផ្នែក និងឋានៈ។ អ្នកដែលគ្រប់គ្រងពួកគេក៏ឃើញគណនីនេះដែរ។ មិនផ្លាស់ប្តូរអ្នកអនុម័តការទាមទារទេ។",
+  "Pick who manages this account from the list": "ជ្រើសរើសអ្នកគ្រប់គ្រងគណនីនេះពីបញ្ជី",
+  "An account cannot manage itself": "គណនីមិនអាចគ្រប់គ្រងខ្លួនឯងបានទេ",
+  "That account no longer exists — reload and pick another": "គណនីនោះលែងមានហើយ — ផ្ទុកឡើងវិញ ហើយជ្រើសរើសផ្សេង",
+  "The managing account must be in the same region as the account": "គណនីអ្នកគ្រប់គ្រងត្រូវតែនៅតំបន់ដូចគ្នានឹងគណនីនេះ",
+  "That person is already managed by this account — pick someone above them": "អ្នកនោះស្ថិតក្រោមការគ្រប់គ្រងរបស់គណនីនេះរួចហើយ — ជ្រើសរើសអ្នកនៅខាងលើ",
+  "The account was saved, but \"Managed by\" needs the database update first": "បានរក្សាទុកគណនី ប៉ុន្តែ \"គ្រប់គ្រងដោយ\" ត្រូវការធ្វើបច្ចុប្បន្នភាពមូលដ្ឋានទិន្នន័យជាមុនសិន"
 });

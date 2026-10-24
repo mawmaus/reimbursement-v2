@@ -49,19 +49,25 @@ async function renderAccountsTab() {
 function teamScopeCopy() {
   const dept = state.user.department || '';
   const canCreate = uCan('create_accounts');
-  return state.user.sees_all_departments
+  // Only people a Super Admin assigned to them (no department-wide reach).
+  const onlyAssigned = !state.user.sees_all_departments && !(state.user.creatable_positions || []).length;
+  if (onlyAssigned && state.user.managed_reports) return t('People assigned to you. You can reset their passwords and enable/disable their accounts.');
+  const extra = state.user.managed_reports ? ' ' + t('Also includes the people assigned to you.') : '';
+  return (state.user.sees_all_departments
     ? (canCreate
         ? t('All departments. You can create accounts, reset passwords and enable/disable any account ranked below yours.')
         : t('All departments. You can reset passwords and enable/disable any account ranked below yours. Only a super admin can create new accounts.'))
     : (canCreate
         ? t('Accounts in {dept}. You can create accounts, reset passwords and enable/disable your team (positions ranked below yours).', { dept: dept || '—' })
-        : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }));
+        : t('Accounts in {dept}. You can reset passwords and enable/disable your team (positions ranked below yours). Only a super admin can create new accounts.', { dept: dept || '—' }))) + extra;
 }
 // Toolbar (search + status chips) and the table card. Director-and-above
 // viewers see every department (server-computed), so they get a Department
 // column to keep cross-department rows legible.
 function teamAccountsHtml(users) {
-  const wide = !!state.user.sees_all_departments;
+  // Assigned people can come from other departments, so show the column then too.
+  const myDept = String(state.user.department || '').trim().toLowerCase();
+  const wide = !!state.user.sees_all_departments || users.some(u => String(u.department || '').trim().toLowerCase() !== myDept);
   const shown = users.filter(u => accountsFilter === 'all' || (accountsFilter === 'active') === !!u.active);
   const cols = wide ? 5 : 4;
   return `
@@ -149,6 +155,13 @@ async function setAccountActive(u) {
   } catch (ex) { toast(ex.message, true); }
 }
 
+// "Managed by …" under an account's department, when a Super Admin assigned one.
+function managedByLine(u, users) {
+  if (u.managed_by == null) return '';
+  const m = users.find(x => x.id === u.managed_by);
+  return m ? `<div class="u-sub u-managed">${esc(t('Managed by {name}', { name: m.full_name }))}</div>` : '';
+}
+
 function paintAccounts() {
   const panel = $('#settingsPanel');
   const users = settingsState.users || [];
@@ -176,7 +189,7 @@ function paintAccounts() {
           <tr${u.active ? '' : ' class="row-off"'}>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub"><span class="mono">${esc(u.username)}</span>${u.email ? ` · ${esc(u.email)}` : ''}</div>${creatorLine(u)}</td>
             <td data-label="${esc(t('Role'))}">${esc(roleLabel(u.role))}<div class="u-sub">${u.approval_limit_cents == null ? esc(t('Approves any amount')) : esc(t('Approves ≤ {amount}', { amount: money(u.approval_limit_cents / 100) }))}</div></td>
-            <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}</td>
+            <td data-label="${esc(t('Dept / Position'))}"><div>${u.department ? esc(u.department) : '<span class="muted">—</span>'}</div>${u.position ? `<div class="u-sub">${esc(u.position)}</div>` : ''}${managedByLine(u, users)}</td>
             <td data-label="${esc(t('Region'))}">${esc(regionLabel(u.region))}</td>
             <td data-label="${esc(t('Cash advance'))}">${hasAdvanceGrant(u) ? `<span class="pill pill-on">${esc(t('Yes'))}</span>` : '<span class="muted">—</span>'}</td>
             <td data-label="${esc(t('Status'))}">${acctStatusPill(u)}</td>
@@ -407,6 +420,13 @@ function renderUserForm(u) {
             <label>${esc(t('Job position'))}${optionSelect('position', isEdit ? u.position : '', settingsState.positions)}</label>
           </div>
           ${isSuper ? `
+          <div class="ue-sub">${esc(t('Managed by'))}</div>
+          <p class="ue-hint ue-hint-top">${esc(t('The person who manages this account in Manage accounts (reset password, enable/disable), on top of the department and rank rule. Whoever manages them sees this account too. It does not change who approves claims.'))}</p>
+          <div class="line-row ue-managed" id="ueManagedRow">
+            ${approverRowSelect(0, isEdit ? u.managed_by : '', excludeId, 'mgr')}
+            <button type="button" class="x-btn" id="ueManagedClear" aria-label="${esc(t('Clear'))}" title="${esc(t('Clear'))}">×</button>
+          </div>` : ''}
+          ${isSuper ? `
           <div class="ue-sub">${esc(t('Permissions'))}</div>
           <div class="grid2 ue-checks">
             <label class="perm-check"><input type="checkbox" name="can_mark_paid" ${isEdit && u.can_mark_paid ? 'checked' : ''} /> <span>${esc(t('Can mark claims as paid (record payment)'))}</span></label>
@@ -546,6 +566,12 @@ function renderUserForm(u) {
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
   if (state.user.role === 'superadmin') {
+    const mgrCombo = $('#ueManagedRow .combo');
+    wireApproverCombo(mgrCombo, excludeId, () => {});
+    $('#ueManagedClear').addEventListener('click', () => {
+      mgrCombo.querySelector('input[type="hidden"]').value = '';
+      mgrCombo.querySelector('.combo-input').value = '';
+    });
     renderApprover1Options(excludeId);
     $('#addApprover1OptBtn').addEventListener('click', () => { syncApprover1Options(); acctApprover1Options.push(''); renderApprover1Options(excludeId); });
     // Approval limit: the amount field is only relevant when "Unlimited" is off.
@@ -614,6 +640,7 @@ function renderUserForm(u) {
       payload.can_mark_paid = fd.get('can_mark_paid') === 'on';
       payload.allow_advance = fd.get('allow_advance') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
+      payload.managed_by = fd.get('mgr_0') ? Number(fd.get('mgr_0')) : null;
       payload.region = fd.get('region') || '';
       const unlimited = fd.get('approval_unlimited') === 'on';
       const limitAmt = String(fd.get('approval_limit') || '').trim();
@@ -681,11 +708,12 @@ async function renderManageAccounts() {
   paintTeam(body, users, renderManageAccounts);
 }
 
-// A row is manageable (reset password / enable-disable) when it's any
-// non-superadmin holding a position ranked below this user's own. Mirrors the
-// server's canManageAccount; the list (creatable_positions = positions strictly
-// below the actor) is already scoped to the actor's own department.
+// A row is manageable (reset password / enable-disable) when the server says so
+// (can_manage — canManageAccount, incl. people assigned via Managed by). Older
+// responses without it fall back to the rank rule: any non-superadmin holding a
+// position ranked below this user's own.
 function maCanManage(u) {
+  if (typeof u.can_manage === 'boolean') return u.can_manage;
   if (u.role === 'superadmin') return false;
   const list = (state.user.creatable_positions || []).map(p => p.toLowerCase());
   return list.includes(String(u.position || '').trim().toLowerCase());

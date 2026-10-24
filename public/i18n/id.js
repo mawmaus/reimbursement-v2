@@ -1298,5 +1298,16 @@ I18N.addDict('id', {
   'A purpose for the cash advance is required': 'Tujuan uang muka wajib diisi',
   'A receipt reference is invalid — please re-attach it': 'Referensi struk tidak valid — silakan lampirkan ulang',
   'A receipt upload could not be verified — please re-attach it and retry': 'Unggahan struk tidak dapat diverifikasi — silakan lampirkan ulang dan coba lagi',
-  'A receipt exceeds the size limit': 'Ada struk yang melebihi batas ukuran'
+  'A receipt exceeds the size limit': 'Ada struk yang melebihi batas ukuran',
+  "People assigned to you. You can reset their passwords and enable/disable their accounts.": "Orang yang ditugaskan kepada Anda. Anda dapat mereset kata sandi serta mengaktifkan/menonaktifkan akun mereka.",
+  "Also includes the people assigned to you.": "Termasuk juga orang yang ditugaskan kepada Anda.",
+  "Managed by {name}": "Dikelola oleh {name}",
+  "Managed by": "Dikelola oleh",
+  "The person who manages this account in Manage accounts (reset password, enable/disable), on top of the department and rank rule. Whoever manages them sees this account too. It does not change who approves claims.": "Orang yang mengelola akun ini di Kelola akun (reset kata sandi, aktifkan/nonaktifkan), di luar aturan departemen dan jabatan. Atasan orang tersebut juga melihat akun ini. Tidak mengubah siapa yang menyetujui klaim.",
+  "Pick who manages this account from the list": "Pilih pengelola akun ini dari daftar",
+  "An account cannot manage itself": "Akun tidak dapat mengelola dirinya sendiri",
+  "That account no longer exists — reload and pick another": "Akun tersebut sudah tidak ada — muat ulang dan pilih yang lain",
+  "The managing account must be in the same region as the account": "Akun pengelola harus berada di region yang sama dengan akun ini",
+  "That person is already managed by this account — pick someone above them": "Orang tersebut sudah dikelola oleh akun ini — pilih orang di atasnya",
+  "The account was saved, but \"Managed by\" needs the database update first": "Akun tersimpan, tetapi \"Dikelola oleh\" memerlukan pembaruan database terlebih dahulu"
 });

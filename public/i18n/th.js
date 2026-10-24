@@ -1275,5 +1275,16 @@ I18N.addDict('th', {
   'A purpose for the cash advance is required': 'ต้องระบุวัตถุประสงค์ของเงินทดรองจ่าย',
   'A receipt reference is invalid — please re-attach it': 'การอ้างอิงใบเสร็จไม่ถูกต้อง — โปรดแนบใหม่',
   'A receipt upload could not be verified — please re-attach it and retry': 'ไม่สามารถยืนยันใบเสร็จที่อัปโหลดได้ — โปรดแนบใหม่แล้วลองอีกครั้ง',
-  'A receipt exceeds the size limit': 'มีใบเสร็จที่เกินขนาดที่กำหนด'
+  'A receipt exceeds the size limit': 'มีใบเสร็จที่เกินขนาดที่กำหนด',
+  "People assigned to you. You can reset their passwords and enable/disable their accounts.": "ผู้ที่ได้รับมอบหมายให้คุณ คุณสามารถรีเซ็ตรหัสผ่านและเปิด/ปิดบัญชีของพวกเขาได้",
+  "Also includes the people assigned to you.": "รวมถึงผู้ที่ได้รับมอบหมายให้คุณด้วย",
+  "Managed by {name}": "ดูแลโดย {name}",
+  "Managed by": "ดูแลโดย",
+  "The person who manages this account in Manage accounts (reset password, enable/disable), on top of the department and rank rule. Whoever manages them sees this account too. It does not change who approves claims.": "ผู้ที่ดูแลบัญชีนี้ในหน้าจัดการบัญชี (รีเซ็ตรหัสผ่าน เปิด/ปิดบัญชี) เพิ่มเติมจากกฎแผนกและตำแหน่ง ผู้ที่ดูแลบุคคลนั้นจะเห็นบัญชีนี้ด้วย ไม่เปลี่ยนผู้อนุมัติการเบิก",
+  "Pick who manages this account from the list": "เลือกผู้ดูแลบัญชีนี้จากรายการ",
+  "An account cannot manage itself": "บัญชีไม่สามารถดูแลตัวเองได้",
+  "That account no longer exists — reload and pick another": "ไม่มีบัญชีนั้นแล้ว — โหลดใหม่แล้วเลือกบัญชีอื่น",
+  "The managing account must be in the same region as the account": "บัญชีผู้ดูแลต้องอยู่ในภูมิภาคเดียวกับบัญชีนี้",
+  "That person is already managed by this account — pick someone above them": "บุคคลนั้นอยู่ภายใต้การดูแลของบัญชีนี้แล้ว — เลือกผู้ที่อยู่เหนือขึ้นไป",
+  "The account was saved, but \"Managed by\" needs the database update first": "บันทึกบัญชีแล้ว แต่ \"ดูแลโดย\" ต้องอัปเดตฐานข้อมูลก่อน"
 });
