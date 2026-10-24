@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-24.2',
+    date: '2026-10-24',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Easier on phones: text and buttons are bigger, forms open full screen so more of the form fits, and the phone’s Back button now closes the open form or claim instead of leaving the app. A form you were filling in is kept as a draft.',
+        id: 'Lebih nyaman di HP: teks dan tombol lebih besar, formulir terbuka layar penuh sehingga lebih banyak isian terlihat, dan tombol Kembali di HP kini menutup formulir atau klaim yang terbuka, bukan keluar dari aplikasi. Formulir yang sedang diisi tetap tersimpan sebagai draf.',
+        th: 'ใช้งานบนมือถือง่ายขึ้น: ตัวอักษรและปุ่มใหญ่ขึ้น แบบฟอร์มเปิดเต็มจอจึงเห็นช่องกรอกได้มากขึ้น และปุ่มย้อนกลับของมือถือจะปิดแบบฟอร์มหรือรายการเบิกที่เปิดอยู่แทนการออกจากแอป แบบฟอร์มที่กรอกค้างไว้จะถูกเก็บเป็นฉบับร่าง',
+        vi: 'Dễ dùng hơn trên điện thoại: chữ và nút lớn hơn, biểu mẫu mở toàn màn hình nên thấy được nhiều ô hơn, và nút Quay lại của điện thoại giờ đóng biểu mẫu hoặc yêu cầu đang mở thay vì thoát ứng dụng. Biểu mẫu đang điền được giữ lại dưới dạng bản nháp.',
+        km: 'ងាយស្រួលជាងមុនលើទូរស័ព្ទ៖ អក្សរ និងប៊ូតុងធំជាងមុន ទម្រង់បើកពេញអេក្រង់ ដូច្នេះឃើញវាលបំពេញច្រើនជាងមុន ហើយប៊ូតុងថយក្រោយរបស់ទូរស័ព្ទឥឡូវបិទទម្រង់ ឬសំណើដែលកំពុងបើក ជំនួសឱ្យការចាកចេញពីកម្មវិធី។ ទម្រង់ដែលអ្នកកំពុងបំពេញត្រូវបានរក្សាទុកជាសេចក្តីព្រាង។',
+        fil: 'Mas madali na sa phone: mas malaki ang text at mga button, full screen nang bumubukas ang mga form kaya mas marami ang kita, at isinasara na ng Back button ng phone ang bukas na form o claim sa halip na umalis sa app. Naitatabi bilang draft ang form na pinupunan mo.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-24.1',
     date: '2026-10-24',
     items: [

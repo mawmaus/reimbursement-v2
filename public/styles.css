@@ -63,6 +63,9 @@ html, body { margin: 0; padding: 0; }
    against the real viewport width), so each device keeps its own layout, just
    rendered smaller. Users can still pinch- or Ctrl-zoom from here. */
 :root { --app-zoom: 0.8; zoom: var(--app-zoom); }
+/* Phones stay at 100%: at 80% labels shrank to ~10px, buttons to ~27px tall,
+   and iOS Safari zoomed in on every input focus (text under 16px). */
+@media (max-width: 720px) { :root { --app-zoom: 1; } }
 body {
   font-family: var(--sans);
   color: var(--ink);
@@ -2686,7 +2689,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .home-tile.ht-attn:hover { background: var(--pine-tint-hi); border-color: var(--pine); }
 .home-tile.ht-insights { background: var(--surface); }
 @media (max-width: 720px) {
-  /* Phones: a compact list — one line of description, smaller icon and count. */
+  /* Phones: a compact list — up to two lines of description, smaller icon and count. */
   .home-hero { margin: 0 2px 16px; }
   .home-hero .home-greeting { font-size: 1.35rem; }
   .home-summary { font-size: .88rem; }
@@ -2700,7 +2703,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .ht-ic { width: 36px; height: 36px; border-radius: 10px; }
   .ht-ic svg { width: 19px; height: 19px; }
   .home-tile .tile-title { font-size: .95rem; }
-  .home-tile .tile-desc { font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .home-tile .tile-desc { font-size: .8rem; }
   .ht-n { font-size: 1.25rem; }
 }
 /* Tablets: one full-width column, so long translated titles stay on one line. */
@@ -3544,3 +3547,27 @@ a[data-open-doc]:hover { text-decoration: underline; }
   background: var(--red-tint); color: var(--ink); font-size: .86rem; font-weight: 600; line-height: 1.45; }
 .radius-note .radius-tag { font-size: 1.02rem; }
 .mgs-rules + .radius-note, .cw-rule .radius-note { margin: 8px 0 4px; }
+
+/* Phones: every form / window is a full-screen sheet rather than a small card
+   floating in the middle — the whole height goes to the form and its action
+   bar sits on the bottom edge. Small yes/no confirmations stay centred cards.
+   Kept last so it outranks each modal's own width/height rules. */
+@media (max-width: 720px) {
+  .modal:not(.modal-confirm),
+  :root[data-style="ios"] .modal:not(.modal-confirm) {
+    top: 0; left: 0; transform: none; width: 100%; height: 100dvh; max-height: 100dvh;
+    border: none; border-radius: 0; box-shadow: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheet-up .24s var(--ease-out);
+  }
+  /* Short (non-flex) modals scroll as a whole; flex ones already fill it. */
+  .modal:not(.modal-confirm):not(.modal-flex):not(.ph-modal) { overflow-y: auto; }
+  .modal.leaving:not(.modal-confirm) { animation: sheet-down .18s var(--ease-in) forwards; }
+  .modal:not(.modal-confirm) .modal-head { padding-top: calc(14px + env(safe-area-inset-top, 0px)); padding-bottom: 14px; }
+  /* One-line titles, so the form keeps the height. */
+  .modal-head h2 { font-size: 1.2rem; }
+  /* The close × is the main way out now: give it a real tap target. */
+  .modal-head .x-btn { display: grid; place-items: center; min-width: 44px; min-height: 44px; margin: -8px -10px -8px 4px; }
+}
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
+@keyframes sheet-down { to { transform: translateY(24px); opacity: 0; } }

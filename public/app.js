@@ -1971,3 +1971,45 @@ function openModal2(html) {
 }
 function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp', 'modal-hp-lb'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
+
+// Phone Back button / iOS swipe-back closes the topmost panel instead of
+// leaving the app. While any panel is open, one extra history entry sits on
+// top; Back consumes it and we "tap" that panel's scrim, so every close path
+// (draft auto-save, the photo editor's cancel, the survey lock) behaves exactly
+// like tapping outside. Closing by ×/Escape/submit pops the entry back off.
+// Synced from a MutationObserver, so a modal replaced by another in the same
+// tick never touches history.
+const OVERLAY_LAYERS = [ // topmost first
+  ['#tbSheet', '#tbSheetScrim'],
+  ['#modal2', '#modal2Scrim'],
+  ['#drawer.over-modal', '#drawerScrim'],
+  ['#modal', '#modalScrim'],
+  ['#drawer', '#drawerScrim']
+];
+let overlayArmed = false;     // our history entry is on top
+let overlaySkipPop = false;   // the next popstate is our own history.back()
+// Reloaded while a panel was open: this entry is a leftover; nothing is open now.
+if (history.state && history.state.rbOverlay) history.replaceState(null, '');
+function overlayOpen() { return OVERLAY_LAYERS.some(([p]) => { const el = $(p); return el && !el.hidden; }); }
+function syncOverlayHistory() {
+  const open = overlayOpen();
+  if (open && !overlayArmed) {
+    history.pushState({ rbOverlay: true }, '');
+    overlayArmed = true;
+  } else if (!open && overlayArmed) {
+    overlayArmed = false;
+    overlaySkipPop = true;
+    history.back();
+  }
+}
+window.addEventListener('popstate', () => {
+  if (overlaySkipPop) { overlaySkipPop = false; return; }
+  if (!overlayArmed) return;
+  overlayArmed = false; // Back just consumed our entry
+  const layer = OVERLAY_LAYERS.find(([p]) => { const el = $(p); return el && !el.hidden; });
+  if (layer) $(layer[1]).click();
+  // Still open (another layer below, or a locked modal): re-arm for the next Back.
+  syncOverlayHistory();
+});
+new MutationObserver(syncOverlayHistory).observe(document.body,
+  { attributes: true, attributeFilter: ['hidden'], subtree: true });
