@@ -311,7 +311,10 @@ function claimRowHtml(r, i) {
     <td data-label="${esc(t('Description / purpose'))}"><input name="description" value="${esc(r.description || '')}" placeholder="${esc(t('What was this for?'))}" /></td>
     <td class="rc-receipts" data-label="${esc(t('Receipts'))}">
       <div class="file-chips">${rcChips(r, i)}</div>
-      <button type="button" class="btn btn-ghost btn-sm rc-add" data-add="${i}">📎 ${esc(t('Add'))}</button>
+      <div class="rc-pick">
+        <button type="button" class="btn btn-ghost btn-sm rc-add rc-cam" data-add="${i}" data-cam>📷 ${esc(t('Take photo'))}</button>
+        <button type="button" class="btn btn-ghost btn-sm rc-add" data-add="${i}">📎 ${esc(t('Add'))}</button>
+      </div>
       <input type="file" class="rc-input" data-input="${i}" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
     </td>
     <td class="meal-x"><button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button></td>
@@ -327,6 +330,21 @@ function readClaimRows() {
     r.expense_type_other = g('expense_type_other'); r.amount = g('amount'); r.description = g('description');
   });
 }
+// Point a validation error at its line: "Line 2: …" in the form's error box,
+// the row outlined, scrolled into view and its field focused — on a phone the
+// faulty line is usually off-screen in the scrolling list.
+function flagClaimRow(err, r, msg, field) {
+  const i = claimRows.indexOf(r);
+  err.textContent = i >= 0 ? `${t('Line {n}', { n: i + 1 })}: ${msg}` : msg;
+  err.hidden = false;
+  $$('#rcRows tr.row-err').forEach(tr => tr.classList.remove('row-err'));
+  const tr = $(`#rcRows tr[data-i="${i}"]`); if (!tr) return;
+  tr.classList.add('row-err');
+  tr.addEventListener('input', () => tr.classList.remove('row-err'), { once: true });
+  tr.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' });
+  const el = field && tr.querySelector(`[name="${field}"]`);
+  if (el) el.focus({ preventScroll: true });
+}
 function renderClaimRows() {
   const body = $('#rcRows');
   body.innerHTML = claimRows.length
@@ -339,7 +357,7 @@ function renderClaimRows() {
     readClaimRows(); claimRows.splice(+b.dataset.rm, 1); renderClaimRows();
   }));
   $$('#rcRows .rc-add').forEach(b => b.addEventListener('click', () => {
-    const inp = $(`#rcRows .rc-input[data-input="${b.dataset.add}"]`); if (inp) inp.click();
+    const inp = $(`#rcRows .rc-input[data-input="${b.dataset.add}"]`); if (inp) pickFiles(inp, b.hasAttribute('data-cam'));
   }));
   $$('#rcRows .rc-input').forEach(inp => inp.addEventListener('change', async () => {
     const i = +inp.dataset.input, r = claimRows[i]; if (!r) return;

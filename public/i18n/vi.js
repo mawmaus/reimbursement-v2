@@ -503,9 +503,6 @@ I18N.addDict('vi', {
   'Doc No': 'Số chứng từ',
   'Employee': 'Nhân viên',
   'Enter an approval limit or choose Unlimited.': 'Nhập hạn mức duyệt hoặc chọn Không giới hạn.',
-  'Every row needs a date.': 'Mỗi dòng cần có ngày.',
-  'Every row needs a positive amount.': 'Mỗi dòng cần số tiền dương.',
-  'Every row needs a type of expense.': 'Mỗi dòng cần loại chi phí.',
   'Expense lines': 'Các dòng chi phí',
   'Last month': 'Tháng trước',
   'Last year': 'Năm trước',
@@ -521,7 +518,6 @@ I18N.addDict('vi', {
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'Chỉ các yêu cầu đã thanh toán mới có thể hoàn tác thanh toán — không có yêu cầu nào được chọn ở trạng thái đã thanh toán.',
   'Open claim': 'Mở yêu cầu',
   'Others (specify)': 'Khác (ghi rõ)',
-  'Please specify the expense type for the "Others" row.': 'Vui lòng ghi rõ loại chi phí cho dòng "Khác".',
   'Purpose': 'Mục đích',
   'Receipts': 'Hóa đơn',
   'Region': 'Khu vực',
@@ -1286,5 +1282,13 @@ I18N.addDict('vi', {
   "That account no longer exists — reload and pick another": "Tài khoản đó không còn tồn tại — tải lại và chọn người khác",
   "The managing account must be in the same region as the account": "Tài khoản quản lý phải cùng khu vực với tài khoản này",
   "That person is already managed by this account — pick someone above them": "Người đó đã do tài khoản này quản lý — hãy chọn người cấp trên",
-  "The account was saved, but \"Managed by\" needs the database update first": "Đã lưu tài khoản, nhưng \"Quản lý bởi\" cần cập nhật cơ sở dữ liệu trước"
+  "The account was saved, but \"Managed by\" needs the database update first": "Đã lưu tài khoản, nhưng \"Quản lý bởi\" cần cập nhật cơ sở dữ liệu trước",
+  // Phone forms and list (receipt camera, per-line errors, select mode)
+  "Take photo": "Chụp ảnh",
+  "Select": "Chọn",
+  "Done": "Xong",
+  "Enter the date.": "Nhập ngày.",
+  "Specify the type of expense.": "Ghi rõ loại chi phí.",
+  "Choose the type of expense.": "Chọn loại chi phí.",
+  "Enter an amount above 0.": "Nhập số tiền lớn hơn 0."
 });

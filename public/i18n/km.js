@@ -503,9 +503,6 @@ I18N.addDict('km', {
   'Doc No': 'លេខឯកសារ',
   'Employee': 'បុគ្គលិក',
   'Enter an approval limit or choose Unlimited.': 'បញ្ចូលកម្រិតអនុម័ត ឬជ្រើសរើសគ្មានដែនកំណត់។',
-  'Every row needs a date.': 'គ្រប់ជួរត្រូវមានកាលបរិច្ឆេទ។',
-  'Every row needs a positive amount.': 'គ្រប់ជួរត្រូវមានចំនួនទឹកប្រាក់វិជ្ជមាន។',
-  'Every row needs a type of expense.': 'គ្រប់ជួរត្រូវមានប្រភេទការចំណាយ។',
   'Expense lines': 'ជួរការចំណាយ',
   'Last month': 'ខែមុន',
   'Last year': 'ឆ្នាំមុន',
@@ -521,7 +518,6 @@ I18N.addDict('km', {
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'មានតែសំណើដែលបានបង់ទេ ដែលអាចត្រឡប់ការបង់វិញ — គ្មានសំណើដែលបានជ្រើសរើសនៅស្ថានភាពបានបង់ទេ។',
   'Open claim': 'បើកសំណើ',
   'Others (specify)': 'ផ្សេងទៀត (បញ្ជាក់)',
-  'Please specify the expense type for the "Others" row.': 'សូមបញ្ជាក់ប្រភេទការចំណាយសម្រាប់ជួរ "ផ្សេងទៀត"។',
   'Purpose': 'គោលបំណង',
   'Receipts': 'វិក្កយបត្រ',
   'Region': 'តំបន់',
@@ -1286,5 +1282,13 @@ I18N.addDict('km', {
   "That account no longer exists — reload and pick another": "គណនីនោះលែងមានហើយ — ផ្ទុកឡើងវិញ ហើយជ្រើសរើសផ្សេង",
   "The managing account must be in the same region as the account": "គណនីអ្នកគ្រប់គ្រងត្រូវតែនៅតំបន់ដូចគ្នានឹងគណនីនេះ",
   "That person is already managed by this account — pick someone above them": "អ្នកនោះស្ថិតក្រោមការគ្រប់គ្រងរបស់គណនីនេះរួចហើយ — ជ្រើសរើសអ្នកនៅខាងលើ",
-  "The account was saved, but \"Managed by\" needs the database update first": "បានរក្សាទុកគណនី ប៉ុន្តែ \"គ្រប់គ្រងដោយ\" ត្រូវការធ្វើបច្ចុប្បន្នភាពមូលដ្ឋានទិន្នន័យជាមុនសិន"
+  "The account was saved, but \"Managed by\" needs the database update first": "បានរក្សាទុកគណនី ប៉ុន្តែ \"គ្រប់គ្រងដោយ\" ត្រូវការធ្វើបច្ចុប្បន្នភាពមូលដ្ឋានទិន្នន័យជាមុនសិន",
+  // Phone forms and list (receipt camera, per-line errors, select mode)
+  "Take photo": "ថតរូប",
+  "Select": "ជ្រើសរើស",
+  "Done": "រួចរាល់",
+  "Enter the date.": "បញ្ចូលកាលបរិច្ឆេទ។",
+  "Specify the type of expense.": "បញ្ជាក់ប្រភេទចំណាយ។",
+  "Choose the type of expense.": "ជ្រើសរើសប្រភេទចំណាយ។",
+  "Enter an amount above 0.": "បញ្ចូលចំនួនទឹកប្រាក់ធំជាង 0។"
 });

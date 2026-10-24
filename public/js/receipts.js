@@ -1474,12 +1474,12 @@ async function submitClaim(e, existing, reclaim = null) {
   // Resolve each row's expense type ("Others" uses its specify field).
   const rowType = (r) => r.expense_type === 'Others' ? String(r.expense_type_other || '').trim() : String(r.expense_type || '').trim();
   for (const r of rows) {
-    if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
+    if (!r.line_date) { flagClaimRow(err, r, t('Enter the date.'), 'line_date'); return; }
     if (r.expense_type === 'Others' && !String(r.expense_type_other || '').trim()) {
-      err.textContent = t('Please specify the expense type for the "Others" row.'); err.hidden = false; return;
+      flagClaimRow(err, r, t('Specify the type of expense.'), 'expense_type_other'); return;
     }
-    if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
-    if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
+    if (!rowType(r)) { flagClaimRow(err, r, t('Choose the type of expense.'), 'expense_type'); return; }
+    if (rcAmt(r.amount) <= 0) { flagClaimRow(err, r, t('Enter an amount above 0.'), 'amount'); return; }
   }
   // Claim-date policy: block any row dated in the future, or before the allowed
   // floor — except the dates this claim already carried in (setClaimDateCarried).

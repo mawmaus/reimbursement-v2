@@ -71,7 +71,10 @@ function openAdvanceRequestModal(existing = null) {
             <div class="full adv-docs">
               <div class="adv-docs-head">
                 <span class="adv-docs-label">${esc(t('Supporting documents (optional)'))}</span>
-                <button type="button" class="btn btn-brand-soft btn-sm" id="advDocAdd">📎 ${esc(t('Attach file'))}</button>
+                <span class="adv-docs-btns">
+                  <button type="button" class="btn btn-brand-soft btn-sm rc-cam" id="advDocCam">📷 ${esc(t('Take photo'))}</button>
+                  <button type="button" class="btn btn-brand-soft btn-sm" id="advDocAdd">📎 ${esc(t('Attach file'))}</button>
+                </span>
               </div>
               <p class="adv-docs-hint muted">${esc(t('A quotation, proforma invoice or booking confirmation. Attach a PDF or a photo — photos are converted to PDF automatically. Up to 8 files, 10 MB each.'))}</p>
               <div class="file-chips" id="advDocChips"></div>
@@ -92,7 +95,8 @@ function openAdvanceRequestModal(existing = null) {
   $('#advCancel').addEventListener('click', isEdit ? closeModal : () => discardDraftAndClose('advance'));
   const amt = $('#advForm [name="amount"]');
   amt.addEventListener('input', e => { e.target.value = groupAmount(e.target.value); });
-  $('#advDocAdd').addEventListener('click', () => $('#advDocInput').click());
+  $('#advDocAdd').addEventListener('click', () => pickFiles($('#advDocInput'), false));
+  $('#advDocCam').addEventListener('click', () => pickFiles($('#advDocInput'), true));
   $('#advDocInput').addEventListener('change', async (ev) => {
     const btn = $('#advDocAdd'), label = btn.innerHTML;
     btn.disabled = true; btn.textContent = t('Converting…');
@@ -268,12 +272,12 @@ async function submitRealization(e, advance) {
   if (!rows.length) { err.textContent = t('Add at least one expense line with a date, type and amount.'); err.hidden = false; return; }
   const rowType = (r) => r.expense_type === 'Others' ? String(r.expense_type_other || '').trim() : String(r.expense_type || '').trim();
   for (const r of rows) {
-    if (!r.line_date) { err.textContent = t('Every row needs a date.'); err.hidden = false; return; }
+    if (!r.line_date) { flagClaimRow(err, r, t('Enter the date.'), 'line_date'); return; }
     if (r.expense_type === 'Others' && !String(r.expense_type_other || '').trim()) {
-      err.textContent = t('Please specify the expense type for the "Others" row.'); err.hidden = false; return;
+      flagClaimRow(err, r, t('Specify the type of expense.'), 'expense_type_other'); return;
     }
-    if (!rowType(r)) { err.textContent = t('Every row needs a type of expense.'); err.hidden = false; return; }
-    if (rcAmt(r.amount) <= 0) { err.textContent = t('Every row needs a positive amount.'); err.hidden = false; return; }
+    if (!rowType(r)) { flagClaimRow(err, r, t('Choose the type of expense.'), 'expense_type'); return; }
+    if (rcAmt(r.amount) <= 0) { flagClaimRow(err, r, t('Enter an amount above 0.'), 'amount'); return; }
   }
   const dateErr = claimDatesError(rows.map(r => r.line_date));
   if (dateErr) { err.textContent = dateErr; err.hidden = false; return; }

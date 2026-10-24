@@ -3571,3 +3571,61 @@ a[data-open-doc]:hover { text-decoration: underline; }
 }
 @keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
 @keyframes sheet-down { to { transform: translateY(24px); opacity: 0; } }
+
+/* Receipt pickers. "Take photo" (.rc-cam) opens the rear camera directly, so it
+   only shows on touch screens; "Add" keeps the file / gallery picker. */
+.rc-cam { display: none; }
+@media (pointer: coarse) { .rc-cam { display: inline-flex; } }
+.rc-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.adv-docs-btns { display: flex; gap: 8px; }
+@media (max-width: 900px) {
+  /* Claim line cards: two full-width, thumb-sized buttons. */
+  .rc-table .rc-receipts { padding: 6px 0 0; } /* line up with the fields above */
+  .rc-table .rc-receipts .rc-pick { gap: 8px; }
+  .rc-table .rc-receipts .rc-add { flex: 1 1 0; min-height: 44px; padding: 8px 12px; font-size: .9rem; }
+}
+@media (max-width: 720px) {
+  .mg-receipt-row .file-chips { flex: 1 1 100%; }
+  .mg-receipt-row .btn, .adv-docs-btns .btn { flex: 1 1 0; min-height: 44px; }
+}
+@media (max-width: 560px) { .adv-docs-head .adv-docs-btns .btn { width: auto; } }
+
+.select-toggle { display: none; }
+
+/* A line flagged by validation (flagClaimRow). */
+#rcRows tr.row-err td { background: var(--red-tint); }
+@media (max-width: 900px) {
+  #rcRows tr.row-err { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-tint); }
+  #rcRows tr.row-err td { background: none; }
+}
+
+@media (max-width: 720px) {
+  /* Close / remove controls: 40px tap targets (the glyph stays the same size). */
+  .x-btn { display: inline-grid; place-items: center; min-width: 40px; min-height: 40px; }
+  .dh-top .x-btn { margin: -8px -10px -8px 0; }
+  #mealRows td.meal-x, #rcRows td.meal-x { top: 0; right: 0; }
+  #mealRows tr td:first-child, #rcRows tr td:first-child { padding-right: 40px; }
+  .file-chip button { width: 28px; height: 28px; font-size: 1rem; }
+
+  /* List: checkboxes only in Select mode (selection.js setSelectMode). */
+  .select-toggle { display: inline-flex; flex: none; min-height: 40px; padding: 0 14px; }
+  /* Search · Filters · Select share one row: let the search box give way
+     (width: 0 drops the input's ~200px intrinsic width from the row's minimum). */
+  .search-row #searchInput { flex: 1 1 0; width: 0; }
+  .select-toggle[aria-pressed="true"] { border-color: var(--pine); color: var(--pine-deep); background: var(--pine-tint); }
+  .ledger:not(.selecting) .col-check { display: none; }
+  .ledger:not(.selecting) .ledger-row { grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name amt" "no status" "type date"; }
+  .ledger.show-paid:not(.selecting) .ledger-row {
+    grid-template-areas: "name amt" "no status" "type date" "paid paid"; }
+  .ledger.selecting .ledger-row { cursor: pointer; }
+  .ledger.selecting .row-check { width: 20px; height: 20px; }
+
+  /* My claims: every card is the viewer's own, so lead with the expense type;
+     then the date (what people look for), then the claim number. */
+  .ledger.view-mine .ledger-row .col-name { display: none; }
+  .ledger.view-mine .ledger-row .col-type { grid-area: name; font-size: 1rem; font-weight: 600; color: var(--ink); }
+  .ledger.view-mine .ledger-row .col-date { grid-area: type; text-align: left; align-self: center; }
+  .ledger.view-mine:not(.selecting) .ledger-row { grid-template-areas: "name amt" "type status" "no no"; }
+  .ledger.view-mine.selecting .ledger-row { grid-template-areas: "check name amt" "check type status" "check no no"; }
+}

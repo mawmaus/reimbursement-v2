@@ -178,6 +178,7 @@ function mgDayHtml(r, i) {
     <div class="mg-receipts">
       <span class="lbl">${esc(t('Receipts'))} <span class="req" aria-hidden="true">*</span></span>
       <div class="mg-receipt-row"><div class="file-chips">${mgChips(r, i)}</div>
+        <button type="button" class="btn btn-ghost btn-sm rc-cam" data-add="${i}" data-cam>📷 ${esc(t('Take photo'))}</button>
         <button type="button" class="btn btn-ghost btn-sm" data-add="${i}">📎 ${esc(t('Add receipt'))}</button></div>
       <input type="file" class="mg-input" data-input="${i}" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
     </div>
@@ -250,7 +251,7 @@ function mgRender() {
     mgReadRows(); mgPaintDay(+inp.closest('.mg-day').dataset.i);
   }));
   box.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
-    const inp = $(`#mgDays .mg-input[data-input="${b.dataset.add}"]`); if (inp) inp.click();
+    const inp = $(`#mgDays .mg-input[data-input="${b.dataset.add}"]`); if (inp) pickFiles(inp, b.hasAttribute('data-cam'));
   }));
   box.querySelectorAll('.mg-input').forEach(inp => inp.addEventListener('change', async () => {
     const r = mgRows[+inp.dataset.input]; if (!r) return;

@@ -1703,6 +1703,9 @@ function openView(key) {
   const paid = key === 'paid';
   $('#paidRange').hidden = !paid;
   $('.ledger').classList.toggle('show-paid', paid);
+  // My claims are all the viewer's own: phone cards lead with the expense, not the name.
+  $('.ledger').classList.toggle('view-mine', key === 'mine');
+  setSelectMode(false);
   if (!paid) setPaidRange('', '');
   renderClaims();
 }
@@ -1804,7 +1807,10 @@ function renderClaims() {
       <span class="col-status"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></span>
     </div>`; }).join('');
   $$('.ledger-row', wrap).forEach(el => {
-    const open = () => openDrawer(el.dataset.id, el.dataset.type);
+    const open = () => {
+      if (selectMode()) { const cb = el.querySelector('.row-check'); cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); return; }
+      openDrawer(el.dataset.id, el.dataset.type);
+    };
     el.addEventListener('click', open);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
@@ -1972,6 +1978,17 @@ function openModal2(html) {
 function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp', 'modal-hp-lb'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
+// Open a receipt <input type="file">. `camera` (the phone-only "Take photo"
+// buttons, .rc-cam) goes straight to the rear camera; otherwise the usual
+// picker with files and the gallery. One input serves both, so the attributes
+// are set per press.
+function pickFiles(inp, camera) {
+  if (inp.dataset.accept == null) inp.dataset.accept = inp.accept;
+  if (camera) { inp.setAttribute('capture', 'environment'); inp.accept = 'image/*'; }
+  else { inp.removeAttribute('capture'); inp.accept = inp.dataset.accept; }
+  inp.click();
+}
+
 // Phone Back button / iOS swipe-back closes the topmost panel instead of
 // leaving the app. While any panel is open, one extra history entry sits on
 // top; Back consumes it and we "tap" that panel's scrim, so every close path
@@ -2011,5 +2028,17 @@ window.addEventListener('popstate', () => {
   // Still open (another layer below, or a locked modal): re-arm for the next Back.
   syncOverlayHistory();
 });
+// Phones fit Search · Filters · Select on one row, where the long placeholder
+// gets cut off mid-word: use the short one there. Setting data-i18n-ph keeps a
+// language switch picking the right one.
+const phoneQuery = window.matchMedia('(max-width: 720px)');
+function syncSearchPlaceholder() {
+  const el = $('#searchInput');
+  el.dataset.i18nPh = phoneQuery.matches ? 'Search…' : 'Search claim no, name, type, DB…';
+  el.placeholder = t(el.dataset.i18nPh);
+}
+syncSearchPlaceholder();
+phoneQuery.addEventListener('change', syncSearchPlaceholder);
+
 new MutationObserver(syncOverlayHistory).observe(document.body,
   { attributes: true, attributeFilter: ['hidden'], subtree: true });

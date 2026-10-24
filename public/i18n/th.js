@@ -503,9 +503,6 @@ I18N.addDict('th', {
   'Doc No': 'เลขที่เอกสาร',
   'Employee': 'พนักงาน',
   'Enter an approval limit or choose Unlimited.': 'กรอกวงเงินอนุมัติ หรือเลือกไม่จำกัด',
-  'Every row needs a date.': 'ทุกแถวต้องมีวันที่',
-  'Every row needs a positive amount.': 'ทุกแถวต้องมีจำนวนเงินที่มากกว่าศูนย์',
-  'Every row needs a type of expense.': 'ทุกแถวต้องมีประเภทค่าใช้จ่าย',
   'Expense lines': 'รายการค่าใช้จ่าย',
   'Last month': 'เดือนที่แล้ว',
   'Last year': 'ปีที่แล้ว',
@@ -521,7 +518,6 @@ I18N.addDict('th', {
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'เฉพาะรายการที่จ่ายแล้วเท่านั้นที่ย้อนกลับการจ่ายได้ — รายการที่เลือกไม่มีรายการที่จ่ายแล้ว',
   'Open claim': 'เปิดรายการเบิก',
   'Others (specify)': 'อื่นๆ (ระบุ)',
-  'Please specify the expense type for the "Others" row.': 'กรุณาระบุประเภทค่าใช้จ่ายสำหรับแถว "อื่นๆ"',
   'Purpose': 'วัตถุประสงค์',
   'Receipts': 'ใบเสร็จ',
   'Region': 'ภูมิภาค',
@@ -1286,5 +1282,13 @@ I18N.addDict('th', {
   "That account no longer exists — reload and pick another": "ไม่มีบัญชีนั้นแล้ว — โหลดใหม่แล้วเลือกบัญชีอื่น",
   "The managing account must be in the same region as the account": "บัญชีผู้ดูแลต้องอยู่ในภูมิภาคเดียวกับบัญชีนี้",
   "That person is already managed by this account — pick someone above them": "บุคคลนั้นอยู่ภายใต้การดูแลของบัญชีนี้แล้ว — เลือกผู้ที่อยู่เหนือขึ้นไป",
-  "The account was saved, but \"Managed by\" needs the database update first": "บันทึกบัญชีแล้ว แต่ \"ดูแลโดย\" ต้องอัปเดตฐานข้อมูลก่อน"
+  "The account was saved, but \"Managed by\" needs the database update first": "บันทึกบัญชีแล้ว แต่ \"ดูแลโดย\" ต้องอัปเดตฐานข้อมูลก่อน",
+  // Phone forms and list (receipt camera, per-line errors, select mode)
+  "Take photo": "ถ่ายรูป",
+  "Select": "เลือก",
+  "Done": "เสร็จ",
+  "Enter the date.": "กรอกวันที่",
+  "Specify the type of expense.": "ระบุประเภทค่าใช้จ่าย",
+  "Choose the type of expense.": "เลือกประเภทค่าใช้จ่าย",
+  "Enter an amount above 0.": "กรอกจำนวนเงินที่มากกว่า 0"
 });

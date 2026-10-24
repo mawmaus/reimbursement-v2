@@ -28,6 +28,36 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-24.3',
+    date: '2026-10-24',
+    items: [
+      { kind: 'new', audience: ['claim', 'meal', 'advance'], text: {
+        en: 'On phones, a new “Take photo” button next to each receipt opens the camera straight away. The attach buttons are bigger too.',
+        id: 'Di HP, ada tombol baru “Ambil foto” di samping setiap struk yang langsung membuka kamera. Tombol lampiran juga lebih besar.',
+        th: 'บนมือถือ มีปุ่ม “ถ่ายรูป” ใหม่ข้างใบเสร็จแต่ละรายการ ซึ่งเปิดกล้องได้ทันที ปุ่มแนบไฟล์ก็ใหญ่ขึ้นด้วย',
+        vi: 'Trên điện thoại, nút mới “Chụp ảnh” cạnh mỗi hóa đơn mở ngay máy ảnh. Các nút đính kèm cũng lớn hơn.',
+        km: 'នៅលើទូរស័ព្ទ ប៊ូតុងថ្មី “ថតរូប” នៅក្បែរវិក្កយបត្រនីមួយៗ បើកកាមេរ៉ាភ្លាមៗ។ ប៊ូតុងភ្ជាប់ឯកសារក៏ធំជាងមុនដែរ។',
+        fil: 'Sa phone, may bagong “Kumuha ng litrato” na button sa tabi ng bawat resibo na agad nagbubukas ng camera. Mas malaki na rin ang mga attach button.'
+      } },
+      { kind: 'improved', audience: ['claim', 'advance'], text: {
+        en: 'When a claim can’t be submitted, the message now says which line is wrong, and the form jumps to that line and marks it.',
+        id: 'Jika klaim belum bisa dikirim, pesannya kini menyebut baris mana yang salah, dan formulir langsung menuju baris itu serta menandainya.',
+        th: 'เมื่อส่งรายการเบิกไม่ได้ ข้อความจะบอกว่าบรรทัดไหนผิด และแบบฟอร์มจะเลื่อนไปที่บรรทัดนั้นพร้อมทำเครื่องหมายไว้',
+        vi: 'Khi chưa gửi được yêu cầu, thông báo giờ cho biết dòng nào sai, và biểu mẫu sẽ chuyển đến dòng đó và đánh dấu nó.',
+        km: 'ពេលសំណើមិនអាចដាក់ស្នើបាន សារឥឡូវប្រាប់ថាជួរណាខុស ហើយទម្រង់នឹងលោតទៅជួរនោះ និងសម្គាល់វា។',
+        fil: 'Kapag hindi ma-submit ang claim, sinasabi na ng mensahe kung aling linya ang mali, at tumatalon ang form sa linyang iyon at minamarkahan ito.'
+      } },
+      { kind: 'improved', text: {
+        en: 'Claim lists on phones are tidier: “My claims” cards lead with the expense and its date instead of your own name, and the tick boxes appear only after you press “Select”.',
+        id: 'Daftar klaim di HP lebih rapi: kartu “Klaim saya” menampilkan jenis pengeluaran dan tanggalnya di atas, bukan nama Anda sendiri, dan kotak centang baru muncul setelah Anda menekan “Pilih”.',
+        th: 'รายการเบิกบนมือถือดูเป็นระเบียบขึ้น: การ์ดใน “การเบิกของฉัน” แสดงประเภทค่าใช้จ่ายและวันที่ก่อนแทนชื่อของคุณ และช่องติ๊กจะแสดงเมื่อกด “เลือก” เท่านั้น',
+        vi: 'Danh sách yêu cầu trên điện thoại gọn hơn: thẻ trong “Yêu cầu của tôi” hiển thị loại chi phí và ngày ở đầu thay vì tên của bạn, và ô đánh dấu chỉ hiện khi bạn bấm “Chọn”.',
+        km: 'បញ្ជីសំណើលើទូរស័ព្ទមានសណ្តាប់ធ្នាប់ជាងមុន៖ កាតក្នុង “សំណើរបស់ខ្ញុំ” បង្ហាញប្រភេទចំណាយ និងកាលបរិច្ឆេទមុន ជំនួសឱ្យឈ្មោះរបស់អ្នក ហើយប្រអប់ធីកបង្ហាញតែពេលអ្នកចុច “ជ្រើសរើស” ប៉ុណ្ណោះ។',
+        fil: 'Mas maayos ang listahan ng claim sa phone: inuuna ng mga card sa “Aking mga claim” ang uri ng gastos at petsa sa halip na pangalan mo, at lumalabas lang ang mga tick box kapag pinindot mo ang “Pumili”.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-24.2',
     date: '2026-10-24',
     items: [

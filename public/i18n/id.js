@@ -526,9 +526,6 @@ I18N.addDict('id', {
   'Doc No': 'No. Dokumen',
   'Employee': 'Karyawan',
   'Enter an approval limit or choose Unlimited.': 'Masukkan batas persetujuan atau pilih Tanpa batas.',
-  'Every row needs a date.': 'Setiap baris harus memiliki tanggal.',
-  'Every row needs a positive amount.': 'Setiap baris harus memiliki jumlah positif.',
-  'Every row needs a type of expense.': 'Setiap baris harus memiliki jenis pengeluaran.',
   'Expense lines': 'Baris pengeluaran',
   'Last month': 'Bulan lalu',
   'Last year': 'Tahun lalu',
@@ -544,7 +541,6 @@ I18N.addDict('id', {
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'Hanya klaim yang sudah dibayar yang pembayarannya dapat dibatalkan — tidak ada yang dipilih berstatus dibayar.',
   'Open claim': 'Buka klaim',
   'Others (specify)': 'Lainnya (sebutkan)',
-  'Please specify the expense type for the "Others" row.': 'Mohon sebutkan jenis pengeluaran untuk baris "Lainnya".',
   'Purpose': 'Tujuan',
   'Receipts': 'Bukti',
   'Region': 'Wilayah',
@@ -1309,5 +1305,13 @@ I18N.addDict('id', {
   "That account no longer exists — reload and pick another": "Akun tersebut sudah tidak ada — muat ulang dan pilih yang lain",
   "The managing account must be in the same region as the account": "Akun pengelola harus berada di region yang sama dengan akun ini",
   "That person is already managed by this account — pick someone above them": "Orang tersebut sudah dikelola oleh akun ini — pilih orang di atasnya",
-  "The account was saved, but \"Managed by\" needs the database update first": "Akun tersimpan, tetapi \"Dikelola oleh\" memerlukan pembaruan database terlebih dahulu"
+  "The account was saved, but \"Managed by\" needs the database update first": "Akun tersimpan, tetapi \"Dikelola oleh\" memerlukan pembaruan database terlebih dahulu",
+  // Phone forms and list (receipt camera, per-line errors, select mode)
+  "Take photo": "Ambil foto",
+  "Select": "Pilih",
+  "Done": "Selesai",
+  "Enter the date.": "Isi tanggalnya.",
+  "Specify the type of expense.": "Sebutkan jenis pengeluarannya.",
+  "Choose the type of expense.": "Pilih jenis pengeluaran.",
+  "Enter an amount above 0.": "Isi jumlah lebih dari 0."
 });

@@ -503,9 +503,6 @@ I18N.addDict('fil', {
   'Doc No': 'Blg. ng Dok',
   'Employee': 'Empleyado',
   'Enter an approval limit or choose Unlimited.': 'Maglagay ng limitasyon sa pag-apruba o piliin ang Walang limitasyon.',
-  'Every row needs a date.': 'Kailangan ng petsa ang bawat row.',
-  'Every row needs a positive amount.': 'Kailangan ng positibong halaga ang bawat row.',
-  'Every row needs a type of expense.': 'Kailangan ng uri ng gastos ang bawat row.',
   'Expense lines': 'Mga linya ng gastos',
   'Last month': 'Nakaraang buwan',
   'Last year': 'Nakaraang taon',
@@ -521,7 +518,6 @@ I18N.addDict('fil', {
   'Only paid claims can have their payment reverted — none of the selected are paid.': 'Tanging mga bayad nang claim lang ang maaaring i-revert ang bayad — walang napili na bayad na.',
   'Open claim': 'Buksan ang claim',
   'Others (specify)': 'Iba pa (tukuyin)',
-  'Please specify the expense type for the "Others" row.': 'Pakitukoy ang uri ng gastos para sa row na "Iba pa".',
   'Purpose': 'Layunin',
   'Receipts': 'Mga resibo',
   'Region': 'Rehiyon',
@@ -1286,5 +1282,13 @@ I18N.addDict('fil', {
   "That account no longer exists — reload and pick another": "Wala na ang account na iyon — i-reload at pumili ng iba",
   "The managing account must be in the same region as the account": "Dapat nasa parehong rehiyon ang namamahalang account",
   "That person is already managed by this account — pick someone above them": "Pinamamahalaan na ng account na ito ang taong iyon — pumili ng mas nakatataas",
-  "The account was saved, but \"Managed by\" needs the database update first": "Na-save ang account, pero kailangan munang i-update ang database para sa \"Pinamamahalaan ni\""
+  "The account was saved, but \"Managed by\" needs the database update first": "Na-save ang account, pero kailangan munang i-update ang database para sa \"Pinamamahalaan ni\"",
+  // Phone forms and list (receipt camera, per-line errors, select mode)
+  "Take photo": "Kumuha ng litrato",
+  "Select": "Pumili",
+  "Done": "Tapos",
+  "Enter the date.": "Ilagay ang petsa.",
+  "Specify the type of expense.": "Tukuyin ang uri ng gastos.",
+  "Choose the type of expense.": "Piliin ang uri ng gastos.",
+  "Enter an amount above 0.": "Maglagay ng halagang higit sa 0."
 });

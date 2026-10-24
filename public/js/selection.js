@@ -22,6 +22,18 @@ $('#clearSelBtn').addEventListener('click', () => {
   $$('.row-check').forEach(cb => { cb.checked = false; });
   updateSelectionUI();
 });
+// Phones: checkboxes are hidden until "Select" is pressed (.ledger.selecting);
+// while selecting, tapping a card ticks it instead of opening it. "Done"
+// leaves the mode and drops the selection.
+function setSelectMode(on) {
+  $('.ledger').classList.toggle('selecting', on);
+  const b = $('#selectModeBtn');
+  b.setAttribute('aria-pressed', String(on));
+  b.textContent = on ? t('Done') : t('Select');
+  if (!on && state.selected.size) $('#clearSelBtn').click();
+}
+const selectMode = () => $('.ledger').classList.contains('selecting');
+$('#selectModeBtn').addEventListener('click', () => setSelectMode(!selectMode()));
 $('#genPdfBtn').addEventListener('click', generatePdf);
 $('#deleteSelBtn').addEventListener('click', deleteSelected);
 $('#markPaidSelBtn').addEventListener('click', markPaidSelected);
