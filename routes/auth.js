@@ -179,7 +179,12 @@ router.post('/api/forgot-password', ah(async (req, res) => {
     `SELECT id, full_name, email, active FROM users
      WHERE lower(email) = lower($1) OR lower(username) = lower($1) LIMIT 1`, [identifier]);
   const user = rows[0];
-  if (!user || !user.active || !user.email) { await recordLoginFail(req); return res.json(generic); }
+  // The outcome goes to the log (account id only, never the address) so a
+  // "the email never came" report can be told apart from a skipped send.
+  if (!user || !user.active || !user.email) {
+    console.info('[reset] not sent:', !user ? 'no matching account' : !user.active ? `account ${user.id} disabled` : `account ${user.id} has no email`);
+    await recordLoginFail(req); return res.json(generic);
+  }
 
   // Per-account cap, so nobody can flood a colleague's inbox (or keep killing
   // their link) by asking over and over: one email a minute, five an hour. Over
@@ -187,7 +192,10 @@ router.post('/api/forgot-password', ah(async (req, res) => {
   const [recent] = await q(
     `SELECT COUNT(*)::int AS n, COALESCE(MAX(created_at) > now() - interval '1 minute', false) AS just_sent
        FROM password_resets WHERE user_id = $1 AND created_at > now() - interval '1 hour'`, [user.id]);
-  if (recent && (recent.just_sent || recent.n >= RESET_MAX_PER_HOUR)) return res.json(generic);
+  if (recent && (recent.just_sent || recent.n >= RESET_MAX_PER_HOUR)) {
+    console.info(`[reset] not sent: account ${user.id} ${recent.just_sent ? 'asked again within a minute' : `hit the ${RESET_MAX_PER_HOUR}-per-hour cap`}`);
+    return res.json(generic);
+  }
 
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + RESET_TTL_MS);
@@ -205,12 +213,14 @@ router.post('/api/forgot-password', ah(async (req, res) => {
     <p style="margin:0 0 8px">This link is valid for 1 hour and can be used once. If you didn’t request it, you can safely ignore this email.</p>
     ${button(link, 'Reset your password')}
     <p style="margin:12px 0 0;color:#6b7280;font-size:12px;word-break:break-all">Or paste this link into your browser:<br>${escHtml(link)}</p>`;
-  await sendEmail({
+  const sent = await sendEmail({
     to: user.email,
     subject: 'Reset your Reimbursement Portal password',
     html: layout('Password reset', inner),
     text: `Hi ${user.full_name}, reset your Reimbursement Portal password using this link (valid 1 hour, single use): ${link}`
   });
+  if (sent.ok) console.info(`[reset] sent: account ${user.id}, to @${user.email.split('@')[1]}, Resend id ${sent.id}`);
+  else console.info(`[reset] not sent: account ${user.id},`, sent.error || sent.skipped);
   res.json(generic);
 }));
 
