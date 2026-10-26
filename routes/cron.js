@@ -4,7 +4,7 @@
 
 const express = require('express');
 const { q } = require('../db');
-const { sendReminderDigest } = require('../lib/notify');
+const { sendReminderDigest, WORKFLOW_EMAILS } = require('../lib/notify');
 const { ah } = require('../lib/util');
 const { currentApproverId, reimbNotify, mealNotify } = require('../lib/workflow');
 const { advanceNotify } = require('../lib/advances');
@@ -25,6 +25,7 @@ router.get('/api/cron/reminders', ah(async (req, res) => {
   if (secret ? (req.headers.authorization || '') !== `Bearer ${secret}` : deployed()) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  if (!WORKFLOW_EMAILS) return res.json({ ok: true, disabled: true });
   const byApprover = new Map(); // approverId -> [claim payloads]
   const push = (id, payload) => {
     if (!id) return;

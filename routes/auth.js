@@ -159,7 +159,9 @@ router.post('/api/me/password', requireAuth, ah(async (req, res) => {
 // carries a random token (only its SHA-256 hash is stored). The link lands on
 // /reset.html which posts the token + a new password back to /api/reset-password.
 const RESET_TTL_MS = 60 * 60 * 1000;
-const RESET_MAX_PER_HOUR = 5;
+const RESET_MAX_PER_MONTH = 5;
+// Start of the current calendar month in Jakarta time, as a timestamptz.
+const MONTH_START_SQL = `date_trunc('month', now() AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'Asia/Jakarta'`;
 
 // The sign-in screen offers "Forgot password?" only when email can actually be
 // sent; without a mail provider the link would promise an email that never comes.
@@ -187,23 +189,24 @@ router.post('/api/forgot-password', ah(async (req, res) => {
   }
 
   // Per-account cap, so nobody can flood a colleague's inbox (or keep killing
-  // their link) by asking over and over: one email a minute, five an hour. Over
-  // the cap the answer is the same generic one and nothing is sent.
+  // their link) by asking over and over: one email a minute, five per calendar
+  // month (Jakarta time). Over the cap the answer is the same generic one and
+  // nothing is sent.
   const [recent] = await q(
     `SELECT COUNT(*)::int AS n, COALESCE(MAX(created_at) > now() - interval '1 minute', false) AS just_sent
-       FROM password_resets WHERE user_id = $1 AND created_at > now() - interval '1 hour'`, [user.id]);
-  if (recent && (recent.just_sent || recent.n >= RESET_MAX_PER_HOUR)) {
-    console.info(`[reset] not sent: account ${user.id} ${recent.just_sent ? 'asked again within a minute' : `hit the ${RESET_MAX_PER_HOUR}-per-hour cap`}`);
+       FROM password_resets WHERE user_id = $1 AND created_at >= ${MONTH_START_SQL}`, [user.id]);
+  if (recent && (recent.just_sent || recent.n >= RESET_MAX_PER_MONTH)) {
+    console.info(`[reset] not sent: account ${user.id} ${recent.just_sent ? 'asked again within a minute' : `hit the ${RESET_MAX_PER_MONTH}-per-month cap`}`);
     return res.json(generic);
   }
 
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + RESET_TTL_MS);
-  // Older links stop working, but their rows stay a day so the cap above can
+  // Older links stop working, but this month's rows stay so the cap above can
   // count them.
   await q('UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL', [user.id]);
-  await q(`DELETE FROM password_resets WHERE user_id = $1 AND created_at < now() - interval '1 day'`, [user.id]);
-  await q('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1,$2,$3)',
+  await q(`DELETE FROM password_resets WHERE user_id = $1 AND created_at < ${MONTH_START_SQL}`, [user.id]);
+  const [row] = await q('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1,$2,$3) RETURNING id',
     [user.id, sha256(token), expires.toISOString()]);
 
   const link = `${baseUrl(req)}/reset.html?token=${token}`;
@@ -220,7 +223,11 @@ router.post('/api/forgot-password', ah(async (req, res) => {
     text: `Hi ${user.full_name}, reset your Reimbursement Portal password using this link (valid 1 hour, single use): ${link}`
   });
   if (sent.ok) console.info(`[reset] sent: account ${user.id}, to @${user.email.split('@')[1]}, Resend id ${sent.id}`);
-  else console.info(`[reset] not sent: account ${user.id},`, sent.error || sent.skipped);
+  else {
+    // A send that never left doesn't use up one of the month's five.
+    if (row) await q('DELETE FROM password_resets WHERE id = $1', [row.id]);
+    console.info(`[reset] not sent: account ${user.id},`, sent.error || sent.skipped);
+  }
   res.json(generic);
 }));
 

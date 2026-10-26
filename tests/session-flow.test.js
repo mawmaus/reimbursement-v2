@@ -25,7 +25,11 @@ async function q(text, params = []) {
     const k = String(params[0]).toLowerCase();
     return [...users.values()].filter(u => (u.email || '').toLowerCase() === k || u.username.toLowerCase() === k);
   }
-  if (/^INSERT INTO password_resets/.test(sql)) { resets.push({ user_id: params[0], token_hash: params[1], used: false }); return []; }
+  if (/^INSERT INTO password_resets/.test(sql)) { resets.push({ id: resets.length + 1, user_id: params[0], token_hash: params[1], used: false }); return [{ id: resets.length }]; }
+  // Every row here counts as "this month"; the 1-minute throttle never trips.
+  if (/^SELECT COUNT\(\*\)::int AS n, .* FROM password_resets WHERE user_id = \$1/.test(sql)) {
+    return [{ n: resets.filter(r => r.user_id === params[0]).length, just_sent: false }];
+  }
   if (/^UPDATE password_resets SET used_at = now\(\) WHERE user_id = \$1/.test(sql)) {
     resets.filter(r => r.user_id === params[0]).forEach(r => { r.used = true; }); return [];
   }
@@ -156,4 +160,11 @@ test('forgot password: offered only once email is set up; the emailed link sets 
   assert.equal((await laptop('GET', '/api/me')).status, 401, 'existing sessions are signed out');
   assert.equal((await browser('POST', '/api/login', { username: 'dewi', password: 'old-password' })).status, 401);
   assert.equal((await browser('POST', '/api/login', { username: 'dewi', password: 'brand-new-password' })).status, 200);
+
+  // Five reset emails a month per account; the sixth ask gets the same answer and no email.
+  for (let i = 0; i < 4; i++) await browser('POST', '/api/forgot-password', { identifier: 'dewi' });
+  assert.equal(sent.length, 5);
+  const sixth = await browser('POST', '/api/forgot-password', { identifier: 'dewi' });
+  assert.equal(sixth.status, 200); assert.equal(sixth.body.message, nobody.body.message);
+  assert.equal(sent.length, 5, 'monthly cap reached');
 });
