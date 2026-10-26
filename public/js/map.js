@@ -79,3 +79,60 @@ function mapPins(layer, points) {
     if (p.popup) pin.bindPopup(p.popup);
   }
 }
+
+// --- Bases map (home tile) ------------------------------------------------------------
+// Everyone can see where the bases are: their region's bases (every region for
+// an all-regions viewer) with their rings, their own base marked, and a list
+// that flies the map to a base.
+async function openBasesMap() {
+  openModal(`
+    <div class="modal-head"><div><h2>${esc(t('Bases map'))}</h2>
+      <div class="lf-sub"><span id="bmSub"></span></div></div>
+      <button type="button" class="x-btn" id="bmClose" aria-label="${esc(t('Close'))}">×</button></div>
+    <div class="modal-body bm-body">
+      <div class="bm-map map-box" id="bmMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
+      <p class="map-key" id="bmKey"></p>
+      <div class="bm-list" id="bmList"></div>
+    </div>`);
+  $('#modal').classList.add('modal-wide', 'modal-flex');
+  $('#bmClose').addEventListener('click', closeModal);
+  let data;
+  try { data = await api('/bases'); }
+  catch (ex) { const m = $('#bmMap'); if (m) m.innerHTML = `<p class="map-msg">${esc(ex.message)}</p>`; return; }
+  const el = $('#bmMap');
+  if (!el) return;
+  const km = data.min_km || 30;
+  const bases = data.bases || [];
+  const mine = state.user && state.user.meal_gps && state.user.meal_gps.base;
+  const isMine = (b) => !!mine && Math.abs(b.lat - mine.lat) < 1e-6 && Math.abs(b.lng - mine.lng) < 1e-6;
+  // A location typed onto the account (not one from the list) still gets drawn.
+  const shown = bases.slice();
+  if (mine && !bases.some(isMine)) shown.unshift({ id: 'mine', name: mine.name || t('Your base'), lat: mine.lat, lng: mine.lng, region: '' });
+  shown.sort((a, b) => (isMine(b) - isMine(a)) || String(a.region).localeCompare(String(b.region)) || a.name.localeCompare(b.name));
+  const regions = new Set(shown.map(b => b.region).filter(Boolean));
+  $('#bmSub').textContent = shown.length === 1 ? t('1 base') : t('{n} bases', { n: shown.length });
+  $('#bmKey').innerHTML = `<span class="map-key-ring" aria-hidden="true"></span>${esc(t('Each ring is the {km} km straight-line radius around a base — in-town meals inside it can’t be claimed.', { km }))}`;
+  $('#bmList').innerHTML = shown.length ? shown.map(b => `
+    <button type="button" class="bm-row${isMine(b) ? ' mine' : ''}" data-b="${esc(String(b.id))}">
+      <span class="bm-ic" aria-hidden="true">🏢</span>
+      <span class="bm-main"><b>${esc(b.name)}</b><small>${esc([regions.size > 1 ? b.region : '', `${b.lat}, ${b.lng}`].filter(Boolean).join(' · '))}</small></span>
+      ${isMine(b) ? `<span class="bm-tag">${esc(t('Your base'))}</span>` : ''}
+    </button>`).join('')
+    : `<p class="bs-empty">${esc(t('No bases have been set up yet.'))}</p>`;
+  const map = await makeMap(el);
+  if (!map) return;
+  const drawn = new Map();
+  for (const b of shown) {
+    drawn.set(String(b.id), mapBase(map, b, km, {
+      popup: `<b>${esc(b.name)}</b>${isMine(b) ? ` · ${esc(t('Your base'))}` : ''}<br><span class="map-ll">${esc(`${b.lat}, ${b.lng}`)}</span><br><a href="https://www.google.com/maps?q=${encodeURIComponent(b.lat + ',' + b.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`
+    }));
+  }
+  fitAreas(map, [...drawn.values()].map(d => d.area));
+  $$('#bmList [data-b]').forEach(btn => btn.addEventListener('click', () => {
+    const d = drawn.get(btn.dataset.b);
+    if (!d) return;
+    $$('#bmList .bm-row').forEach(x => x.classList.toggle('on', x === btn));
+    map.flyToBounds(d.area, { padding: [24, 24], duration: 0.6 });
+    d.dot.openPopup();
+  }));
+}

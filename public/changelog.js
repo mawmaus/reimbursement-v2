@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-26.4',
+    date: '2026-10-26',
+    items: [
+      { kind: 'new', text: {
+        en: 'New “Bases map” tile on the home screen: see every base with its 30 km radius ring, with your own base marked. Tap a base in the list to zoom to it.',
+        id: 'Ubin baru “Peta base” di beranda: lihat semua base beserta lingkaran radius 30 km-nya, dengan base Anda ditandai. Ketuk base di daftar untuk memperbesar ke sana.',
+        th: 'ไทล์ใหม่ “แผนที่ฐาน” ในหน้าหลัก: ดูทุกฐานพร้อมวงรัศมี 30 กม. โดยมีการทำเครื่องหมายฐานของคุณ แตะฐานในรายการเพื่อซูมไปที่ฐานนั้น',
+        vi: 'Ô mới “Bản đồ cơ sở” trên màn hình chính: xem mọi cơ sở cùng vòng bán kính 30 km, có đánh dấu cơ sở của bạn. Chạm vào một cơ sở trong danh sách để phóng to đến đó.',
+        km: 'ប្រអប់ថ្មី “ផែនទីមូលដ្ឋាន” នៅទំព័រដើម៖ មើលមូលដ្ឋានទាំងអស់ជាមួយរង្វង់កាំ 30 គ.ម ដោយមានសម្គាល់មូលដ្ឋានរបស់អ្នក។ ចុចមូលដ្ឋានក្នុងបញ្ជីដើម្បីពង្រីកទៅទីនោះ។',
+        fil: 'Bagong “Mapa ng mga base” na tile sa home screen: makita ang bawat base kasama ang 30 km na radius ring nito, na may marka ang iyong base. I-tap ang base sa listahan para mag-zoom dito.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-26.3',
     date: '2026-10-26',
     items: [

@@ -1674,6 +1674,8 @@ function renderHome() {
     count: helpStaff ? help.feedback : 0, badge: helpStaff, link: helpStaff && help.feedback ? '' : t('Open'),
     unit: () => t('new'), attnLabel: (n) => t('{n} new', { n })
   });
+  // Where the bases are, with the GPS meal allowance radius around each (js/map.js).
+  tiles.push({ key: 'basemap', title: t('Bases map'), desc: t('Every base and its {km} km radius', { km: mgRules().minKm }), link: t('Open') });
   // One line under the greeting saying what needs doing, for anyone who
   // approves (or has something waiting).
   const summary = $('#homeSummary');
@@ -1692,6 +1694,7 @@ function renderHome() {
     ['Finance', ['paid']],
     ['Cash advances', ['unrealized', 'realized']],
     ['Overview', ['all', 'insights', 'datechange']],
+    ['Locations', ['basemap']],
     ['Help', ['helpdesk', 'feedback']]
   ];
   const tileHtml = (tile) => {
@@ -1716,6 +1719,7 @@ function renderHome() {
     const v = el.dataset.view;
     if (v === 'insights') openInsights();
     else if (v === 'datechange') openDateChanges();
+    else if (v === 'basemap') openBasesMap();
     else if (v === 'helpdesk' || v === 'feedback') openHelp(v === 'feedback' ? 'feedback' : 'tickets');
     else openView(v);
   }));
@@ -1734,6 +1738,7 @@ const HOME_ICONS = {
   insights: svgI('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'),
   datechange: svgI('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
   helpdesk: svgI('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"/>'),
+  basemap: svgI('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
   feedback: svgI('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>')
 };
 
