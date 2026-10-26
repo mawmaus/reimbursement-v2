@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-26.1',
+    date: '2026-10-26',
+    items: [
+      { kind: 'new', text: {
+        en: 'Forgot your password? Tap “Forgot password?” on the sign-in screen and we’ll email you a link to choose a new one. Make sure your email address in Profile is correct.',
+        id: 'Lupa kata sandi? Ketuk “Lupa kata sandi?” di halaman masuk dan kami akan mengirim tautan lewat email untuk membuat kata sandi baru. Pastikan alamat email di Profil Anda sudah benar.',
+        th: 'ลืมรหัสผ่าน? แตะ “ลืมรหัสผ่าน?” ที่หน้าเข้าสู่ระบบ แล้วเราจะส่งลิงก์ทางอีเมลให้คุณตั้งรหัสผ่านใหม่ โปรดตรวจสอบว่าอีเมลในโปรไฟล์ของคุณถูกต้อง',
+        vi: 'Quên mật khẩu? Nhấn “Quên mật khẩu?” ở màn hình đăng nhập, chúng tôi sẽ gửi email kèm liên kết để bạn đặt mật khẩu mới. Hãy đảm bảo địa chỉ email trong Hồ sơ của bạn là chính xác.',
+        km: 'ភ្លេចពាក្យសម្ងាត់? ចុច “ភ្លេចពាក្យសម្ងាត់?” នៅទំព័រចូល ហើយយើងនឹងផ្ញើតំណតាមអ៊ីមែល ដើម្បីឱ្យអ្នកកំណត់ពាក្យសម្ងាត់ថ្មី។ សូមប្រាកដថាអាសយដ្ឋានអ៊ីមែលក្នុងប្រវត្តិរូបរបស់អ្នកត្រឹមត្រូវ។',
+        fil: 'Nakalimutan ang password? I-tap ang “Nakalimutan ang password?” sa sign-in screen at padadalhan ka namin ng link sa email para pumili ng bago. Siguraduhing tama ang email address sa iyong Profile.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-24.3',
     date: '2026-10-24',
     items: [
