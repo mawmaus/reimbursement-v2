@@ -505,11 +505,41 @@ function reimbursementBody(c) {
     <div id="drawerLines"></div>`;
 }
 
-// Body for a meal allowance claim: account/bank details + the line-item table.
+// Body for a meal allowance claim: account/bank details + the line-item table,
+// and for a GPS claim a map of where each line was recorded.
 function mealBody(c) {
+  const mapped = c.scheme === 'gps' && (c.lines || []).some(l => l.gps);
   return `
     ${paymentCardHtml(c)}
-    <div id="drawerLines"></div>`;
+    <div id="drawerLines"></div>
+    ${mapped ? `<div class="section-label">${esc(t('Where each day was recorded'))}</div>
+      <div class="d-map map-box" id="drawerMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
+      <p class="map-key"><span class="map-key-ring" aria-hidden="true"></span>${withRadius(t('The base and its {min} km {radius}', { min: mgRules().minKm }))}
+        <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Numbered in the order of the lines above'))}</p>` : ''}`;
+}
+// The GPS claim map (js/map.js): each base on the claim's lines with its ring,
+// and a numbered pin per line joined to its base (red: in town inside the ring).
+async function drawGpsClaimMap(c) {
+  const el = $('#drawerMap');
+  if (!el) return;
+  const map = await makeMap(el);
+  if (!map) return;
+  const km = mgRules().minKm;
+  const lines = (c.lines || []).filter(l => l.gps);
+  const bases = new Map();
+  for (const l of lines) if (l.base) bases.set(`${l.base.lat},${l.base.lng}`, l.base);
+  const areas = [...bases.values()].map(b => mapBase(map, b, km).area);
+  const layer = L.layerGroup().addTo(map);
+  mapPins(layer, lines.map(l => {
+    const n = c.lines.indexOf(l) + 1;
+    const where = l.distance_km == null ? esc(t('Location recorded'))
+      : withRadius(t('{km} km {radius} from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') }));
+    const trip = l.trip_type === 'out_of_town' ? t('Out of town') : t('In town');
+    return { lat: l.gps.lat, lng: l.gps.lng, n, base: l.base,
+      bad: l.trip_type === 'in_town' && l.distance_km != null && l.distance_km < km,
+      popup: `<b>${esc(l.line_date)} · ${esc(trip)}</b><br>${where}<br><span class="map-ll">${esc(l.gps.at ? fmtDateTime(l.gps.at) : `${l.gps.lat}, ${l.gps.lng}`)}</span>` };
+  }));
+  fitAreas(map, areas.concat(lines.map(l => ringArea(l.gps, 0.5))));
 }
 
 // Body for a cash advance: account/bank details, the purpose + requested amount,
@@ -611,6 +641,7 @@ async function openDrawer(id, type = 'reimbursement') {
   }));
   $$('#drawer [data-act]').forEach(b => b.addEventListener('click', () => handleAction(b.dataset.act, c)));
   renderDrawerLines(c);
+  drawGpsClaimMap(c);
   wireDocLinks($('#drawer .kv') || $('#drawer'));
 
   $('#drawerScrim').hidden = false;

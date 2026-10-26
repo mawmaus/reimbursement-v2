@@ -28,9 +28,17 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
-    id: '2026-10-26.2',
+    id: '2026-10-26.3',
     date: '2026-10-26',
     items: [
+      { kind: 'new', audience: ['meal'], text: {
+        en: 'The GPS meal allowance form now has a map: your base, its 30 km radius ring and a numbered pin for each day’s recorded location. Approvers see the same map on the claim.',
+        id: 'Formulir uang makan GPS kini punya peta: base Anda, lingkaran radius 30 km, dan pin bernomor untuk lokasi yang direkam tiap hari. Approver melihat peta yang sama di klaim.',
+        th: 'แบบฟอร์มค่าอาหาร GPS มีแผนที่แล้ว: ฐานของคุณ วงรัศมี 30 กม. และหมุดตัวเลขสำหรับตำแหน่งที่บันทึกในแต่ละวัน ผู้อนุมัติจะเห็นแผนที่เดียวกันในคำขอเบิก',
+        vi: 'Biểu mẫu phụ cấp ăn GPS giờ có bản đồ: cơ sở của bạn, vòng bán kính 30 km và ghim đánh số cho vị trí đã ghi mỗi ngày. Người duyệt thấy cùng bản đồ đó trên yêu cầu.',
+        km: 'ទម្រង់ប្រាក់អាហារ GPS ឥឡូវមានផែនទី៖ មូលដ្ឋានរបស់អ្នក រង្វង់កាំ 30 គ.ម និងម្ជុលមានលេខសម្រាប់ទីតាំងដែលបានកត់ត្រាប្រចាំថ្ងៃ។ អ្នកអនុម័តឃើញផែនទីដូចគ្នានៅលើការទាមទារ។',
+        fil: 'May mapa na ang GPS meal allowance form: ang iyong base, ang 30 km na radius ring nito at may numerong pin para sa na-record na lokasyon ng bawat araw. Nakikita rin ng mga approver ang parehong mapa sa claim.'
+      } },
       { kind: 'new', audience: ['settings'], text: {
         en: 'Settings → Bases now has a map: every base with its 30 km radius ring for the GPS meal allowance. Click a base’s name to zoom to it, or click the map to fill in a new base’s location.',
         id: 'Pengaturan → Base kini punya peta: setiap base dengan lingkaran radius 30 km untuk uang makan GPS. Klik nama base untuk memperbesar ke sana, atau klik peta untuk mengisi lokasi base baru.',

@@ -3513,29 +3513,42 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .bs-name { align-self: flex-start; border: 0; padding: 0; background: none; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
 .bs-name:hover { color: var(--pine-deep); text-decoration: underline; }
 .bs-name:focus-visible { outline: none; border-radius: 4px; box-shadow: 0 0 0 2px var(--focus-ring); }
-/* The bases map (Leaflet, vendor/leaflet.css) above the list. */
-.bs-map-wrap { margin: 0 0 14px; }
-.bs-map { height: 380px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--paper);
+/* Maps (js/map.js — Leaflet, vendor/leaflet.css): shared theming. */
+.map-box { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--paper);
   display: flex; align-items: center; justify-content: center; z-index: 0; }
-.bs-map.leaflet-container { display: block; font: inherit; background: var(--paper); }
-.bs-map-msg { margin: 0; padding: 14px; font-size: .86rem; color: var(--muted); text-align: center; }
-.bs-map-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 2px 0; font-size: .8rem; line-height: 1.45; color: var(--ink-soft); }
-.bs-map-ring { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--pine);
-  background: color-mix(in srgb, var(--pine) 18%, transparent); }
-.bs-map-tip { flex-basis: 100%; padding-left: 22px; color: var(--muted); }
-.bs-map .leaflet-tooltip.bs-map-label { padding: 2px 7px; border: 0; border-radius: 6px; background: var(--surface); color: var(--ink);
+.map-box.leaflet-container { display: block; font: inherit; background: var(--paper); }
+.map-msg { margin: 0; padding: 14px; font-size: .86rem; color: var(--muted); text-align: center; }
+.map-box .leaflet-tooltip.map-label { padding: 2px 7px; border: 0; border-radius: 6px; background: var(--surface); color: var(--ink);
   font-size: .76rem; font-weight: 700; box-shadow: var(--shadow-sm), 0 0 0 1px var(--line); }
-.bs-map .leaflet-tooltip.bs-map-label::before { display: none; }
-.bs-map .leaflet-popup-content-wrapper, .bs-map .leaflet-popup-tip { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-md); }
-.bs-map .leaflet-popup-content { margin: 10px 14px; font-size: .84rem; line-height: 1.5; }
-.bs-map .leaflet-popup-close-button { color: var(--muted); }
-.bs-map-ll { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
-.bs-map .leaflet-bar a { background: var(--surface); color: var(--ink); border-color: var(--line); }
-.bs-map .leaflet-bar a:hover { background: var(--paper); }
-.bs-map .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--muted); }
-.bs-map .leaflet-control-attribution a { color: var(--pine-deep); }
+.map-box .leaflet-tooltip.map-label::before { display: none; }
+.map-box .leaflet-popup-content-wrapper, .map-box .leaflet-popup-tip { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-md); }
+.map-box .leaflet-popup-content { margin: 10px 14px; font-size: .84rem; line-height: 1.5; }
+.map-box .leaflet-popup-close-button { color: var(--muted); }
+.map-ll { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
+.map-box .leaflet-bar a { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.map-box .leaflet-bar a:hover { background: var(--paper); }
+.map-box .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--muted); }
+.map-box .leaflet-control-attribution a { color: var(--pine-deep); }
+/* A recorded GPS point: a numbered pin (red when inside the ring on an in-town day). */
+.map-box .map-pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--pine-deep);
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); color: #fff; font-size: .74rem; font-weight: 800; }
+.map-box .map-pin.bad { background: var(--red); }
+.map-key { margin: 8px 2px 0; font-size: .8rem; line-height: 1.45; color: var(--ink-soft); }
+.map-key-ring, .map-key-pin { display: inline-block; vertical-align: -2px; margin-right: 6px; box-sizing: border-box; }
+.map-key-pin { margin-left: 10px; }
+.map-key-ring { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--pine);
+  background: color-mix(in srgb, var(--pine) 18%, transparent); }
+.map-key-pin { width: 14px; height: 14px; border-radius: 50%; background: var(--pine-deep); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
 /* Night mode: darken the light street tiles instead of swapping tile servers. */
-:root[data-theme="dark"] .bs-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+:root[data-theme="dark"] .map-box .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+/* Settings → Bases: the map above the list. */
+.bs-map-wrap { margin: 0 0 14px; }
+.bs-map { height: 380px; }
+.bs-map-tip { display: block; padding-left: 20px; color: var(--muted); }
+/* GPS meal allowance: the form (under the base card) and the claim drawer. */
+.mg-map-wrap { margin: 0 0 14px; }
+.mg-map { height: 240px; }
+.d-map { height: 280px; }
 .bs-main span { font-size: .8rem; color: var(--muted); font-family: var(--mono); }
 .bs-main a { font-family: var(--sans); color: var(--pine-deep); font-weight: 600; }
 .bs-count { border: 0; background: var(--paper); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: .8rem;

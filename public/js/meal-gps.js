@@ -265,6 +265,7 @@ function mgRender() {
     mgReadRows(); (b.dataset.chip === 'kept' ? r.kept : r.files).splice(+b.dataset.k, 1); mgRender();
   }));
   wireDbCells('#mgDays');
+  mgPaintMap();
 }
 
 // --- The form -----------------------------------------------------------------------
@@ -285,7 +286,46 @@ function mgBaseHtml() {
       <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: R.maxMeals, cap: money(R.outCap, regionCurrency()) }))}</li>
       <li>${esc(t('Every day needs your location and its receipt'))}</li>
     </ul>
+  </div>
+  <div class="mg-map-wrap">
+    <div class="mg-map map-box" id="mgMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
+    <p class="map-key"><span class="map-key-ring" aria-hidden="true"></span>${withRadius(t('Your base and its {min} km {radius}', { min: R.minKm }))}
+      <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Where each day was recorded (numbered by day)'))}</p>
   </div>`;
+}
+
+// --- Map: the base, its ring and each day's recorded location (js/map.js) ----------
+// Made once per form; mgRender repaints the pins. The view refits only when a
+// location changes, so switching a trip type doesn't move the map.
+let mgMap = null;
+async function mgInitMap() {
+  mgMap = null;
+  const el = $('#mgMap'), base = mgCfg().base;
+  if (!el || !base) return;
+  const map = await makeMap(el);
+  if (!map || el !== $('#mgMap')) return;
+  mapBase(map, base, mgRules().minKm);
+  mgMap = { map, el, layer: L.layerGroup().addTo(map), sig: null };
+  mgPaintMap();
+}
+function mgPaintMap() {
+  if (!mgMap || !mgMap.el.isConnected) return;
+  const base = mgCfg().base, R = mgRules();
+  const points = [];
+  mgRows.forEach((r, i) => {
+    if (!r.gps) return;
+    const chk = mgCheck(r);
+    const where = chk.km == null ? esc(t('Location recorded'))
+      : withRadius(t('{km} {radius} from {base}', { km: mgKm(chk.km), base: base.name || t('base') }));
+    points.push({ lat: r.gps.lat, lng: r.gps.lng, n: i + 1, base, bad: chk.tooClose,
+      popup: `<b>${esc(t('Day {n}', { n: i + 1 }))}${r.date ? ' · ' + esc(r.date) : ''}</b><br>${where}<br><span class="map-ll">${esc(fmtDateTime(r.gps.at))}</span>` });
+  });
+  mapPins(mgMap.layer, points);
+  const sig = points.map(p => `${p.lat},${p.lng}`).join('|');
+  if (sig !== mgMap.sig) {
+    mgMap.sig = sig;
+    fitAreas(mgMap.map, [ringArea(base, R.minKm), ...points.map(p => ringArea(p, 0.5))]);
+  }
 }
 // Fields of one day as a draft (files go to IndexedDB separately).
 const mgDraftRow = (r) => ({ date: r.date, trip: r.trip, amount: r.amount, meals: r.meals.slice(), site: r.site,
@@ -363,6 +403,7 @@ async function openMealGpsModal(existing = null) {
   mgPaintGeoBanner();
   renderClaimDateBox();
   mgRender();
+  mgInitMap();
   if (fresh) {
     if (draft && draft.data.approver1) { const sel = $('#mgForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1; }
     $('#mgSaveDraft').addEventListener('click', () => saveDraftAndClose(MG_KIND, collectMealGpsDraft, collectMealGpsFiles));
