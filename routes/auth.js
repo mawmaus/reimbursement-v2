@@ -7,7 +7,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { q } = require('../db');
-const { sendEmail, layout, button } = require('../lib/email');
+const { sendEmail, emailConfigured, layout, button } = require('../lib/email');
 const { ah, normLang, normEmail, EMAIL_RE, sha256, baseUrl, escHtml } = require('../lib/util');
 const {
   loadPositions, attachCaps, creatablePositions, hasDelegation,
@@ -160,6 +160,12 @@ router.post('/api/me/password', requireAuth, ah(async (req, res) => {
 // /reset.html which posts the token + a new password back to /api/reset-password.
 const RESET_TTL_MS = 60 * 60 * 1000;
 const RESET_MAX_PER_HOUR = 5;
+
+// The sign-in screen offers "Forgot password?" only when email can actually be
+// sent; without a mail provider the link would promise an email that never comes.
+router.get('/api/auth-options', (req, res) => {
+  res.json({ password_reset: emailConfigured() });
+});
 
 router.post('/api/forgot-password', ah(async (req, res) => {
   const blocked = await loginBlockedFor(req);

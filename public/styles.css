@@ -2834,6 +2834,20 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .btn.is-busy { opacity: .8; cursor: progress; }
 .login-card .login-hint { margin-top: 20px; font-size: .82rem; line-height: 1.5; text-wrap: balance; }
 .login-card .login-lang { margin-top: 18px; }
+/* Forgot password: the link under Sign in, then its own pane in the card. */
+.login-links { display: flex; justify-content: center; margin: 14px 0 0; }
+.linkbtn {
+  border: none; background: none; cursor: pointer; padding: 6px 8px; border-radius: 6px;
+  color: var(--pine); font: inherit; font-size: .88rem; font-weight: 600;
+}
+.linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:focus-visible { outline: 2px solid var(--pine); outline-offset: 2px; }
+.forgot-head h2 { margin: 0 0 6px; font-size: 1.08rem; font-weight: 650; color: var(--ink); }
+.forgot-head p { margin: 0; font-size: .88rem; line-height: 1.5; }
+.login-card .forgot-cancel { margin-top: 0; }
+#forgotSent .reset-done-ic { color: var(--pine); background: var(--pine-tint); }
+#forgotSent p { font-size: .9rem; }
+#forgotSent strong { color: var(--ink); font-size: 1.05rem; }
 @media (max-width: 480px) {
   /* Phones: the card fills the width with a little air, no floating box. */
   .login-wrap { padding: 16px; align-items: start; padding-top: max(10vh, 24px); }

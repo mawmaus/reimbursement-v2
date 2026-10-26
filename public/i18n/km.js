@@ -1290,5 +1290,14 @@ I18N.addDict('km', {
   "Enter the date.": "បញ្ចូលកាលបរិច្ឆេទ។",
   "Specify the type of expense.": "បញ្ជាក់ប្រភេទចំណាយ។",
   "Choose the type of expense.": "ជ្រើសរើសប្រភេទចំណាយ។",
-  "Enter an amount above 0.": "បញ្ចូលចំនួនទឹកប្រាក់ធំជាង 0។"
+  "Enter an amount above 0.": "បញ្ចូលចំនួនទឹកប្រាក់ធំជាង 0។",
+  "Need an account? Contact your manager": "ត្រូវការគណនី? សូមទាក់ទងអ្នកគ្រប់គ្រងរបស់អ្នក",
+  "Sending…": "កំពុងផ្ញើ…",
+  "Send reset link": "ផ្ញើតំណកំណត់ឡើងវិញ",
+  "Forgot password?": "ភ្លេចពាក្យសម្ងាត់?",
+  "Reset your password": "កំណត់ពាក្យសម្ងាត់ឡើងវិញ",
+  "Enter your email or username. We’ll email you a link to choose a new password.": "បញ្ចូលអ៊ីមែល ឬឈ្មោះអ្នកប្រើរបស់អ្នក។ យើងនឹងផ្ញើតំណតាមអ៊ីមែល ដើម្បីឱ្យអ្នកកំណត់ពាក្យសម្ងាត់ថ្មី។",
+  "Email or username": "អ៊ីមែល ឬឈ្មោះអ្នកប្រើ",
+  "Check your email": "សូមពិនិត្យអ៊ីមែលរបស់អ្នក",
+  "If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.": "ប្រសិនបើគណនីនោះមានអាសយដ្ឋានអ៊ីមែល តំណកំណត់ឡើងវិញកំពុងត្រូវបានផ្ញើ។ តំណប្រើបានតែម្តង ហើយផុតកំណត់ក្នុងរយៈពេល 1 ម៉ោង។ មិនទាន់ទទួលបាន? សូមពិនិត្យថតសារឥតបានការ ឬសុំឱ្យអ្នកគ្រប់គ្រងកំណត់ពាក្យសម្ងាត់ឡើងវិញឱ្យ។"
 });

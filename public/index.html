@@ -36,6 +36,28 @@
       <p id="loginError" class="form-error" hidden></p>
       <button type="submit" class="btn btn-primary btn-block" data-i18n="Sign in">Sign in</button>
     </form>
+    <p class="login-links" id="forgotRow" hidden><button type="button" id="forgotLink" class="linkbtn" data-i18n="Forgot password?">Forgot password?</button></p>
+
+    <!-- Forgot password: request a reset link by email or username (reset.html finishes it) -->
+    <form id="forgotForm" class="form" hidden autocomplete="on">
+      <div class="forgot-head">
+        <h2 data-i18n="Reset your password">Reset your password</h2>
+        <p class="muted" data-i18n="Enter your email or username. We’ll email you a link to choose a new password.">Enter your email or username. We’ll email you a link to choose a new password.</p>
+      </div>
+      <label><span data-i18n="Email or username">Email or username</span>
+        <input name="identifier" type="text" required autocomplete="username" autocapitalize="off" spellcheck="false" />
+      </label>
+      <p id="forgotError" class="form-error" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block" data-i18n="Send reset link">Send reset link</button>
+      <button type="button" class="btn btn-ghost btn-block forgot-cancel" data-i18n="Back to sign in">Back to sign in</button>
+    </form>
+
+    <div id="forgotSent" class="reset-done" hidden>
+      <div class="reset-done-ic" aria-hidden="true">✉</div>
+      <p><strong data-i18n="Check your email">Check your email</strong></p>
+      <p class="muted" data-i18n="If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.">If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.</p>
+      <button type="button" class="btn btn-primary btn-block forgot-cancel" data-i18n="Back to sign in">Back to sign in</button>
+    </div>
 
     <p class="login-hint muted" id="loginHint"></p>
 

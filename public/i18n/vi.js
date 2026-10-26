@@ -1290,5 +1290,14 @@ I18N.addDict('vi', {
   "Enter the date.": "Nhập ngày.",
   "Specify the type of expense.": "Ghi rõ loại chi phí.",
   "Choose the type of expense.": "Chọn loại chi phí.",
-  "Enter an amount above 0.": "Nhập số tiền lớn hơn 0."
+  "Enter an amount above 0.": "Nhập số tiền lớn hơn 0.",
+  "Need an account? Contact your manager": "Cần tài khoản? Liên hệ quản lý của bạn",
+  "Sending…": "Đang gửi…",
+  "Send reset link": "Gửi liên kết đặt lại",
+  "Forgot password?": "Quên mật khẩu?",
+  "Reset your password": "Đặt lại mật khẩu",
+  "Enter your email or username. We’ll email you a link to choose a new password.": "Nhập email hoặc tên đăng nhập. Chúng tôi sẽ gửi email kèm liên kết để bạn đặt mật khẩu mới.",
+  "Email or username": "Email hoặc tên đăng nhập",
+  "Check your email": "Kiểm tra email của bạn",
+  "If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.": "Nếu tài khoản đó có địa chỉ email, liên kết đặt lại đang được gửi. Liên kết chỉ dùng được một lần và hết hạn sau 1 giờ. Chưa nhận được? Hãy xem thư mục thư rác, hoặc nhờ quản lý đặt lại mật khẩu cho bạn."
 });

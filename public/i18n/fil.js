@@ -1290,5 +1290,14 @@ I18N.addDict('fil', {
   "Enter the date.": "Ilagay ang petsa.",
   "Specify the type of expense.": "Tukuyin ang uri ng gastos.",
   "Choose the type of expense.": "Piliin ang uri ng gastos.",
-  "Enter an amount above 0.": "Maglagay ng halagang higit sa 0."
+  "Enter an amount above 0.": "Maglagay ng halagang higit sa 0.",
+  "Need an account? Contact your manager": "Kailangan ng account? Kontakin ang iyong manager",
+  "Sending…": "Ipinapadala…",
+  "Send reset link": "Ipadala ang reset link",
+  "Forgot password?": "Nakalimutan ang password?",
+  "Reset your password": "I-reset ang iyong password",
+  "Enter your email or username. We’ll email you a link to choose a new password.": "Ilagay ang iyong email o username. Padadalhan ka namin ng link sa email para pumili ng bagong password.",
+  "Email or username": "Email o username",
+  "Check your email": "Tingnan ang iyong email",
+  "If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.": "Kung may email address ang account na iyon, papunta na ang reset link. Isang beses lang ito magagamit at mag-e-expire sa loob ng 1 oras. Wala pang dumating? Tingnan ang spam folder, o hilingin sa iyong manager na i-reset ang password mo."
 });

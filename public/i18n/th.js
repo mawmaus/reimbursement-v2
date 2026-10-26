@@ -1290,5 +1290,14 @@ I18N.addDict('th', {
   "Enter the date.": "กรอกวันที่",
   "Specify the type of expense.": "ระบุประเภทค่าใช้จ่าย",
   "Choose the type of expense.": "เลือกประเภทค่าใช้จ่าย",
-  "Enter an amount above 0.": "กรอกจำนวนเงินที่มากกว่า 0"
+  "Enter an amount above 0.": "กรอกจำนวนเงินที่มากกว่า 0",
+  "Need an account? Contact your manager": "ต้องการบัญชี? ติดต่อผู้จัดการของคุณ",
+  "Sending…": "กำลังส่ง…",
+  "Send reset link": "ส่งลิงก์รีเซ็ต",
+  "Forgot password?": "ลืมรหัสผ่าน?",
+  "Reset your password": "รีเซ็ตรหัสผ่านของคุณ",
+  "Enter your email or username. We’ll email you a link to choose a new password.": "กรอกอีเมลหรือชื่อผู้ใช้ของคุณ เราจะส่งลิงก์ทางอีเมลเพื่อให้คุณตั้งรหัสผ่านใหม่",
+  "Email or username": "อีเมลหรือชื่อผู้ใช้",
+  "Check your email": "ตรวจสอบอีเมลของคุณ",
+  "If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.": "หากบัญชีนั้นมีอีเมล ลิงก์รีเซ็ตกำลังส่งไป ลิงก์ใช้ได้ครั้งเดียวและหมดอายุใน 1 ชั่วโมง ยังไม่ได้รับ? ตรวจสอบโฟลเดอร์สแปม หรือขอให้ผู้จัดการรีเซ็ตรหัสผ่านให้"
 });

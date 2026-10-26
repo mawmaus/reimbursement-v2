@@ -453,9 +453,14 @@ function openWhatsNew() {
   syncWhatsNewDot();
 }
 
+// Whether the server can email reset links (/api/auth-options); until it says
+// so, a forgotten password goes through the manager as before.
+let passwordResetOn = false;
 function renderLoginHint() {
   const el = $('#loginHint');
-  if (el) el.textContent = t('Need an account or forgot your password? Contact your manager');
+  if (el) el.textContent = passwordResetOn
+    ? t('Need an account? Contact your manager')
+    : t('Need an account or forgot your password? Contact your manager');
 }
 
 // Fill both <select>s with the language list (labelled by native name) and wire
@@ -527,7 +532,21 @@ function rerenderDynamic() {
 function showLogin() {
   $('#appView').hidden = true;
   $('#loginView').hidden = false;
-  $('#loginForm').hidden = false;
+  showSignInPane();
+  fetch('/api/auth-options', { credentials: 'same-origin' })
+    .then(r => (r.ok ? r.json() : null))
+    .then(o => { passwordResetOn = !!(o && o.password_reset); showSignInPane(); })
+    .catch(() => { /* offline: keep the manager hint */ });
+}
+
+// The login card shows one pane at a time: sign in, request a reset link, or
+// the "check your email" confirmation.
+function showSignInPane(pane = 'signin') {
+  $('#loginForm').hidden = pane !== 'signin';
+  $('#forgotRow').hidden = pane !== 'signin' || !passwordResetOn;
+  $('#forgotForm').hidden = pane !== 'forgot';
+  $('#forgotSent').hidden = pane !== 'sent';
+  $('#loginHint').hidden = pane !== 'signin';
   renderLoginHint();
 }
 
@@ -939,6 +958,34 @@ $('#loginForm').addEventListener('submit', async (e) => {
     done();
     showApp();
   } catch (ex) { err.textContent = ex.message; err.hidden = false; done(); }
+});
+
+$('#forgotLink').addEventListener('click', () => {
+  $('#loginError').hidden = true;
+  $('#forgotError').hidden = true;
+  const id = $('#forgotForm [name="identifier"]');
+  // Carry over whatever was typed as the username — usually the right account.
+  id.value = $('#loginForm [name="username"]').value.trim();
+  showSignInPane('forgot');
+  id.focus();
+});
+$('#loginView').addEventListener('click', (e) => {
+  if (!e.target.closest('.forgot-cancel')) return;
+  showSignInPane();
+  $('#loginForm [name="username"]').focus();
+});
+$('#forgotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = $('#forgotError'); err.hidden = true;
+  const identifier = new FormData(e.target).get('identifier').trim();
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true; btn.classList.add('is-busy'); btn.textContent = t('Sending…');
+  try {
+    await api('/forgot-password', { method: 'POST', body: JSON.stringify({ identifier }) });
+    e.target.reset();
+    showSignInPane('sent');
+  } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+  finally { btn.disabled = false; btn.classList.remove('is-busy'); btn.textContent = t('Send reset link'); }
 });
 
 $('#logoutBtn').addEventListener('click', () => {

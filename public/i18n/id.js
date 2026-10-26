@@ -1313,5 +1313,14 @@ I18N.addDict('id', {
   "Enter the date.": "Isi tanggalnya.",
   "Specify the type of expense.": "Sebutkan jenis pengeluarannya.",
   "Choose the type of expense.": "Pilih jenis pengeluaran.",
-  "Enter an amount above 0.": "Isi jumlah lebih dari 0."
+  "Enter an amount above 0.": "Isi jumlah lebih dari 0.",
+  "Need an account? Contact your manager": "Butuh akun? Hubungi manajer Anda",
+  "Sending…": "Mengirim…",
+  "Send reset link": "Kirim tautan reset",
+  "Forgot password?": "Lupa kata sandi?",
+  "Reset your password": "Reset kata sandi Anda",
+  "Enter your email or username. We’ll email you a link to choose a new password.": "Masukkan email atau nama pengguna Anda. Kami akan mengirim tautan lewat email untuk membuat kata sandi baru.",
+  "Email or username": "Email atau nama pengguna",
+  "Check your email": "Periksa email Anda",
+  "If that account has an email address, a reset link is on its way. It works once and expires in 1 hour. Nothing arrived? Check your spam folder, or ask your manager to reset your password.": "Jika akun tersebut memiliki alamat email, tautan reset sedang dikirim. Tautan hanya bisa dipakai sekali dan berlaku 1 jam. Belum masuk? Periksa folder spam, atau minta manajer Anda mereset kata sandi."
 });
