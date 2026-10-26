@@ -731,6 +731,7 @@ async function renderBasesTab(editingId = null) {
   const without = accounts.filter(a => a.base_id == null && a.custom_base == null).length;
   const custom = accounts.filter(a => a.custom_base != null).length;
   const bases = data.bases || [];
+  const minKm = data.min_km || 30;
   const row = (b) => b.id === editingId ? `
       <div class="bs-row bs-editing" data-id="${b.id}">
         <div class="bs-edit">${baseFieldsHtml('bsEdit', b.name, `${b.lat}, ${b.lng}`)}</div>
@@ -742,7 +743,7 @@ async function renderBasesTab(editingId = null) {
       </div>` : `
       <div class="bs-row" data-id="${b.id}">
         <span class="bs-ic" aria-hidden="true">🏢</span>
-        <div class="bs-main"><b>${esc(b.name)}</b>
+        <div class="bs-main"><button type="button" class="bs-name" data-focus="${b.id}" title="${esc(t('Show on the map'))}">${esc(b.name)}</button>
           <span>${esc(`${b.lat}, ${b.lng}`)} · <a href="https://www.google.com/maps?q=${encodeURIComponent(b.lat + ',' + b.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
         <button type="button" class="bs-count" data-members="${b.id}">${esc(b.members === 1 ? t('1 account') : t('{n} accounts', { n: b.members }))}</button>
         <div class="bs-acts">
@@ -756,6 +757,11 @@ async function renderBasesTab(editingId = null) {
       <p class="bs-summary ${without ? 'warn' : ''}">${esc(without
         ? t('{n} of {m} active accounts in {region} have no base yet.', { n: without, m: accounts.length, region: where })
         : t('Every active account in {region} has a base.', { region: where }))}${custom ? ' ' + esc(t('{n} account(s) use a location typed into the account instead of a base from this list.', { n: custom })) : ''}</p>
+      <div class="bs-map-wrap">
+        <div class="bs-map" id="bsMap"><p class="bs-map-msg">${esc(t('Loading map…'))}</p></div>
+        <p class="bs-map-key"><span class="bs-map-ring" aria-hidden="true"></span>${esc(t('Each ring is the {km} km straight-line radius around a base — in-town meals inside it can’t be claimed.', { km: minKm }))}
+          <span class="bs-map-tip">${esc(editingId != null ? t('Click the map to move this base there.') : t('Click the map to fill in a new base’s location.'))}</span></p>
+      </div>
       <div class="bs-list">${bases.length ? bases.map(row).join('') : `<p class="bs-empty">${esc(t('No bases in {region} yet — add the first one below.', { region: where }))}</p>`}</div>
       <div class="ws-card-label ws-card-split">${esc(t('Add a base'))}</div>
       <div class="bs-add">${baseFieldsHtml('bsNew', '', '')}
@@ -787,6 +793,93 @@ async function renderBasesTab(editingId = null) {
   }));
   panel.querySelectorAll('[data-members]').forEach(b => b.addEventListener('click', () =>
     openBaseAccountsModal(bases.find(x => x.id === Number(b.dataset.members)), bases, accounts)));
+  drawBasesMap(bases, minKm, editingId);
+}
+
+// --- Bases map ---------------------------------------------------------------------
+// Leaflet (vendored, loaded on first use) over OpenStreetMap tiles: every base
+// with its minimum-distance ring, a dashed ring previewing the coordinates being
+// typed into the add / edit form, and a click on the map fills that form in.
+let _leafletPromise;
+function loadLeaflet() {
+  if (!_leafletPromise) _leafletPromise = new Promise((resolve, reject) => {
+    if (window.L) return resolve(window.L);
+    const css = document.createElement('link');
+    css.rel = 'stylesheet'; css.href = 'vendor/leaflet.css';
+    document.head.appendChild(css);
+    const s = document.createElement('script');
+    s.src = 'vendor/leaflet.js';
+    s.onload = () => resolve(window.L);
+    s.onerror = () => { _leafletPromise = null; reject(new Error('Could not load the map')); };
+    document.head.appendChild(s);
+  });
+  return _leafletPromise;
+}
+
+async function drawBasesMap(bases, km, editingId) {
+  const el = $('#bsMap');
+  if (!el) return;
+  let L;
+  try { L = await loadLeaflet(); }
+  catch { el.innerHTML = `<p class="bs-map-msg">${esc(t('The map couldn’t load. Check your connection and open this tab again.'))}</p>`; return; }
+  if (!el.isConnected) return; // the tab was re-rendered while the map loaded
+  el.innerHTML = '';
+  const css = getComputedStyle(document.documentElement);
+  const brand = css.getPropertyValue('--pine').trim() || '#f7982a';
+  const deep = css.getPropertyValue('--pine-deep').trim() || '#ad5300';
+  const map = L.map(el, { scrollWheelZoom: false, zoomSnap: 0.5 });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+  }).addTo(map);
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+  // Wheel zoom only once the map is clicked, so scrolling the page never gets stuck on it.
+  map.on('click', () => map.scrollWheelZoom.enable());
+  map.on('mouseout', () => map.scrollWheelZoom.disable());
+
+  const rings = new Map();
+  for (const b of bases) {
+    const editing = b.id === editingId;
+    const ring = L.circle([b.lat, b.lng], { radius: km * 1000, color: brand, weight: 2, opacity: editing ? 0.35 : 0.9, fillColor: brand, fillOpacity: editing ? 0.04 : 0.12, interactive: false }).addTo(map);
+    const dot = L.circleMarker([b.lat, b.lng], { radius: 6, color: '#fff', weight: 2, fillColor: deep, fillOpacity: 1 }).addTo(map);
+    dot.bindTooltip(esc(b.name), { permanent: true, direction: 'top', offset: [0, -8], className: 'bs-map-label' });
+    dot.bindPopup(`<b>${esc(b.name)}</b><br>${esc(b.members === 1 ? t('1 account') : t('{n} accounts', { n: b.members || 0 }))}<br><span class="bs-map-ll">${esc(`${b.lat}, ${b.lng}`)}</span>`);
+    rings.set(b.id, { ring, dot, area: L.latLng(b.lat, b.lng).toBounds(km * 2000) });
+  }
+  // Circle bounds need a map view, so frame each ring from its centre instead.
+  const all = [...rings.values()].map(r => r.area);
+  if (all.length) map.fitBounds(all.reduce((acc, bd) => acc.extend(bd), L.latLngBounds(all[0].getSouthWest(), all[0].getNorthEast())), { padding: [24, 24], maxZoom: 11 });
+  else map.setView([5, 112], 4); // nothing yet: the whole of South-East Asia
+
+  // The dashed preview ring follows the add (or edit) form's coordinates.
+  const id = editingId != null && $('#bsEditCoords') ? 'bsEdit' : 'bsNew';
+  const inp = $(`#${id}Coords`);
+  let draft = null;
+  const paintDraft = (pan) => {
+    const ll = inp && parseCoordsText(inp.value);
+    if (!ll) { if (draft) { draft.remove(); draft = null; } return; }
+    if (!draft) draft = L.circle([ll.lat, ll.lng], { radius: km * 1000, color: deep, weight: 2, dashArray: '6 6', fillColor: deep, fillOpacity: 0.08, interactive: false }).addTo(map);
+    else draft.setLatLng([ll.lat, ll.lng]);
+    const area = L.latLng(ll.lat, ll.lng).toBounds(km * 2000);
+    if (pan && !map.getBounds().contains(area)) map.flyToBounds(area, { padding: [24, 24], duration: 0.6 });
+  };
+  if (inp) {
+    inp.addEventListener('input', () => paintDraft(true));
+    paintDraft(id === 'bsEdit');
+    map.on('click', (e) => {
+      inp.value = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+      inp.dispatchEvent(new Event('input'));
+      const name = $(`#${id}Name`);
+      if (name && !name.value.trim()) name.focus({ preventScroll: true });
+    });
+  }
+  $$('#settingsPanel [data-focus]').forEach(b => b.addEventListener('click', () => {
+    const r = rings.get(Number(b.dataset.focus));
+    if (!r) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    map.flyToBounds(r.area, { padding: [24, 24], duration: 0.6 });
+    r.dot.openPopup();
+  }));
 }
 
 // The checklist of the region's active accounts for one base. Ticked = on this

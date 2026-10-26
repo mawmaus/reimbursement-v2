@@ -10,7 +10,7 @@ const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
 const { resolveLookupRegion, seesAllRegions } = require('../lib/settings');
-const { parseBaseInput } = require('../lib/meal-gps');
+const { parseBaseInput, RULES } = require('../lib/meal-gps');
 
 const router = express.Router();
 
@@ -33,7 +33,8 @@ router.get('/api/bases', requireAuth, ah(async (req, res) => {
   const region = await resolveLookupRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const rows = await q(`SELECT * FROM bases ${region ? 'WHERE region = $1' : ''} ORDER BY lower(name)`, region ? [region] : []);
-  const out = { region, bases: rows.map(baseRow) };
+  // min_km: the radius the map draws around each base.
+  const out = { region, bases: rows.map(baseRow), min_km: RULES.minKm };
   if (req.query.manage === '1' && userCan(req.user, 'manage_settings') && region) {
     const accounts = await q(
       `SELECT id, full_name, username, department, position, base_id, base_name, base_lat

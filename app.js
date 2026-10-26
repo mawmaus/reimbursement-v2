@@ -63,7 +63,8 @@ app.use((req, res, next) => {
 
 // Content-Security-Policy. The frontend is same-origin only: its own scripts
 // (app.js, reset.js, vendor/pdf-lib) and styles, fetches to /api, and images
-// served from this origin (plus data:/blob: for client-generated PDFs). Inline
+// served from this origin (plus data:/blob: for client-generated PDFs, and
+// OpenStreetMap tiles for the Settings → Bases map). Inline
 // styles are still used in the markup, so style-src allows 'unsafe-inline';
 // scripts do not, so script-src stays strict ('self' with no inline).
 // On Vercel the pages are served by the CDN, not this function, so the same
@@ -74,7 +75,7 @@ const CSP = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://tile.openstreetmap.org",
   "font-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self'",
