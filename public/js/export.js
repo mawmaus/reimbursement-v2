@@ -161,7 +161,7 @@ async function openExportModal() {
   list.addEventListener('change', syncExportSummary);
   syncExportSummary();
 
-  $('#exportForm').addEventListener('submit', (e) => {
+  $('#exportForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const err = $('#exportErr'); err.hidden = true;
     const fd = new FormData(e.target);
@@ -180,7 +180,40 @@ async function openExportModal() {
     if (to) p.set('to', to);
     // Remember the chosen range for next time.
     state.filters.exportFrom = from; state.filters.exportTo = to;
-    window.location.href = '/api/export.xlsx?' + p.toString();
-    closeModal();
+    // Fetch the workbook and save it from a blob rather than navigating to the
+    // URL: closing the modal pops its Back-button history entry (history.back()),
+    // which cancels a navigation still in flight — so the download never started.
+    // This way the modal stays open (with any server error shown) until the file
+    // is actually in hand.
+    const btn = e.target.querySelector('button[type="submit"]');
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = t('Preparing…');
+    try {
+      let res;
+      try {
+        res = await fetch('/api/export.xlsx?' + p.toString(), { credentials: 'same-origin' });
+      } catch {
+        throw new Error(navigator.onLine === false
+          ? t('You appear to be offline. Check your connection and try again.')
+          : t('Network error — could not reach the server. Please try again.'));
+      }
+      if (!res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch { /* non-json */ }
+        throw new Error((data && data.error) ? t(data.error) : `Request failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const m = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = m ? m[1] : 'claims.xlsx';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      closeModal();
+    } catch (ex) {
+      err.textContent = ex.message; err.hidden = false;
+      btn.disabled = false; btn.textContent = orig;
+    }
   });
 }
