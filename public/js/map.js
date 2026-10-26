@@ -33,6 +33,10 @@ async function makeMap(el) {
   const map = L.map(el, { scrollWheelZoom: false, zoomSnap: 0.5 });
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 18,
+    // OSM's tile policy requires a Referer and blocks tiles without one ("Access
+    // blocked"); the site's Referrer-Policy (same-origin) sends none cross-origin,
+    // so tile images send just our origin — never the page path.
+    referrerPolicy: 'strict-origin-when-cross-origin',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
   }).addTo(map);
   map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
