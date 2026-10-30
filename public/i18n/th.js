@@ -1371,5 +1371,6 @@ I18N.addDict('th', {
   'Invalid draft': 'ฉบับร่างไม่ถูกต้อง',
   'This draft is too large to save': 'ฉบับร่างนี้ใหญ่เกินกว่าจะบันทึกได้',
   'File not found': 'ไม่พบไฟล์',
+  'You have too many drafts — submit or delete some first': 'คุณมีฉบับร่างมากเกินไป — ส่งหรือลบบางรายการก่อน',
   'A draft can hold at most 100 receipts': 'ฉบับร่างหนึ่งมีใบเสร็จได้ไม่เกิน 100 ใบ',
 });

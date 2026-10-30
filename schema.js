@@ -734,7 +734,12 @@ const SCHEMA = [
     data     JSONB NOT NULL,
     saved_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (user_id, kind)
-  )`
+  )`,
+  // Many drafts per form type (2026-10-30): each has its own id, made by the
+  // client; '' is the one draft per type kept before. The key widens to match.
+  `ALTER TABLE claim_drafts ADD COLUMN IF NOT EXISTS draft_id TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE claim_drafts DROP CONSTRAINT IF EXISTS claim_drafts_pkey`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_claim_drafts_key ON claim_drafts(user_id, kind, draft_id)`
 ];
 
 module.exports = { SCHEMA };

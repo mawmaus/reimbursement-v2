@@ -1394,5 +1394,6 @@ I18N.addDict('id', {
   'Invalid draft': 'Draf tidak valid',
   'This draft is too large to save': 'Draf ini terlalu besar untuk disimpan',
   'File not found': 'File tidak ditemukan',
+  'You have too many drafts — submit or delete some first': 'Draf Anda terlalu banyak — kirim atau hapus sebagian dulu',
   'A draft can hold at most 100 receipts': 'Satu draf maksimal berisi 100 kuitansi',
 });

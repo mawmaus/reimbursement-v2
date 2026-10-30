@@ -1,9 +1,11 @@
 'use strict';
 
 // Saved drafts of the New claim / meal / GPS meal / cash advance forms (the
-// claim_drafts table): one per account and form type, kept on the server so a
-// draft outlives the browser's own storage and opens on any device. The client
-// still keeps a local copy for speed and offline use (public/js/claim-form.js).
+// claim_drafts table), kept on the server so a draft outlives the browser's own
+// storage and opens on any device. An account may keep many drafts of each
+// form type: each has a client-made `draft_id` (?id=), and '' is the single
+// draft per type the first version kept. The client still keeps a local copy
+// for speed and offline use (public/js/claim-form.js).
 //
 // A draft's receipts are uploaded to the private Blob store like any receipt and
 // referenced from `data.files` (per-row arrays). A receipt that leaves the draft
@@ -20,18 +22,28 @@ const { verifyAttachments, MAX_FILES } = require('../lib/uploads');
 const router = express.Router();
 
 const KINDS = new Set(['claim', 'meal', 'mealgps', 'advance']);
+const MAX_DRAFTS = 50;         // drafts an account may keep, all types together
 const MAX_ROWS = 100;          // form rows a draft may carry receipts for
 const MAX_DRAFT_FILES = 100;   // receipts across the whole draft
 const MAX_DATA_CHARS = 200000; // the typed fields — far above any real form
+const ID_RE = /^[A-Za-z0-9_-]{0,40}$/;
 
-const missingTable = (e) => e && e.code === '42P01'; // before the migration ran
+// Before the migration ran: no table (42P01), or no draft_id column yet (42703).
+const notMigrated = (e) => e && (e.code === '42P01' || e.code === '42703');
+
+// The draft a request names: its form type and id, or null when malformed.
+function draftParams(req) {
+  const kind = req.params.kind;
+  const id = String(req.query.id == null ? '' : req.query.id);
+  return KINDS.has(kind) && ID_RE.test(id) ? { kind, id } : null;
+}
 
 // Every receipt reference in a stored draft's data, flattened.
 const draftFiles = (data) => (Array.isArray(data && data.files) ? data.files : [])
   .flatMap(row => (Array.isArray(row) ? row : [])).filter(f => f && typeof f.url === 'string');
 
-async function loadDraft(userId, kind) {
-  const rows = await q('SELECT data, saved_at FROM claim_drafts WHERE user_id = $1 AND kind = $2', [userId, kind]);
+async function loadDraft(userId, { kind, id }) {
+  const rows = await q('SELECT data, saved_at FROM claim_drafts WHERE user_id = $1 AND kind = $2 AND draft_id = $3', [userId, kind, id]);
   return rows[0] || null;
 }
 
@@ -55,15 +67,15 @@ async function dropFiles(urls) {
 router.get('/api/drafts', requireAuth, ah(async (req, res) => {
   let rows;
   try {
-    rows = await q('SELECT kind, data, saved_at FROM claim_drafts WHERE user_id = $1', [req.user.id]);
+    rows = await q('SELECT kind, draft_id, data, saved_at FROM claim_drafts WHERE user_id = $1', [req.user.id]);
   } catch (e) {
-    if (missingTable(e)) return res.json({ drafts: [], available: false });
+    if (notMigrated(e)) return res.json({ drafts: [], available: false });
     throw e;
   }
   res.json({
     available: true,
     drafts: rows.filter(r => KINDS.has(r.kind))
-      .map(r => ({ kind: r.kind, data: r.data, saved_at: new Date(r.saved_at).getTime() }))
+      .map(r => ({ kind: r.kind, id: r.draft_id || '', data: r.data, saved_at: new Date(r.saved_at).getTime() }))
   });
 }));
 
@@ -71,8 +83,8 @@ router.get('/api/drafts', requireAuth, ah(async (req, res) => {
 // older than the stored copy (a slow upload overtaken by a later save, or an
 // older device) is refused so it can't roll the draft back.
 router.put('/api/drafts/:kind', requireAuth, ah(async (req, res) => {
-  const kind = req.params.kind;
-  if (!KINDS.has(kind)) return res.status(404).json({ error: 'Unknown draft type' });
+  const key = draftParams(req);
+  if (!key) return res.status(404).json({ error: 'Unknown draft type' });
   const b = req.body || {};
   const data = b.data;
   const savedAt = Number(b.saved_at);
@@ -85,7 +97,11 @@ router.put('/api/drafts/:kind', requireAuth, ah(async (req, res) => {
   if (files.reduce((n, r) => n + r.length, 0) > MAX_DRAFT_FILES) {
     return res.status(400).json({ error: 'A draft can hold at most 100 receipts' });
   }
-  const old = await loadDraft(req.user.id, kind);
+  const old = await loadDraft(req.user.id, key);
+  if (!old) {
+    const [{ n }] = await q('SELECT COUNT(*)::int AS n FROM claim_drafts WHERE user_id = $1', [req.user.id]);
+    if (n >= MAX_DRAFTS) return res.status(400).json({ error: 'You have too many drafts — submit or delete some first' });
+  }
   const known = new Map(draftFiles(old && old.data).map(f => [f.url, f]));
   // A receipt already in the stored draft keeps its checked size and type; a
   // new one is checked against storage, and must not be a submitted file.
@@ -115,13 +131,13 @@ router.put('/api/drafts/:kind', requireAuth, ah(async (req, res) => {
   const stored = { ...data, files: clean };
   if (JSON.stringify(stored).length > MAX_DATA_CHARS) return res.status(413).json({ error: 'This draft is too large to save' });
   const saved = await q(
-    `INSERT INTO claim_drafts (user_id, kind, data, saved_at) VALUES ($1, $2, $3::jsonb, to_timestamp($4 / 1000.0))
-     ON CONFLICT (user_id, kind) DO UPDATE SET data = EXCLUDED.data, saved_at = EXCLUDED.saved_at
+    `INSERT INTO claim_drafts (user_id, kind, draft_id, data, saved_at) VALUES ($1, $2, $3, $4::jsonb, to_timestamp($5 / 1000.0))
+     ON CONFLICT (user_id, kind, draft_id) DO UPDATE SET data = EXCLUDED.data, saved_at = EXCLUDED.saved_at
        WHERE claim_drafts.saved_at <= EXCLUDED.saved_at
-     RETURNING saved_at`, [req.user.id, kind, JSON.stringify(stored), savedAt]);
+     RETURNING saved_at`, [req.user.id, key.kind, key.id, JSON.stringify(stored), savedAt]);
   if (!saved.length) {
     // Overtaken: keep the stored copy, and drop the receipts uploaded only for this save.
-    const now = await loadDraft(req.user.id, kind);
+    const now = await loadDraft(req.user.id, key);
     const keep = new Set(draftFiles(now && now.data).map(f => f.url));
     await dropFiles(clean.flat().map(f => f.url).filter(u => !keep.has(u) && !known.has(u)));
     return res.status(409).json({ error: 'A newer copy of this draft is already saved' });
@@ -132,17 +148,17 @@ router.put('/api/drafts/:kind', requireAuth, ah(async (req, res) => {
   res.json({ ok: true, saved_at: savedAt, files: clean });
 }));
 
-// Discard a draft (Cancel, Start fresh, Delete in My claims, or after submitting).
+// Discard a draft (Start fresh, emptied and closed, or after submitting).
 router.delete('/api/drafts/:kind', requireAuth, ah(async (req, res) => {
-  const kind = req.params.kind;
-  if (!KINDS.has(kind)) return res.status(404).json({ error: 'Unknown draft type' });
+  const key = draftParams(req);
+  if (!key) return res.status(404).json({ error: 'Unknown draft type' });
   let old;
-  try { old = await loadDraft(req.user.id, kind); } catch (e) {
-    if (missingTable(e)) return res.json({ ok: true });
+  try { old = await loadDraft(req.user.id, key); } catch (e) {
+    if (notMigrated(e)) return res.json({ ok: true });
     throw e;
   }
   if (!old) return res.json({ ok: true });
-  await q('DELETE FROM claim_drafts WHERE user_id = $1 AND kind = $2', [req.user.id, kind]);
+  await q('DELETE FROM claim_drafts WHERE user_id = $1 AND kind = $2 AND draft_id = $3', [req.user.id, key.kind, key.id]);
   await dropFiles(draftFiles(old.data).map(f => f.url));
   res.json({ ok: true });
 }));
@@ -150,9 +166,9 @@ router.delete('/api/drafts/:kind', requireAuth, ah(async (req, res) => {
 // One receipt of the caller's own draft, by its row and position, so a draft
 // reopened on another device (or after the browser cleared it) gets its files back.
 router.get('/api/drafts/:kind/files/:row/:idx', requireAuth, ah(async (req, res) => {
-  const kind = req.params.kind;
-  if (!KINDS.has(kind)) return res.status(404).json({ error: 'Unknown draft type' });
-  const d = await loadDraft(req.user.id, kind);
+  const key = draftParams(req);
+  if (!key) return res.status(404).json({ error: 'Unknown draft type' });
+  const d = await loadDraft(req.user.id, key);
   const row = d && Array.isArray(d.data.files) ? d.data.files[Number(req.params.row)] : null;
   const f = Array.isArray(row) ? row[Number(req.params.idx)] : null;
   if (!f || typeof f.url !== 'string') return res.status(404).json({ error: 'File not found' });

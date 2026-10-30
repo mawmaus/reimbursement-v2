@@ -1371,5 +1371,6 @@ I18N.addDict('fil', {
   'Invalid draft': 'Hindi wastong draft',
   'This draft is too large to save': 'Masyadong malaki ang draft na ito para i-save',
   'File not found': 'Hindi nahanap ang file',
+  'You have too many drafts — submit or delete some first': 'Masyadong marami na ang draft mo — isumite o burahin muna ang ilan',
   'A draft can hold at most 100 receipts': 'Hanggang 100 resibo lang ang kasya sa isang draft',
 });

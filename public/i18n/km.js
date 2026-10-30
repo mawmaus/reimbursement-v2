@@ -1371,5 +1371,6 @@ I18N.addDict('km', {
   'Invalid draft': 'សេចក្ដីព្រាងមិនត្រឹមត្រូវ',
   'This draft is too large to save': 'សេចក្ដីព្រាងនេះធំពេកមិនអាចរក្សាទុកបាន',
   'File not found': 'រកមិនឃើញឯកសារ',
+  'You have too many drafts — submit or delete some first': 'អ្នកមានសេចក្ដីព្រាងច្រើនពេក — សូមដាក់ស្នើ ឬលុបខ្លះជាមុនសិន',
   'A draft can hold at most 100 receipts': 'សេចក្ដីព្រាងមួយអាចមានបង្កាន់ដៃច្រើនបំផុត 100',
 });

@@ -42,7 +42,7 @@ function renderAdvDocs() {
 // when chooseable). Reused for editing a rejected request.
 function openAdvanceRequestModal(existing = null) {
   const isEdit = !!existing;
-  const draft = isEdit ? null : loadDraft('advance');
+  const draft = isEdit ? null : draftForForm('advance');
   advDocs = [];
   advKeptDocs = isEdit ? (existing.attachments || []).map(a => ({ id: a.id, original_name: a.original_name })) : [];
   advEditId = isEdit ? existing.id : null;

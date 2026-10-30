@@ -383,7 +383,7 @@ async function openMealGpsModal(existing = null) {
   mgEditId = isEdit ? existing.id : null;
   setClaimDateContext(isEdit ? existing : null);
   const fresh = !isEdit;
-  const draft = fresh ? loadDraft(MG_KIND) : null;
+  const draft = fresh ? draftForForm(MG_KIND) : null;
   if (isEdit) {
     mgRows = activeLines(existing).map(l => {
       const meals = (l.meals || []).map(n => String(Math.round(n)));

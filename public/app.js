@@ -1469,7 +1469,7 @@ function isMyTurn(c) {
 const myClaims = () => state.claims.filter(c => c.employee_id === (state.user && state.user.id));
 // The My claims tile mentions saved drafts, which live there too.
 function myClaimsDesc() {
-  const n = draftKinds().length;
+  const n = draftCount();
   return n ? `${t('Claims you have submitted')} · ${n === 1 ? t('1 draft') : t('{n} drafts', { n })}` : t('Claims you have submitted');
 }
 const approvalQueue = () => state.claims.filter(isMyTurn);
@@ -1868,7 +1868,7 @@ function renderClaims() {
   if (typeof markOpenRow === 'function') markOpenRow();
   $$('.ledger-row', wrap).forEach(el => {
     const open = () => {
-      if (el.dataset.draft) return openDraft(el.dataset.draft);
+      if (el.dataset.draft) return openDraft(el.dataset.draft, el.dataset.draftId);
       if (selectMode()) { const cb = el.querySelector('.row-check'); cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); return; }
       openDrawer(el.dataset.id, el.dataset.type);
     };

@@ -192,30 +192,33 @@ function helpQuery(sql, params) {
 // tables, for the files a submitted document links). Returns null for anything else.
 function draftQuery(sql, params) {
   const T = state.tables;
-  const find = (uid, kind) => T.claim_drafts.find(d => d.user_id === uid && d.kind === kind);
-  if (/^SELECT data, saved_at FROM claim_drafts WHERE user_id = \$1 AND kind = \$2/.test(sql)) {
-    const d = find(params[0], params[1]);
+  const find = (uid, kind, id) => T.claim_drafts.find(d => d.user_id === uid && d.kind === kind && d.draft_id === id);
+  if (/^SELECT data, saved_at FROM claim_drafts WHERE user_id = \$1 AND kind = \$2 AND draft_id = \$3/.test(sql)) {
+    const d = find(params[0], params[1], params[2]);
     return d ? [{ data: JSON.parse(JSON.stringify(d.data)), saved_at: d.saved_at }] : [];
   }
-  if (/^SELECT kind, data, saved_at FROM claim_drafts WHERE user_id = \$1/.test(sql)) {
+  if (/^SELECT kind, draft_id, data, saved_at FROM claim_drafts WHERE user_id = \$1/.test(sql)) {
     return T.claim_drafts.filter(d => d.user_id === params[0]).map(d => ({ ...d }));
+  }
+  if (/^SELECT COUNT\(\*\)::int AS n FROM claim_drafts WHERE user_id = \$1/.test(sql)) {
+    return [{ n: T.claim_drafts.filter(d => d.user_id === params[0]).length }];
   }
   if (/^SELECT blob_url FROM attachments WHERE blob_url = ANY/.test(sql)) {
     return [...T.attachments, ...T.helpdesk_attachments].filter(a => params[0].includes(a.blob_url)).map(a => ({ blob_url: a.blob_url }));
   }
   if (/^INSERT INTO claim_drafts/.test(sql)) {
     state.writes.push(sql.slice(0, 70));
-    const [user_id, kind, data, ms] = params;
+    const [user_id, kind, draft_id, data, ms] = params;
     const at = new Date(ms);
-    const d = find(user_id, kind);
+    const d = find(user_id, kind, draft_id);
     if (d && d.saved_at > at) return [];
     if (d) Object.assign(d, { data: JSON.parse(data), saved_at: at });
-    else T.claim_drafts.push({ user_id, kind, data: JSON.parse(data), saved_at: at });
+    else T.claim_drafts.push({ user_id, kind, draft_id, data: JSON.parse(data), saved_at: at });
     return [{ saved_at: at }];
   }
-  if (/^DELETE FROM claim_drafts WHERE user_id = \$1 AND kind = \$2/.test(sql)) {
+  if (/^DELETE FROM claim_drafts WHERE user_id = \$1 AND kind = \$2 AND draft_id = \$3/.test(sql)) {
     state.writes.push(sql.slice(0, 70));
-    T.claim_drafts = T.claim_drafts.filter(d => !(d.user_id === params[0] && d.kind === params[1]));
+    T.claim_drafts = T.claim_drafts.filter(d => !(d.user_id === params[0] && d.kind === params[1] && d.draft_id === params[2]));
     return [];
   }
   return null;

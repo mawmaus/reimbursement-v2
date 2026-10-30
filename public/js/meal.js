@@ -85,7 +85,7 @@ async function openMealAllowanceModal(existing = null, reclaim = null) {
   const isEdit = !!existing;
   setClaimDateContext(isEdit ? existing : reclaim ? { date_floor: reclaim.floor, lines: reclaim.lines } : null);
   const fresh = !isEdit && !reclaim;
-  const draft = fresh ? loadDraft('meal') : null;
+  const draft = fresh ? draftForForm('meal') : null;
   if (isEdit || reclaim) {
     // Prefill from the claim being resubmitted (its live lines only), or from
     // the rejected lines being re-claimed.

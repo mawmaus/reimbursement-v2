@@ -78,6 +78,33 @@ test('receipts that leave a draft are deleted, unless a document links them', as
   assert.equal((await call(ANA, 'DELETE', '/api/drafts/mealgps')).status, 200); // already gone: fine
 });
 
+test('many drafts of one type live side by side, each by its own id', async (t) => {
+  await serve(t);
+  deleted.length = 0;
+  const putId = (id, data, at) => call(BEN, 'PUT', `/api/drafts/meal?id=${id}`, { data, saved_at: at });
+  assert.equal((await putId('a1', { rows: [{ amount: '1' }], files: [[file('m1.jpg')]] }, 10)).status, 200);
+  assert.equal((await putId('b2', { rows: [{ amount: '2' }], files: [[file('m2.jpg')]] }, 11)).status, 200);
+  const list = (await call(BEN, 'GET', '/api/drafts')).json.drafts.filter(d => d.kind === 'meal');
+  assert.deepEqual(list.map(d => [d.id, d.data.rows[0].amount]).sort(), [['a1', '1'], ['b2', '2']]);
+  // Each opens its own receipts, and deleting one leaves the other.
+  await call(BEN, 'GET', '/api/drafts/meal/files/0/0?id=b2');
+  assert.equal(served.at(-1).blob_url, file('m2.jpg').url);
+  assert.equal((await call(BEN, 'DELETE', '/api/drafts/meal?id=a1')).status, 200);
+  assert.deepEqual(deleted, [file('m1.jpg').url]);
+  assert.deepEqual(state.tables.claim_drafts.filter(d => d.user_id === BEN && d.kind === 'meal').map(d => d.draft_id), ['b2']);
+  // A malformed id names no draft.
+  assert.equal((await call(BEN, 'PUT', '/api/drafts/meal?id=../x', { data: {}, saved_at: 1 })).status, 404);
+});
+
+test('an account keeps at most 50 drafts', async (t) => {
+  await serve(t);
+  const CARL = 3;
+  state.users.set(CARL, account({ id: CARL }));
+  for (let i = 0; i < 50; i++) state.tables.claim_drafts.push({ user_id: CARL, kind: 'claim', draft_id: 'd' + i, data: {}, saved_at: new Date(1) });
+  assert.equal((await call(CARL, 'PUT', '/api/drafts/claim?id=new', { data: {}, saved_at: 5 })).status, 400);
+  assert.equal((await call(CARL, 'PUT', '/api/drafts/claim?id=d3', { data: { rows: [] }, saved_at: 5 })).status, 200); // updating one is fine
+});
+
 test("a draft's receipt opens for its owner only", async (t) => {
   await serve(t);
   await put(BEN, 'claim', { rows: [{}, {}], files: [[], [file('x.jpg'), file('y.pdf')]] }, 4000);

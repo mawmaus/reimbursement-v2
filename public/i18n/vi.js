@@ -1371,5 +1371,6 @@ I18N.addDict('vi', {
   'Invalid draft': 'Bản nháp không hợp lệ',
   'This draft is too large to save': 'Bản nháp này quá lớn để lưu',
   'File not found': 'Không tìm thấy tệp',
+  'You have too many drafts — submit or delete some first': 'Bạn có quá nhiều bản nháp — hãy gửi hoặc xóa bớt trước',
   'A draft can hold at most 100 receipts': 'Một bản nháp chứa tối đa 100 hóa đơn',
 });
