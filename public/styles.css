@@ -2307,17 +2307,42 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-glass] .ue-foot { background: transparent; }
 
 /* The list's header and rows sit on the pane instead of painting over it. */
+/* Glass: no tiny all-caps labels anywhere. Every rule that sets one (section
+   titles, field labels, table headers, card labels, phone card labels) reads in
+   sentence case at a legible size, matching the list's column header; table
+   header rows get the same frosted strip instead of a grey band. If a new rule
+   uses text-transform: uppercase, add it to the right group here. */
+:root[data-glass] :is(.user-badge .role, .insights-filters label, .kpi-l, .pivot-table th, .card .card-l,
+  .date-range-lab, .kv dt, .section-label, .note-box .nb-label, .calc-total-wrap span, .utable th,
+  .meal-table thead th, .dc-head, .meal-total-label, .ws-nav-label, .ws-card-label, .lr-reason-field,
+  .role-locked, .ue-sub, .home-group-l, .cw-now-label, .rp-preview-label, .hp-head, .mg-base-l, .radius-tag),
+:root[data-glass] :is(.settings-list .utable td[data-label], .meal-table tbody td[data-label])::before {
+  text-transform: none; letter-spacing: 0; }
+/* Section and group titles. */
+:root[data-glass] :is(.section-label, .home-group-l, .ue-sub, .ws-nav-label, .ws-card-label, .hp-head, .dc-head) {
+  font-size: .9rem; font-weight: 650; color: var(--ink-soft); }
+/* Field labels and table titles. */
+:root[data-glass] :is(.kv dt, .utable th, .meal-table thead th, .pivot-table th, .kpi-l, .date-range-lab,
+  .insights-filters label, .meal-total-label, .note-box .nb-label, .calc-total-wrap span, .lr-reason-field,
+  .cw-now-label, .rp-preview-label, .mg-base-l) { font-size: .82rem; font-weight: 600; }
+:root[data-glass] :is(.settings-list .utable td[data-label], .meal-table tbody td[data-label])::before {
+  font-size: .76rem; font-weight: 600; }
+:root[data-glass] :is(.role-locked, .radius-tag, .user-badge .role) { font-size: .72rem; }
+/* Table header rows: the frosted strip, not a grey band. */
+:root[data-glass] :is(.meal-table thead th, .utable th, .pivot-table th) {
+  background: color-mix(in srgb, var(--surface) 38%, transparent); color: var(--ink-soft); }
+
 /* Glass: the list's column header is a frosted strip that belongs to the pane
    (soft tint, no hard rule, readable sentence-case titles). Sort arrows show on
    hover only; the sorted column reads as a highlighted chip. */
-:root[data-glass] .ledger-head { height: 46px; border-bottom: none;
+:root[data-glass] .ledger-head { height: 56px; border-bottom: none;
   background: color-mix(in srgb, var(--surface) 38%, transparent);
   box-shadow: inset 0 -1px 0 var(--glass-edge), 0 1px 0 color-mix(in srgb, var(--line) 55%, transparent);
-  font-size: .8rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
-:root[data-glass] .ledger-head [data-sort] { justify-self: start; margin-left: -8px; padding: 4px 8px; border-radius: 8px;
+  font-size: .88rem; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
+:root[data-glass] .ledger-head [data-sort] { justify-self: start; margin-left: -10px; padding: 7px 10px; border-radius: 10px;
   transition: background-color .15s, color .15s; }
-:root[data-glass] .ledger-head .col-amt[data-sort] { justify-self: end; margin: 0 -8px 0 0; }
-:root[data-glass] .ledger-head .col-status[data-sort] { justify-self: end; margin: 0 -8px 0 0; }
+:root[data-glass] .ledger-head .col-amt[data-sort] { justify-self: end; margin: 0 -10px 0 0; }
+:root[data-glass] .ledger-head .col-status[data-sort] { justify-self: end; margin: 0 -10px 0 0; }
 :root[data-glass] .ledger-head [data-sort]:hover { background: var(--ios-fill); color: var(--ink); }
 :root[data-glass] .ledger-head [data-sort]::after { content: '↓'; opacity: 0; margin-left: 5px; transition: opacity .15s; }
 :root[data-glass] .ledger-head [data-sort]:hover::after { opacity: .45; }
@@ -2436,6 +2461,8 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass] body.glass-split .ledger-row .col-db,
   :root[data-glass] body.glass-split .ledger-row .col-paid { font-size: .8rem; color: var(--muted); }
   :root[data-glass] body.glass-split .ledger-row { padding-top: 9px; padding-bottom: 9px; }
+  :root[data-glass] body.glass-split .ledger-head { height: auto; min-height: 56px; padding-top: 6px; padding-bottom: 6px; }
+  :root[data-glass] body.glass-split .ledger-head [data-sort] { padding-top: 3px; padding-bottom: 3px; }
 }
 @keyframes win-in { from { opacity: 0; transform: perspective(1400px) translateX(70px) rotateY(-18deg) scale(.95); } }
 @keyframes win-out { to { opacity: 0; transform: perspective(1400px) translateX(40px) rotateY(-12deg) scale(.97); } }
