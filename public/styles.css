@@ -2360,13 +2360,31 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass] body.glass-split #appView:has(#listView:not([hidden])) .container { max-width: none; width: calc(100% - min(600px, 44%) - 54px); margin: 0 0 0 18px; }
   :root[data-glass] #listView .ledger { transition: transform .45s var(--ease-out); }
   :root[data-glass] body.glass-split #listView .ledger { transform: perspective(2200px) rotateY(3deg); transform-origin: left center; }
-  :root[data-glass] body.glass-split .ledger .col-db,
-  :root[data-glass] body.glass-split .ledger .col-type,
-  :root[data-glass] body.glass-split .ledger .col-paid { display: none; }
+  /* Narrower list, same information: each row takes two lines, with the
+     secondary fields (claim no, No DB, Paid on) under the main ones and amount +
+     status spanning both. The header stacks its titles the same way. */
   :root[data-glass] body.glass-split .ledger-head,
   :root[data-glass] body.glass-split .ledger-row,
   :root[data-glass] body.glass-split .ledger.show-paid .ledger-head,
-  :root[data-glass] body.glass-split .ledger.show-paid .ledger-row { grid-template-columns: 4px 36px 112px minmax(0, 1.2fr) 92px 124px 212px; }
+  :root[data-glass] body.glass-split .ledger.show-paid .ledger-row {
+    grid-template-columns: 4px 36px minmax(0, 1.3fr) minmax(0, 1fr) 96px 128px 212px;
+    grid-template-areas: "spine check name type date amt status" "spine check no db paid amt status";
+    row-gap: 2px; align-items: center; }
+  :root[data-glass] body.glass-split .ledger .col-spine,
+  :root[data-glass] body.glass-split .ledger .row-spine { grid-area: spine; }
+  :root[data-glass] body.glass-split .ledger .col-check { grid-area: check; }
+  :root[data-glass] body.glass-split .ledger .col-name { grid-area: name; }
+  :root[data-glass] body.glass-split .ledger .col-type { grid-area: type; white-space: normal; overflow: visible; }
+  :root[data-glass] body.glass-split .ledger .col-date { grid-area: date; }
+  :root[data-glass] body.glass-split .ledger .col-no { grid-area: no; }
+  :root[data-glass] body.glass-split .ledger .col-db { grid-area: db; }
+  :root[data-glass] body.glass-split .ledger .col-paid { grid-area: paid; }
+  :root[data-glass] body.glass-split .ledger .col-amt { grid-area: amt; }
+  :root[data-glass] body.glass-split .ledger .col-status { grid-area: status; }
+  :root[data-glass] body.glass-split .ledger-row .col-no,
+  :root[data-glass] body.glass-split .ledger-row .col-db,
+  :root[data-glass] body.glass-split .ledger-row .col-paid { font-size: .8rem; color: var(--muted); }
+  :root[data-glass] body.glass-split .ledger-row { padding-top: 9px; padding-bottom: 9px; }
 }
 @keyframes win-in { from { opacity: 0; transform: perspective(1400px) translateX(70px) rotateY(-18deg) scale(.95); } }
 @keyframes win-out { to { opacity: 0; transform: perspective(1400px) translateX(40px) rotateY(-12deg) scale(.97); } }
