@@ -11,9 +11,10 @@ const { sendEmail, emailConfigured, layout, button } = require('../lib/email');
 const { ah, normLang, normEmail, EMAIL_RE, sha256, baseUrl, escHtml } = require('../lib/util');
 const {
   loadPositions, attachCaps, creatablePositions, hasDelegation,
-  insightsCanView, accountsSeeAllDepts, loadReportIds
+  insightsCanView, accountsSeeAllDepts, loadReportIds,
+  mayEditCustomerSites
 } = require('../lib/permissions');
-const { regionPrefsFor } = require('../lib/settings');
+const { regionPrefsFor, loadAppSettings } = require('../lib/settings');
 const { computePurposes, unrealizedAdvanceCount, approver1Choices } = require('../lib/workflow');
 const { loadUser, requireAuth, SET_PASSWORD_SQL, startSession } = require('../lib/auth');
 const { surveyPending } = require('../lib/survey');
@@ -96,13 +97,16 @@ async function sessionExtras(u) {
     unrealizedAdvanceCount(u.id), approver1Choices(u.approver1_options),
     surveyPending(u.id), loadReportIds(u.id), attachCaps(u)
   ]);
+  const settings = await loadAppSettings();
   return {
     language: normLang(u.language), ...prefs, purposes, meal_gps: await mealGpsSession(u, purposes),
     creatable_positions: creatablePositions(u, pos),
     my_unrealized_advances: unrealized, approver1_choices: approver1,
     can_manage_accounts: hasDelegation(u, pos) || reports.size > 0, managed_reports: reports.size,
     can_view_insights: insightsCanView(u, pos),
-    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey
+    sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey,
+    // Named as a customer-site editor (Settings → Customer sites only).
+    customer_sites_editor: mayEditCustomerSites(u, settings)
   };
 }
 

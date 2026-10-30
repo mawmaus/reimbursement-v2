@@ -30,7 +30,7 @@ const SETTINGS_TABS = [
     desc: 'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.' },
   { key: 'bases', label: 'Bases', group: 'Claims', cap: 'manage_settings',
     desc: 'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.' },
-  { key: 'customer-sites', label: 'Customer sites', group: 'Claims', cap: 'manage_settings',
+  { key: 'customer-sites', label: 'Customer sites', group: 'Claims', cap: 'manage_settings', siteEditor: true,
     desc: 'Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.' },
   { key: 'claim-window', label: 'Claim window', group: 'Claims', cap: 'manage_settings',
     desc: 'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.' },
@@ -53,6 +53,8 @@ function visibleSettingsTabs() {
     // accounts (CM/MD, delegated seniors) gets the delegated view of the tab.
     if (tab.accounts) return isSuper || uCan('create_accounts') || !!(u && u.can_manage_accounts);
     if (tab.super) return isSuper;
+    // People named as customer-site editors get that tab without manage_settings.
+    if (tab.siteEditor && u && u.customer_sites_editor) return true;
     return tab.cap ? uCan(tab.cap) : true;
   });
 }
@@ -817,12 +819,14 @@ async function renderCustomerSitesTab() {
   const panel = $('#settingsPanel');
   const region = settingsState.region || '';
   let data;
-  try { data = await api('/customer-sites' + (region ? `?region=${encodeURIComponent(region)}` : '')); }
+  const manager = uCan('manage_settings');
+  try { data = await api('/customer-sites' + (manager ? '?manage=1' : '') + (region ? `${manager ? '&' : '?'}region=${encodeURIComponent(region)}` : '')); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
   const sites = data.sites || [];
   const where = region || t('this region');
   panel.innerHTML = `
     <div class="settings-controls ws-card bs-card">
+      ${manager && data.accounts ? csEditorsHtml(data.accounts) : ''}
       <p class="bs-summary">${esc(sites.length === 1 ? t('1 customer site is pinned in {region}.', { region: where }) : t('{n} customer sites are pinned in {region}.', { n: sites.length, region: where }))}</p>
       <input class="input cs-q" id="csQ" type="search" autocomplete="off" value="${esc(csState.q)}" placeholder="${esc(t('Search by DB number, name, alias or address'))}" aria-label="${esc(t('Search customer sites'))}" />
       <div class="bs-list" id="csList"></div>
@@ -879,12 +883,67 @@ async function renderCustomerSitesTab() {
   paint();
   wireCoordsRead('csNew');
   $('#csQ').addEventListener('input', (e) => { csState.q = e.target.value; csState.editing = null; paint(); });
+  const ed = $('#csEditors');
+  if (ed) ed.addEventListener('click', () => openSiteEditorsModal(region, data.accounts));
   $('#csAdd').addEventListener('click', async () => {
     try {
       await api('/customer-sites', { method: 'POST', body: JSON.stringify({ ...siteBody('csNew'), ...(region ? { region } : {}) }) });
       done(t('Customer site added'));
     } catch (ex) { fail(ex); }
   });
+}
+
+// Who besides settings managers may edit the sites: a strip at the top of the
+// tab, and a checklist of the region's accounts behind it.
+function csEditorsHtml(accounts) {
+  const eds = accounts.filter(a => a.editor);
+  return `<div class="cs-editors">
+    <div class="cs-editors-txt"><b>${esc(t('Editors'))}</b>
+      <span>${esc(eds.length ? eds.map(a => a.name).join(', ') : t('Only settings managers edit customer sites.'))}</span>
+      <small>${esc(t('Editors see Settings with only this tab, and can add, edit and delete pins in this region.'))}</small></div>
+    <button type="button" class="btn btn-brand-soft btn-sm" id="csEditors">${esc(t('Choose editors'))}</button>
+  </div>`;
+}
+function openSiteEditorsModal(region, accounts) {
+  const picked = new Set(accounts.filter(a => a.editor).map(a => a.id));
+  openModal2(`
+    <div class="modal-head"><div><h2>${esc(t('Customer site editors'))}</h2>
+      <div class="lf-sub"><span>${esc(region)}</span></div></div>
+      <button type="button" class="x-btn" id="ceClose">×</button></div>
+    <div class="modal-body ba-body">
+      <div class="ba-tools"><input class="input" id="ceSearch" type="search" placeholder="${esc(t('Search name, department or position…'))}" /></div>
+      <div class="ba-list" id="ceList"></div>
+      <div class="modal-actions ba-foot">
+        <span class="ba-count" id="ceCount"></span>
+        <button type="button" class="btn btn-ghost" id="ceCancel">${esc(t('Cancel'))}</button>
+        <button type="button" class="btn btn-primary" id="ceSave">${esc(t('Save'))}</button>
+      </div>
+    </div>`);
+  $('#modal2').classList.add('modal-wide', 'modal-flex');
+  const paint = () => {
+    const qy = $('#ceSearch').value.trim().toLowerCase();
+    const shown = accounts.filter(a => !qy || `${a.name} ${a.department} ${a.position}`.toLowerCase().includes(qy));
+    $('#ceList').innerHTML = shown.length ? shown.map(a => `
+      <label class="ba-row"><input type="checkbox" data-u="${a.id}" ${picked.has(a.id) ? 'checked' : ''} />
+        <span class="ba-who"><b>${esc(a.name)}</b><small>${esc([a.department, a.position].filter(Boolean).join(' · '))}</small></span>
+      </label>`).join('') : `<p class="bs-empty">${esc(t('No accounts match.'))}</p>`;
+    $('#ceCount').textContent = picked.size === 1 ? t('1 editor') : t('{n} editors', { n: picked.size });
+    $$('#ceList [data-u]').forEach(cb => cb.addEventListener('change', () => {
+      const id = Number(cb.dataset.u); if (cb.checked) picked.add(id); else picked.delete(id); paint();
+    }));
+  };
+  $('#ceSearch').addEventListener('input', paint);
+  $('#ceClose').addEventListener('click', closeModal2);
+  $('#ceCancel').addEventListener('click', closeModal2);
+  $('#ceSave').addEventListener('click', async () => {
+    const btn = $('#ceSave'); btn.disabled = true;
+    try {
+      await api('/customer-sites/editors', { method: 'PUT', body: JSON.stringify({ region, user_ids: [...picked] }) });
+      closeModal2(); toast(t('Customer site editors saved')); renderCustomerSitesTab();
+    } catch (ex) { toast(ex.message, true); btn.disabled = false; }
+  });
+  paint();
+  $('#ceSearch').focus();
 }
 
 // --- Bases map ---------------------------------------------------------------------

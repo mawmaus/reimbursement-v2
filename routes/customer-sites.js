@@ -3,14 +3,15 @@
 // Customer sites (Settings → Customer sites): pinned customer locations by DB
 // number. Everyone reads their region's list — the GPS meal form and the bases
 // map use it to show how far a site is from a base before anyone goes there.
-// Settings managers keep it. A preview only: a GPS day is still measured from
+// Settings managers keep it, and so do the people they name as editors. A preview only: a GPS day is still measured from
 // where the claimant actually recorded their location.
 
 const express = require('express');
 const { q } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
-const { ah } = require('../lib/util');
-const { resolveLookupRegion, seesAllRegions } = require('../lib/settings');
+const { ah, asIntArray } = require('../lib/util');
+const { resolveLookupRegion, seesAllRegions, loadAppSettings, setAppSetting } = require('../lib/settings');
+const { userCan, customerSiteEditors, mayEditCustomerSites } = require('../lib/permissions');
 const { parseCoords } = require('../lib/meal-gps');
 
 const router = express.Router();
@@ -36,6 +37,11 @@ async function loadSiteOr404(req, res) {
   return s;
 }
 const dupe = (e) => e && e.code === '23505';
+// Settings managers, plus the people named in customer_site_editors.
+const requireSiteEditor = ah(async (req, res, next) => {
+  if (mayEditCustomerSites(req.user, await loadAppSettings())) return next();
+  res.status(403).json({ error: 'You don’t have permission to edit customer sites' });
+});
 
 router.get('/api/customer-sites', requireAuth, ah(async (req, res) => {
   const region = await resolveLookupRegion(req.user, req.query.region);
@@ -47,10 +53,35 @@ router.get('/api/customer-sites', requireAuth, ah(async (req, res) => {
     // Before the migration the table doesn't exist yet: no sites, not an error.
     if (e && e.code === '42P01') rows = []; else throw e;
   }
-  res.json({ region, sites: rows.map(siteRow) });
+  const out = { region, sites: rows.map(siteRow) };
+  // ?manage=1 from a settings manager: the region's active accounts and which
+  // of them may edit the sites (the editors picker).
+  if (req.query.manage === '1' && userCan(req.user, 'manage_settings') && region) {
+    const editors = new Set(customerSiteEditors(await loadAppSettings()));
+    const accounts = await q(
+      `SELECT id, full_name, username, department, position FROM users WHERE region = $1 AND active = TRUE ORDER BY lower(full_name)`, [region]);
+    out.accounts = accounts.map(a => ({ id: Number(a.id), name: a.full_name || a.username, department: a.department || '',
+      position: a.position || '', editor: editors.has(Number(a.id)) }));
+  }
+  res.json(out);
 }));
 
-router.post('/api/customer-sites', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+// Set who in a region may edit its customer sites. Only that region's accounts
+// change; editors named for other regions stay as they are.
+router.put('/api/customer-sites/editors', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+  const b = req.body || {};
+  const region = await resolveLookupRegion(req.user, b.region);
+  if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
+  const ids = [...new Set(asIntArray(b.user_ids))];
+  const inRegion = new Set((await q('SELECT id FROM users WHERE region = $1', [region])).map(r => Number(r.id)));
+  if (ids.some(id => !inRegion.has(id))) return res.status(400).json({ error: `Only accounts in ${region} can edit its customer sites` });
+  const current = customerSiteEditors(await loadAppSettings({ fresh: true }));
+  const next = current.filter(id => !inRegion.has(id)).concat(ids);
+  await setAppSetting('customer_site_editors', JSON.stringify(next));
+  res.json({ ok: true, editors: ids.length });
+}));
+
+router.post('/api/customer-sites', requireAuth, requireSiteEditor, ah(async (req, res) => {
   const b = req.body || {};
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
@@ -67,7 +98,7 @@ router.post('/api/customer-sites', requireAuth, requireCap('manage_settings'), a
   }
 }));
 
-router.put('/api/customer-sites/:id', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+router.put('/api/customer-sites/:id', requireAuth, requireSiteEditor, ah(async (req, res) => {
   const site = await loadSiteOr404(req, res);
   if (!site) return;
   const parsed = parseSiteInput(req.body || {});
@@ -83,7 +114,7 @@ router.put('/api/customer-sites/:id', requireAuth, requireCap('manage_settings')
   }
 }));
 
-router.delete('/api/customer-sites/:id', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
+router.delete('/api/customer-sites/:id', requireAuth, requireSiteEditor, ah(async (req, res) => {
   const site = await loadSiteOr404(req, res);
   if (!site) return;
   await q('DELETE FROM customer_sites WHERE id = $1', [site.id]);

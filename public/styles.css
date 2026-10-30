@@ -3980,6 +3980,13 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .bs-map { height: 300px; }
 }
 /* Settings → Customer sites: searched list + add form (shares the .bs-* look). */
+.cs-editors { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; margin: 0 0 14px;
+  padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); }
+.cs-editors-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: .86rem; color: var(--ink); }
+.cs-editors-txt span { overflow-wrap: anywhere; }
+.cs-editors-txt small { font-size: .78rem; color: var(--muted); }
+.cs-editors .btn { white-space: nowrap; }
+@media (max-width: 720px) { .cs-editors { grid-template-columns: minmax(0, 1fr); } .cs-editors .btn { justify-self: stretch; } }
 .cs-q { width: 100%; margin: 0 0 10px; }
 .cs-row { grid-template-columns: auto minmax(0, 1fr) auto; }
 .cs-alias-l { font-size: .84rem; font-weight: 600; color: var(--indigo); overflow-wrap: anywhere; }

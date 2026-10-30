@@ -1349,5 +1349,14 @@ I18N.addDict('km', {
   "Customer site not found": "រកមិនឃើញទីតាំងអតិថិជន",
   "You can only manage customer sites in your own region": "អ្នកអាចគ្រប់គ្រងតែទីតាំងអតិថិជនក្នុងតំបន់របស់អ្នកប៉ុណ្ណោះ",
   "Alias (what technicians call them)": "ឈ្មោះហៅ (ដែលអ្នកបច្ចេកទេសហៅ)",
-  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "ឧ. Pak Dhiraj – Sumber Selaras (Menteng)"
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "ឧ. Pak Dhiraj – Sumber Selaras (Menteng)",
+  "Editors": "អ្នកកែសម្រួល",
+  "Only settings managers edit customer sites.": "មានតែអ្នកគ្រប់គ្រងការកំណត់ប៉ុណ្ណោះដែលកែសម្រួលទីតាំងអតិថិជន។",
+  "Editors see Settings with only this tab, and can add, edit and delete pins in this region.": "អ្នកកែសម្រួលឃើញតែផ្ទាំងនេះក្នុងការកំណត់ ហើយអាចបន្ថែម កែ និងលុបការដៅក្នុងតំបន់នេះ។",
+  "Choose editors": "ជ្រើសអ្នកកែសម្រួល",
+  "Customer site editors": "អ្នកកែសម្រួលទីតាំងអតិថិជន",
+  "1 editor": "អ្នកកែសម្រួល 1 នាក់",
+  "{n} editors": "អ្នកកែសម្រួល {n} នាក់",
+  "Customer site editors saved": "បានរក្សាទុកអ្នកកែសម្រួលទីតាំងអតិថិជន",
+  "You don’t have permission to edit customer sites": "អ្នកគ្មានសិទ្ធិកែសម្រួលទីតាំងអតិថិជនទេ"
 });

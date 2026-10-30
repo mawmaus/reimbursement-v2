@@ -1349,5 +1349,14 @@ I18N.addDict('vi', {
   "Customer site not found": "Không tìm thấy địa điểm khách hàng",
   "You can only manage customer sites in your own region": "Bạn chỉ có thể quản lý địa điểm khách hàng trong khu vực của mình",
   "Alias (what technicians call them)": "Tên gọi (cách kỹ thuật viên gọi)",
-  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "vd. Pak Dhiraj – Sumber Selaras (Menteng)"
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "vd. Pak Dhiraj – Sumber Selaras (Menteng)",
+  "Editors": "Người chỉnh sửa",
+  "Only settings managers edit customer sites.": "Chỉ người quản lý cài đặt mới chỉnh sửa địa điểm khách hàng.",
+  "Editors see Settings with only this tab, and can add, edit and delete pins in this region.": "Người chỉnh sửa chỉ thấy tab này trong Cài đặt, và có thể thêm, sửa, xóa ghim trong khu vực này.",
+  "Choose editors": "Chọn người chỉnh sửa",
+  "Customer site editors": "Người chỉnh sửa địa điểm khách hàng",
+  "1 editor": "1 người chỉnh sửa",
+  "{n} editors": "{n} người chỉnh sửa",
+  "Customer site editors saved": "Đã lưu người chỉnh sửa địa điểm khách hàng",
+  "You don’t have permission to edit customer sites": "Bạn không có quyền chỉnh sửa địa điểm khách hàng"
 });

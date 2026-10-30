@@ -38,6 +38,14 @@ window.CHANGELOG = [
         vi: 'Địa điểm khách hàng giờ đã có trên bản đồ. Trong phụ cấp ăn GPS, nhập số DB của một ngày và biểu mẫu cho biết khách hàng đó cách cơ sở của bạn bao xa — trong hay ngoài bán kính 30 km — trước khi bạn đi. Bản đồ cơ sở hiện mọi khách hàng đã ghim và cho phép tìm theo số DB, tên hoặc tên gọi mà kỹ thuật viên dùng. Danh sách được quản lý trong Cài đặt → Địa điểm khách hàng.',
         km: 'ទីតាំងអតិថិជនឥឡូវមាននៅលើផែនទីហើយ។ ក្នុងប្រាក់អាហារ GPS វាយលេខ DB របស់ថ្ងៃមួយ ហើយទម្រង់នឹងបង្ហាញថាអតិថិជននោះនៅឆ្ងាយពីមូលដ្ឋានរបស់អ្នកប៉ុណ្ណា — ក្នុង ឬក្រៅកាំ 30 គ.ម. — មុនពេលអ្នកធ្វើដំណើរ។ ផែនទីមូលដ្ឋានបង្ហាញអតិថិជនដែលបានដៅទាំងអស់ ហើយអាចស្វែងរកតាមលេខ DB ឈ្មោះ ឬឈ្មោះហៅដែលអ្នកបច្ចេកទេសប្រើ។ បញ្ជីត្រូវបានគ្រប់គ្រងនៅ ការកំណត់ → ទីតាំងអតិថិជន។',
         fil: 'Nasa mapa na ang mga site ng customer. Sa GPS meal allowance, i-type ang DB number ng isang araw at ipapakita ng form kung gaano kalayo ang customer na iyon sa base mo — nasa loob o labas ng 30 km na radius — bago ka pumunta. Ipinapakita ng Mapa ng mga base ang lahat ng naka-pin na customer at puwede silang hanapin ayon sa DB number, pangalan o alias — ang tawag ng mga technician sa customer. Nasa Settings → Mga site ng customer ang listahan.'
+      } },
+      { kind: 'new', audience: ['settings'], text: {
+        en: 'Settings → Customer sites: choose “Editors” — named people who may add, edit and delete customer pins in your region without access to the rest of Settings. They see Settings with only that tab.',
+        id: 'Pengaturan → Lokasi customer: pilih “Editor” — orang tertentu yang boleh menambah, mengubah, dan menghapus pin customer di region Anda tanpa akses ke Pengaturan lainnya. Mereka hanya melihat tab tersebut di Pengaturan.',
+        th: 'การตั้งค่า → สถานที่ลูกค้า: เลือก “ผู้แก้ไข” — บุคคลที่ระบุซึ่งเพิ่ม แก้ไข และลบหมุดลูกค้าในภูมิภาคของคุณได้โดยไม่ต้องเข้าถึงการตั้งค่าส่วนอื่น พวกเขาจะเห็นเฉพาะแท็บนั้นในการตั้งค่า',
+        vi: 'Cài đặt → Địa điểm khách hàng: chọn “Người chỉnh sửa” — những người được chỉ định có thể thêm, sửa và xóa ghim khách hàng trong khu vực của bạn mà không cần quyền vào phần còn lại của Cài đặt. Họ chỉ thấy tab đó trong Cài đặt.',
+        km: 'ការកំណត់ → ទីតាំងអតិថិជន៖ ជ្រើស “អ្នកកែសម្រួល” — មនុស្សដែលបានកំណត់ដែលអាចបន្ថែម កែ និងលុបការដៅអតិថិជនក្នុងតំបន់របស់អ្នក ដោយមិនចាំបាច់ចូលការកំណត់ផ្សេងទៀត។ ពួកគេឃើញតែផ្ទាំងនោះក្នុងការកំណត់។',
+        fil: 'Settings → Mga site ng customer: pumili ng “Mga editor” — mga piling tao na puwedeng magdagdag, mag-edit at magbura ng pin ng customer sa rehiyon mo nang walang access sa ibang bahagi ng Settings. Ang tab na iyon lang ang makikita nila sa Settings.'
       } }
     ]
   },

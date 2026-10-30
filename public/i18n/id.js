@@ -1372,5 +1372,14 @@ I18N.addDict('id', {
   "Customer site not found": "Lokasi customer tidak ditemukan",
   "You can only manage customer sites in your own region": "Anda hanya dapat mengelola lokasi customer di region Anda sendiri",
   "Alias (what technicians call them)": "Alias (sebutan teknisi)",
-  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "mis. Pak Dhiraj – Sumber Selaras (Menteng)"
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "mis. Pak Dhiraj – Sumber Selaras (Menteng)",
+  "Editors": "Editor",
+  "Only settings managers edit customer sites.": "Hanya pengelola pengaturan yang mengubah lokasi customer.",
+  "Editors see Settings with only this tab, and can add, edit and delete pins in this region.": "Editor melihat Pengaturan hanya dengan tab ini, dan dapat menambah, mengubah, serta menghapus pin di region ini.",
+  "Choose editors": "Pilih editor",
+  "Customer site editors": "Editor lokasi customer",
+  "1 editor": "1 editor",
+  "{n} editors": "{n} editor",
+  "Customer site editors saved": "Editor lokasi customer disimpan",
+  "You don’t have permission to edit customer sites": "Anda tidak punya izin mengubah lokasi customer"
 });

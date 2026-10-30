@@ -1349,5 +1349,14 @@ I18N.addDict('th', {
   "Customer site not found": "ไม่พบสถานที่ลูกค้า",
   "You can only manage customer sites in your own region": "คุณจัดการได้เฉพาะสถานที่ลูกค้าในภูมิภาคของคุณเท่านั้น",
   "Alias (what technicians call them)": "ชื่อเรียก (ที่ช่างใช้เรียก)",
-  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "เช่น Pak Dhiraj – Sumber Selaras (Menteng)"
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "เช่น Pak Dhiraj – Sumber Selaras (Menteng)",
+  "Editors": "ผู้แก้ไข",
+  "Only settings managers edit customer sites.": "มีเพียงผู้จัดการการตั้งค่าเท่านั้นที่แก้ไขสถานที่ลูกค้าได้",
+  "Editors see Settings with only this tab, and can add, edit and delete pins in this region.": "ผู้แก้ไขจะเห็นการตั้งค่าเฉพาะแท็บนี้ และเพิ่ม แก้ไข และลบหมุดในภูมิภาคนี้ได้",
+  "Choose editors": "เลือกผู้แก้ไข",
+  "Customer site editors": "ผู้แก้ไขสถานที่ลูกค้า",
+  "1 editor": "ผู้แก้ไข 1 คน",
+  "{n} editors": "ผู้แก้ไข {n} คน",
+  "Customer site editors saved": "บันทึกผู้แก้ไขสถานที่ลูกค้าแล้ว",
+  "You don’t have permission to edit customer sites": "คุณไม่มีสิทธิ์แก้ไขสถานที่ลูกค้า"
 });

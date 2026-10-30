@@ -1349,5 +1349,14 @@ I18N.addDict('fil', {
   "Customer site not found": "Hindi nahanap ang site ng customer",
   "You can only manage customer sites in your own region": "Ang mga site ng customer lang sa sarili mong rehiyon ang puwede mong pamahalaan",
   "Alias (what technicians call them)": "Alias (tawag ng mga technician)",
-  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "hal. Pak Dhiraj – Sumber Selaras (Menteng)"
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "hal. Pak Dhiraj – Sumber Selaras (Menteng)",
+  "Editors": "Mga editor",
+  "Only settings managers edit customer sites.": "Ang mga settings manager lang ang nag-e-edit ng mga site ng customer.",
+  "Editors see Settings with only this tab, and can add, edit and delete pins in this region.": "Ang tab na ito lang ang nakikita ng mga editor sa Settings, at puwede silang magdagdag, mag-edit at magbura ng pin sa rehiyong ito.",
+  "Choose editors": "Pumili ng mga editor",
+  "Customer site editors": "Mga editor ng site ng customer",
+  "1 editor": "1 editor",
+  "{n} editors": "{n} editor",
+  "Customer site editors saved": "Na-save ang mga editor ng site ng customer",
+  "You don’t have permission to edit customer sites": "Wala kang pahintulot na mag-edit ng mga site ng customer"
 });

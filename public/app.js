@@ -373,7 +373,7 @@ const NOTE_AUDIENCE = {
   export: () => uCan('export_csv'),
   view_all: () => uCan('view_all_claims'),
   accounts: (u) => !!(u.can_manage_accounts || uCan('create_accounts')),
-  settings: (u) => !!(u.role === 'vp' || u.role === 'admin' || uCan('manage_settings')),
+  settings: (u) => !!(u.role === 'vp' || u.role === 'admin' || uCan('manage_settings') || u.customer_sites_editor),
   insights: (u) => !!u.can_view_insights,
   superadmin: () => false // covered by the Super Admin pass-through below
 };
@@ -688,8 +688,8 @@ function showApp() {
   // Buttons follow the role-capability matrix (Settings → Roles).
   $('#exportBtn').hidden = !uCan('export_csv');
   // Settings opens for super admins, VP / CM/MD (who always get the Roles tab), or
-  // anyone who can manage settings.
-  $('#settingsBtn').hidden = !(isSuper || u.role === 'vp' || u.role === 'admin' || uCan('manage_settings'));
+  // anyone who can manage settings — or edit customer sites, the one tab they see.
+  $('#settingsBtn').hidden = !(isSuper || u.role === 'vp' || u.role === 'admin' || uCan('manage_settings') || u.customer_sites_editor);
   // "Manage accounts": shown to non-superadmins who may manage their team's
   // accounts (reset password / enable-disable) OR who hold the create_accounts
   // capability (so the delegated "+ Add user" form is reachable). Superadmins use
