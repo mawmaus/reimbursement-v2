@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-30.2',
+    date: '2026-10-30',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Glass look: claims lists now have depth. The row you point at lifts towards you, and on wide screens a claim opens as a floating window beside the list, so you can click from claim to claim without closing anything.',
+        id: 'Tampilan Kaca: daftar klaim kini punya kedalaman. Baris yang Anda tunjuk terangkat ke arah Anda, dan di layar lebar klaim terbuka sebagai jendela melayang di samping daftar, jadi Anda bisa berpindah dari klaim ke klaim tanpa menutup apa pun.',
+        th: 'รูปลักษณ์กระจก: รายการคำขอเบิกมีมิติความลึกแล้ว แถวที่คุณชี้จะยกตัวขึ้นมาหาคุณ และบนจอกว้าง คำขอเบิกจะเปิดเป็นหน้าต่างลอยข้างรายการ คุณจึงคลิกจากคำขอหนึ่งไปอีกคำขอได้โดยไม่ต้องปิดอะไร',
+        vi: 'Giao diện Kính mờ: danh sách yêu cầu giờ có chiều sâu. Dòng bạn trỏ vào sẽ nổi lên phía bạn, và trên màn hình rộng, yêu cầu mở ra thành cửa sổ nổi bên cạnh danh sách để bạn bấm từ yêu cầu này sang yêu cầu khác mà không cần đóng gì.',
+        km: 'រូបរាងកញ្ចក់៖ បញ្ជីការទាមទារឥឡូវមានជម្រៅ។ ជួរដែលអ្នកចង្អុលនឹងលើកឡើងមករកអ្នក ហើយនៅលើអេក្រង់ធំ ការទាមទារបើកជាផ្ទាំងអណ្តែតនៅក្បែរបញ្ជី ដូច្នេះអ្នកអាចចុចពីការទាមទារមួយទៅមួយទៀតដោយមិនចាំបាច់បិទអ្វីទាំងអស់។',
+        fil: 'Salamin na itsura: may lalim na ang mga listahan ng claim. Umaangat papunta sa iyo ang row na tinuturo mo, at sa malalapad na screen bumubukas ang claim bilang lumulutang na window sa tabi ng listahan, kaya puwede kang mag-click mula claim hanggang claim nang walang isinasara.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-30.1',
     date: '2026-10-30',
     items: [

@@ -1858,6 +1858,7 @@ function renderClaims() {
       <span class="col-amt">${esc(money(v.amount, c.currency))}</span>
       <span class="col-status"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></span>
     </div>`; }).join('');
+  if (typeof markOpenRow === 'function') markOpenRow();
   $$('.ledger-row', wrap).forEach(el => {
     const open = () => {
       if (selectMode()) { const cb = el.querySelector('.row-check'); cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); return; }
@@ -1972,7 +1973,9 @@ new MutationObserver(muts => {
 // Freeze the page behind any open modal / drawer so the background can't scroll.
 function syncScrollLock() {
   const m2 = $('#modal2');
-  const open = !$('#modal').hidden || (m2 && !m2.hidden) || !$('#drawer').hidden;
+  // A side-by-side claim window (Glass, wide screens) leaves the list scrollable.
+  const drawerBlocks = !$('#drawer').hidden && !document.body.classList.contains('glass-split');
+  const open = !$('#modal').hidden || (m2 && !m2.hidden) || drawerBlocks;
   document.body.classList.toggle('no-scroll', !!open);
 }
 // A callback run once the next time #modal closes, then cleared. Lets a modal

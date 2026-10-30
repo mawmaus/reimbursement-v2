@@ -9,12 +9,45 @@
 // Drawer (claim detail + actions)
 // ---------------------------------------------------------------------------
 function closeDrawer() {
-  leaveGhost($('#drawer')); leaveGhost($('#drawerScrim'));
+  // A side window has no visible scrim, so it gets no fading scrim ghost either.
+  leaveGhost($('#drawer'));
+  if (!document.body.classList.contains('glass-split')) leaveGhost($('#drawerScrim'));
   $('#drawer').hidden = true; $('#drawerScrim').hidden = true;
+  setSplitView(false);
+  state.openRow = null; markOpenRow();
   $('#drawer').classList.remove('over-modal'); $('#drawerScrim').classList.remove('over-modal');
   syncScrollLock();
 }
 $('#drawerScrim').addEventListener('click', closeDrawer);
+
+// Glass look on wide screens: the claim opens as a floating window beside the
+// list instead of covering it (no scrim, the list keeps scrolling, and clicking
+// another row swaps the window's claim). Anywhere else — other looks, narrower
+// screens, or the drawer opened over the insights window — it's the usual drawer.
+const SPLIT_MQ = window.matchMedia('(min-width: 1200px)');
+function splitViewWanted() {
+  return document.documentElement.hasAttribute('data-glass') && SPLIT_MQ.matches &&
+    !$('#listView').hidden && !$('#drawer').classList.contains('over-modal');
+}
+function setSplitView(on) {
+  $('#drawer').classList.toggle('split-win', on);
+  document.body.classList.toggle('glass-split', on);
+  syncScrollLock();
+}
+// The row whose claim is open stays lifted in the list.
+function markOpenRow() {
+  $$('#claimRows .ledger-row.is-open').forEach(el => el.classList.remove('is-open'));
+  if (!state.openRow) return;
+  const [type, id] = String(state.openRow).split(':');
+  const row = $(`#claimRows .ledger-row[data-type="${type}"][data-id="${id}"]`);
+  if (row) row.classList.add('is-open');
+}
+const resyncSplit = () => { if (!$('#drawer').hidden) setSplitView(splitViewWanted()); };
+if (SPLIT_MQ.addEventListener) SPLIT_MQ.addEventListener('change', resyncSplit);
+if (window.Theme) Theme.onChange(resyncSplit);
+// Leaving the list for the menu closes a side window (the drawer normally
+// blocks the list behind its scrim, so it can't be left open there).
+$('#backHome').addEventListener('click', () => { if (document.body.classList.contains('glass-split')) closeDrawer(); });
 // Escape backs out one layer at a time, topmost first. When the drawer floats
 // above the drill-down window (over-modal) it closes first, revealing the
 // window; otherwise a modal — which normally stacks above the drawer for an
@@ -644,6 +677,8 @@ async function openDrawer(id, type = 'reimbursement') {
   drawGpsClaimMap(c);
   wireDocLinks($('#drawer .kv') || $('#drawer'));
 
+  state.openRow = type + ':' + id; markOpenRow();
+  setSplitView(splitViewWanted());
   $('#drawerScrim').hidden = false;
   $('#drawer').hidden = false;
   syncScrollLock();

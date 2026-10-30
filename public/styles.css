@@ -2311,7 +2311,6 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-glass] .ledger-row {
   background: linear-gradient(var(--line-soft), var(--line-soft)) no-repeat 50px 100% / calc(100% - 50px) 1px, transparent; }
 :root[data-glass] .ledger-row:last-child { background: transparent; }
-:root[data-glass] .ledger-row:hover { background: var(--ios-press); }
 /* Phones: the list is a stack of cards — each gets the strong tint without its
    own blur (dozens of blurred cards would make scrolling stutter). */
 @media (max-width: 720px) {
@@ -2319,6 +2318,64 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass] .ledger-row,
   :root[data-glass] .ledger-row:last-child,
   :root[data-glass] .ledger-row:hover { background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
+}
+
+/* Spatial list (Glass look). Rows sit on a padded pane and lift towards you
+   on hover / keyboard focus; the row whose claim is open stays lifted with an
+   accent ring. On phones a tapped card lifts as the claim slides in. */
+:root[data-glass] #listView #claimRows { padding: 4px 6px 8px; }
+:root[data-glass] .ledger-row { position: relative; border-radius: 12px;
+  transition: transform .2s var(--ease-out), box-shadow .2s var(--ease-out), background-color .2s; }
+:root[data-glass] .ledger-row:hover,
+:root[data-glass] .ledger-row:focus-visible,
+:root[data-glass] .ledger-row.is-open { z-index: 2; transform: translateY(-2px);
+  background: var(--glass-hover); box-shadow: 0 14px 28px -14px rgba(20,30,60,.45), inset 0 0 0 1px var(--glass-edge); }
+:root[data-glass] .ledger-row:focus-visible { outline: none; }
+:root[data-glass] .ledger-row.is-open { background: var(--surface);
+  box-shadow: 0 16px 32px -14px rgba(20,30,60,.5), inset 0 0 0 1.5px var(--pine); }
+:root[data-glass][data-theme="dark"] .ledger-row:hover,
+:root[data-glass][data-theme="dark"] .ledger-row.is-open { box-shadow: 0 14px 28px -12px rgba(0,0,0,.75), inset 0 0 0 1px var(--glass-edge); }
+:root[data-glass][data-theme="dark"] .ledger-row.is-open { box-shadow: 0 16px 32px -12px rgba(0,0,0,.8), inset 0 0 0 1.5px var(--pine); }
+@media (max-width: 720px) {
+  :root[data-glass] #listView #claimRows { padding: 2px 0 8px; }
+  :root[data-glass] .ledger-row:hover { transform: none; box-shadow: var(--glass-shadow); background: var(--glass-strong); }
+  :root[data-glass] .ledger-row:active { transform: translateY(-3px) scale(1.01); box-shadow: 0 18px 30px -14px rgba(20,30,60,.5); transition-duration: .08s; }
+}
+
+/* Side-by-side windows (Glass, wide screens; drawer.js sets .split-win on the
+   drawer and .glass-split on <body>). The claim floats as a window on the right,
+   swinging in with perspective; the list window moves left, drops the columns
+   the claim already shows, and turns a few degrees towards it. */
+@media (min-width: 1200px) {
+  :root[data-glass] body.glass-split #drawerScrim { display: none; }
+  :root[data-glass] .drawer.split-win { top: 74px; right: 18px; bottom: 18px; width: min(600px, 44%);
+    border: 1px solid var(--glass-edge); border-radius: 22px; transform-origin: right center;
+    box-shadow: var(--glass-shadow), 0 40px 80px -30px rgba(20,30,60,.5); animation: win-in .44s var(--ease-out); }
+  :root[data-glass][data-theme="dark"] .drawer.split-win { box-shadow: var(--glass-shadow), 0 40px 80px -30px rgba(0,0,0,.85); }
+  :root[data-glass] .drawer.split-win.leaving { animation: win-out .2s var(--ease-in) forwards; }
+  :root[data-glass] body.glass-split #appView:has(#listView:not([hidden])) .container { max-width: none; width: calc(100% - min(600px, 44%) - 54px); margin: 0 0 0 18px; }
+  :root[data-glass] #listView .ledger { transition: transform .45s var(--ease-out); }
+  :root[data-glass] body.glass-split #listView .ledger { transform: perspective(2200px) rotateY(3deg); transform-origin: left center; }
+  :root[data-glass] body.glass-split .ledger .col-db,
+  :root[data-glass] body.glass-split .ledger .col-type,
+  :root[data-glass] body.glass-split .ledger .col-paid { display: none; }
+  :root[data-glass] body.glass-split .ledger-head,
+  :root[data-glass] body.glass-split .ledger-row,
+  :root[data-glass] body.glass-split .ledger.show-paid .ledger-head,
+  :root[data-glass] body.glass-split .ledger.show-paid .ledger-row { grid-template-columns: 4px 36px 112px minmax(0, 1.2fr) 92px 124px 212px; }
+}
+@keyframes win-in { from { opacity: 0; transform: perspective(1400px) translateX(70px) rotateY(-18deg) scale(.95); } }
+@keyframes win-out { to { opacity: 0; transform: perspective(1400px) translateX(40px) rotateY(-12deg) scale(.97); } }
+/* Narrower screens: the claim still slides in from the right, with a swing. */
+@media (max-width: 1199px) {
+  :root[data-glass] .drawer { transform-origin: right center; animation: win-slide .4s var(--ease-out); }
+  :root[data-glass] .drawer.leaving { animation: slideout .22s var(--ease-in) forwards; }
+}
+@keyframes win-slide { from { transform: perspective(1200px) translateX(100%) rotateY(-14deg); } }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-glass] .ledger-row, :root[data-glass] #listView .ledger { transition: none; }
+  :root[data-glass] .drawer, :root[data-glass] .drawer.split-win { animation: none; }
+  :root[data-glass] body.glass-split #listView .ledger { transform: none; }
 }
 
 /* Appearance picker (Profile): three small preview swatches, radio-style. */
