@@ -1829,11 +1829,12 @@ $$('.ledger-head [data-sort]').forEach(h => {
 
 function renderClaims() {
   renderLedgerScope();
-  renderDraftStrip();
   syncFilterUI();
   const wrap = $('#claimRows');
   const claims = sortClaims(visibleClaims());
-  if (!claims.length) {
+  // My claims lists the account's saved drafts first, as rows with status Draft.
+  const drafts = draftRowsHtml();
+  if (!claims.length && !drafts) {
     wrap.innerHTML = '';
     const empty = $('#emptyState');
     if (anyFilterActive()) {
@@ -1848,7 +1849,7 @@ function renderClaims() {
   }
   $('#emptyState').hidden = true;
   enterKeep(wrap);
-  wrap.innerHTML = claims.map(c => {
+  wrap.innerHTML = drafts + claims.map(c => {
     const v = rowView(c);
     const checked = state.selected.has(claimKey(c.type, c.id)) ? 'checked' : '';
     return `
@@ -1867,6 +1868,7 @@ function renderClaims() {
   if (typeof markOpenRow === 'function') markOpenRow();
   $$('.ledger-row', wrap).forEach(el => {
     const open = () => {
+      if (el.dataset.draft) return openDraft(el.dataset.draft);
       if (selectMode()) { const cb = el.querySelector('.row-check'); cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); return; }
       openDrawer(el.dataset.id, el.dataset.type);
     };

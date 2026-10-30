@@ -456,7 +456,7 @@ function openCalcModal(rowIndex) {
 // days unused, and a draft never followed the account to another device. So
 // every save is also backed up to the server (routes/drafts.js) — receipts
 // uploaded to the private store and referenced from `data.files`, per row — and
-// My claims lists the drafts (renderDraftStrip). The local copy stays for speed
+// My claims lists the drafts as rows (draftRowsHtml). The local copy stays for speed
 // and offline use; `synced` marks one the server holds too. Whichever copy was
 // saved last wins on reopen.
 // ---------------------------------------------------------------------------
@@ -663,13 +663,15 @@ function refreshDraftBadges() {
     btn.classList.toggle('has-draft', !!loadDraft(kind));
   }
   syncNewMenu();
-  if (state.view === 'mine') renderDraftStrip();
+  if (state.view === 'mine') renderClaims();
   else if (state.view === 'home') renderHome();
 }
 const draftKinds = () => Object.keys(DRAFT_BTN).filter(k => loadDraft(k));
 
-// My claims: the saved drafts, above the submitted claims — what each is, how
-// many lines, its total so far and when it was saved, with Continue / Delete.
+// My claims: each saved draft is a row of the claims table, listed first, with
+// status Draft — its type, first date / DB number, total so far, and the day
+// it was saved where a claim number would be (the full time on hover).
+// Opening one continues the form.
 const DRAFT_LABEL = { claim: 'Reimbursement', meal: 'Meal allowance', mealgps: 'Meal allowance (GPS)', advance: 'Cash advance' };
 function draftSummary(kind, data) {
   const rows = Array.isArray(data.rows) ? data.rows : [];
@@ -679,54 +681,40 @@ function draftSummary(kind, data) {
   else if (kind === 'mealgps') amount = rows.reduce((s, r) => s + (r.trip === 'out_of_town'
     ? (r.meals || []).reduce((m, x) => m + mealAmount(x), 0) : mealAmount(r.amount)), 0);
   else amount = rcAmt(data.amount);
-  const files = (Array.isArray(data.files) ? data.files : []).reduce((n, r) => n + (Array.isArray(r) ? r.length : 0), 0);
-  return { lines: rows.length, amount, files };
+  const first = rows[0] || {};
+  return { amount, date: first.line_date || first.date || '', db: first.db_no || first.site || '' };
 }
-function renderDraftStrip() {
-  const el = $('#draftStrip');
-  if (!el) return;
-  const kinds = state.view === 'mine' ? draftKinds() : [];
-  el.hidden = !kinds.length;
-  if (!kinds.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<h3 class="draft-strip-h">${esc(t('Drafts'))} <span class="draft-strip-n">${kinds.length}</span></h3>
-    <div class="draft-list">${kinds.map(kind => {
-      const d = loadDraft(kind);
-      const s = draftSummary(kind, d.data);
-      const meta = [
-        s.lines ? lineCountText(s.lines) : '',
-        s.files ? (s.files === 1 ? t('1 receipt') : t('{n} receipts', { n: s.files })) : '',
-        t('Saved {when}', { when: fmtDateTime(new Date(d.savedAt).toISOString()) })
-      ].filter(Boolean);
-      return `<div class="draft-card" data-kind="${kind}">
-        <span class="draft-card-ic" aria-hidden="true">📝</span>
-        <div class="draft-card-main">
-          <div class="draft-card-top"><span class="draft-card-type">${esc(t(DRAFT_LABEL[kind]))}</span>
-            <span class="pill pill-draft">${esc(t('Draft'))}</span></div>
-          <div class="draft-card-meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>
-        </div>
-        <span class="draft-card-amt">${s.amount ? esc(money(s.amount, regionCurrency())) : '—'}</span>
-        <div class="draft-card-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-draft-del>${esc(t('Delete'))}</button>
-          <button type="button" class="btn btn-primary btn-sm" data-draft-open>${esc(t('Continue'))}</button>
-        </div>
-      </div>`;
-    }).join('')}</div>`;
-  $$('.draft-card', el).forEach(card => {
-    const kind = card.dataset.kind;
-    card.querySelector('[data-draft-open]').addEventListener('click', () => {
-      // Open it the way its New button does, so the same gates apply (purpose
-      // switched off, an unrealized cash advance holding new claims).
-      const btn = $(DRAFT_BTN[kind]);
-      if (!btn || btn.hidden) return toast(t('This form is not available on your account right now.'), true);
-      if (btn.disabled) return toast(btn.title || t('This form is not available on your account right now.'), true);
-      btn.click();
-    });
-    card.querySelector('[data-draft-del]').addEventListener('click', () => {
-      if (!confirm(t('Delete this draft? This cannot be undone.'))) return;
-      clearDraft(kind);
-      toast(t('Draft deleted'));
-    });
-  });
+// Drafts sit in My claims only, and only while no status filter or search
+// narrows the list (neither applies to an unsent form).
+function draftRowsHtml() {
+  if (state.view !== 'mine' || state.filters.status || state.filters.q) return '';
+  return draftKinds().map(kind => {
+    const d = loadDraft(kind);
+    const s = draftSummary(kind, d.data);
+    const when = fmtDateTime(new Date(d.savedAt).toISOString());
+    const saved = t('Saved {when}', { when });
+    return `
+    <div class="ledger-row draft-row" data-draft="${kind}" tabindex="0" role="button" title="${esc(saved)}">
+      <span class="row-spine draft"></span>
+      <span class="col-check"></span>
+      <span class="col-no" aria-label="${esc(saved)}" data-label="${esc(t('Saved {when}', { when: '' }).trim())}">${esc(when.slice(0, 10))}</span>
+      <span class="col-name">${esc((state.user && state.user.full_name) || '')}</span>
+      <span class="col-db mono">${esc(dbFmt(s.db)) || '—'}</span>
+      <span class="col-type">${esc(t(DRAFT_LABEL[kind]))}</span>
+      <span class="col-date mono">${esc(s.date) || '—'}</span>
+      <span class="col-paid mono">—</span>
+      <span class="col-amt">${s.amount ? esc(money(s.amount, regionCurrency())) : '—'}</span>
+      <span class="col-status"><span class="pill pill-draft">${esc(t('Draft'))}</span></span>
+    </div>`;
+  }).join('');
+}
+// Continue a draft the way its New button opens the form, so the same gates
+// apply (purpose switched off, an unrealized cash advance holding new claims).
+function openDraft(kind) {
+  const btn = $(DRAFT_BTN[kind]);
+  if (!btn || btn.hidden) return toast(t('This form is not available on your account right now.'), true);
+  if (btn.disabled) return toast(btn.title || t('This form is not available on your account right now.'), true);
+  btn.click();
 }
 
 // The banner shown at the top of a form that was reopened from a saved draft.

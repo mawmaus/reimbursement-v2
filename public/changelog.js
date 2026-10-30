@@ -32,12 +32,12 @@ window.CHANGELOG = [
     date: '2026-10-30',
     items: [
       { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
-        en: 'Saved drafts no longer disappear. A draft — with its receipts — is now kept on the server, not only in your browser, so it is still there days later and on any device you sign in on. Find your drafts at the top of My claims, where you can continue or delete them.',
-        id: 'Draf yang disimpan tidak hilang lagi. Draf — beserta kuitansinya — kini disimpan di server, bukan hanya di browser, sehingga tetap ada berhari-hari kemudian dan di perangkat mana pun Anda masuk. Draf Anda ada di bagian atas Klaim saya; dari sana Anda bisa melanjutkan atau menghapusnya.',
-        th: 'ฉบับร่างที่บันทึกไว้จะไม่หายอีกต่อไป ฉบับร่างพร้อมใบเสร็จจะถูกเก็บไว้บนเซิร์ฟเวอร์ ไม่ใช่แค่ในเบราว์เซอร์ จึงยังอยู่แม้ผ่านไปหลายวันและบนทุกอุปกรณ์ที่คุณเข้าสู่ระบบ ดูฉบับร่างได้ที่ด้านบนของการเบิกของฉัน ซึ่งคุณทำต่อหรือลบได้',
-        vi: 'Bản nháp đã lưu không còn bị mất. Bản nháp — cùng hóa đơn — giờ được lưu trên máy chủ, không chỉ trong trình duyệt, nên vẫn còn sau nhiều ngày và trên mọi thiết bị bạn đăng nhập. Bản nháp nằm ở đầu Yêu cầu của tôi, nơi bạn có thể tiếp tục hoặc xóa.',
-        km: 'សេចក្ដីព្រាងដែលបានរក្សាទុកលែងបាត់ទៀតហើយ។ សេចក្ដីព្រាង — រួមទាំងបង្កាន់ដៃ — ឥឡូវត្រូវបានរក្សាទុកនៅលើម៉ាស៊ីនមេ មិនមែនតែក្នុងកម្មវិធីរុករកទេ ដូច្នេះវានៅតែមានទោះបីកន្លងទៅច្រើនថ្ងៃ និងនៅលើឧបករណ៍ណាដែលអ្នកចូល។ សេចក្ដីព្រាងរបស់អ្នកនៅខាងលើ សំណើរបស់ខ្ញុំ ដែលអ្នកអាចបន្ត ឬលុបវាបាន។',
-        fil: 'Hindi na nawawala ang mga naka-save na draft. Ang draft — kasama ang mga resibo nito — ay nakatabi na sa server, hindi lang sa browser mo, kaya nandoon pa rin ito makalipas ang ilang araw at sa anumang device na pag-sign in-an mo. Nasa itaas ng Aking mga claim ang mga draft mo, kung saan mo ito maitutuloy o mabubura.'
+        en: 'Saved drafts no longer disappear. A draft — with its receipts — is now kept on the server, not only in your browser, so it is still there days later and on any device you sign in on. Your drafts are listed in My claims as rows marked Draft — open one to continue where you left off.',
+        id: 'Draf yang disimpan tidak hilang lagi. Draf — beserta kuitansinya — kini disimpan di server, bukan hanya di browser, sehingga tetap ada berhari-hari kemudian dan di perangkat mana pun Anda masuk. Draf Anda tampil di Klaim saya sebagai baris berstatus Draf — buka untuk melanjutkan.',
+        th: 'ฉบับร่างที่บันทึกไว้จะไม่หายอีกต่อไป ฉบับร่างพร้อมใบเสร็จจะถูกเก็บไว้บนเซิร์ฟเวอร์ ไม่ใช่แค่ในเบราว์เซอร์ จึงยังอยู่แม้ผ่านไปหลายวันและบนทุกอุปกรณ์ที่คุณเข้าสู่ระบบ ฉบับร่างแสดงในการเบิกของฉันเป็นแถวที่มีสถานะฉบับร่าง — เปิดเพื่อทำต่อ',
+        vi: 'Bản nháp đã lưu không còn bị mất. Bản nháp — cùng hóa đơn — giờ được lưu trên máy chủ, không chỉ trong trình duyệt, nên vẫn còn sau nhiều ngày và trên mọi thiết bị bạn đăng nhập. Bản nháp hiện trong Yêu cầu của tôi thành các dòng có trạng thái Bản nháp — mở ra để tiếp tục.',
+        km: 'សេចក្ដីព្រាងដែលបានរក្សាទុកលែងបាត់ទៀតហើយ។ សេចក្ដីព្រាង — រួមទាំងបង្កាន់ដៃ — ឥឡូវត្រូវបានរក្សាទុកនៅលើម៉ាស៊ីនមេ មិនមែនតែក្នុងកម្មវិធីរុករកទេ ដូច្នេះវានៅតែមានទោះបីកន្លងទៅច្រើនថ្ងៃ និងនៅលើឧបករណ៍ណាដែលអ្នកចូល។ សេចក្ដីព្រាងរបស់អ្នកបង្ហាញក្នុង សំណើរបស់ខ្ញុំ ជាជួរដែលមានស្ថានភាពសេចក្ដីព្រាង — បើកវាដើម្បីបន្ត។',
+        fil: 'Hindi na nawawala ang mga naka-save na draft. Ang draft — kasama ang mga resibo nito — ay nakatabi na sa server, hindi lang sa browser mo, kaya nandoon pa rin ito makalipas ang ilang araw at sa anumang device na pag-sign in-an mo. Nakalista ang mga draft mo sa Aking mga claim bilang mga row na may status na Draft — buksan ito para ituloy.'
       } }
     ]
   },
