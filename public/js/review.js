@@ -15,11 +15,24 @@ const reviewBase = (c) => c.type === 'meal' ? '/meal-claims/' : c.type === 'adva
 const reviewKey = (c) => claimKey(c.type, c.id);
 const reviewDeck = () => $('#reviewDeck');
 
-// The button lives in the list head; only Needs my approval, only in Glass.
+// What the deck holds. Everyone: the claims where they're the next approver
+// (Needs my approval). Super Admins, who may approve any step: every claim
+// still waiting on someone, on Needs my approval and on All activities — there
+// following the list's filters, so one department or claimant at a time works.
+const reviewIsSuper = () => !!(state.user && state.user.role === 'superadmin');
+const reviewAwaiting = (c) => c.status === 'submitted' || (c.type === 'advance' && c.status === 'realize_submitted');
+function reviewSource() {
+  if (!reviewIsSuper()) return state.view === 'approval' ? approvalQueue() : [];
+  if (state.view === 'approval') return state.claims.filter(reviewAwaiting);
+  if (state.view === 'all') return visibleClaims().filter(reviewAwaiting);
+  return [];
+}
+
+// The button lives in the list head, only in Glass.
 function syncReviewButton() {
   const btn = $('#reviewBtn');
   if (!btn) return;
-  const n = state.view === 'approval' ? approvalQueue().length : 0;
+  const n = reviewSource().length;
   btn.hidden = !(document.documentElement.hasAttribute('data-glass') && n > 0);
   btn.querySelector('.rv-lab').textContent = n === 1 ? t('Review 1 claim') : t('Review {n} claims', { n });
 }
@@ -28,7 +41,7 @@ if (window.Theme) Theme.onChange(syncReviewButton);
 
 function openReview() {
   if (reviewDeck()) return;
-  review.queue = sortClaims(approvalQueue());
+  review.queue = sortClaims(reviewSource());
   review.i = 0;
   review.full = new Map();
   const deck = document.createElement('div');
@@ -139,6 +152,7 @@ function reviewCardHtml(c, depth) {
       <div class="rv-stamp rv-stamp-ok" aria-hidden="true">${esc(t('Approve'))}</div>
       <div class="rv-stamp rv-stamp-no" aria-hidden="true">${esc(t('Reject'))}</div>
       <div class="rv-card-top"><span class="rv-type">${esc(v.typeLabel || '')}</span><span class="rv-no">${esc(c.claim_no)}</span></div>
+      <div class="rv-stage-pill"><span class="pill ${pillClass(c)}">${esc(statusLabelFor(c))}</span></div>
       <div class="rv-who">${esc(c.claimant_name || '')}</div>
       <div class="rv-amt">${esc(money(v.amount, c.currency))}</div>
       <div class="rv-meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>
@@ -293,7 +307,10 @@ async function reviewRecheck(c, dir) {
   try {
     const { claim } = await api(reviewBase(c) + c.id);
     claim.type = c.type;
-    if (reviewCurrent() === c && !isMyTurn(claim)) {
+    // Moved on = rejected, approved, or (a Super Admin approving one step of
+    // several) handed to the next approver.
+    const moved = claim.status !== c.status || (claim.current_step || 1) !== (c.current_step || 1);
+    if (reviewCurrent() === c && moved) {
       if (claim.status === 'rejected' || claim.status === 'rejected_realize') dir = 'left';
       reviewFly(dir, () => { review.i++; renderReview(); });
     }
