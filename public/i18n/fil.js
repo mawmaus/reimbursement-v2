@@ -280,6 +280,7 @@ I18N.addDict('fil', {
   'Appearance': 'Itsura',
   'Classic': 'Classic',
   'Modern': 'Moderno',
+  'Glass': 'Salamin',
   'Email (used for password resets & notifications)': 'Email (ginagamit para sa password reset at mga notification)',
   'you@company.com': 'ikaw@kumpanya.com',
   'Bank / payout details': 'Detalye ng bank / payout',

@@ -280,6 +280,7 @@ I18N.addDict('km', {
   'Appearance': 'រូបរាង',
   'Classic': 'បុរាណ',
   'Modern': 'ទំនើប',
+  'Glass': 'កញ្ចក់',
   'Email (used for password resets & notifications)': 'អ៊ីមែល (ប្រើសម្រាប់កំណត់ពាក្យសម្ងាត់ឡើងវិញ & ការជូនដំណឹង)',
   'you@company.com': 'you@company.com',
   'Bank / payout details': 'ព័ត៌មានលម្អិតធនាគារ / ការបង់ប្រាក់',

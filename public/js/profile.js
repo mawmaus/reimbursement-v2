@@ -102,7 +102,7 @@ async function openProfileModal() {
           <section class="lf-sec pf-card">
             <div class="lf-sec-head"><h3>${esc(t('Appearance'))}</h3></div>
             <div class="look-pick" role="radiogroup" aria-label="${esc(t('Appearance'))}">
-              ${[['classic', t('Classic')], ['ios', t('Modern')]].map(([v, l]) => `
+              ${[['classic', t('Classic')], ['ios', t('Modern')], ['glass', t('Glass')]].map(([v, l]) => `
               <button type="button" class="look-opt" role="radio" data-look="${v}" aria-checked="${Theme.getStyle() === v}">
                 <span class="look-swatch ${v}" aria-hidden="true"><i></i><i></i><i></i></span>
                 <span class="look-name">${esc(l)}</span>

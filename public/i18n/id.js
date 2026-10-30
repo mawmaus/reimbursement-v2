@@ -297,6 +297,7 @@ I18N.addDict('id', {
   'Appearance': 'Tampilan',
   'Classic': 'Klasik',
   'Modern': 'Modern',
+  'Glass': 'Kaca',
   'Email (used for password resets & notifications)': 'Email (dipakai untuk reset kata sandi & notifikasi)',
   'you@company.com': 'anda@perusahaan.com',
   'Bank / payout details': 'Detail bank / pembayaran',

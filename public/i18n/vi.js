@@ -280,6 +280,7 @@ I18N.addDict('vi', {
   'Appearance': 'Giao diện',
   'Classic': 'Cổ điển',
   'Modern': 'Hiện đại',
+  'Glass': 'Kính mờ',
   'Email (used for password resets & notifications)': 'Email (dùng để đặt lại mật khẩu & thông báo)',
   'you@company.com': 'you@company.com',
   'Bank / payout details': 'Chi tiết ngân hàng / chi trả',

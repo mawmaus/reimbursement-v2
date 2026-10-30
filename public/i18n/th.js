@@ -280,6 +280,7 @@ I18N.addDict('th', {
   'Appearance': 'รูปลักษณ์',
   'Classic': 'คลาสสิก',
   'Modern': 'โมเดิร์น',
+  'Glass': 'กระจก',
   'Email (used for password resets & notifications)': 'อีเมล (ใช้สำหรับรีเซ็ตรหัสผ่านและการแจ้งเตือน)',
   'you@company.com': 'you@company.com',
   'Bank / payout details': 'รายละเอียดธนาคาร / การจ่ายเงิน',

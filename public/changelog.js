@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-30.1',
+    date: '2026-10-30',
+    items: [
+      { kind: 'new', text: {
+        en: 'New “Glass” look in My profile → Appearance: frosted, see-through panels over a soft colour background, in light and dark mode. Classic and Modern are still there.',
+        id: 'Tampilan baru “Kaca” di Profil saya → Tampilan: panel buram tembus pandang di atas latar warna lembut, dalam mode terang dan gelap. Klasik dan Modern tetap tersedia.',
+        th: 'รูปลักษณ์ใหม่ “กระจก” ใน โปรไฟล์ของฉัน → รูปลักษณ์: แผงฝ้าโปร่งแสงบนพื้นหลังสีนุ่มนวล ทั้งโหมดสว่างและโหมดมืด ยังคงมีแบบคลาสสิกและโมเดิร์นให้เลือก',
+        vi: 'Giao diện mới “Kính mờ” trong Hồ sơ của tôi → Giao diện: các bảng mờ trong suốt trên nền màu dịu, ở cả chế độ sáng và tối. Cổ điển và Hiện đại vẫn còn đó.',
+        km: 'រូបរាងថ្មី “កញ្ចក់” នៅក្នុង ប្រវត្តិរូបរបស់ខ្ញុំ → រូបរាង៖ ផ្ទាំងស្រអាប់ថ្លាលើផ្ទៃខាងក្រោយពណ៌ទន់ ទាំងក្នុងរបៀបភ្លឺ និងងងឹត។ បុរាណ និងទំនើប នៅតែមាន។',
+        fil: 'Bagong “Salamin” na itsura sa Aking profile → Itsura: mga malabong panel na tagusan sa malambot na kulay na background, sa light at dark mode. Nandiyan pa rin ang Classic at Moderno.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-26.4',
     date: '2026-10-26',
     items: [

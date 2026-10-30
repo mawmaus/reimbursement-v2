@@ -2216,8 +2216,113 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-style="ios"] .form-note,
 :root[data-style="ios"] .note-box { border-radius: 12px; }
 
-/* Appearance picker (Profile): two small preview swatches, radio-style. */
-.look-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* ---------------------------------------------------------------------------
+   Glass look. The Modern look (theme.js keeps data-style="ios") plus
+   <html data-glass>: soft colour blobs fixed behind the page, and the big
+   surfaces (top bar, tiles, summary cards, the claims list, sheets, login)
+   become frosted panes over them. Dense content stays readable: the list,
+   drawers and modals use the stronger, nearly opaque pane, and fields, menus
+   and settings cards keep their solid surface. Reduced transparency, or a
+   browser without backdrop-filter, gets near-solid panes.
+   --------------------------------------------------------------------------- */
+:root[data-glass] {
+  --paper:        #e9eef8;
+  --glass-bg:     rgba(255,255,255,.5);
+  --glass-strong: rgba(255,255,255,.76);
+  --glass-hover:  rgba(255,255,255,.7);
+  --glass-edge:   rgba(255,255,255,.65);
+  --glass-blur:   saturate(1.7) blur(22px);
+  --glass-shadow: 0 10px 30px -12px rgba(30,45,80,.22), inset 0 1px 0 rgba(255,255,255,.6);
+  --blob-1: rgba(127,119,221,.75);  /* violet */
+  --blob-2: rgba(93,202,165,.7);    /* teal */
+  --blob-3: rgba(240,153,123,.65);  /* peach */
+  --blob-4: rgba(55,138,221,.55);   /* blue */
+  --blob-5: rgba(212,83,126,.32);   /* rose, behind the middle of the page */
+  --topbar-bg: rgba(255,255,255,.45);
+}
+:root[data-glass][data-theme="dark"] {
+  --paper:        #070c18;
+  --glass-bg:     rgba(24,33,56,.5);
+  --glass-strong: rgba(17,25,43,.8);
+  --glass-hover:  rgba(34,46,76,.62);
+  --glass-edge:   rgba(255,255,255,.09);
+  --glass-shadow: 0 12px 32px -12px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.06);
+  --blob-1: rgba(83,74,183,.7);
+  --blob-2: rgba(15,110,86,.65);
+  --blob-3: rgba(153,53,86,.55);
+  --blob-4: rgba(24,95,165,.6);
+  --blob-5: rgba(83,74,183,.4);
+  --topbar-bg: rgba(14,20,36,.5);
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-glass] { --glass-bg: rgba(255,255,255,.92); --glass-strong: rgba(255,255,255,.96); --glass-hover: #fff; --topbar-bg: rgba(255,255,255,.92); }
+  :root[data-glass][data-theme="dark"] { --glass-bg: rgba(20,28,48,.94); --glass-strong: rgba(17,25,43,.97); --glass-hover: #1d2840; --topbar-bg: rgba(14,20,36,.94); }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-glass] { --glass-bg: rgba(255,255,255,.9); --glass-strong: rgba(255,255,255,.95); }
+  :root[data-glass][data-theme="dark"] { --glass-bg: rgba(20,28,48,.92); --glass-strong: rgba(17,25,43,.96); }
+}
+
+/* The backdrop: radial blobs on a fixed layer (no filter, so it costs nothing
+   to scroll). The body's own background still paints the canvas beneath. */
+:root[data-glass] body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(55vmax 55vmax at 12% 10%,  var(--blob-1), transparent 65%),
+    radial-gradient(50vmax 50vmax at 92% 32%,  var(--blob-2), transparent 65%),
+    radial-gradient(48vmax 48vmax at 62% 98%,  var(--blob-3), transparent 65%),
+    radial-gradient(45vmax 45vmax at 6% 86%,   var(--blob-4), transparent 65%),
+    radial-gradient(40vmax 30vmax at 52% 48%,  var(--blob-5), transparent 70%);
+}
+:root[data-glass] .login-wrap { background: transparent; }
+
+/* Frosted panes. */
+:root[data-glass] .topbar { background: var(--topbar-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom-color: var(--glass-edge); }
+:root[data-glass] .home-tile,
+:root[data-glass] .card,
+:root[data-glass] .home-notice,
+:root[data-glass] .selection-bar {
+  background: var(--glass-bg); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+}
+:root[data-glass] .home-tile:hover,
+:root[data-glass] .card-filter:hover { background: var(--glass-hover); border-color: var(--glass-edge); box-shadow: var(--glass-shadow), var(--shadow-md); }
+
+/* Panes people read in: the strong tint. */
+:root[data-glass] .ledger,
+:root[data-glass] .login-card,
+:root[data-glass] .modal,
+:root[data-glass] .drawer {
+  background: var(--glass-strong); border: 1px solid var(--glass-edge);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+}
+:root[data-glass] .ledger,
+:root[data-glass] .login-card { box-shadow: var(--glass-shadow); }
+:root[data-glass] .drawer { border-width: 0 0 0 1px; }
+:root[data-glass] .modal-head,
+:root[data-glass] .drawer-head { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root[data-glass] .modal-flex .modal-actions,
+:root[data-glass] .drawer > .drawer-actions,
+:root[data-glass] .ue-foot { background: transparent; }
+
+/* The list's header and rows sit on the pane instead of painting over it. */
+:root[data-glass] .ledger-head { background: transparent; }
+:root[data-glass] .ledger-row {
+  background: linear-gradient(var(--line-soft), var(--line-soft)) no-repeat 50px 100% / calc(100% - 50px) 1px, transparent; }
+:root[data-glass] .ledger-row:last-child { background: transparent; }
+:root[data-glass] .ledger-row:hover { background: var(--ios-press); }
+/* Phones: the list is a stack of cards — each gets the strong tint without its
+   own blur (dozens of blurred cards would make scrolling stutter). */
+@media (max-width: 720px) {
+  :root[data-glass] .ledger { background: transparent; border: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  :root[data-glass] .ledger-row,
+  :root[data-glass] .ledger-row:last-child,
+  :root[data-glass] .ledger-row:hover { background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
+}
+
+/* Appearance picker (Profile): three small preview swatches, radio-style. */
+.look-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .look-opt { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 9px 9px 8px;
   border: 2px solid var(--line); border-radius: 14px; background: var(--surface); cursor: pointer;
   font: inherit; font-size: .88rem; font-weight: 600; color: var(--ink-soft); transition: border-color .14s, color .14s; }
@@ -2240,6 +2345,16 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-theme="dark"] .look-swatch.ios { background: #0a1120; }
 :root[data-theme="dark"] .look-swatch.ios i { background: #121b2d; box-shadow: none; }
 :root[data-theme="dark"] .look-swatch.ios i:first-child { background: #4c7bd6; }
+.look-swatch.glass { background:
+  radial-gradient(60% 80% at 10% 10%, rgba(127,119,221,.7), transparent 70%),
+  radial-gradient(60% 80% at 95% 90%, rgba(93,202,165,.65), transparent 70%), #e9eef8; }
+.look-swatch.glass i { background: rgba(255,255,255,.55); border-radius: 7px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.7); }
+.look-swatch.glass i:first-child { background: #1e3a6e; box-shadow: none; border-radius: 5px; }
+:root[data-theme="dark"] .look-swatch.glass { background:
+  radial-gradient(60% 80% at 10% 10%, rgba(83,74,183,.75), transparent 70%),
+  radial-gradient(60% 80% at 95% 90%, rgba(15,110,86,.7), transparent 70%), #070c18; }
+:root[data-theme="dark"] .look-swatch.glass i { background: rgba(24,33,56,.55); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+:root[data-theme="dark"] .look-swatch.glass i:first-child { background: #4c7bd6; }
 .look-name { text-align: center; }
 
 

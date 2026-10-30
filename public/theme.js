@@ -11,8 +11,10 @@
 // ---------------------------------------------------------------------------
 (function () {
   var KEY = 'reimb.theme';
-  // The look ("classic" | "ios") is a second, independent axis: either one
-  // runs light or dark. Stored per device too; written to <html data-style>.
+  // The look ("classic" | "ios" | "glass") is a second, independent axis: any
+  // of them runs light or dark. Stored per device too; written to <html
+  // data-style>. Glass is the Modern look plus frosted surfaces, so it sets
+  // data-style="ios" and adds <html data-glass>.
   var STYLE_KEY = 'reimb.style';
   var root = document.documentElement;
   var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -24,7 +26,7 @@
   }
   function resolved() { return stored() || (mq && mq.matches ? 'dark' : 'light'); }
   function style() {
-    try { return localStorage.getItem(STYLE_KEY) === 'ios' ? 'ios' : 'classic'; }
+    try { var v = localStorage.getItem(STYLE_KEY); return v === 'ios' || v === 'glass' ? v : 'classic'; }
     catch (e) { return 'classic'; }
   }
 
@@ -32,19 +34,24 @@
   function syncMeta(theme) {
     var m = document.querySelector('meta[name="theme-color"]');
     if (!m) { m = document.createElement('meta'); m.name = 'theme-color'; document.head.appendChild(m); }
-    var ios = style() === 'ios';
-    m.content = theme === 'dark' ? (ios ? '#0a1120' : '#131315') : (ios ? '#f1f3f7' : '#f5f4f2');
+    var look = style();
+    m.content = theme === 'dark'
+      ? (look === 'glass' ? '#070c18' : look === 'ios' ? '#0a1120' : '#131315')
+      : (look === 'glass' ? '#e9eef8' : look === 'ios' ? '#f1f3f7' : '#f5f4f2');
   }
 
   function apply() {
     var theme = resolved();
-    var look = style() === 'ios' ? 'ios' : null;
-    if (root.getAttribute('data-theme') !== theme || root.getAttribute('data-style') !== look) {
+    var glass = style() === 'glass';
+    var look = style() === 'classic' ? null : 'ios';
+    if (root.getAttribute('data-theme') !== theme || root.getAttribute('data-style') !== look ||
+        root.hasAttribute('data-glass') !== glass) {
       // Swap every colour at once: without this, each element's own colour
       // transition would fade on its own schedule and the switch would ripple.
       root.classList.add('theme-switching');
       root.setAttribute('data-theme', theme);
       if (look) root.setAttribute('data-style', look); else root.removeAttribute('data-style');
+      if (glass) root.setAttribute('data-glass', ''); else root.removeAttribute('data-glass');
       requestAnimationFrame(function () {
         requestAnimationFrame(function () { root.classList.remove('theme-switching'); });
       });
@@ -69,7 +76,7 @@
     toggle: function () { this.set(resolved() === 'dark' ? 'light' : 'dark'); },
     getStyle: style,
     setStyle: function (s) {
-      try { localStorage.setItem(STYLE_KEY, s === 'ios' ? 'ios' : 'classic'); } catch (e) { /* private mode */ }
+      try { localStorage.setItem(STYLE_KEY, s === 'ios' || s === 'glass' ? s : 'classic'); } catch (e) { /* private mode */ }
       apply();
     },
     onChange: function (fn) { listeners.push(fn); }
