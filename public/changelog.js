@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-30.3',
+    date: '2026-10-30',
+    items: [
+      { kind: 'new', audience: ['superadmin'], text: {
+        en: 'Review mode (Glass look): on Needs my approval, “Review claims” opens the claims waiting for you as a deck of cards. Swipe right or tap Approve, swipe left or tap Reject, swipe up to skip. Each approval waits 5 seconds with an Undo button before it is sent.',
+        id: 'Mode tinjau (tampilan Kaca): di Perlu persetujuan saya, “Tinjau klaim” membuka klaim yang menunggu Anda sebagai tumpukan kartu. Geser ke kanan atau ketuk Setujui, geser ke kiri atau ketuk Tolak, geser ke atas untuk melewati. Setiap persetujuan menunggu 5 detik dengan tombol Urungkan sebelum dikirim.',
+        th: 'โหมดตรวจ (รูปลักษณ์กระจก): ในหน้า รอการอนุมัติจากฉัน ปุ่ม “ตรวจคำขอเบิก” จะเปิดคำขอเบิกที่รอคุณเป็นกองการ์ด ปัดขวาหรือแตะอนุมัติ ปัดซ้ายหรือแตะปฏิเสธ ปัดขึ้นเพื่อข้าม การอนุมัติแต่ละครั้งจะรอ 5 วินาทีพร้อมปุ่มเลิกทำก่อนส่ง',
+        vi: 'Chế độ duyệt (giao diện Kính mờ): trong Cần tôi duyệt, “Duyệt yêu cầu” mở các yêu cầu đang chờ bạn thành một chồng thẻ. Vuốt phải hoặc chạm Duyệt, vuốt trái hoặc chạm Từ chối, vuốt lên để bỏ qua. Mỗi lần duyệt chờ 5 giây kèm nút Hoàn tác trước khi gửi.',
+        km: 'របៀបពិនិត្យ (រូបរាងកញ្ចក់)៖ នៅ ត្រូវការការអនុម័តរបស់ខ្ញុំ “ពិនិត្យការទាមទារ” បើកការទាមទារដែលរង់ចាំអ្នកជាហ្វូងកាត។ អូសទៅស្តាំ ឬចុចអនុម័ត អូសទៅឆ្វេង ឬចុចបដិសេធ អូសឡើងលើដើម្បីរំលង។ ការអនុម័តនីមួយៗរង់ចាំ 5 វិនាទីជាមួយប៊ូតុងមិនធ្វើវិញ មុនពេលផ្ញើ។',
+        fil: 'Review mode (Salamin na itsura): sa Kailangan ng aking pag-apruba, binubuksan ng “Suriin ang mga claim” ang mga claim na naghihintay sa iyo bilang isang deck ng mga card. I-swipe pakanan o i-tap ang Aprubahan, pakaliwa o i-tap ang Tanggihan, pataas para laktawan. Naghihintay ng 5 segundo ang bawat pag-apruba na may Undo button bago ipadala.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-30.2',
     date: '2026-10-30',
     items: [
