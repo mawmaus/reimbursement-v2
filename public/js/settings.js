@@ -807,10 +807,11 @@ const csState = { q: '', editing: null };
 const siteFieldsHtml = (id, s) => `
   <label class="bs-field">${esc(t('DB number'))}<input class="input" id="${id}Db" autocomplete="off" maxlength="22" value="${esc(s.db_no ? 'DB' + s.db_no : '')}" placeholder="DB500222" /></label>
   <label class="bs-field">${esc(t('Customer name'))}<input class="input" id="${id}Name" maxlength="200" value="${esc(s.name || '')}" /></label>
+  <label class="bs-field cs-alias">${esc(t('Alias (what technicians call them)'))}<input class="input" id="${id}Alias" maxlength="200" value="${esc(s.alias || '')}" placeholder="${esc(t('e.g. Pak Dhiraj – Sumber Selaras (Menteng)'))}" /></label>
   <label class="bs-field">${esc(t('Coordinates or Google Maps link'))}<input class="input" id="${id}Coords" autocomplete="off" value="${esc(s.lat != null ? `${s.lat}, ${s.lng}` : '')}" placeholder="-6.2088, 106.8456" /></label>
   <label class="bs-field cs-addr">${esc(t('Address'))}<input class="input" id="${id}Addr" maxlength="500" value="${esc(s.address || '')}" /></label>
   <p class="bs-read" id="${id}Read"></p>`;
-const siteBody = (id) => ({ db_no: $(`#${id}Db`).value, name: $(`#${id}Name`).value, coords: $(`#${id}Coords`).value, address: $(`#${id}Addr`).value });
+const siteBody = (id) => ({ db_no: $(`#${id}Db`).value, name: $(`#${id}Name`).value, alias: $(`#${id}Alias`).value, coords: $(`#${id}Coords`).value, address: $(`#${id}Addr`).value });
 
 async function renderCustomerSitesTab() {
   const panel = $('#settingsPanel');
@@ -823,7 +824,7 @@ async function renderCustomerSitesTab() {
   panel.innerHTML = `
     <div class="settings-controls ws-card bs-card">
       <p class="bs-summary">${esc(sites.length === 1 ? t('1 customer site is pinned in {region}.', { region: where }) : t('{n} customer sites are pinned in {region}.', { n: sites.length, region: where }))}</p>
-      <input class="input cs-q" id="csQ" type="search" autocomplete="off" value="${esc(csState.q)}" placeholder="${esc(t('Search by DB number, name or address'))}" aria-label="${esc(t('Search customer sites'))}" />
+      <input class="input cs-q" id="csQ" type="search" autocomplete="off" value="${esc(csState.q)}" placeholder="${esc(t('Search by DB number, name, alias or address'))}" aria-label="${esc(t('Search customer sites'))}" />
       <div class="bs-list" id="csList"></div>
       <p class="cs-more" id="csMore" hidden></p>
       <div class="ws-card-label ws-card-split">${esc(t('Pin a customer site'))}</div>
@@ -844,6 +845,7 @@ async function renderCustomerSitesTab() {
       <div class="bs-row cs-row" data-id="${x.id}">
         <span class="bs-ic" aria-hidden="true">📌</span>
         <div class="bs-main"><b>DB${esc(x.db_no)}${x.name ? ' · ' + esc(x.name) : ''}</b>
+          ${x.alias ? `<small class="cs-alias-l">${esc(x.alias)}</small>` : ''}
           ${x.address ? `<small class="cs-addr-l">${esc(x.address)}</small>` : ''}
           <span>${esc(`${x.lat}, ${x.lng}`)} · <a href="https://www.google.com/maps?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
         <div class="bs-acts">
@@ -852,8 +854,8 @@ async function renderCustomerSitesTab() {
         </div>
       </div>`;
   const paint = () => {
-    const s = csState.q.trim().toLowerCase(), digits = s.replace(/^db\s*/, '');
-    const hits = s ? sites.filter(x => x.db_no.includes(digits) || x.name.toLowerCase().includes(s) || x.address.toLowerCase().includes(s)) : sites;
+    const s = csState.q.trim();
+    const hits = s ? sites.filter(x => siteMatches(x, s)) : sites;
     const list = $('#csList');
     list.innerHTML = hits.length ? hits.slice(0, CS_SHOWN).map(row).join('')
       : `<p class="bs-empty">${esc(sites.length ? t('No customer site matches “{q}”.', { q: csState.q.trim() }) : t('No customer sites in {region} yet — pin the first one below.', { region: where }))}</p>`;

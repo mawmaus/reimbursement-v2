@@ -1323,7 +1323,7 @@ I18N.addDict('km', {
   "Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.": "ទីតាំងអតិថិជនដែលបានដៅក្នុង {region} តាមលេខ DB។ នៅពេលអ្នកទាមទារប្រាក់អាហារ GPS បញ្ចូលលេខ DB ទម្រង់នឹងបង្ហាញថាទីតាំងនោះនៅឆ្ងាយពីមូលដ្ឋានរបស់ពួកគេប៉ុណ្ណា មុនពេលពួកគេធ្វើដំណើរ។",
   "inside {min} km: in-town meals can’t be claimed": "ក្នុង {min} គ.ម.៖ មិនអាចទាមទារអាហារក្នុងក្រុងបានទេ",
   "{min} km or more: in-town meals can be claimed": "{min} គ.ម. ឬលើស៖ អាចទាមទារអាហារក្នុងក្រុងបាន",
-  "Find a customer site — DB number or name": "ស្វែងរកទីតាំងអតិថិជន — លេខ DB ឬឈ្មោះ",
+  "Find a customer site — DB number, name or alias": "ស្វែងរកទីតាំងអតិថិជន — លេខ DB ឈ្មោះ ឬឈ្មោះហៅ",
   "Find a customer site": "ស្វែងរកទីតាំងអតិថិជន",
   "Customer sites ({n})": "ទីតាំងអតិថិជន ({n})",
   "No customer site matches “{q}”.": "គ្មានទីតាំងអតិថិជនណាត្រូវនឹង “{q}” ទេ។",
@@ -1334,7 +1334,7 @@ I18N.addDict('km', {
   "Address": "អាសយដ្ឋាន",
   "1 customer site is pinned in {region}.": "បានដៅទីតាំងអតិថិជន 1 កន្លែងក្នុង {region}។",
   "{n} customer sites are pinned in {region}.": "បានដៅទីតាំងអតិថិជន {n} កន្លែងក្នុង {region}។",
-  "Search by DB number, name or address": "ស្វែងរកតាមលេខ DB ឈ្មោះ ឬអាសយដ្ឋាន",
+  "Search by DB number, name, alias or address": "ស្វែងរកតាមលេខ DB ឈ្មោះ ឈ្មោះហៅ ឬអាសយដ្ឋាន",
   "Search customer sites": "ស្វែងរកទីតាំងអតិថិជន",
   "Pin a customer site": "ដៅទីតាំងអតិថិជន",
   "Add site": "បន្ថែមទីតាំង",
@@ -1347,5 +1347,7 @@ I18N.addDict('km', {
   "Enter the DB number": "បញ្ចូលលេខ DB",
   "Site location: paste coordinates like \"-6.2088, 106.8456\" or a Google Maps link": "ទីតាំង៖ បិទភ្ជាប់កូអរដោនេដូចជា \"-6.2088, 106.8456\" ឬតំណ Google Maps",
   "Customer site not found": "រកមិនឃើញទីតាំងអតិថិជន",
-  "You can only manage customer sites in your own region": "អ្នកអាចគ្រប់គ្រងតែទីតាំងអតិថិជនក្នុងតំបន់របស់អ្នកប៉ុណ្ណោះ"
+  "You can only manage customer sites in your own region": "អ្នកអាចគ្រប់គ្រងតែទីតាំងអតិថិជនក្នុងតំបន់របស់អ្នកប៉ុណ្ណោះ",
+  "Alias (what technicians call them)": "ឈ្មោះហៅ (ដែលអ្នកបច្ចេកទេសហៅ)",
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "ឧ. Pak Dhiraj – Sumber Selaras (Menteng)"
 });

@@ -3982,10 +3982,12 @@ a[data-open-doc]:hover { text-decoration: underline; }
 /* Settings → Customer sites: searched list + add form (shares the .bs-* look). */
 .cs-q { width: 100%; margin: 0 0 10px; }
 .cs-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.cs-alias-l { font-size: .84rem; font-weight: 600; color: var(--indigo); overflow-wrap: anywhere; }
 .cs-addr-l { font-size: .8rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .cs-more { margin: 8px 2px 0; font-size: .8rem; color: var(--muted); }
 .cs-add, .cs-edit { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, 1.2fr); gap: 8px 12px; align-items: end; }
 .cs-add .cs-addr, .cs-edit .cs-addr { grid-column: 1 / -1; }
+.cs-add .cs-alias, .cs-edit .cs-alias { grid-column: span 2; }
 .cs-add > .btn { grid-column: 1 / -1; justify-self: end; }
 @media (max-width: 720px) {
   .cs-add, .cs-edit { grid-template-columns: minmax(0, 1fr); }

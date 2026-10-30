@@ -15,7 +15,7 @@ const { parseCoords } = require('../lib/meal-gps');
 
 const router = express.Router();
 
-const siteRow = (s) => ({ id: Number(s.id), region: s.region, db_no: s.db_no, name: s.name, address: s.address,
+const siteRow = (s) => ({ id: Number(s.id), region: s.region, db_no: s.db_no, name: s.name, alias: s.alias || '', address: s.address,
   lat: Number(s.lat), lng: Number(s.lng) });
 // "DB 500222", "db500222" or "500222" → "500222"; '' when there are no digits.
 const dbDigits = (v) => String(v == null ? '' : v).replace(/\D/g, '').slice(0, 20);
@@ -25,7 +25,7 @@ function parseSiteInput(b) {
   if (!db_no) return { error: 'Enter the DB number' };
   const ll = parseCoords(b.coords);
   if (!ll) return { error: 'Site location: paste coordinates like "-6.2088, 106.8456" or a Google Maps link' };
-  return { site: { db_no, name: String(b.name || '').trim().slice(0, 200), address: String(b.address || '').trim().slice(0, 500), lat: ll.lat, lng: ll.lng } };
+  return { site: { db_no, name: String(b.name || '').trim().slice(0, 200), alias: String(b.alias || '').trim().slice(0, 200), address: String(b.address || '').trim().slice(0, 500), lat: ll.lat, lng: ll.lng } };
 }
 async function loadSiteOr404(req, res) {
   const s = (await q('SELECT * FROM customer_sites WHERE id = $1', [Number(req.params.id) || 0]))[0];
@@ -58,8 +58,8 @@ router.post('/api/customer-sites', requireAuth, requireCap('manage_settings'), a
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const s = parsed.site;
   try {
-    const rows = await q('INSERT INTO customer_sites (region, db_no, name, address, lat, lng) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [region, s.db_no, s.name, s.address, s.lat, s.lng]);
+    const rows = await q('INSERT INTO customer_sites (region, db_no, name, alias, address, lat, lng) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [region, s.db_no, s.name, s.alias, s.address, s.lat, s.lng]);
     res.status(201).json({ site: siteRow(rows[0]) });
   } catch (e) {
     if (dupe(e)) return res.status(409).json({ error: `DB${s.db_no} is already pinned in ${region} — edit that one instead` });
@@ -74,8 +74,8 @@ router.put('/api/customer-sites/:id', requireAuth, requireCap('manage_settings')
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const s = parsed.site;
   try {
-    const rows = await q('UPDATE customer_sites SET db_no = $1, name = $2, address = $3, lat = $4, lng = $5 WHERE id = $6 RETURNING *',
-      [s.db_no, s.name, s.address, s.lat, s.lng, site.id]);
+    const rows = await q('UPDATE customer_sites SET db_no = $1, name = $2, alias = $3, address = $4, lat = $5, lng = $6 WHERE id = $7 RETURNING *',
+      [s.db_no, s.name, s.alias, s.address, s.lat, s.lng, site.id]);
     res.json({ site: siteRow(rows[0] || { ...site, ...s }) });
   } catch (e) {
     if (dupe(e)) return res.status(409).json({ error: `DB${s.db_no} is already pinned in ${site.region} — edit that one instead` });

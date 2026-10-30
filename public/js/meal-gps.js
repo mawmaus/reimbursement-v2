@@ -204,7 +204,8 @@ function mgSiteHtml(r) {
       ? `<p class="mg-site mg-site-none">${esc(t('DB{db} has no pin yet — the distance shows once you record your location there.', { db }))}</p>`
       : '';
   }
-  const where = `DB${esc(site.db_no)}${site.name ? ' · ' + esc(site.name) : ''}`;
+  // The alias is what technicians call the customer, so it leads when there is one.
+  const where = `DB${esc(site.db_no)}${site.alias || site.name ? ' · ' + esc(site.alias || site.name) : ''}`;
   if (!base) return `<div class="mg-site"><span class="mg-site-ic" aria-hidden="true">📌</span><div class="mg-site-txt"><b>${where}</b></div></div>`;
   const km = kmBetween(base, site), inside = km < R.minKm;
   return `<div class="mg-site ${inside ? 'mg-site-in' : 'mg-site-out'}">

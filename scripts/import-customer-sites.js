@@ -1,7 +1,7 @@
 'use strict';
 // Load pinned customer sites (Settings → Customer sites) from a JSON file:
 //   node scripts/import-customer-sites.js sites.json [--dry]
-// The file is a list of { region, db_no, name, address, lat, lng }; db_no may be
+// The file is a list of { region, db_no, name, alias, address, lat, lng }; db_no may be
 // "DB500222" or "500222". A site already pinned for that region + DB number is
 // updated in place. Needs the customer_sites table (node scripts/migrate.js).
 // Loads DATABASE_URL from the environment, falling back to .env.local.
@@ -32,7 +32,7 @@ async function main() {
     const db_no = String(r.db_no || '').replace(/\D/g, '');
     const lat = Number(r.lat), lng = Number(r.lng);
     if (!db_no || !r.region || !(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180)) { console.warn('Skipped', JSON.stringify(r)); continue; }
-    sites.push({ region: String(r.region), db_no, name: String(r.name || '').trim().slice(0, 200), address: String(r.address || '').trim().slice(0, 500), lat, lng });
+    sites.push({ region: String(r.region), db_no, name: String(r.name || '').trim().slice(0, 200), alias: String(r.alias || '').trim().slice(0, 200), address: String(r.address || '').trim().slice(0, 500), lat, lng });
   }
   console.log(`${sites.length} site(s) to load.`);
   if (flag === '--dry') return;
@@ -41,9 +41,9 @@ async function main() {
   let n = 0;
   for (const s of sites) {
     await sql.query(
-      `INSERT INTO customer_sites (region, db_no, name, address, lat, lng) VALUES ($1,$2,$3,$4,$5,$6)
-       ON CONFLICT (region, db_no) DO UPDATE SET name = EXCLUDED.name, address = EXCLUDED.address, lat = EXCLUDED.lat, lng = EXCLUDED.lng`,
-      [s.region, s.db_no, s.name, s.address, s.lat, s.lng]);
+      `INSERT INTO customer_sites (region, db_no, name, alias, address, lat, lng) VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (region, db_no) DO UPDATE SET name = EXCLUDED.name, alias = EXCLUDED.alias, address = EXCLUDED.address, lat = EXCLUDED.lat, lng = EXCLUDED.lng`,
+      [s.region, s.db_no, s.name, s.alias, s.address, s.lat, s.lng]);
     if (++n % 50 === 0) console.log(`  ${n}…`);
   }
   const [{ count }] = await sql.query('SELECT COUNT(*)::int AS count FROM customer_sites');

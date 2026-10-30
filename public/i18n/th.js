@@ -1323,7 +1323,7 @@ I18N.addDict('th', {
   "Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.": "ตำแหน่งลูกค้าที่ปักหมุดไว้ใน {region} ตามหมายเลข DB เมื่อผู้เบิกค่าอาหาร GPS กรอกหมายเลข DB แบบฟอร์มจะแสดงว่าสถานที่นั้นอยู่ห่างจากฐานของเขาเท่าใดก่อนออกเดินทาง",
   "inside {min} km: in-town meals can’t be claimed": "ภายใน {min} กม.: เบิกค่าอาหารในเมืองไม่ได้",
   "{min} km or more: in-town meals can be claimed": "{min} กม. ขึ้นไป: เบิกค่าอาหารในเมืองได้",
-  "Find a customer site — DB number or name": "ค้นหาสถานที่ลูกค้า — หมายเลข DB หรือชื่อ",
+  "Find a customer site — DB number, name or alias": "ค้นหาสถานที่ลูกค้า — หมายเลข DB ชื่อ หรือชื่อเรียก",
   "Find a customer site": "ค้นหาสถานที่ลูกค้า",
   "Customer sites ({n})": "สถานที่ลูกค้า ({n})",
   "No customer site matches “{q}”.": "ไม่มีสถานที่ลูกค้าที่ตรงกับ “{q}”",
@@ -1334,7 +1334,7 @@ I18N.addDict('th', {
   "Address": "ที่อยู่",
   "1 customer site is pinned in {region}.": "ปักหมุดสถานที่ลูกค้า 1 แห่งใน {region}",
   "{n} customer sites are pinned in {region}.": "ปักหมุดสถานที่ลูกค้า {n} แห่งใน {region}",
-  "Search by DB number, name or address": "ค้นหาด้วยหมายเลข DB ชื่อ หรือที่อยู่",
+  "Search by DB number, name, alias or address": "ค้นหาด้วยหมายเลข DB ชื่อ ชื่อเรียก หรือที่อยู่",
   "Search customer sites": "ค้นหาสถานที่ลูกค้า",
   "Pin a customer site": "ปักหมุดสถานที่ลูกค้า",
   "Add site": "เพิ่มสถานที่",
@@ -1347,5 +1347,7 @@ I18N.addDict('th', {
   "Enter the DB number": "กรอกหมายเลข DB",
   "Site location: paste coordinates like \"-6.2088, 106.8456\" or a Google Maps link": "ตำแหน่งสถานที่: วางพิกัด เช่น \"-6.2088, 106.8456\" หรือลิงก์ Google Maps",
   "Customer site not found": "ไม่พบสถานที่ลูกค้า",
-  "You can only manage customer sites in your own region": "คุณจัดการได้เฉพาะสถานที่ลูกค้าในภูมิภาคของคุณเท่านั้น"
+  "You can only manage customer sites in your own region": "คุณจัดการได้เฉพาะสถานที่ลูกค้าในภูมิภาคของคุณเท่านั้น",
+  "Alias (what technicians call them)": "ชื่อเรียก (ที่ช่างใช้เรียก)",
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "เช่น Pak Dhiraj – Sumber Selaras (Menteng)"
 });

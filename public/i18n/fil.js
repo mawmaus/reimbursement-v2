@@ -1323,7 +1323,7 @@ I18N.addDict('fil', {
   "Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.": "Mga naka-pin na lokasyon ng customer sa {region}, ayon sa DB number. Kapag naglagay ng DB number ang nagke-claim ng GPS meal allowance, ipapakita ng form kung gaano kalayo ang site na iyon sa kanilang base bago sila pumunta.",
   "inside {min} km: in-town meals can’t be claimed": "nasa loob ng {min} km: hindi ma-claim ang in-town na pagkain",
   "{min} km or more: in-town meals can be claimed": "{min} km o higit pa: puwedeng i-claim ang in-town na pagkain",
-  "Find a customer site — DB number or name": "Hanapin ang site ng customer — DB number o pangalan",
+  "Find a customer site — DB number, name or alias": "Hanapin ang site ng customer — DB number, pangalan o alias",
   "Find a customer site": "Hanapin ang site ng customer",
   "Customer sites ({n})": "Mga site ng customer ({n})",
   "No customer site matches “{q}”.": "Walang site ng customer na tugma sa “{q}”.",
@@ -1334,7 +1334,7 @@ I18N.addDict('fil', {
   "Address": "Address",
   "1 customer site is pinned in {region}.": "1 site ng customer ang naka-pin sa {region}.",
   "{n} customer sites are pinned in {region}.": "{n} site ng customer ang naka-pin sa {region}.",
-  "Search by DB number, name or address": "Maghanap ayon sa DB number, pangalan o address",
+  "Search by DB number, name, alias or address": "Maghanap ayon sa DB number, pangalan, alias o address",
   "Search customer sites": "Maghanap ng site ng customer",
   "Pin a customer site": "Mag-pin ng site ng customer",
   "Add site": "Idagdag ang site",
@@ -1347,5 +1347,7 @@ I18N.addDict('fil', {
   "Enter the DB number": "Ilagay ang DB number",
   "Site location: paste coordinates like \"-6.2088, 106.8456\" or a Google Maps link": "Lokasyon ng site: mag-paste ng coordinates gaya ng \"-6.2088, 106.8456\" o link ng Google Maps",
   "Customer site not found": "Hindi nahanap ang site ng customer",
-  "You can only manage customer sites in your own region": "Ang mga site ng customer lang sa sarili mong rehiyon ang puwede mong pamahalaan"
+  "You can only manage customer sites in your own region": "Ang mga site ng customer lang sa sarili mong rehiyon ang puwede mong pamahalaan",
+  "Alias (what technicians call them)": "Alias (tawag ng mga technician)",
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "hal. Pak Dhiraj – Sumber Selaras (Menteng)"
 });

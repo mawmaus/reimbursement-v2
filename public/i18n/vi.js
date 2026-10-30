@@ -1323,7 +1323,7 @@ I18N.addDict('vi', {
   "Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.": "Các vị trí khách hàng đã ghim tại {region}, theo số DB. Khi người yêu cầu phụ cấp ăn GPS nhập số DB, biểu mẫu cho biết địa điểm đó cách cơ sở của họ bao xa trước khi họ đi.",
   "inside {min} km: in-town meals can’t be claimed": "trong vòng {min} km: không thể yêu cầu bữa ăn trong thành phố",
   "{min} km or more: in-town meals can be claimed": "từ {min} km trở lên: có thể yêu cầu bữa ăn trong thành phố",
-  "Find a customer site — DB number or name": "Tìm địa điểm khách hàng — số DB hoặc tên",
+  "Find a customer site — DB number, name or alias": "Tìm địa điểm khách hàng — số DB, tên hoặc tên gọi",
   "Find a customer site": "Tìm địa điểm khách hàng",
   "Customer sites ({n})": "Địa điểm khách hàng ({n})",
   "No customer site matches “{q}”.": "Không có địa điểm khách hàng nào khớp với “{q}”.",
@@ -1334,7 +1334,7 @@ I18N.addDict('vi', {
   "Address": "Địa chỉ",
   "1 customer site is pinned in {region}.": "Đã ghim 1 địa điểm khách hàng tại {region}.",
   "{n} customer sites are pinned in {region}.": "Đã ghim {n} địa điểm khách hàng tại {region}.",
-  "Search by DB number, name or address": "Tìm theo số DB, tên hoặc địa chỉ",
+  "Search by DB number, name, alias or address": "Tìm theo số DB, tên, tên gọi hoặc địa chỉ",
   "Search customer sites": "Tìm địa điểm khách hàng",
   "Pin a customer site": "Ghim một địa điểm khách hàng",
   "Add site": "Thêm địa điểm",
@@ -1347,5 +1347,7 @@ I18N.addDict('vi', {
   "Enter the DB number": "Nhập số DB",
   "Site location: paste coordinates like \"-6.2088, 106.8456\" or a Google Maps link": "Vị trí địa điểm: dán tọa độ như \"-6.2088, 106.8456\" hoặc liên kết Google Maps",
   "Customer site not found": "Không tìm thấy địa điểm khách hàng",
-  "You can only manage customer sites in your own region": "Bạn chỉ có thể quản lý địa điểm khách hàng trong khu vực của mình"
+  "You can only manage customer sites in your own region": "Bạn chỉ có thể quản lý địa điểm khách hàng trong khu vực của mình",
+  "Alias (what technicians call them)": "Tên gọi (cách kỹ thuật viên gọi)",
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "vd. Pak Dhiraj – Sumber Selaras (Menteng)"
 });

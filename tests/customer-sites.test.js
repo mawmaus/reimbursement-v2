@@ -51,6 +51,6 @@ test('a manager pins a site in their own region, DB number kept as digits', asyn
   let params = null;
   state.onWrite = (sql, p) => { if (/^INSERT INTO customer_sites/.test(sql)) params = p; };
   t.after(() => { state.onWrite = null; });
-  await call(CM, 'POST', '/api/customer-sites', { db_no: 'DB 500300', name: 'Bu Vivi', coords: 'https://www.google.com/maps/search/?api=1&query=-6.2302604,106.8040777' });
-  assert.deepEqual(params, ['Indonesia', '500300', 'Bu Vivi', '', -6.2302604, 106.8040777]);
+  await call(CM, 'POST', '/api/customer-sites', { db_no: 'DB 500300', name: 'PT Mitra Selera Bersama', alias: ' Bu Vivi – Mitra Selera ', coords: 'https://www.google.com/maps/search/?api=1&query=-6.2302604,106.8040777' });
+  assert.deepEqual(params, ['Indonesia', '500300', 'PT Mitra Selera Bersama', 'Bu Vivi – Mitra Selera', '', -6.2302604, 106.8040777]);
 });

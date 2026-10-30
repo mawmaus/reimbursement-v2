@@ -97,6 +97,13 @@ function loadCustomerSites() {
   return _sitesCache.list;
 }
 const forgetCustomerSites = () => { _sitesCache = null; };
+// Does a site match a search? DB number (with or without "DB"), name, alias or
+// address; every word typed must appear, in any order ("dhiraj menteng").
+function siteMatches(x, query) {
+  const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const hay = `db${x.db_no} ${x.db_no} ${x.name} ${x.alias || ''} ${x.address}`.toLowerCase();
+  return words.every(w => hay.includes(w));
+}
 // The site a DB field points at ("DB 500222" → the site pinned as 500222), or null.
 const siteForDb = (sites, v) => {
   const d = String(v || '').replace(/\D/g, '');
@@ -131,7 +138,7 @@ function mapSites(layer, points) {
 // A site's popup: DB number, name, address and — given a base — how far it is.
 function sitePopupHtml(s, base, km) {
   const dist = base ? `<br>${sitePopupDist(s, base, km)}` : '';
-  return `<b>DB${esc(s.db_no)}</b>${s.name ? ' · ' + esc(s.name) : ''}${s.address ? `<br><span class="map-ll">${esc(s.address)}</span>` : ''}${dist}
+  return `<b>DB${esc(s.db_no)}</b>${s.name ? ' · ' + esc(s.name) : ''}${s.alias ? `<br>${esc(s.alias)}` : ''}${s.address ? `<br><span class="map-ll">${esc(s.address)}</span>` : ''}${dist}
     <br><a href="https://www.google.com/maps?q=${encodeURIComponent(s.lat + ',' + s.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`;
 }
 function sitePopupDist(s, base, km) {
@@ -154,7 +161,7 @@ async function openBasesMap() {
       <div class="bm-map map-box" id="bmMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
       <p class="map-key" id="bmKey"></p>
       <div class="bm-find" id="bmFind" hidden>
-        <input class="input" id="bmQ" type="search" autocomplete="off" placeholder="${esc(t('Find a customer site — DB number or name'))}" aria-label="${esc(t('Find a customer site'))}" />
+        <input class="input" id="bmQ" type="search" autocomplete="off" placeholder="${esc(t('Find a customer site — DB number, name or alias'))}" aria-label="${esc(t('Find a customer site'))}" />
       </div>
       <div class="bm-list" id="bmList"></div>
     </div>`);
@@ -211,14 +218,12 @@ async function openBasesMap() {
   q.addEventListener('input', () => {
     const s = q.value.trim().toLowerCase();
     if (!s) { $('#bmList').innerHTML = basesHtml; wireBases(); return; }
-    const digits = s.replace(/^db\s*/, '');
-    const hits = sites.map((x, i) => ({ x, i }))
-      .filter(({ x }) => x.db_no.includes(digits) || x.name.toLowerCase().includes(s) || x.address.toLowerCase().includes(s)).slice(0, 40);
+    const hits = sites.map((x, i) => ({ x, i })).filter(({ x }) => siteMatches(x, s)).slice(0, 40);
     $('#bmList').innerHTML = hits.length ? hits.map(({ x, i }) => {
       const d = mine ? kmBetween(mine, x) : null;
       return `<button type="button" class="bm-row" data-s="${i}">
         <span class="bm-ic" aria-hidden="true">📌</span>
-        <span class="bm-main"><b>DB${esc(x.db_no)}${x.name ? ' · ' + esc(x.name) : ''}</b><small>${esc(x.address || `${x.lat}, ${x.lng}`)}</small></span>
+        <span class="bm-main"><b>DB${esc(x.db_no)}${x.name ? ' · ' + esc(x.name) : ''}</b><small>${esc(x.alias || x.address || `${x.lat}, ${x.lng}`)}</small></span>
         ${d == null ? '' : `<span class="bm-km ${d < km ? 'in' : 'out'}">${esc(kmLabel(d))}</span>`}
       </button>`;
     }).join('') : `<p class="bs-empty">${esc(t('No customer site matches “{q}”.', { q: q.value.trim() }))}</p>`;

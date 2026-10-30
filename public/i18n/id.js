@@ -1346,7 +1346,7 @@ I18N.addDict('id', {
   "Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.": "Lokasi customer yang sudah dipin di {region}, berdasarkan nomor DB. Saat pengklaim tunjangan makan GPS mengisi nomor DB, formulir menunjukkan seberapa jauh lokasi itu dari base mereka sebelum berangkat.",
   "inside {min} km: in-town meals can’t be claimed": "di dalam {min} km: makan dalam kota tidak bisa diklaim",
   "{min} km or more: in-town meals can be claimed": "{min} km atau lebih: makan dalam kota bisa diklaim",
-  "Find a customer site — DB number or name": "Cari lokasi customer — nomor DB atau nama",
+  "Find a customer site — DB number, name or alias": "Cari lokasi customer — nomor DB, nama, atau alias",
   "Find a customer site": "Cari lokasi customer",
   "Customer sites ({n})": "Lokasi customer ({n})",
   "No customer site matches “{q}”.": "Tidak ada lokasi customer yang cocok dengan “{q}”.",
@@ -1357,7 +1357,7 @@ I18N.addDict('id', {
   "Address": "Alamat",
   "1 customer site is pinned in {region}.": "1 lokasi customer sudah dipin di {region}.",
   "{n} customer sites are pinned in {region}.": "{n} lokasi customer sudah dipin di {region}.",
-  "Search by DB number, name or address": "Cari berdasarkan nomor DB, nama, atau alamat",
+  "Search by DB number, name, alias or address": "Cari berdasarkan nomor DB, nama, alias, atau alamat",
   "Search customer sites": "Cari lokasi customer",
   "Pin a customer site": "Pin lokasi customer",
   "Add site": "Tambah lokasi",
@@ -1370,5 +1370,7 @@ I18N.addDict('id', {
   "Enter the DB number": "Isi nomor DB",
   "Site location: paste coordinates like \"-6.2088, 106.8456\" or a Google Maps link": "Lokasi: tempel koordinat seperti \"-6.2088, 106.8456\" atau tautan Google Maps",
   "Customer site not found": "Lokasi customer tidak ditemukan",
-  "You can only manage customer sites in your own region": "Anda hanya dapat mengelola lokasi customer di region Anda sendiri"
+  "You can only manage customer sites in your own region": "Anda hanya dapat mengelola lokasi customer di region Anda sendiri",
+  "Alias (what technicians call them)": "Alias (sebutan teknisi)",
+  "e.g. Pak Dhiraj – Sumber Selaras (Menteng)": "mis. Pak Dhiraj – Sumber Selaras (Menteng)"
 });

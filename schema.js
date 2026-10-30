@@ -718,7 +718,10 @@ const SCHEMA = [
     lng        DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_sites_region_db ON customer_sites(region, db_no)`
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_sites_region_db ON customer_sites(region, db_no)`,
+  // The name technicians call the customer by ("Pak Dhiraj – Sumber Selaras (Menteng, Jakarta)"),
+  // searched alongside the formal name.
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS alias TEXT NOT NULL DEFAULT ''`
 ];
 
 module.exports = { SCHEMA };
