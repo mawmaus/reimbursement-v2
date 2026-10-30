@@ -728,6 +728,7 @@ function draftBannerHtml(note) {
 }
 // Wire the banner's "Start fresh": drop the draft and reopen the form empty.
 function wireDraftBanner(kind, reopen) {
+  openedDraftKind = kind;
   const b = $('#draftDiscard'); if (!b) return;
   b.addEventListener('click', () => { clearDraft(kind); modalCloseHook = null; reopen(); });
 }
@@ -736,6 +737,7 @@ function wireDraftBanner(kind, reopen) {
 // `collectFiles` (optional) returns the per-row File arrays to persist to
 // IndexedDB — only the claim form has receipts, so meal/advance omit it.
 function armDraftAutosave(kind, collect, collectFiles) {
+  openedDraftKind = null; // set again by wireDraftBanner when this form reopened a draft
   modalCloseHook = () => {
     const data = collect();
     if (!data) { clearDraft(kind); return; }
@@ -753,7 +755,13 @@ function saveDraftAndClose(kind, collect, collectFiles) {
   closeModal();
 }
 // "Cancel": deliberate discard — drop any draft and close without saving.
-function discardDraftAndClose(kind) { clearDraft(kind); modalCloseHook = null; closeModal(); }
+// On a form reopened from a saved draft, "Cancel" drops only this visit's
+// changes: the draft stays in My claims as it was. Deleting it is "Start fresh".
+let openedDraftKind = null;
+function discardDraftAndClose(kind) {
+  if (openedDraftKind !== kind) clearDraft(kind);
+  modalCloseHook = null; closeModal();
+}
 
 // `reclaim` (see startReclaim) opens a NEW claim prefilled with another document's
 // rejected lines: { type: 'claim'|'advance', id, no, floor, lines }.
