@@ -30,6 +30,8 @@ const SETTINGS_TABS = [
     desc: 'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.' },
   { key: 'bases', label: 'Bases', group: 'Claims', cap: 'manage_settings',
     desc: 'The places accounts in {region} work from. The GPS meal allowance measures each day’s distance from the account’s base. Choose which accounts belong to each base here.' },
+  { key: 'customer-sites', label: 'Customer sites', group: 'Claims', cap: 'manage_settings',
+    desc: 'Pinned customer locations in {region}, by DB number. When a GPS meal claimant enters a DB number, the form shows how far that site is from their base before they go.' },
   { key: 'claim-window', label: 'Claim window', group: 'Claims', cap: 'manage_settings',
     desc: 'Set how far back an expense may be dated and still be claimable. Both rules apply — the effective earliest date is whichever is later. A rejected claim can always be resubmitted with the dates it already had.' },
   { key: 'region-prefs', label: 'Currency, time zone & bank', group: 'Region', regionPrefs: true,
@@ -359,6 +361,7 @@ function renderSettingsTab() {
   if (settingsState.tab === 'meal-rates') return renderMealRatesTab();
   if (settingsState.tab === 'meal-gps') return renderMealGpsTab();
   if (settingsState.tab === 'bases') return renderBasesTab();
+  if (settingsState.tab === 'customer-sites') return renderCustomerSitesTab();
   if (settingsState.tab === 'region-prefs') return renderRegionPrefsTab();
   if (settingsState.tab === 'roles') return renderRolesTab();
   const cfg = {
@@ -794,6 +797,92 @@ async function renderBasesTab(editingId = null) {
   panel.querySelectorAll('[data-members]').forEach(b => b.addEventListener('click', () =>
     openBaseAccountsModal(bases.find(x => x.id === Number(b.dataset.members)), bases, accounts)));
   drawBasesMap(bases, minKm, editingId);
+}
+
+// --- Customer sites (per region) ------------------------------------------------------
+// Pinned customer locations by DB number. A long list, so it is searched rather
+// than scrolled: the first CS_SHOWN matches show.
+const CS_SHOWN = 60;
+const csState = { q: '', editing: null };
+const siteFieldsHtml = (id, s) => `
+  <label class="bs-field">${esc(t('DB number'))}<input class="input" id="${id}Db" autocomplete="off" maxlength="22" value="${esc(s.db_no ? 'DB' + s.db_no : '')}" placeholder="DB500222" /></label>
+  <label class="bs-field">${esc(t('Customer name'))}<input class="input" id="${id}Name" maxlength="200" value="${esc(s.name || '')}" /></label>
+  <label class="bs-field">${esc(t('Coordinates or Google Maps link'))}<input class="input" id="${id}Coords" autocomplete="off" value="${esc(s.lat != null ? `${s.lat}, ${s.lng}` : '')}" placeholder="-6.2088, 106.8456" /></label>
+  <label class="bs-field cs-addr">${esc(t('Address'))}<input class="input" id="${id}Addr" maxlength="500" value="${esc(s.address || '')}" /></label>
+  <p class="bs-read" id="${id}Read"></p>`;
+const siteBody = (id) => ({ db_no: $(`#${id}Db`).value, name: $(`#${id}Name`).value, coords: $(`#${id}Coords`).value, address: $(`#${id}Addr`).value });
+
+async function renderCustomerSitesTab() {
+  const panel = $('#settingsPanel');
+  const region = settingsState.region || '';
+  let data;
+  try { data = await api('/customer-sites' + (region ? `?region=${encodeURIComponent(region)}` : '')); }
+  catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
+  const sites = data.sites || [];
+  const where = region || t('this region');
+  panel.innerHTML = `
+    <div class="settings-controls ws-card bs-card">
+      <p class="bs-summary">${esc(sites.length === 1 ? t('1 customer site is pinned in {region}.', { region: where }) : t('{n} customer sites are pinned in {region}.', { n: sites.length, region: where }))}</p>
+      <input class="input cs-q" id="csQ" type="search" autocomplete="off" value="${esc(csState.q)}" placeholder="${esc(t('Search by DB number, name or address'))}" aria-label="${esc(t('Search customer sites'))}" />
+      <div class="bs-list" id="csList"></div>
+      <p class="cs-more" id="csMore" hidden></p>
+      <div class="ws-card-label ws-card-split">${esc(t('Pin a customer site'))}</div>
+      <div class="cs-add">${siteFieldsHtml('csNew', {})}
+        <button type="button" class="btn btn-primary btn-sm" id="csAdd">${esc(t('Add site'))}</button></div>
+      <p class="form-error" id="csErr" hidden></p>
+    </div>`;
+  const fail = (ex) => { const e = $('#csErr'); e.textContent = ex.message; e.hidden = false; };
+  const done = (msg) => { forgetCustomerSites(); toast(msg); csState.editing = null; renderCustomerSitesTab(); };
+  const row = (x) => x.id === csState.editing ? `
+      <div class="bs-row bs-editing" data-id="${x.id}">
+        <div class="cs-edit">${siteFieldsHtml('csEdit', x)}</div>
+        <div class="bs-acts">
+          <button type="button" class="btn btn-ghost btn-sm" data-cancel>${esc(t('Cancel'))}</button>
+          <button type="button" class="btn btn-primary btn-sm" data-save="${x.id}">${esc(t('Save'))}</button>
+        </div>
+      </div>` : `
+      <div class="bs-row cs-row" data-id="${x.id}">
+        <span class="bs-ic" aria-hidden="true">📌</span>
+        <div class="bs-main"><b>DB${esc(x.db_no)}${x.name ? ' · ' + esc(x.name) : ''}</b>
+          ${x.address ? `<small class="cs-addr-l">${esc(x.address)}</small>` : ''}
+          <span>${esc(`${x.lat}, ${x.lng}`)} · <a href="https://www.google.com/maps?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
+        <div class="bs-acts">
+          <button type="button" class="btn btn-ghost btn-sm" data-edit="${x.id}">${esc(t('Edit'))}</button>
+          <button type="button" class="x-btn" data-del="${x.id}" aria-label="${esc(t('Delete'))}" title="${esc(t('Delete'))}">×</button>
+        </div>
+      </div>`;
+  const paint = () => {
+    const s = csState.q.trim().toLowerCase(), digits = s.replace(/^db\s*/, '');
+    const hits = s ? sites.filter(x => x.db_no.includes(digits) || x.name.toLowerCase().includes(s) || x.address.toLowerCase().includes(s)) : sites;
+    const list = $('#csList');
+    list.innerHTML = hits.length ? hits.slice(0, CS_SHOWN).map(row).join('')
+      : `<p class="bs-empty">${esc(sites.length ? t('No customer site matches “{q}”.', { q: csState.q.trim() }) : t('No customer sites in {region} yet — pin the first one below.', { region: where }))}</p>`;
+    const more = $('#csMore');
+    more.hidden = hits.length <= CS_SHOWN;
+    more.textContent = t('Showing {n} of {m} — search to narrow the list.', { n: CS_SHOWN, m: hits.length });
+    list.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => { csState.editing = Number(b.dataset.edit); paint(); }));
+    list.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => { csState.editing = null; paint(); }));
+    list.querySelectorAll('[data-save]').forEach(b => b.addEventListener('click', async () => {
+      try { await api('/customer-sites/' + b.dataset.save, { method: 'PUT', body: JSON.stringify(siteBody('csEdit')) }); done(t('Customer site saved')); }
+      catch (ex) { fail(ex); }
+    }));
+    list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+      const x = sites.find(y => y.id === Number(b.dataset.del));
+      if (!confirm(t('Delete the pin for DB{db}?', { db: x.db_no }))) return;
+      try { await api('/customer-sites/' + x.id, { method: 'DELETE' }); done(t('Customer site deleted')); }
+      catch (ex) { fail(ex); }
+    }));
+    if ($('#csEditCoords')) { wireCoordsRead('csEdit'); $('#csEditDb').focus(); }
+  };
+  paint();
+  wireCoordsRead('csNew');
+  $('#csQ').addEventListener('input', (e) => { csState.q = e.target.value; csState.editing = null; paint(); });
+  $('#csAdd').addEventListener('click', async () => {
+    try {
+      await api('/customer-sites', { method: 'POST', body: JSON.stringify({ ...siteBody('csNew'), ...(region ? { region } : {}) }) });
+      done(t('Customer site added'));
+    } catch (ex) { fail(ex); }
+  });
 }
 
 // --- Bases map ---------------------------------------------------------------------

@@ -703,7 +703,22 @@ const SCHEMA = [
   // department + rank rule: that person (and whoever they in turn report to)
   // manages it in Manage accounts. NULL = no explicit assignment.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
-  `CREATE INDEX IF NOT EXISTS idx_users_managed_by ON users(managed_by)`
+  `CREATE INDEX IF NOT EXISTS idx_users_managed_by ON users(managed_by)`,
+  // --- Customer sites (2026-10-30) ----------------------------------------------------
+  // Pinned customer locations by DB number, so the GPS meal allowance can show
+  // how far a site is from the claimant's base before anyone travels there.
+  // db_no holds the digits only ("500222" for DB500222).
+  `CREATE TABLE IF NOT EXISTS customer_sites (
+    id         SERIAL PRIMARY KEY,
+    region     TEXT NOT NULL DEFAULT '',
+    db_no      TEXT NOT NULL,
+    name       TEXT NOT NULL DEFAULT '',
+    address    TEXT NOT NULL DEFAULT '',
+    lat        DOUBLE PRECISION NOT NULL,
+    lng        DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_sites_region_db ON customer_sites(region, db_no)`
 ];
 
 module.exports = { SCHEMA };

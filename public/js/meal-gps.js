@@ -14,6 +14,7 @@ const MG_MEALS = ['Breakfast', 'Lunch', 'Dinner'];
 let mgRows = [];
 let mgEditId = null;   // the claim being resubmitted (kept receipts link to it)
 let mgGeo = 'prompt';  // location permission: granted | prompt | denied | unsupported
+let mgSites = [];      // pinned customer sites (Settings → Customer sites), for the DB field's hint
 
 const mgCfg = () => (state.user && state.user.meal_gps) || { allowed: false, base: null, rules: null };
 const mgRules = () => {
@@ -187,8 +188,36 @@ function mgDayHtml(r, i) {
       <label>${esc(t('Job Category'))}<input name="category" value="${esc(r.category)}" placeholder="${esc(t('Install / Repair / Service…'))}" /></label>
       <label>${esc(t('Additional Description'))}<input name="desc" value="${esc(r.desc)}" placeholder="${esc(t('Surabaya'))}" /></label>
     </div>
+    <div class="mg-site-wrap" data-site="${i}">${mgSiteHtml(r)}</div>
     <div class="mg-msgs" data-msgs="${i}">${mgMsgsHtml(r, chk)}</div>
   </article>`;
+}
+// What the DB number points at: a pinned customer site and how far it is from
+// the base — known before anyone travels. Only a hint: the day is measured
+// from the location recorded there.
+function mgSiteHtml(r) {
+  const site = siteForDb(mgSites, r.site), base = mgCfg().base, R = mgRules();
+  if (!site) {
+    // Quiet while the number is still being typed.
+    const db = String(r.site || '').replace(/\D/g, '');
+    return mgSites.length && db.length >= 6
+      ? `<p class="mg-site mg-site-none">${esc(t('DB{db} has no pin yet — the distance shows once you record your location there.', { db }))}</p>`
+      : '';
+  }
+  const where = `DB${esc(site.db_no)}${site.name ? ' · ' + esc(site.name) : ''}`;
+  if (!base) return `<div class="mg-site"><span class="mg-site-ic" aria-hidden="true">📌</span><div class="mg-site-txt"><b>${where}</b></div></div>`;
+  const km = kmBetween(base, site), inside = km < R.minKm;
+  return `<div class="mg-site ${inside ? 'mg-site-in' : 'mg-site-out'}">
+    <span class="mg-site-ic" aria-hidden="true">📌</span>
+    <div class="mg-site-txt"><b>${withRadius(t('Customer site {km} {radius} from {base}', { km: mgKm(km), base: base.name || t('base') }))}</b>
+      <span>${where} · ${esc(inside
+        ? t('inside {min} km: in-town meals can’t be claimed', { min: R.minKm })
+        : t('{min} km or more: in-town meals can be claimed', { min: R.minKm }))}</span></div>
+  </div>`;
+}
+function mgPaintSite(i) {
+  const box = $(`#mgDays [data-site="${i}"]`), r = mgRows[i];
+  if (box && r) box.innerHTML = mgSiteHtml(r);
 }
 // The date picker: the claim window's bounds, but never before the GPS form
 // starts (a carried date keeps its own value, as claimDateInput allows).
@@ -265,6 +294,9 @@ function mgRender() {
     mgReadRows(); (b.dataset.chip === 'kept' ? r.kept : r.files).splice(+b.dataset.k, 1); mgRender();
   }));
   wireDbCells('#mgDays');
+  box.querySelectorAll('.mg-day .db-num, .mg-day .db-mode').forEach(inp => inp.addEventListener(inp.matches('select') ? 'change' : 'input', () => {
+    mgReadRows(); mgPaintSite(+inp.closest('.mg-day').dataset.i); mgPaintMap();
+  }));
   mgPaintMap();
 }
 
@@ -290,7 +322,8 @@ function mgBaseHtml() {
   <div class="mg-map-wrap">
     <div class="mg-map map-box" id="mgMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
     <p class="map-key"><span class="map-key-ring" aria-hidden="true"></span>${withRadius(t('Your base and its {min} km {radius}', { min: R.minKm }))}
-      <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Where each day was recorded (numbered by day)'))}</p>
+      <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Where each day was recorded (numbered by day)'))}
+      <span class="map-key-site big" aria-hidden="true"></span>${esc(t('The customer site of a day’s DB number'))}</p>
   </div>`;
 }
 
@@ -305,7 +338,7 @@ async function mgInitMap() {
   const map = await makeMap(el);
   if (!map || el !== $('#mgMap')) return;
   mapBase(map, base, mgRules().minKm);
-  mgMap = { map, el, layer: L.layerGroup().addTo(map), sig: null };
+  mgMap = { map, el, sites: L.layerGroup().addTo(map), layer: L.layerGroup().addTo(map), sig: null };
   mgPaintMap();
 }
 function mgPaintMap() {
@@ -321,10 +354,16 @@ function mgPaintMap() {
       popup: `<b>${esc(t('Day {n}', { n: i + 1 }))}${r.date ? ' · ' + esc(r.date) : ''}</b><br>${where}<br><span class="map-ll">${esc(fmtDateTime(r.gps.at))}</span>` });
   });
   mapPins(mgMap.layer, points);
-  const sig = points.map(p => `${p.lat},${p.lng}`).join('|');
+  // The customer sites the days' DB numbers point at.
+  const seen = new Set();
+  const sites = mgRows.map(r => siteForDb(mgSites, r.site)).filter(s => s && !seen.has(s.id) && seen.add(s.id))
+    .map(s => ({ lat: s.lat, lng: s.lng, big: true, base, popup: sitePopupHtml(s, base, R.minKm) }));
+  mapSites(mgMap.sites, sites);
+  const all = points.concat(sites);
+  const sig = all.map(p => `${p.lat},${p.lng}`).join('|');
   if (sig !== mgMap.sig) {
     mgMap.sig = sig;
-    fitAreas(mgMap.map, [ringArea(base, R.minKm), ...points.map(p => ringArea(p, 0.5))]);
+    fitAreas(mgMap.map, [ringArea(base, R.minKm), ...all.map(p => ringArea(p, 0.5))]);
   }
 }
 // Fields of one day as a draft (files go to IndexedDB separately).
@@ -364,6 +403,13 @@ async function openMealGpsModal(existing = null) {
   }
   if (!mgRows.length) mgRows = [mgBlank()];
   await mgWatchPermission();
+  // The sites arrive after the form opens; the hints and map fill in then.
+  loadCustomerSites().then(list => {
+    mgSites = list;
+    if (!$('#mgDays')) return;
+    mgRows.forEach((r, i) => mgPaintSite(i));
+    mgPaintMap();
+  });
   const base = mgCfg().base;
   openModal(`
     ${formHeadHtml(isEdit ? t('Edit & resubmit GPS meal allowance') : t('Meal allowance (GPS)'))}

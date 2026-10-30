@@ -84,6 +84,63 @@ function mapPins(layer, points) {
   }
 }
 
+// --- Customer sites ---------------------------------------------------------------------
+// Pinned customer locations by DB number (Settings → Customer sites), read once
+// per account and shared by the GPS form and the bases map. A failed read is
+// an empty list: the sites only add hints, nothing depends on them.
+let _sitesCache = null;
+function loadCustomerSites() {
+  const uid = state.user && state.user.id;
+  if (!_sitesCache || _sitesCache.uid !== uid) {
+    _sitesCache = { uid, list: api('/customer-sites').then(d => d.sites || []).catch(() => { _sitesCache = null; return []; }) };
+  }
+  return _sitesCache.list;
+}
+const forgetCustomerSites = () => { _sitesCache = null; };
+// The site a DB field points at ("DB 500222" → the site pinned as 500222), or null.
+const siteForDb = (sites, v) => {
+  const d = String(v || '').replace(/\D/g, '');
+  return d ? (sites || []).find(s => s.db_no === d) || null : null;
+};
+// Straight-line km between two points (the rule's radius, same formula as the server).
+function kmBetween(a, b) {
+  const rad = (d) => d * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+const kmLabel = (km) => t('{km} km', { km: (Math.round(km * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 }) });
+// Customer sites as small blue squares. `big` marks the ones a form points at.
+// Points: { lat, lng, popup, big?, base? } — `base` draws the dashed line to it.
+function mapSites(layer, points) {
+  const blue = mapColor('--indigo', '#3e6a8a');
+  layer.clearLayers();
+  const drawn = [];
+  for (const p of points) {
+    if (p.base) L.polyline([[p.base.lat, p.base.lng], [p.lat, p.lng]], { color: blue, weight: 1.5, opacity: 0.7, dashArray: '4 6', interactive: false }).addTo(layer);
+    const s = p.big ? 18 : 10;
+    const m = L.marker([p.lat, p.lng], {
+      icon: L.divIcon({ className: `map-site${p.big ? ' big' : ''}`, html: p.big ? '<span>DB</span>' : '', iconSize: [s, s], iconAnchor: [s / 2, s / 2], popupAnchor: [0, -s / 2] }),
+      keyboard: false
+    }).addTo(layer);
+    if (p.popup) m.bindPopup(p.popup);
+    drawn.push(m);
+  }
+  return drawn;
+}
+// A site's popup: DB number, name, address and — given a base — how far it is.
+function sitePopupHtml(s, base, km) {
+  const dist = base ? `<br>${sitePopupDist(s, base, km)}` : '';
+  return `<b>DB${esc(s.db_no)}</b>${s.name ? ' · ' + esc(s.name) : ''}${s.address ? `<br><span class="map-ll">${esc(s.address)}</span>` : ''}${dist}
+    <br><a href="https://www.google.com/maps?q=${encodeURIComponent(s.lat + ',' + s.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`;
+}
+function sitePopupDist(s, base, km) {
+  const d = kmBetween(base, s);
+  return `${withRadius(t('{km} {radius} from {base}', { km: kmLabel(d), base: base.name || t('base') }))} — ${esc(d < km
+    ? t('inside {min} km: in-town meals can’t be claimed', { min: km })
+    : t('{min} km or more: in-town meals can be claimed', { min: km }))}`;
+}
+
 // --- Bases map (home tile) ------------------------------------------------------------
 // Everyone can see where the bases are: their region's bases (every region for
 // an all-regions viewer) with their rings, their own base marked, and a list
@@ -96,12 +153,15 @@ async function openBasesMap() {
     <div class="modal-body bm-body">
       <div class="bm-map map-box" id="bmMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
       <p class="map-key" id="bmKey"></p>
+      <div class="bm-find" id="bmFind" hidden>
+        <input class="input" id="bmQ" type="search" autocomplete="off" placeholder="${esc(t('Find a customer site — DB number or name'))}" aria-label="${esc(t('Find a customer site'))}" />
+      </div>
       <div class="bm-list" id="bmList"></div>
     </div>`);
   $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#bmClose').addEventListener('click', closeModal);
-  let data;
-  try { data = await api('/bases'); }
+  let data, sites;
+  try { [data, sites] = await Promise.all([api('/bases'), loadCustomerSites()]); }
   catch (ex) { const m = $('#bmMap'); if (m) m.innerHTML = `<p class="map-msg">${esc(ex.message)}</p>`; return; }
   const el = $('#bmMap');
   if (!el) return;
@@ -115,14 +175,16 @@ async function openBasesMap() {
   shown.sort((a, b) => (isMine(b) - isMine(a)) || String(a.region).localeCompare(String(b.region)) || a.name.localeCompare(b.name));
   const regions = new Set(shown.map(b => b.region).filter(Boolean));
   $('#bmSub').textContent = shown.length === 1 ? t('1 base') : t('{n} bases', { n: shown.length });
-  $('#bmKey').innerHTML = `<span class="map-key-ring" aria-hidden="true"></span>${esc(t('Each ring is the {km} km straight-line radius around a base — in-town meals inside it can’t be claimed.', { km }))}`;
-  $('#bmList').innerHTML = shown.length ? shown.map(b => `
+  $('#bmKey').innerHTML = `<span class="map-key-ring" aria-hidden="true"></span>${esc(t('Each ring is the {km} km straight-line radius around a base — in-town meals inside it can’t be claimed.', { km }))}`
+    + (sites.length ? ` <span class="map-key-site" aria-hidden="true"></span>${esc(t('Customer sites ({n})', { n: sites.length }))}` : '');
+  const basesHtml = shown.length ? shown.map(b => `
     <button type="button" class="bm-row${isMine(b) ? ' mine' : ''}" data-b="${esc(String(b.id))}">
       <span class="bm-ic" aria-hidden="true">🏢</span>
       <span class="bm-main"><b>${esc(b.name)}</b><small>${esc([regions.size > 1 ? b.region : '', `${b.lat}, ${b.lng}`].filter(Boolean).join(' · '))}</small></span>
       ${isMine(b) ? `<span class="bm-tag">${esc(t('Your base'))}</span>` : ''}
     </button>`).join('')
     : `<p class="bs-empty">${esc(t('No bases have been set up yet.'))}</p>`;
+  $('#bmList').innerHTML = basesHtml;
   const map = await makeMap(el);
   if (!map) return;
   const drawn = new Map();
@@ -132,11 +194,39 @@ async function openBasesMap() {
     }));
   }
   fitAreas(map, [...drawn.values()].map(d => d.area));
-  $$('#bmList [data-b]').forEach(btn => btn.addEventListener('click', () => {
+  // Customer sites: every pin, measured from the viewer's own base when they have one.
+  const pins = mapSites(L.layerGroup().addTo(map), sites.map(s => ({ lat: s.lat, lng: s.lng, popup: sitePopupHtml(s, mine, km) })));
+  const wireBases = () => $$('#bmList [data-b]').forEach(btn => btn.addEventListener('click', () => {
     const d = drawn.get(btn.dataset.b);
     if (!d) return;
     $$('#bmList .bm-row').forEach(x => x.classList.toggle('on', x === btn));
     map.flyToBounds(d.area, { padding: [24, 24], duration: 0.6 });
     d.dot.openPopup();
   }));
+  wireBases();
+  if (!sites.length) return;
+  // The search swaps the list for matching sites; clearing it brings the bases back.
+  $('#bmFind').hidden = false;
+  const q = $('#bmQ');
+  q.addEventListener('input', () => {
+    const s = q.value.trim().toLowerCase();
+    if (!s) { $('#bmList').innerHTML = basesHtml; wireBases(); return; }
+    const digits = s.replace(/^db\s*/, '');
+    const hits = sites.map((x, i) => ({ x, i }))
+      .filter(({ x }) => x.db_no.includes(digits) || x.name.toLowerCase().includes(s) || x.address.toLowerCase().includes(s)).slice(0, 40);
+    $('#bmList').innerHTML = hits.length ? hits.map(({ x, i }) => {
+      const d = mine ? kmBetween(mine, x) : null;
+      return `<button type="button" class="bm-row" data-s="${i}">
+        <span class="bm-ic" aria-hidden="true">📌</span>
+        <span class="bm-main"><b>DB${esc(x.db_no)}${x.name ? ' · ' + esc(x.name) : ''}</b><small>${esc(x.address || `${x.lat}, ${x.lng}`)}</small></span>
+        ${d == null ? '' : `<span class="bm-km ${d < km ? 'in' : 'out'}">${esc(kmLabel(d))}</span>`}
+      </button>`;
+    }).join('') : `<p class="bs-empty">${esc(t('No customer site matches “{q}”.', { q: q.value.trim() }))}</p>`;
+    $$('#bmList [data-s]').forEach(btn => btn.addEventListener('click', () => {
+      const x = sites[+btn.dataset.s];
+      $$('#bmList .bm-row').forEach(r => r.classList.toggle('on', r === btn));
+      map.flyTo([x.lat, x.lng], 14, { duration: 0.6 });
+      pins[+btn.dataset.s].openPopup();
+    }));
+  });
 }

@@ -3729,6 +3729,17 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .mg-receipt-row .file-chips { margin-top: 0; }
 .mg-receipt-row .file-chips:empty { display: none; }
 .mg-extra { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px dashed var(--line); }
+/* The customer site a day's DB number points at, and its distance from the base. */
+.mg-site-wrap:empty { display: none; }
+.mg-site { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; margin: 0;
+  padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--indigo-tint); }
+.mg-site-ic { font-size: 1.05rem; }
+.mg-site-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: .82rem; color: var(--ink-soft); }
+.mg-site-txt b { font-size: .88rem; color: var(--indigo); overflow-wrap: anywhere; }
+.mg-site-txt span { overflow-wrap: anywhere; }
+.mg-site-in { background: var(--red-tint); border-color: var(--red-line); }
+.mg-site-in .mg-site-txt b { color: var(--red); }
+.mg-site-none { display: block; font-size: .8rem; color: var(--muted); background: var(--paper); }
 .mg-msgs { display: flex; flex-direction: column; gap: 6px; }
 .mg-msgs:empty { display: none; }
 .mg-msg { margin: 0; padding: 7px 11px; border-radius: 8px; font-size: .82rem; line-height: 1.4; }
@@ -3899,12 +3910,19 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .map-box .map-pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--pine-deep);
   border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); color: #fff; font-size: .74rem; font-weight: 800; }
 .map-box .map-pin.bad { background: var(--red); }
+/* A customer site: a small blue square; the one a form points at is larger, labelled "DB". */
+.map-box .map-site { border-radius: 3px; background: var(--indigo); border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.map-box .map-site.big { display: flex; align-items: center; justify-content: center; border-radius: 5px; border-width: 2px;
+  color: #fff; font-size: .56rem; font-weight: 800; letter-spacing: .02em; }
 .map-key { margin: 8px 2px 0; font-size: .8rem; line-height: 1.45; color: var(--ink-soft); }
 .map-key-ring, .map-key-pin { display: inline-block; vertical-align: -2px; margin-right: 6px; box-sizing: border-box; }
 .map-key-pin { margin-left: 10px; }
 .map-key-ring { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--pine);
   background: color-mix(in srgb, var(--pine) 18%, transparent); }
 .map-key-pin { width: 14px; height: 14px; border-radius: 50%; background: var(--pine-deep); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.map-key-site { display: inline-block; vertical-align: -1px; width: 11px; height: 11px; margin: 0 6px 0 10px; border-radius: 3px;
+  background: var(--indigo); box-shadow: 0 0 0 1px var(--line); }
+.map-key-site.big { width: 14px; height: 14px; vertical-align: -2px; }
 /* Night mode: darken the light street tiles instead of swapping tile servers. */
 :root[data-theme="dark"] .map-box .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
 /* Settings → Bases: the map above the list. */
@@ -3930,6 +3948,10 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .bm-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .bm-main b { overflow-wrap: anywhere; }
 .bm-main small { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
+.bm-find .input { width: 100%; }
+.bm-km { flex: none; padding: 3px 9px; border-radius: 999px; font-family: var(--mono); font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.bm-km.in { background: var(--red-tint); color: var(--red); }
+.bm-km.out { background: var(--green-tint); color: var(--green); }
 .bm-tag { flex: none; padding: 3px 9px; border-radius: 999px; background: var(--pine); color: var(--on-accent);
   font-size: .74rem; font-weight: 700; white-space: nowrap; }
 .bs-main span { font-size: .8rem; color: var(--muted); font-family: var(--mono); }
@@ -3956,6 +3978,18 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .bs-edit, .bs-add, .bs-row.bs-editing { grid-template-columns: minmax(0, 1fr); }
   .bs-add .bs-read { grid-row: auto; }
   .bs-map { height: 300px; }
+}
+/* Settings → Customer sites: searched list + add form (shares the .bs-* look). */
+.cs-q { width: 100%; margin: 0 0 10px; }
+.cs-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.cs-addr-l { font-size: .8rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.cs-more { margin: 8px 2px 0; font-size: .8rem; color: var(--muted); }
+.cs-add, .cs-edit { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, 1.2fr); gap: 8px 12px; align-items: end; }
+.cs-add .cs-addr, .cs-edit .cs-addr { grid-column: 1 / -1; }
+.cs-add > .btn { grid-column: 1 / -1; justify-self: end; }
+@media (max-width: 720px) {
+  .cs-add, .cs-edit { grid-template-columns: minmax(0, 1fr); }
+  .cs-add > .btn { justify-self: stretch; }
 }
 /* Its "accounts on this base" checklist (modal2). */
 .ba-body { gap: 12px; }
