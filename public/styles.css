@@ -2848,7 +2848,9 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .dh-meta span + span::before { content: '·'; margin: 0 7px; color: var(--line); }
 /* Body sections */
 .drawer-body .section-label.d-first { margin-top: 2px; }
-.d-purpose { margin: 0 0 18px; line-height: 1.5; }
+/* Purpose and reasons come from textareas: keep the writer's line breaks. */
+.d-purpose { margin: 0 0 18px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+.note-box > div:not(.nb-label) { white-space: pre-line; overflow-wrap: anywhere; }
 .d-source { margin: 0 0 14px; }
 .d-pay { margin-bottom: 18px; }
 .drawer-body .kv-pay { margin: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
