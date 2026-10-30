@@ -2307,7 +2307,55 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-glass] .ue-foot { background: transparent; }
 
 /* The list's header and rows sit on the pane instead of painting over it. */
-:root[data-glass] .ledger-head { background: transparent; }
+/* Glass: the list's column header is a frosted strip that belongs to the pane
+   (soft tint, no hard rule, readable sentence-case titles). Sort arrows show on
+   hover only; the sorted column reads as a highlighted chip. */
+:root[data-glass] .ledger-head { height: 46px; border-bottom: none;
+  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  box-shadow: inset 0 -1px 0 var(--glass-edge), 0 1px 0 color-mix(in srgb, var(--line) 55%, transparent);
+  font-size: .8rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
+:root[data-glass] .ledger-head [data-sort] { justify-self: start; margin-left: -8px; padding: 4px 8px; border-radius: 8px;
+  transition: background-color .15s, color .15s; }
+:root[data-glass] .ledger-head .col-amt[data-sort] { justify-self: end; margin: 0 -8px 0 0; }
+:root[data-glass] .ledger-head .col-status[data-sort] { justify-self: end; margin: 0 -8px 0 0; }
+:root[data-glass] .ledger-head [data-sort]:hover { background: var(--ios-fill); color: var(--ink); }
+:root[data-glass] .ledger-head [data-sort]::after { content: '↓'; opacity: 0; margin-left: 5px; transition: opacity .15s; }
+:root[data-glass] .ledger-head [data-sort]:hover::after { opacity: .45; }
+:root[data-glass] .ledger-head [data-sort][aria-sort] { background: var(--pine-tint); color: var(--pine-deep); }
+:root[data-glass] .ledger-head [data-sort][aria-sort]::after { opacity: 1; }
+:root[data-glass] .ledger-head [data-sort][aria-sort="ascending"]::after { content: '↑'; }
+
+/* Checkboxes in the list: rounded, theme blue, with a drawn tick / dash. */
+:root[data-glass] .ledger input[type="checkbox"] { appearance: none; -webkit-appearance: none; margin: 0;
+  width: 18px; height: 18px; border-radius: 6px; cursor: pointer; vertical-align: middle;
+  background: color-mix(in srgb, var(--surface) 70%, transparent) center / 12px 12px no-repeat;
+  border: 1.5px solid var(--line); transition: background-color .12s, border-color .12s; }
+:root[data-glass] .ledger input[type="checkbox"]:hover { border-color: var(--pine); }
+:root[data-glass] .ledger input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+:root[data-glass] .ledger input[type="checkbox"]:checked,
+:root[data-glass] .ledger input[type="checkbox"]:indeterminate { background-color: var(--pine); border-color: var(--pine); }
+:root[data-glass] .ledger input[type="checkbox"]:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.4 2.4 4.6-5' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+:root[data-glass] .ledger input[type="checkbox"]:indeterminate {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round'/%3E%3C/svg%3E"); }
+
+/* Selection bar: one family of frosted buttons, colour-coded by what they do;
+   only Download PDF is solid. Delete fills red on hover, not before. */
+:root[data-glass] .selection-bar { padding: 8px 8px 8px 18px; border-radius: 16px; }
+:root[data-glass] .selection-bar .sel-actions { flex-wrap: wrap; justify-content: flex-end; }
+:root[data-glass] .selection-bar .sel-actions .btn { min-height: 36px; padding: 0 14px; border-radius: 11px; font-weight: 600;
+  background: var(--glass-bg); border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-edge);
+  color: var(--ink-soft); transition: background-color .15s, color .15s, border-color .15s; }
+:root[data-glass] .selection-bar .sel-actions .btn:hover { background: var(--glass-hover); color: var(--ink); }
+:root[data-glass] #markPaidSelBtn { color: var(--green); }
+:root[data-glass] #markPaidSelBtn:hover { background: var(--green-tint); color: var(--green); }
+:root[data-glass] #revertPaidSelBtn { color: var(--amber); }
+:root[data-glass] #revertPaidSelBtn:hover { background: var(--amber-tint); color: var(--amber); }
+:root[data-glass] #deleteSelBtn { color: var(--red); }
+:root[data-glass] #deleteSelBtn:hover { background: var(--danger-fill); border-color: var(--danger-fill); color: var(--on-fill); }
+:root[data-glass] #genPdfBtn { background: var(--pine); border-color: transparent; color: var(--on-brand); box-shadow: 0 6px 14px -8px var(--pine); }
+:root[data-glass] #genPdfBtn:hover { background: var(--pine-hover); color: var(--on-brand); }
+
 :root[data-glass] .ledger-row {
   background: linear-gradient(var(--line-soft), var(--line-soft)) no-repeat 50px 100% / calc(100% - 50px) 1px, transparent; }
 :root[data-glass] .ledger-row:last-child { background: transparent; }
@@ -2324,6 +2372,9 @@ a[data-open-doc]:hover { text-decoration: underline; }
    on hover / keyboard focus; the row whose claim is open stays lifted with an
    accent ring. On phones a tapped card lifts as the claim slides in. */
 :root[data-glass] #listView #claimRows { padding: 4px 6px 8px; }
+/* Wide screens: the list uses the room instead of wrapping names onto three
+   lines inside the 1080px column the other looks keep. */
+:root[data-glass] #appView:has(#listView:not([hidden])) .container { max-width: 1360px; }
 /* No coloured status bar on the row's edge (the first version's spine): the
    status tag says the same thing, and the floating rows read cleaner without
    it. The desktop grid keeps its 4px track so the columns don't shift. */
