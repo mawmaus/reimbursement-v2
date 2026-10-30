@@ -1825,7 +1825,6 @@ $$('.ledger-head [data-sort]').forEach(h => {
 function renderClaims() {
   renderLedgerScope();
   syncFilterUI();
-  if (typeof syncReviewButton === 'function') syncReviewButton();
   const wrap = $('#claimRows');
   const claims = sortClaims(visibleClaims());
   if (!claims.length) {
@@ -1976,7 +1975,7 @@ function syncScrollLock() {
   const m2 = $('#modal2');
   // A side-by-side claim window (Glass, wide screens) leaves the list scrollable.
   const drawerBlocks = !$('#drawer').hidden && !document.body.classList.contains('glass-split');
-  const open = !$('#modal').hidden || (m2 && !m2.hidden) || drawerBlocks || !!$('#reviewDeck');
+  const open = !$('#modal').hidden || (m2 && !m2.hidden) || drawerBlocks;
   document.body.classList.toggle('no-scroll', !!open);
 }
 // A callback run once the next time #modal closes, then cleared. Lets a modal

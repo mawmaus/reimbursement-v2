@@ -15,7 +15,6 @@ function closeDrawer() {
   $('#drawer').hidden = true; $('#drawerScrim').hidden = true;
   setSplitView(false);
   state.openRow = null; markOpenRow();
-  if (typeof reviewAfterDrawer === 'function') reviewAfterDrawer();
   $('#drawer').classList.remove('over-modal'); $('#drawerScrim').classList.remove('over-modal');
   syncScrollLock();
 }
@@ -28,7 +27,7 @@ $('#drawerScrim').addEventListener('click', closeDrawer);
 const SPLIT_MQ = window.matchMedia('(min-width: 1200px)');
 function splitViewWanted() {
   return document.documentElement.hasAttribute('data-glass') && SPLIT_MQ.matches &&
-    !$('#listView').hidden && !$('#drawer').classList.contains('over-modal') && !$('#reviewDeck');
+    !$('#listView').hidden && !$('#drawer').classList.contains('over-modal');
 }
 function setSplitView(on) {
   $('#drawer').classList.toggle('split-win', on);
