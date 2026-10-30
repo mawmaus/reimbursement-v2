@@ -1019,6 +1019,31 @@ input[type="search"] { min-width: 220px; }
 .btn.has-draft::after { content: ""; position: absolute; top: -3px; right: -3px;
   width: 9px; height: 9px; border-radius: 50%; background: var(--pine-deep);
   border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--pine-tint); }
+/* My claims: saved drafts above the ledger, one card per form type. */
+.draft-strip { margin: 0 0 14px; }
+.draft-strip-h { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: .9rem; font-weight: 650; color: var(--ink); }
+.draft-strip-n { min-width: 20px; padding: 1px 7px; border-radius: 999px; font-size: .74rem; font-weight: 700; text-align: center;
+  color: var(--pine-deep); background: var(--pine-tint); }
+.draft-list { display: flex; flex-direction: column; gap: 8px; }
+.draft-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px 14px;
+  padding: 12px 14px; border-radius: 12px; background: var(--surface);
+  border: 1px dashed var(--amber-tint); box-shadow: inset 3px 0 0 var(--amber); }
+.draft-card-ic { font-size: 1.15rem; line-height: 1; }
+.draft-card-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.draft-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.draft-card-type { font-weight: 650; color: var(--ink); }
+.pill.pill-draft { color: var(--amber); background: var(--amber-tint); text-transform: none; letter-spacing: 0; }
+.draft-card-meta { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: .8rem; color: var(--muted); }
+.draft-card-amt { font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.draft-card-actions { display: flex; gap: 8px; }
+.draft-card-actions .btn { white-space: nowrap; }
+@media (max-width: 720px) {
+  .draft-card { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 10px 12px; }
+  .draft-card-ic { display: none; }
+  .draft-card-meta span { white-space: nowrap; }
+  .draft-card-actions { grid-column: 1 / -1; justify-content: flex-end; }
+  .draft-card-actions .btn { flex: 1 1 0; }
+}
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 /* Frozen footer: a flex-none bar after the scroll region, pinned to the modal
    bottom while the rows scroll between it and the top bar. The running total

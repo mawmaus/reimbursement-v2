@@ -451,21 +451,128 @@ function openCalcModal(rowIndex) {
 // mis-click case). Pressing "Cancel" is treated as a deliberate discard, and a
 // successful submit clears the draft. A reopened form shows a banner with a
 // "Start fresh" option to drop the draft.
+//
+// The browser copy alone is not enough: Safari wipes a site's storage after 7
+// days unused, and a draft never followed the account to another device. So
+// every save is also backed up to the server (routes/drafts.js) — receipts
+// uploaded to the private store and referenced from `data.files`, per row — and
+// My claims lists the drafts (renderDraftStrip). The local copy stays for speed
+// and offline use; `synced` marks one the server holds too. Whichever copy was
+// saved last wins on reopen.
 // ---------------------------------------------------------------------------
 const DRAFT_BTN = { claim: '#newClaimBtn', meal: '#newMealBtn', mealgps: '#newMealGpsBtn', advance: '#newAdvanceBtn' };
 function draftKey(kind) { return `draft:${kind}:${state.user ? state.user.id : 'anon'}`; }
-function loadDraft(kind) {
+function localDraft(kind) {
   try { const raw = localStorage.getItem(draftKey(kind)); return raw ? JSON.parse(raw) : null; }
   catch { return null; }
 }
-function saveDraftData(kind, data) {
-  try { localStorage.setItem(draftKey(kind), JSON.stringify({ savedAt: Date.now(), data })); }
-  catch { /* storage full / disabled — nothing more we can do */ }
+function writeLocalDraft(kind, d) {
+  try { localStorage.setItem(draftKey(kind), JSON.stringify(d)); }
+  catch { /* storage full / disabled — the server copy still keeps it */ }
+}
+// The server's copies for the signed-in account ({ savedAt, data } per kind),
+// filled by loadDrafts; tagged with the account so a same-tab login switch
+// never shows the previous account's drafts.
+function serverDraft(kind) {
+  const s = state.serverDrafts;
+  return s && state.user && s.uid === state.user.id ? s.map[kind] || null : null;
+}
+function setServerDraft(kind, d) {
+  if (!state.user) return;
+  if (!state.serverDrafts || state.serverDrafts.uid !== state.user.id) state.serverDrafts = { uid: state.user.id, map: {} };
+  if (d) state.serverDrafts.map[kind] = d; else delete state.serverDrafts.map[kind];
+}
+// The draft a form reopens: the later-saved of the local and server copies.
+function loadDraft(kind) {
+  const local = localDraft(kind), remote = serverDraft(kind);
+  if (remote && (!local || remote.savedAt > local.savedAt)) return { ...remote, source: 'server' };
+  return local ? { ...local, source: 'local' } : null;
+}
+// Save a draft: locally at once (fields + receipt files), then to the server.
+function saveDraftData(kind, data, rowsFiles) {
+  const savedAt = Date.now();
+  writeLocalDraft(kind, { savedAt, data });
+  if (rowsFiles) saveDraftFiles(kind, rowsFiles);
   refreshDraftBadges();
+  queueDraftSync(kind, () => pushDraft(kind, savedAt, data, rowsFiles || []));
 }
 function clearDraft(kind) {
+  clearLocalDraft(kind);
+  setServerDraft(kind, null);
+  queueDraftSync(kind, () => api('/drafts/' + kind, { method: 'DELETE' }));
+  refreshDraftBadges();
+}
+function clearLocalDraft(kind) {
   try { localStorage.removeItem(draftKey(kind)); } catch { /* ignore */ }
   clearDraftFiles(kind); // drop any stored receipt blobs alongside the fields
+}
+
+// Server writes for one kind run one after another, so a discard (or the clear
+// after a submit) always lands after the save it follows.
+const draftQueue = {};
+function queueDraftSync(kind, job) {
+  draftQueue[kind] = (draftQueue[kind] || Promise.resolve()).then(job).catch(() => {});
+  return draftQueue[kind];
+}
+// Receipt files already in storage for a draft, so a re-save doesn't upload them again.
+const draftUploaded = new WeakMap(); // File -> { url, original_name }
+async function pushDraft(kind, savedAt, data, rowsFiles) {
+  if (state.draftServerOff) return;
+  try {
+    const files = [];
+    for (const row of rowsFiles) {
+      const refs = [];
+      for (const f of row) {
+        let ref = draftUploaded.get(f);
+        if (!ref) { [ref] = await uploadReceipts([f]); draftUploaded.set(f, ref); }
+        refs.push(ref);
+      }
+      files.push(refs);
+    }
+    const r = await api('/drafts/' + kind, { method: 'PUT', body: JSON.stringify({ data: { ...data, files }, saved_at: savedAt }) });
+    const saved = { savedAt, data: { ...data, files: r.files } };
+    setServerDraft(kind, saved);
+    // Mark the local copy as backed up — unless a later save has replaced it.
+    const local = localDraft(kind);
+    if (local && local.savedAt === savedAt) writeLocalDraft(kind, { ...saved, synced: true });
+    refreshDraftBadges();
+  } catch (e) {
+    // A newer copy is already on the server: nothing lost. Otherwise the draft
+    // stays on this device and loadDrafts tries again on the next load.
+    if (String(e && e.message) !== t('A newer copy of this draft is already saved')) {
+      toast(t("Couldn't back up your draft — it is kept on this device for now."), true);
+    }
+  }
+}
+
+// Fetch the account's server drafts and reconcile the local copies with them:
+// a backed-up local copy the server no longer has was submitted or discarded
+// on another device, so it goes; a local copy never backed up is sent again.
+async function loadDrafts() {
+  const uid = state.user && state.user.id;
+  if (!uid) return;
+  // What the local copies were before asking, so a save that finishes while
+  // the request is out isn't mistaken for one the server dropped.
+  const before = {};
+  for (const kind of Object.keys(DRAFT_BTN)) before[kind] = localDraft(kind);
+  let r;
+  try { r = await api('/drafts'); } catch { return; }
+  if (!state.user || state.user.id !== uid) return;
+  // No drafts table on the server yet (deployed before the migration): drafts
+  // stay browser-only, as before, instead of failing every save.
+  state.draftServerOff = !r.available;
+  if (!r.available) return;
+  state.serverDrafts = { uid, map: {} };
+  for (const d of r.drafts || []) state.serverDrafts.map[d.kind] = { savedAt: d.saved_at, data: d.data };
+  for (const kind of Object.keys(DRAFT_BTN)) {
+    const was = before[kind], local = localDraft(kind), remote = serverDraft(kind);
+    if (!was || !local || local.savedAt !== was.savedAt || !!local.synced !== !!was.synced) continue;
+    if (local.synced && (!remote || remote.savedAt > local.savedAt)) clearLocalDraft(kind);
+    else if (!local.synced && (!remote || remote.savedAt < local.savedAt)) {
+      const savedAt = local.savedAt;
+      queueDraftSync(kind, async () => pushDraft(kind, savedAt, local.data, (await loadIdbDraftFiles(kind)) || []));
+    }
+  }
   refreshDraftBadges();
 }
 
@@ -498,7 +605,38 @@ async function saveDraftFiles(kind, rowsFiles) {
     db.close();
   } catch { /* IndexedDB unavailable — typed fields still saved */ }
 }
+// A reopened draft's receipts, per row: from this device when it holds the
+// draft being reopened, else downloaded from the server copy. Either way each
+// file is remembered as already stored, so saving again doesn't re-upload it.
 async function loadDraftFiles(kind) {
+  const d = loadDraft(kind);
+  if (!d) return null;
+  const refs = Array.isArray(d.data.files) ? d.data.files : [];
+  if (d.source === 'local') {
+    const perRow = await loadIdbDraftFiles(kind);
+    if (perRow) {
+      if (d.synced) perRow.forEach((row, i) => (row || []).forEach((f, j) => {
+        const ref = refs[i] && refs[i][j];
+        if (ref && ref.original_name === f.name) draftUploaded.set(f, { url: ref.url, original_name: ref.original_name });
+      }));
+      return perRow;
+    }
+    if (!d.synced) return null; // the browser lost the files and the server never had them
+  }
+  let missing = 0;
+  const perRow = await Promise.all(refs.map((row, i) => Promise.all((row || []).map(async (ref, j) => {
+    try {
+      const res = await fetch(`/api/drafts/${kind}/files/${i}/${j}`, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error(String(res.status));
+      const f = new File([await res.blob()], ref.original_name || 'file', { type: ref.mime || '' });
+      draftUploaded.set(f, { url: ref.url, original_name: ref.original_name });
+      return f;
+    } catch { missing++; return null; }
+  })).then(files => files.filter(Boolean))));
+  if (missing) toast(t("Some of this draft's receipts couldn't be loaded — please attach them again."), true);
+  return perRow;
+}
+async function loadIdbDraftFiles(kind) {
   try {
     const db = await draftDbOpen();
     const val = await new Promise((resolve, reject) => {
@@ -525,6 +663,70 @@ function refreshDraftBadges() {
     btn.classList.toggle('has-draft', !!loadDraft(kind));
   }
   syncNewMenu();
+  if (state.view === 'mine') renderDraftStrip();
+  else if (state.view === 'home') renderHome();
+}
+const draftKinds = () => Object.keys(DRAFT_BTN).filter(k => loadDraft(k));
+
+// My claims: the saved drafts, above the submitted claims — what each is, how
+// many lines, its total so far and when it was saved, with Continue / Delete.
+const DRAFT_LABEL = { claim: 'Reimbursement', meal: 'Meal allowance', mealgps: 'Meal allowance (GPS)', advance: 'Cash advance' };
+function draftSummary(kind, data) {
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  let amount = 0;
+  if (kind === 'claim') amount = rows.reduce((s, r) => s + rcAmt(r.amount), 0);
+  else if (kind === 'meal') amount = rows.reduce((s, r) => s + mealAmount(r.amount), 0);
+  else if (kind === 'mealgps') amount = rows.reduce((s, r) => s + (r.trip === 'out_of_town'
+    ? (r.meals || []).reduce((m, x) => m + mealAmount(x), 0) : mealAmount(r.amount)), 0);
+  else amount = rcAmt(data.amount);
+  const files = (Array.isArray(data.files) ? data.files : []).reduce((n, r) => n + (Array.isArray(r) ? r.length : 0), 0);
+  return { lines: rows.length, amount, files };
+}
+function renderDraftStrip() {
+  const el = $('#draftStrip');
+  if (!el) return;
+  const kinds = state.view === 'mine' ? draftKinds() : [];
+  el.hidden = !kinds.length;
+  if (!kinds.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<h3 class="draft-strip-h">${esc(t('Drafts'))} <span class="draft-strip-n">${kinds.length}</span></h3>
+    <div class="draft-list">${kinds.map(kind => {
+      const d = loadDraft(kind);
+      const s = draftSummary(kind, d.data);
+      const meta = [
+        s.lines ? lineCountText(s.lines) : '',
+        s.files ? (s.files === 1 ? t('1 receipt') : t('{n} receipts', { n: s.files })) : '',
+        t('Saved {when}', { when: fmtDateTime(new Date(d.savedAt).toISOString()) })
+      ].filter(Boolean);
+      return `<div class="draft-card" data-kind="${kind}">
+        <span class="draft-card-ic" aria-hidden="true">📝</span>
+        <div class="draft-card-main">
+          <div class="draft-card-top"><span class="draft-card-type">${esc(t(DRAFT_LABEL[kind]))}</span>
+            <span class="pill pill-draft">${esc(t('Draft'))}</span></div>
+          <div class="draft-card-meta">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>
+        </div>
+        <span class="draft-card-amt">${s.amount ? esc(money(s.amount, regionCurrency())) : '—'}</span>
+        <div class="draft-card-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-draft-del>${esc(t('Delete'))}</button>
+          <button type="button" class="btn btn-primary btn-sm" data-draft-open>${esc(t('Continue'))}</button>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  $$('.draft-card', el).forEach(card => {
+    const kind = card.dataset.kind;
+    card.querySelector('[data-draft-open]').addEventListener('click', () => {
+      // Open it the way its New button does, so the same gates apply (purpose
+      // switched off, an unrealized cash advance holding new claims).
+      const btn = $(DRAFT_BTN[kind]);
+      if (!btn || btn.hidden) return toast(t('This form is not available on your account right now.'), true);
+      if (btn.disabled) return toast(btn.title || t('This form is not available on your account right now.'), true);
+      btn.click();
+    });
+    card.querySelector('[data-draft-del]').addEventListener('click', () => {
+      if (!confirm(t('Delete this draft? This cannot be undone.'))) return;
+      clearDraft(kind);
+      toast(t('Draft deleted'));
+    });
+  });
 }
 
 // The banner shown at the top of a form that was reopened from a saved draft.
@@ -549,19 +751,17 @@ function armDraftAutosave(kind, collect, collectFiles) {
   modalCloseHook = () => {
     const data = collect();
     if (!data) { clearDraft(kind); return; }
-    saveDraftData(kind, data);
-    if (collectFiles) saveDraftFiles(kind, collectFiles());
-    toast(t('Draft saved — reopen it from the New button.'));
+    saveDraftData(kind, data, collectFiles && collectFiles());
+    toast(t('Draft saved — find it in My claims.'));
   };
 }
 // Explicit "Save draft": save (if there's anything) and close.
 function saveDraftAndClose(kind, collect, collectFiles) {
   const data = collect();
   if (!data) { toast(t('Nothing to save yet — fill in the form first.'), true); return; }
-  saveDraftData(kind, data);
-  if (collectFiles) saveDraftFiles(kind, collectFiles());
+  saveDraftData(kind, data, collectFiles && collectFiles());
   modalCloseHook = null; // already saved; don't double-save on close
-  toast(t('Draft saved'));
+  toast(t('Draft saved — find it in My claims.'));
   closeModal();
 }
 // "Cancel": deliberate discard — drop any draft and close without saving.

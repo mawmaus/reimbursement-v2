@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-30.4',
+    date: '2026-10-30',
+    items: [
+      { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
+        en: 'Saved drafts no longer disappear. A draft — with its receipts — is now kept on the server, not only in your browser, so it is still there days later and on any device you sign in on. Find your drafts at the top of My claims, where you can continue or delete them.',
+        id: 'Draf yang disimpan tidak hilang lagi. Draf — beserta kuitansinya — kini disimpan di server, bukan hanya di browser, sehingga tetap ada berhari-hari kemudian dan di perangkat mana pun Anda masuk. Draf Anda ada di bagian atas Klaim saya; dari sana Anda bisa melanjutkan atau menghapusnya.',
+        th: 'ฉบับร่างที่บันทึกไว้จะไม่หายอีกต่อไป ฉบับร่างพร้อมใบเสร็จจะถูกเก็บไว้บนเซิร์ฟเวอร์ ไม่ใช่แค่ในเบราว์เซอร์ จึงยังอยู่แม้ผ่านไปหลายวันและบนทุกอุปกรณ์ที่คุณเข้าสู่ระบบ ดูฉบับร่างได้ที่ด้านบนของการเบิกของฉัน ซึ่งคุณทำต่อหรือลบได้',
+        vi: 'Bản nháp đã lưu không còn bị mất. Bản nháp — cùng hóa đơn — giờ được lưu trên máy chủ, không chỉ trong trình duyệt, nên vẫn còn sau nhiều ngày và trên mọi thiết bị bạn đăng nhập. Bản nháp nằm ở đầu Yêu cầu của tôi, nơi bạn có thể tiếp tục hoặc xóa.',
+        km: 'សេចក្ដីព្រាងដែលបានរក្សាទុកលែងបាត់ទៀតហើយ។ សេចក្ដីព្រាង — រួមទាំងបង្កាន់ដៃ — ឥឡូវត្រូវបានរក្សាទុកនៅលើម៉ាស៊ីនមេ មិនមែនតែក្នុងកម្មវិធីរុករកទេ ដូច្នេះវានៅតែមានទោះបីកន្លងទៅច្រើនថ្ងៃ និងនៅលើឧបករណ៍ណាដែលអ្នកចូល។ សេចក្ដីព្រាងរបស់អ្នកនៅខាងលើ សំណើរបស់ខ្ញុំ ដែលអ្នកអាចបន្ត ឬលុបវាបាន។',
+        fil: 'Hindi na nawawala ang mga naka-save na draft. Ang draft — kasama ang mga resibo nito — ay nakatabi na sa server, hindi lang sa browser mo, kaya nandoon pa rin ito makalipas ang ilang araw at sa anumang device na pag-sign in-an mo. Nasa itaas ng Aking mga claim ang mga draft mo, kung saan mo ito maitutuloy o mabubura.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-30.3',
     date: '2026-10-30',
     items: [

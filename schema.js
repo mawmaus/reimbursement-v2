@@ -721,7 +721,20 @@ const SCHEMA = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_sites_region_db ON customer_sites(region, db_no)`,
   // The name technicians call the customer by ("Pak Dhiraj – Sumber Selaras (Menteng, Jakarta)"),
   // searched alongside the formal name.
-  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS alias TEXT NOT NULL DEFAULT ''`
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS alias TEXT NOT NULL DEFAULT ''`,
+  // --- Saved drafts (2026-10-30) ------------------------------------------------------
+  // An unsent New claim / meal / GPS meal / cash advance form, one per account and
+  // form type, so a draft survives the browser clearing its storage (Safari drops
+  // site data after 7 days unused) and follows the account to another device.
+  // `data` is the form's fields plus `files`: per-row receipt references
+  // ({ url, original_name, mime, size }) in the private Blob store.
+  `CREATE TABLE IF NOT EXISTS claim_drafts (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind     TEXT NOT NULL,
+    data     JSONB NOT NULL,
+    saved_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (user_id, kind)
+  )`
 ];
 
 module.exports = { SCHEMA };

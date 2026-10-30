@@ -1103,7 +1103,7 @@ async function loadAll() {
   // The summary cards are derived from the loaded claims (see renderSummaryCards
   // in renderClaims), so loading the claims is all that's needed.
   await loadClaims();
-  await Promise.all([loadDcPending(), loadHelpSummary()]);
+  await Promise.all([loadDcPending(), loadHelpSummary(), loadDrafts()]);
 }
 // The Super Admin's date-change queue depth, for the tile badge. Nobody else has
 // a queue, and a failure here must not cost anyone their menu.
@@ -1467,6 +1467,11 @@ function isMyTurn(c) {
   return ids[(c.current_step || 1) - 1] === state.user.id;
 }
 const myClaims = () => state.claims.filter(c => c.employee_id === (state.user && state.user.id));
+// The My claims tile mentions saved drafts, which live there too.
+function myClaimsDesc() {
+  const n = draftKinds().length;
+  return n ? `${t('Claims you have submitted')} · ${n === 1 ? t('1 draft') : t('{n} drafts', { n })}` : t('Claims you have submitted');
+}
 const approvalQueue = () => state.claims.filter(isMyTurn);
 
 // Claims I have already approved and can still revert (undo my approval).
@@ -1603,7 +1608,7 @@ function renderHome() {
   // tile so pure submitters (never in an approval chain) don't see an empty one.
   const iAmApprover = state.claims.some(c => (c.approvers || []).some(a => a.id === u.id));
   const tiles = [
-    { key: 'mine', title: t('My claims'), desc: t('Claims you have submitted'), count: mine },
+    { key: 'mine', title: t('My claims'), desc: myClaimsDesc(), count: mine },
     { key: 'approval', title: t('Needs my approval'), desc: t('Claims waiting for your decision'), count: need, badge: true },
     // The revert safety net: claims I signed off that I can still undo. Shown
     // alongside "Needs my approval" (both are approver-facing) so a mis-approval
@@ -1824,6 +1829,7 @@ $$('.ledger-head [data-sort]').forEach(h => {
 
 function renderClaims() {
   renderLedgerScope();
+  renderDraftStrip();
   syncFilterUI();
   const wrap = $('#claimRows');
   const claims = sortClaims(visibleClaims());

@@ -22,7 +22,7 @@ const state = {
   positions: [],           // job_positions rows { name, rank, can_manage }
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [],
     departments: [], job_positions: [], bases: [], customer_sites: [], expense_types: [], survey_responses: [],
-    helpdesk_tickets: [], helpdesk_messages: [], helpdesk_attachments: [], feedback: [] },
+    helpdesk_tickets: [], helpdesk_messages: [], helpdesk_attachments: [], feedback: [], claim_drafts: [], attachments: [] },
   writes: [],
   reads: [],               // every query's text, so a test can see what was asked
   onWrite: null
@@ -87,6 +87,9 @@ async function q(text, params = []) {
     state.throttle.set(params[0], n);
     return [{ fails: n, first_at: new Date().toISOString() }];
   }
+  // Saved drafts (routes/drafts.js).
+  const drafts = draftQuery(sql, params);
+  if (drafts) return drafts;
   // Helpdesk tickets and feedback (routes/help.js).
   const help = helpQuery(sql, params);
   if (help) return help;
@@ -181,6 +184,38 @@ function helpQuery(sql, params) {
     write();
     const r = T.feedback.find(x => x.id === Number(params[0]));
     if (r) Object.assign(r, { status: 'read' }, params.length > 1 ? { response: params[1], responded_by: params[2] } : {});
+    return [];
+  }
+  return null;
+}
+// The saved-draft queries, over state.tables.claim_drafts (and the attachment
+// tables, for the files a submitted document links). Returns null for anything else.
+function draftQuery(sql, params) {
+  const T = state.tables;
+  const find = (uid, kind) => T.claim_drafts.find(d => d.user_id === uid && d.kind === kind);
+  if (/^SELECT data, saved_at FROM claim_drafts WHERE user_id = \$1 AND kind = \$2/.test(sql)) {
+    const d = find(params[0], params[1]);
+    return d ? [{ data: JSON.parse(JSON.stringify(d.data)), saved_at: d.saved_at }] : [];
+  }
+  if (/^SELECT kind, data, saved_at FROM claim_drafts WHERE user_id = \$1/.test(sql)) {
+    return T.claim_drafts.filter(d => d.user_id === params[0]).map(d => ({ ...d }));
+  }
+  if (/^SELECT blob_url FROM attachments WHERE blob_url = ANY/.test(sql)) {
+    return [...T.attachments, ...T.helpdesk_attachments].filter(a => params[0].includes(a.blob_url)).map(a => ({ blob_url: a.blob_url }));
+  }
+  if (/^INSERT INTO claim_drafts/.test(sql)) {
+    state.writes.push(sql.slice(0, 70));
+    const [user_id, kind, data, ms] = params;
+    const at = new Date(ms);
+    const d = find(user_id, kind);
+    if (d && d.saved_at > at) return [];
+    if (d) Object.assign(d, { data: JSON.parse(data), saved_at: at });
+    else T.claim_drafts.push({ user_id, kind, data: JSON.parse(data), saved_at: at });
+    return [{ saved_at: at }];
+  }
+  if (/^DELETE FROM claim_drafts WHERE user_id = \$1 AND kind = \$2/.test(sql)) {
+    state.writes.push(sql.slice(0, 70));
+    T.claim_drafts = T.claim_drafts.filter(d => !(d.user_id === params[0] && d.kind === params[1]));
     return [];
   }
   return null;
