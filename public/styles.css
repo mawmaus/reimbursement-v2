@@ -2324,6 +2324,10 @@ a[data-open-doc]:hover { text-decoration: underline; }
    on hover / keyboard focus; the row whose claim is open stays lifted with an
    accent ring. On phones a tapped card lifts as the claim slides in. */
 :root[data-glass] #listView #claimRows { padding: 4px 6px 8px; }
+/* No coloured status bar on the row's edge (the first version's spine): the
+   status tag says the same thing, and the floating rows read cleaner without
+   it. The desktop grid keeps its 4px track so the columns don't shift. */
+:root[data-glass] .ledger .row-spine { visibility: hidden; }
 :root[data-glass] .ledger-row { position: relative; border-radius: 12px;
   transition: transform .2s var(--ease-out), box-shadow .2s var(--ease-out), background-color .2s; }
 :root[data-glass] .ledger-row:hover,
@@ -2366,12 +2370,16 @@ a[data-open-doc]:hover { text-decoration: underline; }
 }
 @keyframes win-in { from { opacity: 0; transform: perspective(1400px) translateX(70px) rotateY(-18deg) scale(.95); } }
 @keyframes win-out { to { opacity: 0; transform: perspective(1400px) translateX(40px) rotateY(-12deg) scale(.97); } }
-/* Narrower screens: the claim still slides in from the right, with a swing. */
+/* Narrower screens: the claim covers the list, so there's nothing to see
+   through it. A solid sheet with no blur keeps the slide-in on the GPU's cheap
+   path: animating a full-screen backdrop blur stutters on phones. */
 @media (max-width: 1199px) {
-  :root[data-glass] .drawer { transform-origin: right center; animation: win-slide .4s var(--ease-out); }
-  :root[data-glass] .drawer.leaving { animation: slideout .22s var(--ease-in) forwards; }
+  :root[data-glass] .drawer { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none;
+    border: none; will-change: transform; }
 }
-@keyframes win-slide { from { transform: perspective(1200px) translateX(100%) rotateY(-14deg); } }
+@media (max-width: 720px) {
+  :root[data-glass] .modal { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   :root[data-glass] .ledger-row, :root[data-glass] #listView .ledger { transition: none; }
   :root[data-glass] .drawer, :root[data-glass] .drawer.split-win { animation: none; }
