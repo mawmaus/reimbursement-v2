@@ -3779,6 +3779,94 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .gl-adjust-acts { justify-content: flex-end; }
 }
 
+/* The claim drawer is a size container, so its line tables switch to cards by
+   the drawer's own width, not the screen's: a narrow claim window (Glass, side
+   by side with the list) gets the same cards a phone does instead of a table
+   that scrolls sideways. The blocks below mirror the max-width: 900px ones for
+   the line tables; keep them in step. */
+.drawer { container: claim / inline-size; }
+@container claim (max-width: 899px) {
+  .meal-table-wrap { border: none; overflow: visible; }
+  .meal-table { min-width: 0 !important; border-collapse: separate; border-spacing: 0; }
+  .meal-table thead { display: none; }
+  .meal-table, .meal-table tbody, .meal-table tfoot { display: block; }
+  .meal-table colgroup { display: none; }
+  .meal-table tbody tr {
+    display: block; position: relative;
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 12px 10px; margin-bottom: 10px; background: var(--surface);
+  }
+  .meal-table tbody td { display: block; border: none; padding: 6px 0 0; }
+  .meal-table tbody td[data-label]::before {
+    content: attr(data-label); display: block; color: var(--muted);
+    font-size: .62rem; text-transform: uppercase; letter-spacing: .05em;
+    font-weight: 700; margin-bottom: 3px;
+  }
+  .meal-table tbody td:empty { display: none; }
+  .meal-table tbody input,
+  .meal-table tbody select {
+    border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; width: 100%;
+  }
+  .meal-table tbody input:focus { background: var(--pine-tint); }
+  /* Remove-row control floats top-right of its card (both line forms) */
+  #mealRows td.meal-x, #rcRows td.meal-x { position: absolute; top: 6px; right: 8px; padding: 0; width: auto; }
+  #mealRows td.meal-x::before, #rcRows td.meal-x::before { display: none; }
+  #mealRows td.meal-x .x-btn, #rcRows td.meal-x .x-btn { font-size: 1.35rem; }
+  #mealRows tr td:first-child, #rcRows tr td:first-child { padding-right: 34px; }
+  /* Receipts cell stacks like the rest; the Add button sits under its label. */
+  .rc-table .rc-receipts { padding: 6px 0 0; }
+  /* Running total row */
+  .meal-table tfoot tr {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; padding: 12px 4px 2px;
+  }
+  .meal-table tfoot td { display: block; border: none; padding: 0; }
+  .meal-table tfoot td:empty { display: none; }
+  .meal-table tfoot td.meal-total-label { text-align: left; }
+  .meal-table tfoot td.meal-total { font-size: 1.05rem; }
+
+  /* The note row joins its line's card instead of standing as a card of its own. */
+  .drawer-lines tbody tr.has-sub { margin-bottom: 0; border-bottom: none;
+    border-bottom-left-radius: 0; border-bottom-right-radius: 0; padding-bottom: 6px; }
+  .drawer-lines tbody tr.line-sub { margin-top: 0; border-top: none; padding: 0 12px 12px;
+    border-top-left-radius: 0; border-top-right-radius: 0; }
+  .drawer-lines tbody tr.line-sub td { padding: 4px 0 0; box-shadow: none; background: transparent; }
+  .drawer-lines tbody tr.line-rejected td:first-child,
+  .drawer-lines tbody tr.line-marked td:first-child { box-shadow: none; }
+  .drawer-lines tbody tr.line-rejected, .drawer-lines tbody tr.line-sub-rejected,
+  .drawer-lines tbody tr.line-marked, .drawer-lines tbody tr.line-sub-marked { box-shadow: inset 3px 0 0 var(--red); }
+  .drawer-lines tbody tr.line-marked, .drawer-lines tbody tr.line-sub-marked { background: var(--red-tint); }
+  .drawer-lines tbody tr.line-marked td { background: transparent; }
+  /* Compact two-column card instead of one long label/value stack:
+       Date          | Reject / Keep
+       Type          | Amount
+       DB No. / Site | Receipts
+       Description (full width)
+     Amount is always the 4th column for every document type (see lineColumns). */
+  .drawer-lines tbody tr:not(.line-sub) {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; }
+  .drawer-lines tbody tr:not(.line-sub) td { min-width: 0; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(1) { grid-column: 1; grid-row: 1; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(2) { grid-column: 1; grid-row: 3; }
+  .drawer-lines tbody tr:not(.line-sub) td.line-receipts { grid-column: 2; grid-row: 3; }
+  .drawer-lines tbody tr:not(.line-sub) td:nth-child(5) { grid-column: 1 / -1; grid-row: 4; }
+  .drawer-lines tbody td.meal-amt .amt-v { font-weight: 650; }
+  /* The Reject / Keep button sits top-right of its card, beside the date. */
+  .drawer-lines tbody td.line-decide { grid-column: 2; grid-row: 1; justify-self: end; align-self: start;
+    width: auto; padding: 4px 0 0; }
+  /* Totals read as one panel, not a chip per cell. */
+  .drawer-lines tfoot { background: var(--paper); border-radius: 10px; padding: 2px 12px 10px; }
+  .drawer-lines tfoot td { background: transparent; }
+  .drawer-lines tfoot tr.lr-foot-rejected { padding-bottom: 0; }
+
+  .drawer-lines tbody tr.line-sub-adjust { box-shadow: inset 3px 0 0 var(--pine); background: var(--pine-tint); }
+  .gl-adjust-form { grid-template-columns: minmax(0, 1fr); }
+  .gl-adjust-acts { justify-content: flex-end; }
+}
+
+
 /* Settings → Meal allowance (GPS). */
 .mgs-now.off { background: var(--paper); }
 .mgs-now.off .cw-now-label { color: var(--muted); }
