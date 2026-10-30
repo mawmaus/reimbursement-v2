@@ -28,20 +28,6 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
-    id: '2026-10-30.4',
-    date: '2026-10-30',
-    items: [
-      { kind: 'improved', audience: ['superadmin'], text: {
-        en: 'Review mode for Super Admins now covers every pending claim, not only those where you are the named approver: open it from Needs my approval, or from All activities (it follows the list’s filters). Each card shows which stage you are approving.',
-        id: 'Mode tinjau untuk Super Admin kini mencakup semua klaim yang tertunda, bukan hanya yang menunjuk Anda sebagai approver: buka dari Perlu persetujuan saya, atau dari Semua aktivitas (mengikuti filter daftar). Setiap kartu menunjukkan tahap yang Anda setujui.',
-        th: 'โหมดตรวจสำหรับ Super Admin ครอบคลุมคำขอเบิกที่รอทั้งหมดแล้ว ไม่ใช่เฉพาะที่ระบุคุณเป็นผู้อนุมัติ: เปิดได้จาก รอการอนุมัติจากฉัน หรือจาก กิจกรรมทั้งหมด (ตามตัวกรองของรายการ) การ์ดแต่ละใบแสดงขั้นที่คุณกำลังอนุมัติ',
-        vi: 'Chế độ duyệt cho Super Admin giờ bao gồm mọi yêu cầu đang chờ, không chỉ những yêu cầu chỉ định bạn là người duyệt: mở từ Cần tôi duyệt, hoặc từ Tất cả hoạt động (theo bộ lọc của danh sách). Mỗi thẻ cho biết bước bạn đang duyệt.',
-        km: 'របៀបពិនិត្យសម្រាប់ Super Admin ឥឡូវគ្របដណ្តប់ការទាមទារដែលកំពុងរង់ចាំទាំងអស់ មិនមែនតែការទាមទារដែលកំណត់អ្នកជាអ្នកអនុម័តប៉ុណ្ណោះទេ៖ បើកពី ត្រូវការការអនុម័តរបស់ខ្ញុំ ឬពី សកម្មភាពទាំងអស់ (តាមតម្រងរបស់បញ្ជី)។ កាតនីមួយៗបង្ហាញដំណាក់កាលដែលអ្នកកំពុងអនុម័ត។',
-        fil: 'Saklaw na ngayon ng Review mode para sa mga Super Admin ang bawat nakabinbing claim, hindi lang ang mga ikaw ang nakatalagang approver: buksan mula sa Kailangan ng aking pag-apruba, o mula sa Lahat ng aktibidad (sinusunod nito ang mga filter ng listahan). Ipinapakita ng bawat card kung aling yugto ang inaaprubahan mo.'
-      } }
-    ]
-  },
-  {
     id: '2026-10-30.3',
     date: '2026-10-30',
     items: [

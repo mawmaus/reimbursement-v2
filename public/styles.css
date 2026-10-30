@@ -2451,8 +2451,6 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .rv-stamp-no { left: 20px; color: var(--red); transform: rotate(-10deg); opacity: var(--no, 0); }
 .rv-card-top { display: flex; justify-content: space-between; gap: 10px; font-size: .82rem; color: var(--muted); }
 .rv-type { font-weight: 650; color: var(--pine-deep); }
-.rv-stage-pill { margin-top: 4px; }
-.rv-stage-pill .pill { text-transform: none; letter-spacing: 0; font-size: .76rem; font-weight: 650; }
 .rv-no { font-variant-numeric: tabular-nums; }
 .rv-who { margin-top: 8px; font-size: 1.15rem; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
 .rv-amt { font-size: 2.1rem; font-weight: 750; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
