@@ -802,12 +802,13 @@ async function renderBasesTab(editingId = null) {
 }
 
 // --- Customer sites (per region) ------------------------------------------------------
-// Pinned customer locations by DB number. A long list, so it is searched rather
+// Pinned customer locations — by DB number, or by name for a customer with no
+// DB (a GPS meal day is measured to its customer's pin). A long list, so it is searched rather
 // than scrolled: the first CS_SHOWN matches show.
 const CS_SHOWN = 60;
 const csState = { q: '', editing: null };
 const siteFieldsHtml = (id, s) => `
-  <label class="bs-field">${esc(t('DB number'))}<input class="input" id="${id}Db" autocomplete="off" maxlength="22" value="${esc(s.db_no ? 'DB' + s.db_no : '')}" placeholder="DB500222" /></label>
+  <label class="bs-field">${esc(t('DB number (blank if none)'))}<input class="input" id="${id}Db" autocomplete="off" maxlength="22" value="${esc(s.db_no ? 'DB' + s.db_no : '')}" placeholder="DB500222" /></label>
   <label class="bs-field">${esc(t('Customer name'))}<input class="input" id="${id}Name" maxlength="200" value="${esc(s.name || '')}" /></label>
   <label class="bs-field cs-alias">${esc(t('Alias (what technicians call them)'))}<input class="input" id="${id}Alias" maxlength="200" value="${esc(s.alias || '')}" placeholder="${esc(t('e.g. Pak Dhiraj – Sumber Selaras (Menteng)'))}" /></label>
   <label class="bs-field">${esc(t('Coordinates or Google Maps link'))}<input class="input" id="${id}Coords" autocomplete="off" value="${esc(s.lat != null ? `${s.lat}, ${s.lng}` : '')}" placeholder="-6.2088, 106.8456" /></label>
@@ -848,7 +849,7 @@ async function renderCustomerSitesTab() {
       </div>` : `
       <div class="bs-row cs-row" data-id="${x.id}">
         <span class="bs-ic" aria-hidden="true">📌</span>
-        <div class="bs-main"><b>DB${esc(x.db_no)}${x.name ? ' · ' + esc(x.name) : ''}</b>
+        <div class="bs-main"><b>${esc(x.db_no ? 'DB' + x.db_no + (x.name ? ' · ' + x.name : '') : x.name || x.alias)}</b>${x.db_no ? '' : ` <span class="cs-nodb">${esc(t('No DB'))}</span>`}
           ${x.alias ? `<small class="cs-alias-l">${esc(x.alias)}</small>` : ''}
           ${x.address ? `<small class="cs-addr-l">${esc(x.address)}</small>` : ''}
           <span>${esc(`${x.lat}, ${x.lng}`)} · <a href="https://www.google.com/maps?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
@@ -874,7 +875,7 @@ async function renderCustomerSitesTab() {
     }));
     list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
       const x = sites.find(y => y.id === Number(b.dataset.del));
-      if (!confirm(t('Delete the pin for DB{db}?', { db: x.db_no }))) return;
+      if (!confirm(t('Delete the pin for {site}?', { site: siteTitle(x) }))) return;
       try { await api('/customer-sites/' + x.id, { method: 'DELETE' }); done(t('Customer site deleted')); }
       catch (ex) { fail(ex); }
     }));
@@ -899,7 +900,7 @@ function csEditorsHtml(accounts) {
   const eds = accounts.filter(a => a.editor);
   return `<div class="cs-editors">
     <div class="cs-editors-txt"><b>${esc(t('Editors'))}</b>
-      <span>${esc(eds.length ? eds.map(a => a.name).join(', ') : t('Only settings managers edit customer sites.'))}</span>
+      <span>${esc(eds.length ? eds.map(a => a.name).join(', ') : t('Settings managers and managers edit customer sites.'))}</span>
       <small>${esc(t('Editors see Settings with only this tab, and can add, edit and delete pins in this region.'))}</small></div>
     <button type="button" class="btn btn-brand-soft btn-sm" id="csEditors">${esc(t('Choose editors'))}</button>
   </div>`;

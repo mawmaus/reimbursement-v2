@@ -26,7 +26,7 @@ const { claimDateViolation, carriedLineDates } = require('../lib/claim-window');
 const { liveDateChange, dateChangeGranted, consumeDateChange } = require('../lib/date-changes');
 const { logMealHistory } = require('../lib/documents');
 const {
-  RULES, mealGpsMap, mealGpsEnabled, mayRaiseGps, baseView, normaliseGpsLines, datesTakenElsewhere, loadBase
+  RULES, mealGpsMap, mealGpsEnabled, mayRaiseGps, baseView, normaliseGpsLines, datesTakenElsewhere, loadBase, loadRegionSites
 } = require('../lib/meal-gps');
 
 const router = express.Router();
@@ -66,7 +66,7 @@ async function submitGpsMeal(req, res) {
   const base = await loadBase(req.user.id);
   const region = String(req.user.region || '');
   const currency = (await regionPrefsFor(region)).currency;
-  const parsed = normaliseGpsLines(b.lines, base, currency);
+  const parsed = normaliseGpsLines(b.lines, base, currency, { sites: await loadRegionSites(region) });
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
@@ -94,7 +94,7 @@ async function resubmitGpsMeal(req, res, row) {
   const emp = (await q(
     `SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options,
             base_name, base_lat, base_lng FROM users WHERE id = $1`, [row.employee_id]))[0] || {};
-  const parsed = normaliseGpsLines(b.lines, baseView(emp), row.currency);
+  const parsed = normaliseGpsLines(b.lines, baseView(emp), row.currency, { sites: await loadRegionSites(row.region) });
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const grant = await liveDateChange('meal', row.id);
   if (!dateChangeGranted(grant)) {

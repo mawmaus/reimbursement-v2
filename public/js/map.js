@@ -104,6 +104,9 @@ function siteMatches(x, query) {
   const hay = `db${x.db_no} ${x.db_no} ${x.name} ${x.alias || ''} ${x.address}`.toLowerCase();
   return words.every(w => hay.includes(w));
 }
+// How a site is named: "DB500222 · alias", or just the name for a customer
+// with no DB number.
+const siteTitle = (s) => [s.db_no ? 'DB' + s.db_no : '', s.alias || s.name].filter(Boolean).join(' · ');
 // The site a DB field points at ("DB 500222" → the site pinned as 500222), or null.
 const siteForDb = (sites, v) => {
   const d = String(v || '').replace(/\D/g, '');
@@ -138,7 +141,7 @@ function mapSites(layer, points) {
 // A site's popup: DB number, name, address and — given a base — how far it is.
 function sitePopupHtml(s, base, km) {
   const dist = base ? `<br>${sitePopupDist(s, base, km)}` : '';
-  return `<b>DB${esc(s.db_no)}</b>${s.name ? ' · ' + esc(s.name) : ''}${s.alias ? `<br>${esc(s.alias)}` : ''}${s.address ? `<br><span class="map-ll">${esc(s.address)}</span>` : ''}${dist}
+  return `<b>${esc(s.db_no ? 'DB' + s.db_no : s.name || s.alias)}</b>${s.db_no && s.name ? ' · ' + esc(s.name) : ''}${s.alias && (s.db_no || s.name) ? `<br>${esc(s.alias)}` : ''}${s.address ? `<br><span class="map-ll">${esc(s.address)}</span>` : ''}${dist}
     <br><a href="https://www.google.com/maps?q=${encodeURIComponent(s.lat + ',' + s.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a>`;
 }
 function sitePopupDist(s, base, km) {

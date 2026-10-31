@@ -267,8 +267,8 @@ function lineColumns(c) {
   ];
 }
 // --- GPS meal lines -------------------------------------------------------------
-// Columns for a GPS meal claim: the trip, where the claimant was against their
-// base, what the line pays (with the claimed amount when an approver lowered
+// Columns for a GPS meal claim: the trip, the customer site against the
+// claimant's base, what the line pays (with the claimed amount when an approver lowered
 // it), receipts and the optional job details. Amount stays the 4th column.
 const fmtKm = (km) => (Math.round(km * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 });
 function gpsLineColumns(c, dash) {
@@ -276,6 +276,14 @@ function gpsLineColumns(c, dash) {
     ? `<b>${esc(t('Out of town'))}</b><div class="gl-sub">${esc(l.meals.length === 1 ? t('1 meal') : t('{n} meals', { n: l.meals.length }))}: ${l.meals.map(m => esc(money(m, c.currency))).join(' + ')}</div>`
     : `<b>${esc(t('In town'))}</b>`;
   const where = (l) => {
+    if (l.site_ref) {
+      const km = l.distance_km == null ? t('Customer site')
+        : t('{km} km {radius} from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') });
+      const name = [l.site ? dbFmt(l.site) : '', l.site_ref.name].filter(Boolean).join(' · ');
+      return `<b>${withRadius(km)}</b>
+        <div class="gl-sub">${name ? esc(name) + ' · ' : ''}<a href="https://www.google.com/maps?q=${encodeURIComponent(l.site_ref.lat + ',' + l.site_ref.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></div>`;
+    }
+    // Days submitted before the site rule carried the phone's GPS reading.
     if (!l.gps) return dash;
     const fixDay = l.gps.at ? new Intl.DateTimeFormat('en-CA', { timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(l.gps.at)) : '';
     const km = l.distance_km == null ? t('Location recorded')
@@ -673,13 +681,14 @@ function reimbursementBody(c) {
 }
 
 // Body for a meal allowance claim: account/bank details + the line-item table,
-// and for a GPS claim a map of where each line was recorded.
+// and for a GPS claim a map of each line's customer site.
+const gpsLinePoint = (l) => l.site_ref || l.gps;
 function mealBody(c) {
-  const mapped = c.scheme === 'gps' && (c.lines || []).some(l => l.gps);
+  const mapped = c.scheme === 'gps' && (c.lines || []).some(gpsLinePoint);
   return `
     ${paymentCardHtml(c)}
     <div id="drawerLines"></div>
-    ${mapped ? `<div class="section-label">${esc(t('Where each day was recorded'))}</div>
+    ${mapped ? `<div class="section-label">${esc(t('Each day’s customer site'))}</div>
       <div class="d-map map-box" id="drawerMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
       <p class="map-key"><span class="map-key-ring" aria-hidden="true"></span>${withRadius(t('The base and its {min} km {radius}', { min: mgRules().minKm }))}
         <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Numbered in the order of the lines above'))}</p>` : ''}`;
@@ -692,21 +701,22 @@ async function drawGpsClaimMap(c) {
   const map = await makeMap(el);
   if (!map) return;
   const km = mgRules().minKm;
-  const lines = (c.lines || []).filter(l => l.gps);
+  const lines = (c.lines || []).filter(gpsLinePoint);
   const bases = new Map();
   for (const l of lines) if (l.base) bases.set(`${l.base.lat},${l.base.lng}`, l.base);
   const areas = [...bases.values()].map(b => mapBase(map, b, km).area);
   const layer = L.layerGroup().addTo(map);
   mapPins(layer, lines.map(l => {
     const n = c.lines.indexOf(l) + 1;
-    const where = l.distance_km == null ? esc(t('Location recorded'))
+    const p = gpsLinePoint(l);
+    const where = l.distance_km == null ? esc(t('Customer site'))
       : withRadius(t('{km} km {radius} from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') }));
     const trip = l.trip_type === 'out_of_town' ? t('Out of town') : t('In town');
-    return { lat: l.gps.lat, lng: l.gps.lng, n, base: l.base,
+    return { lat: p.lat, lng: p.lng, n, base: l.base,
       bad: l.trip_type === 'in_town' && l.distance_km != null && l.distance_km < km,
-      popup: `<b>${esc(l.line_date)} · ${esc(trip)}</b><br>${where}<br><span class="map-ll">${esc(l.gps.at ? fmtDateTime(l.gps.at) : `${l.gps.lat}, ${l.gps.lng}`)}</span>` };
+      popup: `<b>${esc(l.line_date)} · ${esc(trip)}</b><br>${where}${l.site_ref ? `<br>${esc([l.site ? dbFmt(l.site) : '', l.site_ref.name].filter(Boolean).join(' · '))}` : ''}` };
   }));
-  fitAreas(map, areas.concat(lines.map(l => ringArea(l.gps, 0.5))));
+  fitAreas(map, areas.concat(lines.map(l => ringArea(gpsLinePoint(l), 0.5))));
 }
 
 // Body for a cash advance: account/bank details, the purpose + requested amount,

@@ -466,7 +466,7 @@ async function buildClaimsPdf(claims) {
       ];
       const trip = (l) => l.trip_type === 'out_of_town' ? `Out of town (${l.meals.length} meal${l.meals.length === 1 ? '' : 's'})` : 'In town';
       const where = (l) => l.distance_km == null ? '' : `${(Math.round(l.distance_km * 10) / 10).toFixed(1)} km RADIUS from ${pdfSafe((l.base && l.base.name) || 'base')}`
-        + (l.gps ? ` (${l.gps.lat.toFixed(5)}, ${l.gps.lng.toFixed(5)})` : '');
+        + (l.site_ref ? ` - ${pdfSafe(l.site_ref.name || 'customer site')}` : l.gps ? ` (${l.gps.lat.toFixed(5)}, ${l.gps.lng.toFixed(5)})` : '');
       const amt = (l) => l.approved_amount != null
         ? `${money(l.payable_amount, c.currency)} (claimed ${money(l.amount, c.currency)})` : pdfAmt(l, c);
       const details = (l) => [l.approved_amount != null && l.approved_note ? `Approved by ${l.approved_by}: ${l.approved_note}` : '',

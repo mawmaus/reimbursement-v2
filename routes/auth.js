@@ -105,8 +105,8 @@ async function sessionExtras(u) {
     can_manage_accounts: hasDelegation(u, pos) || reports.size > 0, managed_reports: reports.size,
     can_view_insights: insightsCanView(u, pos),
     sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey,
-    // Named as a customer-site editor (Settings → Customer sites only).
-    customer_sites_editor: mayEditCustomerSites(u, settings)
+    // A named customer-site editor or a manager (Settings → Customer sites only).
+    customer_sites_editor: mayEditCustomerSites(u, settings, pos)
   };
 }
 

@@ -5,38 +5,36 @@
 // (loaded after it; see index.html). Nothing here runs app code at load beyond
 // wiring listeners — js/start.js boots the app once every script is in.
 //
-// One card per day: in town or out of town, where the claimant was (browser
-// GPS, measured against the base on their account), the meal amount(s) and the
-// receipts. Every hint here is a preview; the server re-checks all of it.
+// One card per day: in town or out of town, the customer site visited (by DB
+// number, or picked by name when there is no DB — measured from the base on the
+// account to the site's pin), the meal amount(s) and the receipts. Every hint
+// here is a preview; the server re-checks all of it.
 
 const MG_KIND = 'mealgps';
 const MG_MEALS = ['Breakfast', 'Lunch', 'Dinner'];
 let mgRows = [];
 let mgEditId = null;   // the claim being resubmitted (kept receipts link to it)
-let mgGeo = 'prompt';  // location permission: granted | prompt | denied | unsupported
-let mgSites = [];      // pinned customer sites (Settings → Customer sites), for the DB field's hint
+let mgSites = [];      // pinned customer sites (Settings → Customer sites): what each day is measured to
+let mgSitesReady = false;
 
 const mgCfg = () => (state.user && state.user.meal_gps) || { allowed: false, base: null, rules: null };
 const mgRules = () => {
   const r = mgCfg().rules || {};
   return {
     from: r.effectiveFrom || '2026-11-01', minKm: r.minKm || 30, maxMeals: r.maxMeals || 3,
-    inCap: (r.inTownCapCents || 3500000) / 100, outCap: (r.outOfTownCapCents || 12000000) / 100,
-    maxAcc: r.maxAccuracyM || 1000
+    inCap: (r.inTownCapCents || 3500000) / 100, outCap: (r.outOfTownCapCents || 12000000) / 100
   };
 };
-const mgBlank = () => ({ date: '', trip: '', amount: '', meals: ['', '', ''], site: '', category: '', desc: '', gps: null, files: [], kept: [] });
+const mgBlank = () => ({ date: '', trip: '', amount: '', meals: ['', '', ''], site: '', siteId: null, q: '', category: '', desc: '', files: [], kept: [] });
 const mgMapUrl = (p) => `https://www.google.com/maps?q=${encodeURIComponent(`${p.lat},${p.lng}`)}`;
-// Straight-line distance in km (same formula as the server).
-function mgDistanceKm(a, b) {
-  const rad = (d) => d * Math.PI / 180;
-  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371.0088 * Math.asin(Math.min(1, Math.sqrt(h)));
+const mgKm = kmLabel;
+const mgDbDigits = (r) => String(r.site || '').replace(/\D/g, '');
+// The customer site a day is measured to: the pin of its DB number, or — with
+// no DB — the customer picked by name.
+function mgSiteFor(r) {
+  if (mgDbDigits(r)) return siteForDb(mgSites, r.site);
+  return (r.siteId && mgSites.find(s => s.id === r.siteId)) || null;
 }
-const mgKm = (km) => t('{km} km', { km: (Math.round(km * 10) / 10).toLocaleString(undefined, { maximumFractionDigits: 1 }) });
-// The date a GPS fix was taken, in the region's time zone.
-const mgFixDate = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: regionTimezone(), year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 
 // The word RADIUS — bold and red — wherever a distance from the base shows: the
 // limit is a straight-line radius around the base, not the road distance, and
@@ -44,7 +42,7 @@ const mgFixDate = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: regionTi
 // {radius} slot that t() leaves alone; withRadius escapes it, then fills it.
 const radiusTag = () => `<strong class="radius-tag">${esc(t('RADIUS'))}</strong>`;
 const withRadius = (s) => esc(s).replace('{radius}', radiusTag());
-const radiusNoteHtml = (min) => `<p class="radius-note">${withRadius(t('{radius} — not travel distance. The {min} km is a straight line from the base to where you are, not the road.', { min }))}</p>`;
+const radiusNoteHtml = (min) => `<p class="radius-note">${withRadius(t('{radius} — not travel distance. The {min} km is a straight line from the base to the customer site, not the road.', { min }))}</p>`;
 
 // What one day amounts to and what is wrong with it, for the card and the total.
 function mgCheck(r) {
@@ -52,95 +50,36 @@ function mgCheck(r) {
   const base = mgCfg().base;
   const meals = r.trip === 'out_of_town' ? r.meals.map(mealAmount).filter(n => n > 0) : [];
   const sum = r.trip === 'out_of_town' ? meals.reduce((s, n) => s + n, 0) : mealAmount(r.amount);
-  const km = r.gps && base ? mgDistanceKm(base, r.gps) : null;
-  const errs = [], warns = [];
+  const site = mgSiteFor(r);
+  const km = site && base ? kmBetween(base, site) : null;
+  const errs = [];
   if (r.date && r.date < R.from) errs.push(t('The GPS meal allowance starts on {date}.', { date: R.from }));
   if (!r.trip) errs.push(t('Choose in town or out of town.'));
-  if (!r.gps) errs.push(t('Record your location for this day.'));
-  else if (r.gps.accuracy > R.maxAcc) errs.push(t('Your location is only accurate to {km} — turn on precise location / GPS and record it again.', { km: mgKm(r.gps.accuracy / 1000) }));
+  if (!site && mgSitesReady) {
+    errs.push(mgDbDigits(r)
+      ? t('DB{db} isn’t registered as a customer site yet — ask your manager to register it in Settings → Customer sites.', { db: mgDbDigits(r) })
+      : t('Choose the customer site for this day.'));
+  }
   const tooClose = r.trip === 'in_town' && km != null && km < R.minKm;
-  if (tooClose) errs.push(t('You were {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.', { km: mgKm(km), base: base.name || t('your base'), min: R.minKm }));
+  if (tooClose) errs.push(t('The customer site is {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.', { km: mgKm(km), base: base.name || t('your base'), min: R.minKm }));
   if (r.trip === 'in_town' && !tooClose && sum > R.inCap) errs.push(t('In town is capped at {cap} a day.', { cap: money(R.inCap, regionCurrency()) }));
   if (r.trip === 'out_of_town' && sum > R.outCap) errs.push(t('Out of town is capped at {cap} a day for up to {n} meals.', { cap: money(R.outCap, regionCurrency()), n: R.maxMeals }));
   if (r.trip && !tooClose && !sum) errs.push(r.trip === 'out_of_town' ? t('Enter at least one meal amount.') : t('Enter the meal amount.'));
   if (!(r.files.length + r.kept.length)) errs.push(t('Attach the meal receipt.'));
-  if (r.gps && r.date && r.gps.at && mgFixDate(r.gps.at) !== r.date) {
-    warns.push(t('Location recorded on {date} — approvers see that it wasn’t taken on the day of the meal.', { date: mgFixDate(r.gps.at) }));
-  }
-  return { sum: tooClose ? 0 : sum, km, errs, warns, tooClose };
+  return { sum: tooClose ? 0 : sum, site, km, errs, tooClose };
 }
 // A card counts as filled once anything beyond its (pre-filled) date is in it,
 // and as touched — so its problems show — once the claimant typed or picked
-// something themselves (an automatically recorded location doesn't count).
-const mgTouched = (r) => !!(r.trip || mealAmount(r.amount) || r.meals.some(m => mealAmount(m)) || r.site || r.category || r.desc
+// something themselves.
+const mgFilled = (r) => !!(r.trip || mealAmount(r.amount) || r.meals.some(m => mealAmount(m)) || r.site || r.siteId || r.category || r.desc
   || r.files.length || r.kept.length);
-const mgFilled = (r) => !!(r.trip || mealAmount(r.amount) || r.meals.some(m => mealAmount(m)) || r.site || r.category || r.desc
-  || r.gps || r.files.length || r.kept.length);
-
-// --- Location ---------------------------------------------------------------------
-async function mgWatchPermission() {
-  if (!navigator.geolocation) { mgGeo = 'unsupported'; return; }
-  try {
-    const p = await navigator.permissions.query({ name: 'geolocation' });
-    mgGeo = p.state;
-    p.onchange = () => { mgGeo = p.state; mgPaintGeoBanner(); };
-  } catch { mgGeo = 'prompt'; } // Permissions API missing (older Safari): asking will tell
-}
-function mgPaintGeoBanner() {
-  const box = $('#mgGeoBanner');
-  if (!box) return;
-  const msg = mgGeo === 'denied'
-    ? t('Location is blocked for this site. Turn it on in your browser or phone settings (Allow location → Always / While using) — every day on this claim needs your location.')
-    : mgGeo === 'unsupported' ? t('This browser can’t share your location. Use a phone or browser with location services to claim the GPS meal allowance.') : '';
-  box.hidden = !msg;
-  box.textContent = msg;
-}
-// Record the current position onto day `i`.
-async function mgCapture(i, quiet = false) {
-  const r = mgRows[i];
-  if (!r) return;
-  const btn = $(`#mgDays [data-gps="${i}"]`);
-  if (btn) { btn.disabled = true; btn.textContent = t('Locating…'); }
-  try {
-    const pos = await getPositionOnce({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
-    r.gps = {
-      lat: Math.round(pos.coords.latitude * 1e6) / 1e6, lng: Math.round(pos.coords.longitude * 1e6) / 1e6,
-      accuracy: Math.round(pos.coords.accuracy || 0), at: new Date(pos.timestamp || Date.now()).toISOString()
-    };
-    if (mgGeo !== 'granted') { mgGeo = 'granted'; mgPaintGeoBanner(); }
-  } catch (e) {
-    if (e && e.code === 1) { mgGeo = 'denied'; mgPaintGeoBanner(); }
-    if (!quiet) toast(e && e.code === 1 ? t('Location access was refused — allow it to record where you were.')
-      : t('Couldn’t get your location — move to an open spot and try again.'), true);
-  }
-  mgReadRows(); mgRender();
-}
+const mgTouched = mgFilled;
 
 // --- Cards ------------------------------------------------------------------------
 function mgAmountField(name, value, label, i) {
   return `<label class="mg-amt">${esc(label)}
     <div class="amt-field"><span class="amt-cur">${esc(regionCurrency())}</span>
       <input name="${name}" inputmode="numeric" autocomplete="off" value="${esc(value ? groupAmount(String(value)) : '')}" placeholder="0" data-amt="${i}" /></div></label>`;
-}
-function mgLocationHtml(r, i, chk) {
-  const base = mgCfg().base;
-  if (!r.gps) {
-    return `<div class="mg-loc mg-loc-none">
-      <span class="mg-loc-ic" aria-hidden="true">📍</span>
-      <div class="mg-loc-txt"><b>${esc(t('Location not recorded'))}</b><span>${esc(t('Record it where you had the meal.'))}</span></div>
-      <button type="button" class="btn btn-primary btn-sm" data-gps="${i}">${esc(t('Record my location'))}</button>
-    </div>`;
-  }
-  const cls = chk.tooClose ? 'mg-loc-bad' : 'mg-loc-ok';
-  const dist = chk.km == null ? '' : `<span class="mg-dist">${withRadius(t('{km} {radius} from {base}', { km: mgKm(chk.km), base: (base && base.name) || t('base') }))}</span>`;
-  return `<div class="mg-loc ${cls}">
-    <span class="mg-loc-ic" aria-hidden="true">📍</span>
-    <div class="mg-loc-txt">
-      <b>${dist || esc(t('Location recorded'))}</b>
-      <span>${esc(fmtDateTime(r.gps.at))}${r.gps.accuracy ? ` · ±${esc(String(r.gps.accuracy))}&nbsp;m` : ''} · <a href="${esc(mgMapUrl(r.gps))}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span>
-    </div>
-    <button type="button" class="btn btn-ghost btn-sm" data-gps="${i}">${esc(t('Record again'))}</button>
-  </div>`;
 }
 function mgChips(r, i) {
   const kept = r.kept.map((a, k) =>
@@ -174,7 +113,14 @@ function mgDayHtml(r, i) {
           <button type="button" role="radio" aria-checked="${r.trip === 'out_of_town'}" class="${r.trip === 'out_of_town' ? 'on' : ''}" data-trip="out_of_town" data-row="${i}">${esc(t('Out of town'))}<small>${esc(t('Luar kota'))}</small></button>
         </div></div>
     </div>
-    ${mgLocationHtml(r, i, chk)}
+    <div class="mg-where">
+      <span class="lbl">${esc(t('Customer site'))} <span class="req" aria-hidden="true">*</span></span>
+      <div class="mg-where-row">${dbCellHtml(r.site)}
+        <input class="mg-cust-q" name="mgq" type="search" autocomplete="off" value="${esc(r.q)}" data-q="${i}"
+          placeholder="${esc(t('Search the customer by name or alias'))}" aria-label="${esc(t('Search the customer'))}"
+          ${dbParse(r.site).on || chk.site ? 'hidden' : ''} /></div>
+      <div class="mg-site-wrap" data-site="${i}">${mgSiteHtml(r, chk)}</div>
+    </div>
     ${amounts}
     <div class="mg-receipts">
       <span class="lbl">${esc(t('Receipts'))} <span class="req" aria-hidden="true">*</span></span>
@@ -184,37 +130,44 @@ function mgDayHtml(r, i) {
       <input type="file" class="mg-input" data-input="${i}" multiple hidden accept=".pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif" />
     </div>
     <div class="mg-extra">
-      <label>${esc(t('DB Number Site'))}${dbCellHtml(r.site)}</label>
       <label>${esc(t('Job Category'))}<input name="category" value="${esc(r.category)}" placeholder="${esc(t('Install / Repair / Service…'))}" /></label>
       <label>${esc(t('Additional Description'))}<input name="desc" value="${esc(r.desc)}" placeholder="${esc(t('Surabaya'))}" /></label>
     </div>
-    <div class="mg-site-wrap" data-site="${i}">${mgSiteHtml(r)}</div>
     <div class="mg-msgs" data-msgs="${i}">${mgMsgsHtml(r, chk)}</div>
   </article>`;
 }
-// What the DB number points at: a pinned customer site and how far it is from
-// the base — known before anyone travels. Only a hint: the day is measured
-// from the location recorded there.
-function mgSiteHtml(r) {
-  const site = siteForDb(mgSites, r.site), base = mgCfg().base, R = mgRules();
-  if (!site) {
-    // Quiet while the number is still being typed.
-    const db = String(r.site || '').replace(/\D/g, '');
-    return mgSites.length && db.length >= 6
-      ? `<p class="mg-site mg-site-none">${esc(t('DB{db} has no pin yet — the distance shows once you record your location there.', { db }))}</p>`
-      : '';
+// The site a day is measured to and its distance from the base; with no DB and
+// nothing picked yet, the customers matching the search.
+function mgSiteHtml(r, chk = mgCheck(r)) {
+  const base = mgCfg().base, R = mgRules(), site = chk.site;
+  const hint = (b, sub) => `<div class="mg-site mg-site-none"><span class="mg-site-ic" aria-hidden="true">📌</span>
+    <div class="mg-site-txt"><b>${esc(b)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>`;
+  const ask = t('Not listed? Ask your manager to register the customer in Settings → Customer sites.');
+  if (site) {
+    const dist = chk.km == null ? esc(siteTitle(site))
+      : withRadius(t('Customer site {km} {radius} from {base}', { km: mgKm(chk.km), base: (base && base.name) || t('base') }));
+    const note = chk.km == null ? '' : ' · ' + esc(chk.km < R.minKm
+      ? t('inside {min} km: in-town meals can’t be claimed', { min: R.minKm })
+      : t('{min} km or more: in-town meals can be claimed', { min: R.minKm }));
+    const cls = chk.km == null ? '' : chk.km < R.minKm && r.trip !== 'out_of_town' ? ' mg-site-in' : ' mg-site-out';
+    return `<div class="mg-site${cls}"><span class="mg-site-ic" aria-hidden="true">📌</span>
+      <div class="mg-site-txt"><b>${dist}</b>
+        <span>${chk.km == null ? '' : esc(siteTitle(site))}${note} · <a href="${esc(mgMapUrl(site))}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
+      ${mgDbDigits(r) ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-unpick>${esc(t('Change'))}</button>`}
+    </div>`;
   }
-  // The alias is what technicians call the customer, so it leads when there is one.
-  const where = `DB${esc(site.db_no)}${site.alias || site.name ? ' · ' + esc(site.alias || site.name) : ''}`;
-  if (!base) return `<div class="mg-site"><span class="mg-site-ic" aria-hidden="true">📌</span><div class="mg-site-txt"><b>${where}</b></div></div>`;
-  const km = kmBetween(base, site), inside = km < R.minKm;
-  return `<div class="mg-site ${inside ? 'mg-site-in' : 'mg-site-out'}">
-    <span class="mg-site-ic" aria-hidden="true">📌</span>
-    <div class="mg-site-txt"><b>${withRadius(t('Customer site {km} {radius} from {base}', { km: mgKm(km), base: base.name || t('base') }))}</b>
-      <span>${where} · ${esc(inside
-        ? t('inside {min} km: in-town meals can’t be claimed', { min: R.minKm })
-        : t('{min} km or more: in-town meals can be claimed', { min: R.minKm }))}</span></div>
-  </div>`;
+  if (!mgSitesReady) return hint(t('Loading customer sites…'));
+  const db = mgDbDigits(r);
+  if (db) {
+    return db.length >= 6 ? hint(t('DB{db} isn’t registered as a customer site yet', { db }), t('Ask your manager to register it in Settings → Customer sites.')) : '';
+  }
+  const q = String(r.q || '').trim();
+  if (!q) return hint(t('Search the customer you visited'), ask);
+  const hits = mgSites.filter(x => siteMatches(x, q)).slice(0, 6);
+  if (!hits.length) return hint(t('No customer matches “{q}”', { q }), ask);
+  return `<div class="mg-cust-list" role="listbox" aria-label="${esc(t('Customers'))}">${hits.map(x => `
+    <button type="button" class="mg-cust" role="option" data-pick="${x.id}">
+      <b>${esc(siteTitle(x))}</b>${x.address ? `<small>${esc(x.address)}</small>` : ''}</button>`).join('')}</div>`;
 }
 function mgPaintSite(i) {
   const box = $(`#mgDays [data-site="${i}"]`), r = mgRows[i];
@@ -232,11 +185,9 @@ function mgDateInput(r) {
 }
 // Problems show once the claimant has put something in a day, so a fresh card isn't red.
 function mgMsgsHtml(r, chk) {
-  const errs = mgTouched(r) ? chk.errs : [];
-  return errs.map(m => `<p class="mg-msg mg-msg-err">${withRadius(m)}</p>`).join('')
-    + chk.warns.map(m => `<p class="mg-msg mg-msg-warn">${esc(m)}</p>`).join('');
+  return (mgTouched(r) ? chk.errs : []).map(m => `<p class="mg-msg mg-msg-err">${withRadius(m)}</p>`).join('');
 }
-// Copy the typed fields back into mgRows (gps / files / kept live only there).
+// Copy the typed fields back into mgRows (siteId / files / kept live only there).
 function mgReadRows() {
   $$('#mgDays .mg-day').forEach(card => {
     const r = mgRows[+card.dataset.i]; if (!r) return;
@@ -244,7 +195,7 @@ function mgReadRows() {
     r.date = g('date') || '';
     if (g('amount') != null) r.amount = g('amount');
     [0, 1, 2].forEach(k => { const v = g(`meal${k}`); if (v != null) r.meals[k] = v; });
-    r.site = dbCellRead(card); r.category = g('category') || ''; r.desc = g('desc') || '';
+    r.site = dbCellRead(card); r.q = g('mgq') || ''; r.category = g('category') || ''; r.desc = g('desc') || '';
   });
 }
 function mgTotal() { return mgRows.reduce((s, r) => s + mgCheck(r).sum, 0); }
@@ -273,7 +224,6 @@ function mgRender() {
     mgReadRows(); mgRows[+b.dataset.row].trip = b.dataset.trip; mgRender();
     const f = $(`#mgDays .mg-day[data-i="${b.dataset.row}"] [data-amt]`); if (f) f.focus();
   }));
-  box.querySelectorAll('[data-gps]').forEach(b => b.addEventListener('click', () => { mgReadRows(); mgCapture(+b.dataset.gps); }));
   box.querySelectorAll('[data-amt]').forEach(inp => inp.addEventListener('input', () => {
     inp.value = groupAmount(inp.value); mgReadRows(); mgPaintDay(+inp.dataset.amt);
   }));
@@ -295,8 +245,18 @@ function mgRender() {
     mgReadRows(); (b.dataset.chip === 'kept' ? r.kept : r.files).splice(+b.dataset.k, 1); mgRender();
   }));
   wireDbCells('#mgDays');
-  box.querySelectorAll('.mg-day .db-num, .mg-day .db-mode').forEach(inp => inp.addEventListener(inp.matches('select') ? 'change' : 'input', () => {
-    mgReadRows(); mgPaintSite(+inp.closest('.mg-day').dataset.i); mgPaintMap();
+  // The site box, sum, messages and map follow the DB number / search as it is
+  // typed; switching DB ↔ no DB re-renders the card (the search box shows or hides).
+  box.querySelectorAll('.mg-day .db-num, .mg-cust-q').forEach(inp => inp.addEventListener('input', () => {
+    const i = +inp.closest('.mg-day').dataset.i;
+    mgReadRows(); mgPaintSite(i); mgPaintDay(i); mgPaintMap();
+  }));
+  box.querySelectorAll('.mg-day .db-mode').forEach(sel => sel.addEventListener('change', () => {
+    const i = +sel.closest('.mg-day').dataset.i;
+    mgReadRows(); mgRender();
+    const card = $(`#mgDays .mg-day[data-i="${i}"]`);
+    const next = card && card.querySelector(sel.value === 'yes' ? '.db-num' : '.mg-cust-q:not([hidden])');
+    if (next) next.focus();
   }));
   mgPaintMap();
 }
@@ -317,20 +277,19 @@ function mgBaseHtml() {
       <li>${withRadius(t('In town, within {min} km {radius}: not claimable', { min: R.minKm }))}</li>
       <li>${withRadius(t('In town, {min} km {radius} or more: up to {cap} a day', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</li>
       <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: R.maxMeals, cap: money(R.outCap, regionCurrency()) }))}</li>
-      <li>${esc(t('Every day needs your location and its receipt'))}</li>
+      <li>${esc(t('Every day needs the customer site and its receipt'))}</li>
     </ul>
   </div>
   <div class="mg-map-wrap">
     <div class="mg-map map-box" id="mgMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
     <p class="map-key"><span class="map-key-ring" aria-hidden="true"></span>${withRadius(t('Your base and its {min} km {radius}', { min: R.minKm }))}
-      <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Where each day was recorded (numbered by day)'))}
-      <span class="map-key-site big" aria-hidden="true"></span>${esc(t('The customer site of a day’s DB number'))}</p>
+      <span class="map-key-pin" aria-hidden="true"></span>${esc(t('Each day’s customer site (numbered by day)'))}</p>
   </div>`;
 }
 
-// --- Map: the base, its ring and each day's recorded location (js/map.js) ----------
+// --- Map: the base, its ring and each day's customer site (js/map.js) -------------
 // Made once per form; mgRender repaints the pins. The view refits only when a
-// location changes, so switching a trip type doesn't move the map.
+// site changes, so switching a trip type doesn't move the map.
 let mgMap = null;
 async function mgInitMap() {
   mgMap = null;
@@ -339,7 +298,7 @@ async function mgInitMap() {
   const map = await makeMap(el);
   if (!map || el !== $('#mgMap')) return;
   mapBase(map, base, mgRules().minKm);
-  mgMap = { map, el, sites: L.layerGroup().addTo(map), layer: L.layerGroup().addTo(map), sig: null };
+  mgMap = { map, el, layer: L.layerGroup().addTo(map), sig: null };
   mgPaintMap();
 }
 function mgPaintMap() {
@@ -347,29 +306,22 @@ function mgPaintMap() {
   const base = mgCfg().base, R = mgRules();
   const points = [];
   mgRows.forEach((r, i) => {
-    if (!r.gps) return;
     const chk = mgCheck(r);
-    const where = chk.km == null ? esc(t('Location recorded'))
-      : withRadius(t('{km} {radius} from {base}', { km: mgKm(chk.km), base: base.name || t('base') }));
-    points.push({ lat: r.gps.lat, lng: r.gps.lng, n: i + 1, base, bad: chk.tooClose,
-      popup: `<b>${esc(t('Day {n}', { n: i + 1 }))}${r.date ? ' · ' + esc(r.date) : ''}</b><br>${where}<br><span class="map-ll">${esc(fmtDateTime(r.gps.at))}</span>` });
+    if (!chk.site) return;
+    const s = chk.site;
+    points.push({ lat: s.lat, lng: s.lng, n: i + 1, base, bad: chk.tooClose,
+      popup: `<b>${esc(t('Day {n}', { n: i + 1 }))}${r.date ? ' · ' + esc(r.date) : ''}</b><br>${sitePopupHtml(s, base, R.minKm)}` });
   });
   mapPins(mgMap.layer, points);
-  // The customer sites the days' DB numbers point at.
-  const seen = new Set();
-  const sites = mgRows.map(r => siteForDb(mgSites, r.site)).filter(s => s && !seen.has(s.id) && seen.add(s.id))
-    .map(s => ({ lat: s.lat, lng: s.lng, big: true, base, popup: sitePopupHtml(s, base, R.minKm) }));
-  mapSites(mgMap.sites, sites);
-  const all = points.concat(sites);
-  const sig = all.map(p => `${p.lat},${p.lng}`).join('|');
+  const sig = points.map(p => `${p.lat},${p.lng}`).join('|');
   if (sig !== mgMap.sig) {
     mgMap.sig = sig;
-    fitAreas(mgMap.map, [ringArea(base, R.minKm), ...all.map(p => ringArea(p, 0.5))]);
+    fitAreas(mgMap.map, [ringArea(base, R.minKm), ...points.map(p => ringArea(p, 0.5))]);
   }
 }
 // Fields of one day as a draft (files go to IndexedDB separately).
 const mgDraftRow = (r) => ({ date: r.date, trip: r.trip, amount: r.amount, meals: r.meals.slice(), site: r.site,
-  category: r.category, desc: r.desc, gps: r.gps });
+  siteId: r.siteId, category: r.category, desc: r.desc });
 function collectMealGpsDraft() {
   mgReadRows();
   if (!mgRows.some(mgFilled)) return null;
@@ -390,26 +342,24 @@ async function openMealGpsModal(existing = null) {
       while (meals.length < 3) meals.push('');
       return {
         date: l.line_date, trip: l.trip_type || '', amount: l.trip_type === 'in_town' ? String(Math.round(l.amount)) : '',
-        meals, site: l.site || '', category: l.job_category || '', desc: l.description || '',
-        gps: l.gps ? { lat: l.gps.lat, lng: l.gps.lng, accuracy: l.gps.accuracy_m, at: l.gps.at } : null,
+        meals, site: l.site || '', siteId: (l.site_ref && l.site_ref.id) || null, q: '', category: l.job_category || '', desc: l.description || '',
         files: [], kept: (l.attachments || []).slice(), carried: !claimDateUnlocked()
       };
     });
   } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
     const files = (await loadDraftFiles(MG_KIND)) || [];
-    mgRows = draft.data.rows.map((d, i) => ({ ...mgBlank(), ...d, meals: (d.meals || ['', '', '']).slice(0, 3), files: files[i] || [], kept: [] }));
+    mgRows = draft.data.rows.map((d, i) => ({ ...mgBlank(), ...d, gps: undefined, meals: (d.meals || ['', '', '']).slice(0, 3), files: files[i] || [], kept: [] }));
   } else {
     // Today, once the GPS form is in force.
     mgRows = [{ ...mgBlank(), date: todayWIB() >= mgRules().from ? todayWIB() : '' }];
   }
   if (!mgRows.length) mgRows = [mgBlank()];
-  await mgWatchPermission();
-  // The sites arrive after the form opens; the hints and map fill in then.
+  // The sites arrive after the form opens; the site boxes and map fill in then.
+  mgSitesReady = false;
   loadCustomerSites().then(list => {
-    mgSites = list;
+    mgSites = list; mgSitesReady = true;
     if (!$('#mgDays')) return;
-    mgRows.forEach((r, i) => mgPaintSite(i));
-    mgPaintMap();
+    mgReadRows(); mgRender();
   });
   const base = mgCfg().base;
   openModal(`
@@ -420,9 +370,8 @@ async function openMealGpsModal(existing = null) {
         <p class="form-error" id="mgError" hidden></p>
         <div class="meal-scroll">
           ${mgBaseHtml()}
-          <p class="form-note caution mg-geo" id="mgGeoBanner" hidden></p>
           <section class="lf-sec">
-            ${linesSectionHead(t('Days'), t('One card per day. Record your location where you eat — it is measured against your base — and attach the receipt.'))}
+            ${linesSectionHead(t('Days'), t('One card per day. Name the customer site you went to — the distance is measured from your base to its pin — and attach the receipt.'))}
             <div id="mgDays" class="mg-days"></div>
             <button type="button" class="lf-add" id="mgAddDay">${esc(t('+ Add another day'))}</button>
             <div id="claimDateBox"></div>
@@ -444,10 +393,23 @@ async function openMealGpsModal(existing = null) {
     mgReadRows(); mgRows.push(mgBlank()); mgRender();
     const i = mgRows.length - 1;
     const card = $(`#mgDays .mg-day[data-i="${i}"]`); if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (mgGeo === 'granted') mgCapture(i, true);
+  });
+  // Picking a customer from a day's search list, or dropping it to search again.
+  $('#mgDays').addEventListener('click', (e) => {
+    const pick = e.target.closest('[data-pick]'), unpick = e.target.closest('[data-unpick]');
+    if (!pick && !unpick) return;
+    const i = +e.target.closest('.mg-day').dataset.i, r = mgRows[i];
+    mgReadRows();
+    if (pick) {
+      const s = mgSites.find(x => x.id === +pick.dataset.pick);
+      if (!s) return;
+      r.siteId = s.id; r.q = '';
+      if (s.db_no) r.site = dbCombine(true, s.db_no); // a customer with a DB number is claimed under it
+    } else r.siteId = null;
+    mgRender();
+    if (unpick) { const q = $(`#mgDays .mg-day[data-i="${i}"] .mg-cust-q`); if (q) q.focus(); }
   });
   $('#mgForm').addEventListener('submit', e => submitMealGps(e, existing));
-  mgPaintGeoBanner();
   renderClaimDateBox();
   mgRender();
   mgInitMap();
@@ -456,9 +418,6 @@ async function openMealGpsModal(existing = null) {
     $('#mgSaveDraft').addEventListener('click', () => saveDraftAndClose(MG_KIND, collectMealGpsDraft, collectMealGpsFiles));
     armDraftAutosave(MG_KIND, collectMealGpsDraft, collectMealGpsFiles);
     if (draft) wireDraftBanner(MG_KIND, () => openMealGpsModal());
-    // "Allow GPS all the time": with access already granted, today's card
-    // records where the claimant is straight away.
-    if (!draft && mgGeo === 'granted') mgCapture(0, true);
   }
 }
 
@@ -491,7 +450,7 @@ async function submitMealGps(e, existing) {
     for (const r of rows) {
       const uploaded = r.files.length ? await uploadReceipts(r.files) : [];
       lines.push({
-        date: r.date, trip_type: r.trip, site: r.site, category: r.category, desc: r.desc, gps: r.gps,
+        date: r.date, trip_type: r.trip, site: r.site, site_id: mgDbDigits(r) ? null : r.siteId, category: r.category, desc: r.desc,
         amount: r.trip === 'in_town' ? mealAmount(r.amount) : 0,
         meals: r.trip === 'out_of_town' ? r.meals.map(mealAmount).filter(n => n > 0) : [],
         attachments: uploaded, keep_attachment_ids: r.kept.map(a => a.id)

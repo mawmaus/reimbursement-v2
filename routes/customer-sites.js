@@ -3,15 +3,16 @@
 // Customer sites (Settings → Customer sites): pinned customer locations by DB
 // number. Everyone reads their region's list — the GPS meal form and the bases
 // map use it to show how far a site is from a base before anyone goes there.
-// Settings managers keep it, and so do the people they name as editors. A preview only: a GPS day is still measured from
-// where the claimant actually recorded their location.
+// Settings managers keep it, so do the people they name as editors and anyone
+// ranked Manager or above. A GPS meal day is measured from the base to its
+// customer's pin, so a customer with no DB number is pinned too (db_no '').
 
 const express = require('express');
 const { q } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, asIntArray } = require('../lib/util');
 const { resolveLookupRegion, seesAllRegions, loadAppSettings, setAppSetting } = require('../lib/settings');
-const { userCan, customerSiteEditors, mayEditCustomerSites } = require('../lib/permissions');
+const { userCan, customerSiteEditors, mayEditCustomerSites, loadPositions } = require('../lib/permissions');
 const { parseCoords } = require('../lib/meal-gps');
 
 const router = express.Router();
@@ -23,10 +24,11 @@ const dbDigits = (v) => String(v == null ? '' : v).replace(/\D/g, '').slice(0, 2
 
 function parseSiteInput(b) {
   const db_no = dbDigits(b.db_no);
-  if (!db_no) return { error: 'Enter the DB number' };
+  const name = String(b.name || '').trim().slice(0, 200), alias = String(b.alias || '').trim().slice(0, 200);
+  if (!db_no && !name && !alias) return { error: 'Enter the DB number, or the customer’s name when they have none' };
   const ll = parseCoords(b.coords);
   if (!ll) return { error: 'Site location: paste coordinates like "-6.2088, 106.8456" or a Google Maps link' };
-  return { site: { db_no, name: String(b.name || '').trim().slice(0, 200), alias: String(b.alias || '').trim().slice(0, 200), address: String(b.address || '').trim().slice(0, 500), lat: ll.lat, lng: ll.lng } };
+  return { site: { db_no, name, alias, address: String(b.address || '').trim().slice(0, 500), lat: ll.lat, lng: ll.lng } };
 }
 async function loadSiteOr404(req, res) {
   const s = (await q('SELECT * FROM customer_sites WHERE id = $1', [Number(req.params.id) || 0]))[0];
@@ -37,9 +39,10 @@ async function loadSiteOr404(req, res) {
   return s;
 }
 const dupe = (e) => e && e.code === '23505';
-// Settings managers, plus the people named in customer_site_editors.
+// Settings managers, the people named in customer_site_editors, and managers.
 const requireSiteEditor = ah(async (req, res, next) => {
-  if (mayEditCustomerSites(req.user, await loadAppSettings())) return next();
+  const [settings, pos] = await Promise.all([loadAppSettings(), loadPositions(req.user.region)]);
+  if (mayEditCustomerSites(req.user, settings, pos)) return next();
   res.status(403).json({ error: 'You don’t have permission to edit customer sites' });
 });
 
@@ -48,7 +51,7 @@ router.get('/api/customer-sites', requireAuth, ah(async (req, res) => {
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   let rows;
   try {
-    rows = await q(`SELECT * FROM customer_sites ${region ? 'WHERE region = $1' : ''} ORDER BY db_no`, region ? [region] : []);
+    rows = await q(`SELECT * FROM customer_sites ${region ? 'WHERE region = $1' : ''} ORDER BY db_no = '', db_no, lower(name)`, region ? [region] : []);
   } catch (e) {
     // Before the migration the table doesn't exist yet: no sites, not an error.
     if (e && e.code === '42P01') rows = []; else throw e;

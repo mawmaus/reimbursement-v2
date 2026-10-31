@@ -718,10 +718,20 @@ const SCHEMA = [
     lng        DOUBLE PRECISION NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_sites_region_db ON customer_sites(region, db_no)`,
+  // A customer with no DB number is pinned too (db_no ''), so only real DB
+  // numbers are unique per region (2026-10-31).
+  `DROP INDEX IF EXISTS idx_customer_sites_region_db`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_sites_region_dbno ON customer_sites(region, db_no) WHERE db_no <> ''`,
   // The name technicians call the customer by ("Pak Dhiraj – Sumber Selaras (Menteng, Jakarta)"),
   // searched alongside the formal name.
   `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS alias TEXT NOT NULL DEFAULT ''`,
+  // GPS meal days are measured to the customer site (2026-10-31), not the
+  // phone's location: the site the day named (by DB number or picked) and a
+  // snapshot of its name and pin. distance_m is then base → site.
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_id   INTEGER`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_lat  DOUBLE PRECISION`,
+  `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_lng  DOUBLE PRECISION`,
   // --- Saved drafts (2026-10-30) ------------------------------------------------------
   // An unsent New claim / meal / GPS meal / cash advance form, one per account and
   // form type, so a draft survives the browser clearing its storage (Safari drops

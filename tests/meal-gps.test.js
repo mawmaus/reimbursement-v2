@@ -1,6 +1,6 @@
 'use strict';
 
-// GPS meal allowance (lib/meal-gps.js): the distance and cap rules, reading
+// GPS meal allowance (lib/meal-gps.js): the distance (base → customer site) and cap rules, reading
 // pasted base coordinates, and who may change a line's approved amount —
 // the last through the real app over the in-memory stand-in (_app.js).
 const test = require('node:test');
@@ -12,11 +12,16 @@ const { normaliseGpsLines, parseCoords, distanceMeters, parseBaseInput, RULES } 
 const BASE = { name: 'Jakarta office', lat: -6.1754, lng: 106.8272 };
 const BOGOR = { lat: -6.5971, lng: 106.8060 };
 const KEMANG = { lat: -6.2607, lng: 106.8137 };
-const NOW = Date.parse('2026-11-05T10:00:00Z');
-const gpsAt = (p) => ({ ...p, accuracy: 15, at: '2026-11-04T05:00:00Z' });
+// Customer sites: Bogor pinned as DB500222, Kemang as DB500333, and a customer
+// in Bogor with no DB number (picked by id).
+const SITES = [
+  { id: 1, db_no: '500222', name: 'PT Bogor', alias: '', ...BOGOR },
+  { id: 2, db_no: '500333', name: 'PT Kemang', alias: '', ...KEMANG },
+  { id: 3, db_no: '', name: 'Toko Sumber', alias: 'Pak Dhiraj', ...BOGOR }
+];
 const receipt = [{ url: 'https://x.private.blob.vercel-storage.com/r.jpg', original_name: 'r.jpg' }];
-const line = (props) => ({ date: '2026-11-04', trip_type: 'in_town', amount: 30000, gps: gpsAt(BOGOR), attachments: receipt, ...props });
-const run = (lines) => normaliseGpsLines(lines, BASE, 'IDR', { now: NOW });
+const line = (props) => ({ date: '2026-11-04', trip_type: 'in_town', amount: 30000, site: 'DB 500222', attachments: receipt, ...props });
+const run = (lines) => normaliseGpsLines(lines, BASE, 'IDR', { sites: SITES });
 
 test('distance is the straight line from the base', () => {
   const km = distanceMeters(BASE, BOGOR) / 1000;
@@ -25,16 +30,17 @@ test('distance is the straight line from the base', () => {
 });
 
 test('in town under 30 km is refused; 30 km or more is capped at 35,000 a day', () => {
-  assert.match(run([line({ gps: gpsAt(KEMANG) })]).error, /RADIUS \(straight line, not road distance\).*within 30 km can't be claimed/);
+  assert.match(run([line({ site: 'DB 500333' })]).error, /customer site is .* RADIUS \(straight line, not road distance\).*within 30 km can't be claimed/);
   const ok = run([line({ amount: 35000 })]);
   assert.equal(ok.error, undefined);
   assert.equal(ok.totalCents, 3500000);
   assert.ok(ok.lines[0].distance_m > 40000);
+  assert.equal(ok.lines[0].site_id, 1);
   assert.match(run([line({ amount: 35001 })]).error, /capped at IDR 35,000 a day/);
 });
 
 test('out of town: up to three meals, 120,000 a day in total, at any distance', () => {
-  const ok = run([line({ trip_type: 'out_of_town', gps: gpsAt(KEMANG), meals: [30000, 40000, 50000] })]);
+  const ok = run([line({ trip_type: 'out_of_town', site: 'DB 500333', meals: [30000, 40000, 50000] })]);
   assert.equal(ok.error, undefined);
   assert.equal(ok.totalCents, 12000000);
   assert.deepEqual(JSON.parse(ok.lines[0].meals), [3000000, 4000000, 5000000]);
@@ -42,10 +48,20 @@ test('out of town: up to three meals, 120,000 a day in total, at any distance', 
   assert.match(run([line({ trip_type: 'out_of_town', meals: [1, 1, 1, 1] })]).error, /at most 3 meals/);
 });
 
-test('every day needs its date on or after 1 Nov 2026, a location, a receipt and is claimed once', () => {
+test('a day is measured to its DB number’s pin, or the customer picked when there is no DB', () => {
+  const picked = run([line({ site: '', site_id: 3 })]);
+  assert.equal(picked.error, undefined);
+  assert.equal(picked.lines[0].site_id, 3);
+  assert.equal(picked.lines[0].site_name, 'Pak Dhiraj');
+  assert.match(run([line({ site: 'DB 599999' })]).error, /DB599999 isn't registered .* ask your manager/);
+  assert.match(run([line({ site: '' })]).error, /choose the customer .* ask your manager/);
+  assert.match(run([line({ site: '', site_id: 99 })]).error, /choose the customer/);
+  // A DB number wins over a stale pick.
+  assert.match(run([line({ site: 'DB 500333', site_id: 1 })]).error, /within 30 km/);
+});
+
+test('every day needs its date on or after 1 Nov 2026, a site, a receipt and is claimed once', () => {
   assert.match(run([line({ date: '2026-10-31' })]).error, /starts on 2026-11-01/);
-  assert.match(run([line({ gps: null })]).error, /record your location/);
-  assert.match(run([line({ gps: { ...BOGOR, accuracy: 5000, at: '2026-11-04T05:00:00Z' } })]).error, /only accurate to/);
   assert.match(run([line({ attachments: [] })]).error, /attach the meal receipt/);
   assert.match(run([line(), line()]).error, /one line per day/);
   assert.match(normaliseGpsLines([line()], null, 'IDR').error, /no base location/);
@@ -106,4 +122,16 @@ test('a GPS claim cannot be raised where the form is switched off', async (t) =>
   const r = await call(CLAIMANT, 'POST', '/api/meal-claims', { scheme: 'gps', lines: [] });
   assert.equal(r.status, 403);
   assert.match(r.json.error, /not switched on/);
+});
+
+test('managers and above may register customer sites; staff may not', () => {
+  const { mayEditCustomerSites } = require('../lib/permissions');
+  const pos = new Map([['general manager', 5], ['manager', 7], ['supervisor', 10], ['staff', 13]]
+    .map(([name, rank]) => [name, { name, rank, can_manage: true }]));
+  const who = (position, extra = {}) => ({ id: 77, role: 'user', position, caps: {}, ...extra });
+  assert.equal(mayEditCustomerSites(who('Manager'), {}, pos), true);
+  assert.equal(mayEditCustomerSites(who('General Manager'), {}, pos), true);
+  assert.equal(mayEditCustomerSites(who('Supervisor'), {}, pos), false);
+  assert.equal(mayEditCustomerSites(who('Staff'), { customer_site_editors: '[77]' }, pos), true, 'a named editor');
+  assert.equal(mayEditCustomerSites(who('Staff', { caps: { manage_settings: true } }), {}, pos), true);
 });

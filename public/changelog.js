@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-31.4',
+    date: '2026-10-31',
+    items: [
+      { kind: 'improved', audience: ['meal', 'settings'], text: {
+        en: 'GPS meal allowance: no more recording your phone’s location. Each day names the customer site — by its DB number, or by searching the customer’s name when there is no DB — and the distance is measured from your base to that site’s pin. If a customer isn’t listed, ask your manager: managers can now register customer sites (with or without a DB number) in Settings → Customer sites.',
+        id: 'Uang makan GPS: tidak perlu lagi merekam lokasi ponsel. Setiap hari menyebutkan lokasi pelanggan — lewat nomor DB, atau cari nama pelanggan jika tidak ada DB — dan jaraknya diukur dari base Anda ke pin lokasi tersebut. Jika pelanggan tidak ada di daftar, hubungi manajer Anda: manajer kini dapat mendaftarkan lokasi pelanggan (dengan atau tanpa nomor DB) di Pengaturan → Lokasi pelanggan.',
+        th: 'ค่าอาหาร GPS: ไม่ต้องบันทึกตำแหน่งโทรศัพท์อีกต่อไป แต่ละวันระบุสถานที่ลูกค้า — ด้วยหมายเลข DB หรือค้นหาชื่อลูกค้าเมื่อไม่มี DB — และวัดระยะทางจากฐานของคุณถึงหมุดของสถานที่นั้น หากไม่มีลูกค้าในรายการ ให้ติดต่อผู้จัดการ: ตอนนี้ผู้จัดการลงทะเบียนสถานที่ลูกค้า (มีหรือไม่มีหมายเลข DB) ได้ใน การตั้งค่า → สถานที่ลูกค้า',
+        vi: 'Phụ cấp ăn GPS: không cần ghi vị trí điện thoại nữa. Mỗi ngày ghi địa điểm khách hàng — theo số DB, hoặc tìm tên khách hàng khi không có DB — và khoảng cách được đo từ cơ sở của bạn đến ghim của địa điểm đó. Nếu khách hàng không có trong danh sách, hãy hỏi quản lý: quản lý giờ có thể đăng ký địa điểm khách hàng (có hoặc không có số DB) trong Cài đặt → Địa điểm khách hàng.',
+        km: 'ប្រាក់អាហារ GPS៖ លែងត្រូវកត់ត្រាទីតាំងទូរស័ព្ទទៀតហើយ។ ថ្ងៃនីមួយៗបញ្ជាក់ទីតាំងអតិថិជន — តាមលេខ DB ឬស្វែងរកឈ្មោះអតិថិជននៅពេលគ្មាន DB — ហើយចម្ងាយត្រូវបានវាស់ពីមូលដ្ឋានរបស់អ្នកទៅម្ជុលនៃទីតាំងនោះ។ ប្រសិនបើអតិថិជនមិនមានក្នុងបញ្ជី សូមសួរអ្នកគ្រប់គ្រង៖ ឥឡូវអ្នកគ្រប់គ្រងអាចចុះឈ្មោះទីតាំងអតិថិជន (មាន ឬគ្មានលេខ DB) នៅក្នុង ការកំណត់ → ទីតាំងអតិថិជន។',
+        fil: 'GPS meal allowance: hindi na kailangang i-record ang lokasyon ng phone. Bawat araw ay nagsasabi ng site ng customer — sa DB number nito, o hanapin ang pangalan ng customer kung walang DB — at sinusukat ang layo mula sa iyong base hanggang sa pin ng site na iyon. Kung wala sa listahan ang customer, magtanong sa iyong manager: maaari na ngayong magrehistro ang mga manager ng site ng customer (may DB number man o wala) sa Settings → Customer sites.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-31.3',
     date: '2026-10-31',
     items: [

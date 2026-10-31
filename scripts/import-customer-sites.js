@@ -42,7 +42,7 @@ async function main() {
   for (const s of sites) {
     await sql.query(
       `INSERT INTO customer_sites (region, db_no, name, alias, address, lat, lng) VALUES ($1,$2,$3,$4,$5,$6,$7)
-       ON CONFLICT (region, db_no) DO UPDATE SET name = EXCLUDED.name, alias = EXCLUDED.alias, address = EXCLUDED.address, lat = EXCLUDED.lat, lng = EXCLUDED.lng`,
+       ON CONFLICT (region, db_no) WHERE db_no <> '' DO UPDATE SET name = EXCLUDED.name, alias = EXCLUDED.alias, address = EXCLUDED.address, lat = EXCLUDED.lat, lng = EXCLUDED.lng`,
       [s.region, s.db_no, s.name, s.alias, s.address, s.lat, s.lng]);
     if (++n % 50 === 0) console.log(`  ${n}…`);
   }
