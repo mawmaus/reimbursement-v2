@@ -238,7 +238,6 @@ I18N.addDict('km', {
   'Meal Allowance Claim Form': 'ទម្រង់សំណើប្រាក់ឧបត្ថម្ភអាហារ',
   // Drafts (save / reopen an unsent form)
   'Save draft': 'រក្សាទុកសេចក្ដីព្រាង',
-  'Start fresh': 'ចាប់ផ្ដើមថ្មី',
   'Picked up from your saved draft.': 'បន្តពីសេចក្ដីព្រាងដែលបានរក្សាទុករបស់អ្នក។',
   'Nothing to save yet — fill in the form first.': 'មិនទាន់មានអ្វីត្រូវរក្សាទុកទេ — សូមបំពេញទម្រង់សិន។',
   'DB 500 309': 'DB 500 309',
@@ -1350,6 +1349,9 @@ I18N.addDict('km', {
   'This draft is too large to save': 'សេចក្ដីព្រាងនេះធំពេកមិនអាចរក្សាទុកបាន',
   'File not found': 'រកមិនឃើញឯកសារ',
   'You have too many drafts — submit or delete some first': 'អ្នកមានសេចក្ដីព្រាងច្រើនពេក — សូមដាក់ស្នើ ឬលុបខ្លះជាមុនសិន',
+  'Delete draft': 'លុបសេចក្ដីព្រាង',
+  'Delete this draft? This cannot be undone.': 'លុបសេចក្ដីព្រាងនេះ? មិនអាចត្រឡប់វិញបានទេ។',
+  'Draft deleted': 'បានលុបសេចក្ដីព្រាង',
   'A draft can hold at most 100 receipts': 'សេចក្ដីព្រាងមួយអាចមានបង្កាន់ដៃច្រើនបំផុត 100',
   // Receipt thumbnails + viewer (claim detail)
   'Receipt': 'វិក្កយបត្រ',

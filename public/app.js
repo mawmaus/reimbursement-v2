@@ -1882,8 +1882,14 @@ function renderClaims() {
       openDrawer(el.dataset.id, el.dataset.type);
     };
     el.addEventListener('click', open);
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } });
   });
+  // A draft row's delete button deletes it instead of opening it.
+  $$('[data-draft-del]', wrap).forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const row = b.closest('.draft-row');
+    deleteDraftRow(row.dataset.draft, row.dataset.draftId);
+  }));
   // Checkboxes must not open the drawer; they only drive the selection.
   $$('.col-check', wrap).forEach(cell => cell.addEventListener('click', e => e.stopPropagation()));
   $$('.row-check', wrap).forEach(cb => cb.addEventListener('change', () => {

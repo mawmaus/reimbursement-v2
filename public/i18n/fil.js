@@ -238,7 +238,6 @@ I18N.addDict('fil', {
   'Meal Allowance Claim Form': 'Form ng Claim para sa Meal Allowance',
   // Drafts (save / reopen an unsent form)
   'Save draft': 'I-save ang draft',
-  'Start fresh': 'Magsimula muli',
   'Picked up from your saved draft.': 'Ipinagpatuloy mula sa iyong naka-save na draft.',
   'Nothing to save yet — fill in the form first.': 'Wala pang mai-save — punan muna ang form.',
   'DB 500 309': 'DB 500 309',
@@ -1350,6 +1349,9 @@ I18N.addDict('fil', {
   'This draft is too large to save': 'Masyadong malaki ang draft na ito para i-save',
   'File not found': 'Hindi nahanap ang file',
   'You have too many drafts — submit or delete some first': 'Masyadong marami na ang draft mo — isumite o burahin muna ang ilan',
+  'Delete draft': 'Burahin ang draft',
+  'Delete this draft? This cannot be undone.': 'Burahin ang draft na ito? Hindi na ito maibabalik.',
+  'Draft deleted': 'Nabura ang draft',
   'A draft can hold at most 100 receipts': 'Hanggang 100 resibo lang ang kasya sa isang draft',
   // Receipt thumbnails + viewer (claim detail)
   'Receipt': 'Resibo',

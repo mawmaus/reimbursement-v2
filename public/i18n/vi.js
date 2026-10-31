@@ -238,7 +238,6 @@ I18N.addDict('vi', {
   'Meal Allowance Claim Form': 'Mẫu yêu cầu phụ cấp ăn',
   // Drafts (save / reopen an unsent form)
   'Save draft': 'Lưu bản nháp',
-  'Start fresh': 'Bắt đầu lại',
   'Picked up from your saved draft.': 'Tiếp tục từ bản nháp đã lưu của bạn.',
   'Nothing to save yet — fill in the form first.': 'Chưa có gì để lưu — hãy điền vào biểu mẫu trước.',
   'DB 500 309': 'DB 500 309',
@@ -1350,6 +1349,9 @@ I18N.addDict('vi', {
   'This draft is too large to save': 'Bản nháp này quá lớn để lưu',
   'File not found': 'Không tìm thấy tệp',
   'You have too many drafts — submit or delete some first': 'Bạn có quá nhiều bản nháp — hãy gửi hoặc xóa bớt trước',
+  'Delete draft': 'Xóa bản nháp',
+  'Delete this draft? This cannot be undone.': 'Xóa bản nháp này? Không thể hoàn tác.',
+  'Draft deleted': 'Đã xóa bản nháp',
   'A draft can hold at most 100 receipts': 'Một bản nháp chứa tối đa 100 hóa đơn',
   // Receipt thumbnails + viewer (claim detail)
   'Receipt': 'Hóa đơn',

@@ -151,7 +151,7 @@ async function openMealAllowanceModal(existing = null, reclaim = null) {
     }
     $('#mealSaveDraft').addEventListener('click', () => saveDraftAndClose('meal', collectMealDraft));
     armDraftAutosave('meal', collectMealDraft);
-    if (draft) wireDraftBanner('meal', () => openMealAllowanceModal());
+    if (draft) wireDraftBanner('meal');
   }
 }
 // Gather the meal form's typed fields into a draft payload, or null when empty.

@@ -1004,9 +1004,10 @@ input[type="search"] { min-width: 220px; }
   margin: 0 0 14px; padding: 10px 14px; border-radius: 12px;
   background: var(--pine-tint); border: 1px solid var(--amber-tint); }
 .draft-banner-txt { flex: 1 1 auto; font-size: .85rem; font-weight: 560; color: var(--amber); min-width: 0; }
-.draft-discard { flex: none; border: none; background: transparent; padding: 4px 8px; border-radius: 8px;
-  font: inherit; font-size: .82rem; font-weight: 650; color: var(--pine-deep); cursor: pointer; }
-.draft-discard:hover { background: var(--veil-hi); text-decoration: underline; }
+.draft-discard { flex: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  border: 1px solid var(--red-tint); background: transparent; padding: 5px 10px; border-radius: 8px;
+  font: inherit; font-size: .82rem; font-weight: 650; color: var(--red); cursor: pointer; }
+.draft-discard:hover { background: var(--red-tint); }
 
 /* "Draft waiting" dot on a New… button whose form has an unsent saved draft. */
 .btn.has-draft { position: relative; }
@@ -1017,6 +1018,10 @@ input[type="search"] { min-width: 220px; }
 .row-spine.draft { background: repeating-linear-gradient(var(--amber) 0 6px, transparent 6px 10px); }
 .pill.pill-draft { color: var(--amber); background: var(--amber-tint); }
 .ledger-row.draft-row .col-no { font-size: .8rem; color: var(--muted); }
+.ledger-row.draft-row .col-status { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.draft-row-del { flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.draft-row-del:hover, .draft-row-del:focus-visible { color: var(--red); background: var(--red-tint); border-color: var(--red-tint); }
 /* Phone cards have room to say what that date is. */
 @media (max-width: 720px) { .ledger-row.draft-row .col-no::before { content: attr(data-label) " "; } }
 .modal-flex .meal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }

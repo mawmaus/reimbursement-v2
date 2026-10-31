@@ -417,7 +417,7 @@ async function openMealGpsModal(existing = null) {
     if (draft && draft.data.approver1) { const sel = $('#mgForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1; }
     $('#mgSaveDraft').addEventListener('click', () => saveDraftAndClose(MG_KIND, collectMealGpsDraft, collectMealGpsFiles));
     armDraftAutosave(MG_KIND, collectMealGpsDraft, collectMealGpsFiles);
-    if (draft) wireDraftBanner(MG_KIND, () => openMealGpsModal());
+    if (draft) wireDraftBanner(MG_KIND);
   }
 }
 

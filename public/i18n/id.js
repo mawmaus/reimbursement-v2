@@ -251,7 +251,6 @@ I18N.addDict('id', {
   'Meal Allowance Claim Form': 'Formulir Klaim Tunjangan Makan',
   // Drafts (save / reopen an unsent form)
   'Save draft': 'Simpan draf',
-  'Start fresh': 'Mulai baru',
   'Picked up from your saved draft.': 'Dilanjutkan dari draf tersimpan Anda.',
   'Nothing to save yet — fill in the form first.': 'Belum ada yang bisa disimpan — isi formulir dulu.',
   'DB 500 309': 'DB 500 309',
@@ -1373,6 +1372,9 @@ I18N.addDict('id', {
   'This draft is too large to save': 'Draf ini terlalu besar untuk disimpan',
   'File not found': 'File tidak ditemukan',
   'You have too many drafts — submit or delete some first': 'Draf Anda terlalu banyak — kirim atau hapus sebagian dulu',
+  'Delete draft': 'Hapus draf',
+  'Delete this draft? This cannot be undone.': 'Hapus draf ini? Tindakan ini tidak bisa dibatalkan.',
+  'Draft deleted': 'Draf dihapus',
   'A draft can hold at most 100 receipts': 'Satu draf maksimal berisi 100 kuitansi',
   // Receipt thumbnails + viewer (claim detail)
   'Receipt': 'Bukti',

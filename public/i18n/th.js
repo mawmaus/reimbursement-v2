@@ -238,7 +238,6 @@ I18N.addDict('th', {
   'Meal Allowance Claim Form': 'แบบฟอร์มเบิกค่าอาหาร',
   // Drafts (save / reopen an unsent form)
   'Save draft': 'บันทึกฉบับร่าง',
-  'Start fresh': 'เริ่มใหม่',
   'Picked up from your saved draft.': 'ดำเนินการต่อจากฉบับร่างที่บันทึกไว้',
   'Nothing to save yet — fill in the form first.': 'ยังไม่มีอะไรให้บันทึก — กรุณากรอกแบบฟอร์มก่อน',
   'DB 500 309': 'DB 500 309',
@@ -1350,6 +1349,9 @@ I18N.addDict('th', {
   'This draft is too large to save': 'ฉบับร่างนี้ใหญ่เกินกว่าจะบันทึกได้',
   'File not found': 'ไม่พบไฟล์',
   'You have too many drafts — submit or delete some first': 'คุณมีฉบับร่างมากเกินไป — ส่งหรือลบบางรายการก่อน',
+  'Delete draft': 'ลบฉบับร่าง',
+  'Delete this draft? This cannot be undone.': 'ลบฉบับร่างนี้หรือไม่? ไม่สามารถย้อนกลับได้',
+  'Draft deleted': 'ลบฉบับร่างแล้ว',
   'A draft can hold at most 100 receipts': 'ฉบับร่างหนึ่งมีใบเสร็จได้ไม่เกิน 100 ใบ',
   // Receipt thumbnails + viewer (claim detail)
   'Receipt': 'ใบเสร็จ',

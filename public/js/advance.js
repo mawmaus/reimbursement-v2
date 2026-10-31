@@ -116,7 +116,7 @@ function openAdvanceRequestModal(existing = null) {
     }
     $('#advSaveDraft').addEventListener('click', () => saveDraftAndClose('advance', collectAdvanceDraft, collectAdvanceDocFiles));
     armDraftAutosave('advance', collectAdvanceDraft, collectAdvanceDocFiles);
-    if (draft) wireDraftBanner('advance', () => openAdvanceRequestModal());
+    if (draft) wireDraftBanner('advance');
     // Bring the draft's documents back from IndexedDB (they are already PDFs,
     // so nothing is re-converted) and redraw the chips once they land.
     if (draft) loadDraftFiles('advance').then(perRow => {

@@ -450,7 +450,7 @@ function openCalcModal(rowIndex) {
 // the form is closed by its × / the scrim / Escape while it has content (the
 // mis-click case). Pressing "Cancel" is treated as a deliberate discard, and a
 // successful submit clears the draft. A reopened form shows a banner with a
-// "Start fresh" option to drop the draft.
+// "Delete draft" option; each draft's row in My claims has a delete button too.
 //
 // The browser copy alone is not enough: Safari wipes a site's storage after 7
 // days unused, and a draft never followed the account to another device. So
@@ -544,10 +544,14 @@ function saveDraftData(kind, data, rowsFiles) {
   refreshDraftBadges();
   queueDraftSync(kind, id, () => pushDraft(kind, id, savedAt, data, rowsFiles || []));
 }
-// Drop the open form's draft (Start fresh, emptied and closed, submitted).
+// Drop the open form's draft (Delete draft, emptied and closed, submitted).
 function clearDraft(kind) {
   const id = activeId(kind);
-  if (id == null || !loadDraft(kind, id)) return; // a new form never saved: nothing to drop
+  if (id != null) dropDraft(kind, id);
+}
+// Drop one draft, here and on the server.
+function dropDraft(kind, id) {
+  if (!loadDraft(kind, id)) return; // a new form never saved: nothing to drop
   clearLocalDraft(kind, id);
   setServerDraft(kind, id, null);
   queueDraftSync(kind, id, () => api(`/drafts/${kind}?id=${id}`, { method: 'DELETE' }));
@@ -754,7 +758,8 @@ function draftRowsHtml() {
       <span class="col-date mono">${esc(s.date) || '—'}</span>
       <span class="col-paid mono">—</span>
       <span class="col-amt">${s.amount ? esc(money(s.amount, regionCurrency())) : '—'}</span>
-      <span class="col-status"><span class="pill pill-draft">${esc(t('Draft'))}</span></span>
+      <span class="col-status"><span class="pill pill-draft">${esc(t('Draft'))}</span>
+        <button type="button" class="draft-row-del" data-draft-del aria-label="${esc(t('Delete draft'))}" title="${esc(t('Delete draft'))}">${TRASH_ICON}</button></span>
     </div>`;
   }).join('');
 }
@@ -764,24 +769,42 @@ function openDraft(kind, id) {
   const btn = $(DRAFT_BTN[kind]);
   if (!btn || btn.hidden) return toast(t('This form is not available on your account right now.'), true);
   if (btn.disabled) return toast(btn.title || t('This form is not available on your account right now.'), true);
+  // Left for the form to pick up: the meal forms open asynchronously (they
+  // fetch the meal rates first), so this can't be cleared right after the click.
   draftToOpen = { kind, id: id || '' };
   btn.click();
-  draftToOpen = null; // never carried over to a later New
+}
+// A real click on a New button always starts a new draft, so drop any draft a
+// row asked for that its form never picked up (openDraft's click is synthetic).
+for (const sel of Object.values(DRAFT_BTN)) {
+  const b = $(sel);
+  if (b) b.addEventListener('click', e => { if (e.isTrusted) draftToOpen = null; }, true);
 }
 
 // The banner shown at the top of a form that was reopened from a saved draft.
 // `note` is an optional extra line (used to remind claim drafts to re-attach
 // receipts).
+const TRASH_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 function draftBannerHtml(note) {
   return `<div class="draft-banner" id="draftBanner">
     <span class="draft-banner-txt">📝 ${esc(t('Picked up from your saved draft.'))}${note ? ' ' + esc(note) : ''}</span>
-    <button type="button" class="draft-discard" id="draftDiscard">${esc(t('Start fresh'))}</button>
+    <button type="button" class="draft-discard" id="draftDiscard">${TRASH_ICON}<span>${esc(t('Delete draft'))}</span></button>
   </div>`;
 }
-// Wire the banner's "Start fresh": drop this draft and reopen the form empty.
-function wireDraftBanner(kind, reopen) {
+// Wire the banner's "Delete draft": after a confirm, drop this draft and close the form.
+function wireDraftBanner(kind) {
   const b = $('#draftDiscard'); if (!b) return;
-  b.addEventListener('click', () => { clearDraft(kind); modalCloseHook = null; reopen(); });
+  b.addEventListener('click', () => {
+    if (!confirm(t('Delete this draft? This cannot be undone.'))) return;
+    clearDraft(kind); modalCloseHook = null; closeModal();
+    toast(t('Draft deleted'));
+  });
+}
+// Delete a draft straight from its row in My claims.
+function deleteDraftRow(kind, id) {
+  if (!confirm(t('Delete this draft? This cannot be undone.'))) return;
+  dropDraft(kind, id || '');
+  toast(t('Draft deleted'));
 }
 // Auto-save on an accidental close (×, scrim, Escape). `collect` returns the
 // draft data, or null when the form is effectively empty (nothing worth saving).
@@ -806,7 +829,7 @@ function saveDraftAndClose(kind, collect, collectFiles) {
 }
 // "Cancel" closes without saving. On a form reopened from a saved draft it
 // drops only this visit's changes: the draft stays in My claims as it was
-// (deleting it is "Start fresh"). On a new form there is no draft to keep.
+// (deleting it is "Delete draft"). On a new form there is no draft to keep.
 function discardDraftAndClose(kind) {
   if (!(activeDraft && activeDraft.kind === kind && activeDraft.opened)) clearDraft(kind);
   modalCloseHook = null; closeModal();
@@ -896,7 +919,7 @@ function openClaimModal(existing = null, reclaim = null) {
     const collect = collectClaimDraft;
     $('#rcSaveDraft').addEventListener('click', () => saveDraftAndClose('claim', collect, collectClaimFiles));
     armDraftAutosave('claim', collect, collectClaimFiles);
-    if (draft) wireDraftBanner('claim', () => openClaimModal());
+    if (draft) wireDraftBanner('claim');
     // Re-hydrate the draft's receipts from IndexedDB back onto their rows, then
     // re-render so the file chips reappear. Async, so the modal shows instantly.
     if (draft) loadDraftFiles('claim').then(perRow => {
