@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-31.2',
+    date: '2026-10-31',
+    items: [
+      { kind: 'fixed', audience: ['claim'], text: {
+        en: 'Opening New claim and closing it without filling anything in no longer leaves an empty draft in My claims.',
+        id: 'Membuka Klaim baru lalu menutupnya tanpa mengisi apa pun tidak lagi meninggalkan draf kosong di Klaim saya.',
+        th: 'การเปิดการเบิกใหม่แล้วปิดโดยไม่ได้กรอกอะไร จะไม่ทิ้งฉบับร่างว่างไว้ในการเบิกของฉันอีกต่อไป',
+        vi: 'Mở Yêu cầu mới rồi đóng lại mà không điền gì sẽ không còn để lại bản nháp trống trong Yêu cầu của tôi.',
+        km: 'ការបើកសំណើថ្មី ហើយបិទវាវិញដោយមិនបានបំពេញអ្វីសោះ លែងបន្សល់សេចក្ដីព្រាងទទេនៅក្នុង សំណើរបស់ខ្ញុំ ទៀតហើយ។',
+        fil: 'Ang pagbukas ng Bagong claim at pagsara nito nang walang pinupunan ay hindi na nag-iiwan ng walang-lamang draft sa Aking mga claim.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-31.1',
     date: '2026-10-31',
     items: [

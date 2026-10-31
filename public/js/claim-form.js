@@ -961,7 +961,9 @@ function collectClaimDraft() {
     line_date: r.line_date || '', db_no: r.db_no || '', expense_type: r.expense_type || '',
     expense_type_other: r.expense_type_other || '', amount: r.amount || '', description: r.description || ''
   }));
-  const typed = rows.some(r => r.line_date || r.db_no || r.expense_type || r.expense_type_other || r.amount || r.description);
+  // The date is left out: a new form pre-fills today's, so counting it would turn
+  // every untouched open-and-close into an empty draft (meal-gps does the same).
+  const typed = rows.some(r => r.db_no || r.expense_type || r.expense_type_other || r.amount || r.description);
   // A row with only a receipt attached (no typed fields yet) is still worth
   // keeping — otherwise the auto-save on close would silently drop it.
   const hasFiles = claimRows.some(r => (r.files || []).length);
