@@ -64,7 +64,8 @@ app.use((req, res, next) => {
 // Content-Security-Policy. The frontend is same-origin only: its own scripts
 // (app.js, reset.js, vendor/pdf-lib) and styles, fetches to /api, and images
 // served from this origin (plus data:/blob: for client-generated PDFs, and
-// OpenStreetMap tiles for the Settings → Bases map). Inline
+// OpenStreetMap tiles for the Settings → Bases map). Large receipt uploads
+// also need the Blob SDK's presigned PUT endpoint. Inline
 // styles are still used in the markup, so style-src allows 'unsafe-inline';
 // scripts do not, so script-src stays strict ('self' with no inline).
 // On Vercel the pages are served by the CDN, not this function, so the same
@@ -79,7 +80,7 @@ const CSP = [
   "font-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self'",
-  "connect-src 'self'"
+  "connect-src 'self' https://vercel.com/api/blob/"
 ].join('; ');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

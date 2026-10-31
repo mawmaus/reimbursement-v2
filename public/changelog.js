@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-31.1',
+    date: '2026-10-31',
+    items: [
+      { kind: 'fixed', audience: ['claim', 'meal', 'advance'], text: {
+        en: 'Large receipts upload again. A PDF over 4 MB could fail to attach because the browser blocked the upload; it now goes through. Receipts whose file names contain emoji also download reliably.',
+        id: 'Kuitansi berukuran besar bisa diunggah lagi. PDF di atas 4 MB sebelumnya bisa gagal dilampirkan karena unggahannya diblokir browser; kini berhasil. Kuitansi yang nama filenya berisi emoji juga kini bisa diunduh dengan baik.',
+        th: 'อัปโหลดใบเสร็จขนาดใหญ่ได้อีกครั้ง ไฟล์ PDF ที่ใหญ่กว่า 4 MB อาจแนบไม่สำเร็จเพราะเบราว์เซอร์บล็อกการอัปโหลด ตอนนี้แนบได้แล้ว ใบเสร็จที่ชื่อไฟล์มีอีโมจิก็ดาวน์โหลดได้อย่างถูกต้องเช่นกัน',
+        vi: 'Đã tải lên được hóa đơn dung lượng lớn trở lại. Tệp PDF trên 4 MB trước đây có thể không đính kèm được vì trình duyệt chặn việc tải lên; giờ đã thành công. Hóa đơn có tên tệp chứa biểu tượng cảm xúc cũng tải xuống ổn định.',
+        km: 'អាចផ្ទុកឡើងបង្កាន់ដៃធំៗបានវិញហើយ។ ឯកសារ PDF ធំជាង 4 MB អាចភ្ជាប់មិនបាន ដោយសារកម្មវិធីរុករកបានរារាំងការផ្ទុកឡើង ឥឡូវវាដំណើរការហើយ។ បង្កាន់ដៃដែលឈ្មោះឯកសារមានរូបអារម្មណ៍ ក៏អាចទាញយកបានត្រឹមត្រូវដែរ។',
+        fil: 'Naa-upload na ulit ang malalaking resibo. Puwedeng hindi maikabit ang PDF na lampas 4 MB dahil hinaharangan ng browser ang upload; gumagana na ito ngayon. Maayos na ring nada-download ang mga resibong may emoji sa pangalan ng file.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-30.4',
     date: '2026-10-30',
     items: [

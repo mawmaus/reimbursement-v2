@@ -80,3 +80,13 @@ test('error handler: an error after the response started is handed to Express', 
   assert.equal(r.aborted, true, 'Express cuts the connection so the client sees an incomplete download');
   assert.doesNotMatch(r.body, /Something went wrong/);
 });
+
+test('error handler: an exposed error after streaming starts is forwarded unchanged', () => {
+  const err = httpError(409, 'Storage conflict');
+  let forwarded;
+  errorHandler(err, { method: 'GET', originalUrl: '/streamed-conflict' }, {
+    headersSent: true,
+    status() { assert.fail('must not attempt a second response'); }
+  }, e => { forwarded = e; });
+  assert.equal(forwarded, err);
+});

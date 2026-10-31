@@ -161,6 +161,7 @@ test('a receipt download streams and keeps its real file name', async (t) => {
   t.mock.method(blob, 'openReceipt', async () => ({ body: new Response('receipt-bytes').body, length: '13' }));
   const app = express();
   app.get('/r', (req, res, next) => sendReceipt(res, { blob_url: 'https://x', mime_type: 'application/pdf', original_name: "Kwitansi Maret (Ø's).pdf" }).catch(next));
+  app.get('/truncated-name', (req, res, next) => sendReceipt(res, { blob_url: 'https://x', mime_type: 'application/pdf', original_name: 'Receipt\ud83d' }).catch(next));
   const s = http.createServer(app).listen(0, '127.0.0.1');
   await new Promise(r => s.once('listening', r));
   t.after(() => s.close());
@@ -171,4 +172,10 @@ test('a receipt download streams and keeps its real file name', async (t) => {
   assert.equal(r.res.headers['content-type'], 'application/pdf');
   assert.equal(r.res.headers['content-disposition'],
     `inline; filename="Kwitansi Maret (_'s).pdf"; filename*=UTF-8''Kwitansi%20Maret%20%28%C3%98%27s%29.pdf`);
+  const truncated = await new Promise((resolve, reject) => http.get(`http://127.0.0.1:${s.address().port}/truncated-name`, res => {
+    let body = ''; res.on('data', c => { body += c; }); res.on('end', () => resolve({ res, body }));
+  }).on('error', reject));
+  assert.equal(truncated.res.statusCode, 200);
+  assert.equal(truncated.body, 'receipt-bytes');
+  assert.match(truncated.res.headers['content-disposition'], /filename\*=UTF-8''Receipt%EF%BF%BD$/);
 });

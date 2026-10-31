@@ -25,7 +25,12 @@
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "esbuild": "^0.24.2",
+    "esbuild": "^0.25.12",
     "pdf-lib": "^1.17.1"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.6"
+    }
   }
 }
