@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-31.5',
+    date: '2026-10-31',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Claim lists now scroll with the whole page instead of inside a small box, so far more claims fit on screen — especially on phones. The column titles stay pinned at the top as you scroll, and once you tick claims their actions (Download PDF and the rest) float at the bottom of the screen.',
+        id: 'Daftar klaim kini bergulir bersama seluruh halaman, bukan di dalam kotak kecil, sehingga jauh lebih banyak klaim muat di layar — terutama di ponsel. Judul kolom tetap di atas saat Anda menggulir, dan setelah Anda mencentang klaim, tindakannya (Unduh PDF dan lainnya) mengambang di bagian bawah layar.',
+        th: 'รายการเบิกเลื่อนไปพร้อมทั้งหน้าแล้ว แทนการเลื่อนในกล่องเล็ก จึงแสดงรายการได้มากขึ้นมาก — โดยเฉพาะบนโทรศัพท์ หัวคอลัมน์จะค้างอยู่ด้านบนขณะเลื่อน และเมื่อคุณติ๊กเลือกรายการ ปุ่มคำสั่ง (ดาวน์โหลด PDF และอื่นๆ) จะลอยอยู่ด้านล่างของหน้าจอ',
+        vi: 'Danh sách yêu cầu giờ cuộn cùng cả trang thay vì trong một khung nhỏ, nên hiển thị được nhiều yêu cầu hơn hẳn — nhất là trên điện thoại. Tiêu đề cột luôn ghim ở trên khi cuộn, và khi bạn đánh dấu yêu cầu, các thao tác (Tải PDF và các nút khác) nổi ở cuối màn hình.',
+        km: 'ឥឡូវបញ្ជីសំណើរំកិលជាមួយទំព័រទាំងមូល ជំនួសឱ្យការរំកិលក្នុងប្រអប់តូច ដូច្នេះសំណើច្រើនជាងមុនឆ្ងាយអាចបង្ហាញលើអេក្រង់ — ជាពិសេសនៅលើទូរស័ព្ទ។ ចំណងជើងជួរឈរនៅជាប់ខាងលើពេលអ្នករំកិល ហើយពេលអ្នកធីកជ្រើសសំណើ សកម្មភាពរបស់វា (ទាញយក PDF និងផ្សេងទៀត) អណ្តែតនៅខាងក្រោមអេក្រង់។',
+        fil: 'Gumagalaw na ngayon ang listahan ng mga claim kasama ang buong page sa halip na sa loob ng maliit na kahon, kaya mas maraming claim ang kasya sa screen — lalo na sa phone. Nananatili sa itaas ang mga pamagat ng column habang nag-i-scroll, at kapag nag-tick ka ng mga claim, lumulutang sa ibaba ng screen ang mga aksyon nito (I-download ang PDF at iba pa).'
+      } }
+    ]
+  },
+  {
     id: '2026-10-31.4',
     date: '2026-10-31',
     items: [
