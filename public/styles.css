@@ -3758,6 +3758,46 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .mg-day { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; border: 1px solid var(--line);
   border-radius: 12px; background: var(--surface); }
 .mg-day.has-err { border-color: var(--red-line); }
+/* GPS meal day checklist (js/meal-gps.js): five parts, ticked as they are done. */
+.mg-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: -4px 0 0; }
+.mg-step-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mg-step { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--paper); font: inherit; font-size: .8rem; font-weight: 600; color: var(--ink-soft);
+  white-space: nowrap; cursor: pointer; }
+.mg-step:hover { border-color: var(--pine); color: var(--pine-deep); }
+.mg-step:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-ring); }
+.mg-step-n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--line); font-size: .72rem; font-weight: 800; color: var(--muted); }
+.mg-step.done { border-color: transparent; background: var(--green-tint); color: var(--green); }
+.mg-step.done .mg-step-n { background: var(--green); box-shadow: none; color: var(--on-accent); }
+.mg-step-left { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.mg-step-list.all-done + .mg-step-left { color: var(--green); }
+/* The header's Guide button. */
+.lf-guide-btn { flex: none; margin-left: auto; white-space: nowrap; }
+.lf-guide-btn span { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--pine-tint); color: var(--pine-deep); font-size: .74rem; font-weight: 800; }
+.lf-modal-head .lf-guide-btn + .x-btn { margin-left: 0; }
+/* Step-by-step guide (js/guide.js): a lit hole over one element, a bubble beside it. */
+.guide-block { position: fixed; inset: 0; z-index: 90; }
+.guide-hole { position: fixed; z-index: 91; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--pine), 0 0 0 9999px var(--scrim);
+  transition: top .25s ease, left .25s ease, width .25s ease, height .25s ease; }
+.guide-bubble { position: fixed; z-index: 92; box-sizing: border-box; padding: 14px 16px 12px; border-radius: 14px;
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow-md), 0 0 0 1px var(--line);
+  transition: top .25s ease, left .25s ease; }
+.guide-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.guide-count { font-size: .76rem; font-weight: 700; color: var(--pine-deep); }
+.guide-skip { border: 0; background: none; padding: 2px 0; font: inherit; font-size: .78rem; color: var(--muted); cursor: pointer; }
+.guide-skip:hover { color: var(--ink); text-decoration: underline; }
+.guide-title { margin: 0 0 6px; font-size: 1rem; }
+.guide-text { font-size: .87rem; line-height: 1.5; color: var(--ink-soft); }
+.guide-text p { margin: 0 0 6px; }
+.guide-dots { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 10px; }
+.guide-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.guide-dots span.done { background: var(--pine-tint-hi); }
+.guide-dots span.on { width: 16px; border-radius: 3px; background: var(--pine); }
+.guide-acts { display: flex; justify-content: flex-end; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .guide-hole, .guide-bubble { transition: none; } }
 .mg-day-head { display: flex; align-items: center; gap: 10px; margin: -2px 0 -2px; }
 .mg-day-n { font-weight: 700; color: var(--ink); }
 .mg-day-sum { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 650; color: var(--ink-soft); }

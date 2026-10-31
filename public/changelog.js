@@ -28,6 +28,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-31.6',
+    date: '2026-10-31',
+    items: [
+      { kind: 'new', audience: ['meal'], text: {
+        en: 'The GPS meal allowance form now shows you how to fill it in. The first time you open it, a step-by-step guide walks through each part — date, trip, customer site, amount and receipt — and the Guide button replays it any time. Every day card also has a checklist that turns green as you complete each part, so nothing gets missed.',
+        id: 'Formulir tunjangan makan GPS kini menunjukkan cara mengisinya. Saat pertama kali dibuka, panduan langkah demi langkah menjelaskan setiap bagian — tanggal, perjalanan, lokasi customer, jumlah, dan struk — dan tombol Panduan bisa memutarnya lagi kapan saja. Setiap kartu hari juga punya daftar periksa yang berubah hijau saat tiap bagian selesai, jadi tidak ada yang terlewat.',
+        th: 'แบบฟอร์มค่าอาหาร GPS แสดงวิธีกรอกแล้ว เมื่อเปิดครั้งแรก คำแนะนำทีละขั้นตอนจะพาไปทีละส่วน — วันที่ การเดินทาง สถานที่ลูกค้า จำนวนเงิน และใบเสร็จ — และปุ่ม คำแนะนำ เปิดดูซ้ำได้ทุกเมื่อ การ์ดแต่ละวันยังมีรายการตรวจสอบที่เปลี่ยนเป็นสีเขียวเมื่อกรอกแต่ละส่วนเสร็จ จึงไม่พลาดอะไร',
+        vi: 'Biểu mẫu phụ cấp ăn GPS giờ chỉ bạn cách điền. Lần đầu mở, hướng dẫn từng bước sẽ đi qua từng phần — ngày, chuyến đi, địa điểm khách hàng, số tiền và hóa đơn — và nút Hướng dẫn cho xem lại bất cứ lúc nào. Mỗi thẻ ngày cũng có danh sách kiểm tra chuyển xanh khi bạn hoàn thành từng phần, nên không bỏ sót gì.',
+        km: 'ទម្រង់ប្រាក់អាហារ GPS ឥឡូវបង្ហាញពីរបៀបបំពេញ។ ពេលបើកលើកដំបូង ការណែនាំមួយជំហានម្តងៗនឹងនាំអ្នកឆ្លងកាត់ផ្នែកនីមួយៗ — កាលបរិច្ឆេទ ការធ្វើដំណើរ ទីតាំងអតិថិជន ចំនួនទឹកប្រាក់ និងវិក្កយបត្រ — ហើយប៊ូតុង ការណែនាំ អាចមើលម្តងទៀតបានគ្រប់ពេល។ កាតថ្ងៃនីមួយៗក៏មានបញ្ជីត្រួតពិនិត្យដែលប្រែពណ៌បៃតងពេលអ្នកបំពេញផ្នែកនីមួយៗរួច ដូច្នេះគ្មានអ្វីខកខានទេ។',
+        fil: 'Ipinapakita na ng GPS meal allowance form kung paano ito punan. Sa unang pagbukas, dadaan ang step-by-step na gabay sa bawat bahagi — petsa, biyahe, site ng customer, halaga at resibo — at mauulit ito anumang oras gamit ang button na Gabay. May checklist din ang bawat card ng araw na nagiging berde habang tinatapos mo ang bawat bahagi, kaya walang makakaligtaan.'
+      } },
+      { kind: 'fixed', audience: ['claim', 'meal'], text: {
+        en: 'The “No DB” option (no DB number) was mistranslated as “DB number” in Thai, Vietnamese, Khmer and Filipino. It now reads correctly.',
+        id: 'Pilihan “No DB” kini bertuliskan “Tanpa DB” agar jelas artinya tidak ada nomor DB.',
+        th: 'ตัวเลือก “No DB” (ไม่มีหมายเลข DB) เคยแปลผิดเป็น “เลข DB” ตอนนี้แสดงเป็น “ไม่มี DB” อย่างถูกต้องแล้ว',
+        vi: 'Lựa chọn “No DB” (không có số DB) trước đây bị dịch sai thành “Số DB”. Giờ đã hiển thị đúng là “Không có DB”.',
+        km: 'ជម្រើស “No DB” (គ្មានលេខ DB) ធ្លាប់បកប្រែខុសជា “លេខ DB”។ ឥឡូវបង្ហាញត្រឹមត្រូវជា “គ្មាន DB” ហើយ។',
+        fil: 'Ang opsyong “No DB” (walang DB number) ay dating maling naisalin bilang “DB No”. Tama na itong nakasulat na “Walang DB”.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-31.5',
     date: '2026-10-31',
     items: [

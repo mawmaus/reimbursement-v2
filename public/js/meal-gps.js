@@ -105,6 +105,7 @@ function mgDayHtml(r, i) {
       <span class="mg-day-sum" data-sum="${i}">${chk.sum ? esc(money(chk.sum, regionCurrency())) : ''}</span>
       <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button>
     </header>
+    <div class="mg-steps" data-steps="${i}">${mgStepsHtml(r, chk)}</div>
     <div class="mg-row">
       <label class="mg-date">${reqLabel(t('Date'))}${mgDateInput(r)}</label>
       <div class="mg-trip"><span class="lbl">${esc(t('Trip'))} <span class="req" aria-hidden="true">*</span></span>
@@ -136,6 +137,40 @@ function mgDayHtml(r, i) {
     <div class="mg-msgs" data-msgs="${i}">${mgMsgsHtml(r, chk)}</div>
   </article>`;
 }
+// --- The day checklist --------------------------------------------------------------
+// Five things every day needs, ticked off as they are filled so none is missed.
+// A tap jumps to that field. Done = what the server will accept for that part.
+function mgStepState(r, chk) {
+  const R = mgRules();
+  const capOk = r.trip === 'in_town' ? chk.sum > 0 && chk.sum <= R.inCap && !chk.tooClose
+    : r.trip === 'out_of_town' ? chk.sum > 0 && chk.sum <= R.outCap : false;
+  return [
+    { key: 'date', label: t('Date'), done: !!r.date && r.date >= R.from },
+    { key: 'trip', label: t('Trip'), done: !!r.trip },
+    { key: 'site', label: t('Customer'), done: !!chk.site && !chk.tooClose },
+    { key: 'amount', label: t('Amount'), done: capOk },
+    { key: 'receipt', label: t('Receipt'), done: r.files.length + r.kept.length > 0 }
+  ];
+}
+function mgStepsHtml(r, chk = mgCheck(r)) {
+  const steps = mgStepState(r, chk);
+  const left = steps.filter(s => !s.done).length;
+  return `<ol class="mg-step-list${left ? '' : ' all-done'}" aria-label="${esc(t('What this day still needs'))}">${steps.map((s, k) => `
+      <li><button type="button" class="mg-step${s.done ? ' done' : ''}" data-step="${s.key}">
+        <span class="mg-step-n" aria-hidden="true">${s.done ? '✓' : k + 1}</span>${esc(s.label)}</button></li>`).join('')}</ol>
+    <span class="mg-step-left">${esc(left ? (left === 1 ? t('1 step left') : t('{n} steps left', { n: left })) : t('Day complete'))}</span>`;
+}
+// Where each checklist item takes you.
+function mgFocusStep(card, key) {
+  const sel = { date: 'input[name="date"]', trip: '.mg-trip .ph-seg button', site: '.mg-where .db-num, .mg-cust-q, .mg-where .db-cell > .msel, .mg-where .db-mode',
+    amount: '[data-amt]', receipt: '.mg-receipts [data-add]' }[key];
+  const el = (card.querySelector(sel) && [...card.querySelectorAll(sel)].find(guideVisible)) || (key === 'amount' && card.querySelector('.mg-trip .ph-seg button'));
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  el.focus({ preventScroll: true });
+  if (key === 'date' && el.showPicker) { try { el.showPicker(); } catch { /* needs a user gesture on some browsers */ } }
+}
+
 // The site a day is measured to and its distance from the base; with no DB and
 // nothing picked yet, the customers matching the search.
 function mgSiteHtml(r, chk = mgCheck(r)) {
@@ -210,6 +245,7 @@ function mgPaintDay(i) {
   const card = $(`#mgDays .mg-day[data-i="${i}"]`); if (!card) return;
   card.querySelector(`[data-sum="${i}"]`).textContent = chk.sum ? money(chk.sum, regionCurrency()) : '';
   card.querySelector(`[data-msgs="${i}"]`).innerHTML = mgMsgsHtml(r, chk);
+  card.querySelector(`[data-steps="${i}"]`).innerHTML = mgStepsHtml(r, chk);
   card.classList.toggle('has-err', !!(chk.errs.length && mgTouched(r)));
   mgPaintTotals();
 }
@@ -319,6 +355,52 @@ function mgPaintMap() {
     fitAreas(mgMap.map, [ringArea(base, R.minKm), ...points.map(p => ringArea(p, 0.5))]);
   }
 }
+// --- The step-by-step guide (js/guide.js) ------------------------------------------------
+// Walks through the first day card field by field. Opens by itself the first
+// time an account opens the form on a device, and again from the Guide button.
+const MG_GUIDE = 'mealgps.v1';
+function mgGuideSteps() {
+  const R = mgRules(), cur = regionCurrency();
+  const day = (sel) => () => { const c = $('#mgDays .mg-day'); return c && c.querySelector(sel); };
+  const p = (s) => `<p>${esc(s)}</p>`;
+  return [
+    { el: () => $('#mgForm .mg-base') || $('#mgForm .mg-nobase'), title: t('Your base and the {min} km radius', { min: R.minKm }),
+      html: mgCfg().base
+        ? `<p>${withRadius(t('Every distance is measured from your base, shown here and on the map. An in-town meal counts only when the customer site is {min} km {radius} or more from it — a straight line, not the road.', { min: R.minKm }))}</p>`
+        : p(t('Your account has no base yet, so this form can’t be submitted. Ask your administrator to set it first.')) },
+    { el: day('.mg-steps'), title: t('Five things for every day'),
+      html: p(t('Each day card has a checklist: date, trip, customer, amount and receipt. Each turns green when it’s done — tap one to jump straight to it.')) },
+    { el: day('.mg-date'), title: t('1. Date'),
+      html: p(t('The day you had the meal. One card per day — the GPS meal allowance starts on {date}.', { date: releaseDate(R.from) })) },
+    { el: day('.mg-trip'), title: t('2. Trip'),
+      html: `<p><b>${esc(t('In town'))}</b> — ${withRadius(t('one meal, up to {cap}, only when the customer is {min} km {radius} or more from your base.', { cap: money(R.inCap, cur), min: R.minKm }))}</p>
+        <p><b>${esc(t('Out of town'))}</b> — ${esc(t('up to {n} meals, {cap} a day in total.', { n: R.maxMeals, cap: money(R.outCap, cur) }))}</p>` },
+    // .db-cell is display: contents, so light up the visible DB dropdown inside it.
+    { el: () => { const c = $('#mgDays .mg-day'); return c && [...c.querySelectorAll('.mg-where .db-cell > *')].find(guideVisible); }, title: t('3. Customer site'),
+      html: p(t('Choose “With DB” if the customer has a DB number, or “No DB” to find the customer by name.')) },
+    { el: day('.mg-where-row'), title: t('Find the customer'),
+      html: p(t('Type the DB number — or the customer’s name or the name you call them (for example “Pak Dhiraj”) — and pick them from the list.')) },
+    { el: day('.mg-site-wrap'), title: t('Check the distance'),
+      html: `<p>${withRadius(t('The distance from your base appears here. Red means the customer is inside {min} km {radius}, so an in-town meal there can’t be claimed.', { min: R.minKm }))}</p>${p(t('Customer not on the list? Ask your manager to register them in Settings → Customer sites.'))}` },
+    { el: () => { const c = $('#mgDays .mg-day'); return c && (c.querySelector('.mg-meals') || c.querySelector('.mg-trip')); }, title: t('4. Amount'),
+      html: p(t('The amount boxes appear once you pick the trip: one amount in town, or breakfast, lunch and dinner out of town. Enter what the receipt says.')) },
+    { el: day('.mg-receipts'), title: t('5. Receipt'),
+      html: p(t('Every day needs its receipt. Take a photo of it, or attach the file.')) },
+    { el: day('.mg-extra'), title: t('Job category and note (optional)'),
+      html: p(t('A short job category and note help your approver understand the visit.')) },
+    { el: () => $('#mgAddDay'), title: t('More days'),
+      html: p(t('Ate on more days? Add another card — one per day, each with its own customer and receipt.')) },
+    { el: () => $('#mgForm .lf-approval'), title: t('Approval'),
+      html: p(t('Choose who approves this claim first.')) },
+    { el: () => $('#mgForm .meal-foot'), title: t('Check and submit'),
+      html: p(t('Check the total, then press Submit claim. If anything is missing, the day turns red and says what to fix. Not finished? Save draft and come back later.')) }
+  ];
+}
+function startMgGuide() {
+  if (!$('#mgForm')) return;
+  runGuide(mgGuideSteps(), { onEnd: () => markGuideSeen(MG_GUIDE) });
+}
+
 // Fields of one day as a draft (files go to IndexedDB separately).
 const mgDraftRow = (r) => ({ date: r.date, trip: r.trip, amount: r.amount, meals: r.meals.slice(), site: r.site,
   siteId: r.siteId, category: r.category, desc: r.desc });
@@ -388,6 +470,12 @@ async function openMealGpsModal(existing = null) {
     </div>`);
   $('#modal').classList.add('modal-wide', 'modal-flex');
   $('#modal .x-btn').addEventListener('click', closeModal);
+  const guideBtn = document.createElement('button');
+  guideBtn.type = 'button'; guideBtn.className = 'btn btn-ghost btn-sm lf-guide-btn'; guideBtn.id = 'mgGuideBtn';
+  guideBtn.innerHTML = `<span aria-hidden="true">?</span> ${esc(t('Guide'))}`;
+  guideBtn.title = t('Show me how to fill this in');
+  $('#modal .x-btn').before(guideBtn);
+  guideBtn.addEventListener('click', startMgGuide);
   $('#mgCancel').addEventListener('click', fresh ? () => discardDraftAndClose(MG_KIND) : closeModal);
   $('#mgAddDay').addEventListener('click', () => {
     mgReadRows(); mgRows.push(mgBlank()); mgRender();
@@ -396,6 +484,8 @@ async function openMealGpsModal(existing = null) {
   });
   // Picking a customer from a day's search list, or dropping it to search again.
   $('#mgDays').addEventListener('click', (e) => {
+    const step = e.target.closest('[data-step]');
+    if (step) { mgFocusStep(step.closest('.mg-day'), step.dataset.step); return; }
     const pick = e.target.closest('[data-pick]'), unpick = e.target.closest('[data-unpick]');
     if (!pick && !unpick) return;
     const i = +e.target.closest('.mg-day').dataset.i, r = mgRows[i];
@@ -413,6 +503,8 @@ async function openMealGpsModal(existing = null) {
   renderClaimDateBox();
   mgRender();
   mgInitMap();
+  // First time on this device: walk through the form once the modal has opened.
+  if (!guideSeen(MG_GUIDE)) setTimeout(startMgGuide, 450);
   if (fresh) {
     if (draft && draft.data.approver1) { const sel = $('#mgForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1; }
     $('#mgSaveDraft').addEventListener('click', () => saveDraftAndClose(MG_KIND, collectMealGpsDraft, collectMealGpsFiles));
