@@ -662,6 +662,7 @@ function showApp() {
   // from a previous session in the same tab.
   syncTbIdentity();
   closeTbSheet();
+  syncTopbarH();
   // "Purpose" buttons are gated per department + job position (see Settings).
   const purposes = u.purposes || { claim: false, meal: false, advance: false };
   $('#newClaimBtn').hidden = !purposes.claim;
@@ -799,6 +800,14 @@ $('#tbSheet').addEventListener('click', (e) => {
   closeTbSheet();
   const real = $('#' + row.dataset.proxy); if (real) real.click();
 });
+// The claims list's sticky column header sits right under the (sticky) top
+// bar, whose height changes with the screen width and language.
+// Measured on showApp() too, since the bar is hidden until sign-in.
+function syncTopbarH() {
+  const h = $('.topbar').offsetHeight;
+  if (h) document.documentElement.style.setProperty('--topbar-h', h + 'px');
+}
+if ('ResizeObserver' in window) new ResizeObserver(syncTopbarH).observe($('.topbar'));
 // Escape closes the panel before anything underneath reacts to it.
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('#tbSheet').hidden) { e.stopPropagation(); closeTbSheet(); $('#tbMenuBtn').focus(); }

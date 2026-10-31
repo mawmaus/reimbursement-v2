@@ -183,22 +183,16 @@ input[type="search"] { min-width: 220px; }
 
 .container { max-width: 1080px; margin: 0 auto; padding: 26px 22px 60px; }
 
-/* Fixed-height app shell — ONLY when the claims list is open: the topbar,
-   list header, summary cards, and filter row stay put while only the claim
-   rows scroll, so a long ledger never pushes them off-screen. The home and
-   insights views are untouched and scroll with the page as before. */
-/* `height: 100dvh` under `zoom: var(--app-zoom)` on :root renders the shell at
-   only 80% of the viewport, leaving a dead band below it. Divide by the zoom so
-   it fills the real viewport on every screen size (desktop included). */
-#appView:has(#listView:not([hidden])) { display: flex; flex-direction: column; height: calc(100dvh / var(--app-zoom)); overflow: hidden; }
-/* overflow-x is pinned to hidden on the scroll containers: setting only
-   overflow-y:auto makes CSS compute overflow-x to `auto` too, so the tiniest
-   horizontal overflow (a long name, or the vertical scrollbar shaving a few px
-   off the row width) would surface a stray sideways scrollbar. */
-#appView:has(#listView:not([hidden])) .container { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding-bottom: 24px; }
-#listView:not([hidden]) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-#listView .ledger { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-#listView #claimRows { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+/* The claims list scrolls with the page, like every other view (it used to
+   scroll inside a fixed-height box, which on a phone left room for about three
+   claims). What must stay reachable on a long list stays pinned instead: the
+   column header sticks under the top bar (--topbar-h, kept by app.js), and the
+   selection bar floats at the bottom of the screen (see .selection-bar).
+   `overflow: clip` keeps the rounded corners without making the ledger a
+   scroll container, which would stop its header sticking to the page. */
+#listView:not([hidden]) { display: flex; flex-direction: column; }
+#listView .ledger { overflow: clip; }
+#listView .ledger-head { position: sticky; top: var(--topbar-h, 0px); z-index: 5; }
 
 /* ---------- Home menu (clean landing) ---------- */
 .home { padding: 8px 0; }
@@ -1140,9 +1134,8 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
   .ledger.show-paid .ledger-head, .ledger.show-paid .ledger-row {
     grid-template-columns: 4px 32px 96px 1.2fr 80px 1fr 84px 84px 96px 60px; }
 
-  /* Mobile + tablet: shrink the summary cards and filter spacing so the frozen
-     top block doesn't starve the scrolling claim list. (The shell height fix
-     that removes the dead band lives on the base rule and applies everywhere.) */
+  /* Mobile + tablet: compact summary cards and filter spacing, so the first
+     claims show without scrolling. */
   #listView .cards { gap: 6px; margin-bottom: 10px; }
   #listView .card { padding: 8px 10px; border-radius: 9px; }
   #listView .card .card-n { font-size: 1.15rem; }
@@ -2722,13 +2715,21 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .ledger.show-paid .ledger-head, .ledger.show-paid .ledger-row {
     grid-template-columns: 4px 32px 92px 1.2fr 1fr 84px 84px 104px 160px; }
 }
-/* In the flex shell the auto-margined container would shrink-to-fit its widest
-   child (the phone card strip is wider than the screen by design), so pin it
-   to the shell's width. */
-#appView:has(#listView:not([hidden])) .container { width: 100%; box-sizing: border-box; }
+/* The phone card strip is wider than the screen by design; let it scroll
+   sideways inside the list column instead of widening it. */
 #listView .cards { min-width: 0; }
-/* The list is a fixed-height column: only the rows may shrink and scroll. */
-#listView > .list-head, #listView > .cards, #listView > .toolbar, #listView > .ledger-scope, #listView > .selection-bar { flex: none; }
+
+/* Selection bar: once rows are ticked it floats at the bottom of the screen
+   while the list is longer than the window, and rests under the last row when
+   it isn't, so its actions never scroll out of reach. It comes after the
+   ledger visually (order) so `bottom` sticking applies. */
+#listView .selection-bar { order: 1; position: sticky; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); z-index: 6;
+  margin: 12px 0 0; background: var(--surface); box-shadow: var(--shadow); animation: selbar-in .22s var(--ease-out); }
+#listView .selection-bar::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--pine-tint); z-index: -1; }
+@keyframes selbar-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { #listView .selection-bar { animation: none; } }
+:root[data-glass] #listView .ledger-head { background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
 
 /* Phones */
 @media (max-width: 720px) {
@@ -2764,14 +2765,13 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .filter-panel.open > .date-range, .filter-panel.open > .clear-filters { flex: 1 1 100%; }
   .filter-panel .clear-filters { width: 100%; min-height: 38px; }
   .ledger-scope { margin: -2px 2px 10px; font-size: .76rem; }
-  /* Selection: a floating action bar at the bottom of the screen. */
-  .selection-bar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 30;
-    flex-direction: column; align-items: stretch; gap: 8px; margin: 0; padding: 10px 12px 12px;
-    background: var(--surface); border-color: var(--pine); box-shadow: var(--shadow-md); }
+  /* Selection: the floating bar (sticky, see #listView .selection-bar) with
+     the count over a two-per-row grid of actions. */
+  .selection-bar { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px 12px;
+    border-color: var(--pine); box-shadow: var(--shadow-md); }
   .selection-bar .sel-count { text-align: center; }
   .selection-bar .sel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .selection-bar .sel-actions .btn { flex: 1 1 calc(50% - 4px); min-height: 40px; }
-  #listView:has(#selectionBar:not([hidden])) #claimRows { padding-bottom: 170px; }
   .ledger .pill { font-size: .72rem; }
 }
 /* Empty list: the message sits right under the header row, not at the far end
