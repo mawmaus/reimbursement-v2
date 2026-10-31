@@ -1720,17 +1720,65 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
 
 /* Freeze the page behind an open modal / drawer (no background scrolling). */
 body.no-scroll { overflow: hidden; }
-/* Receipts shown per line in the detail drawer. Each filename is a single
-   ellipsised line (full name on hover via title=) so a long auto-generated
-   name can't stretch the column or break one character per line. */
+/* Receipts shown per line in the detail drawer: a row of small previews
+   (images) or file tiles (PDFs), each opening the receipt viewer. */
 .line-receipts { font-size: .82rem; }
-/* A one-track minmax(0,1fr) grid gives the list a zero min-content width, so a
-   long filename ellipsises to whatever room the table has left instead of
-   widening the Receipts column and pushing the line's decision button off-screen. */
-.line-receipt-list { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 64px; }
-.line-receipt { display: block; max-width: 240px; margin: 0 0 2px; color: var(--pine-deep); text-decoration: none;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.line-receipt:hover { text-decoration: underline; }
+.rthumbs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 52px; }
+.rthumb { position: relative; flex: none; width: 52px; height: 52px; padding: 0; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--muted);
+  cursor: zoom-in; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.rthumb:hover { border-color: var(--pine); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.rthumb:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.rthumb img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .2s; }
+.rthumb.loaded img { opacity: 1; }
+.rthumb svg { width: 20px; height: 20px; }
+.rthumb-ext { font-size: .62rem; font-weight: 700; letter-spacing: .04em; line-height: 1; }
+/* Waiting for the image: a soft pulse instead of an empty box. */
+.rthumb.is-img:not(.loaded):not(.is-broken) { animation: rthumb-wait 1.2s ease-in-out infinite alternate; }
+@keyframes rthumb-wait { from { background: var(--paper); } to { background: var(--line-soft); } }
+.drawer-lines tr.line-rejected .rthumb { opacity: .5; }
+
+/* Receipt viewer (modal 2, over the drawer). */
+.modal.modal-rv { display: flex; flex-direction: column; overflow: hidden; }
+.rv-head { flex: none; gap: 12px; align-items: center; }
+.rv-title { flex: 1 1 auto; min-width: 0; }
+.rv-name { font-size: 1rem; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-sub { font-size: .82rem; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-head .btn { flex: none; white-space: nowrap; }
+.rv-open { display: inline-flex; align-items: center; gap: 6px; }
+.rv-open svg { width: 15px; height: 15px; flex: none; }
+.rv-body { flex: 1 1 auto; min-height: 0; position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center; gap: 10px; padding: 16px; background: var(--paper); }
+.rv-stage { grid-column: 2; display: grid; place-items: center; min-height: min(60vh, 520px); touch-action: pan-y; }
+.rv-stage img { max-width: 100%; max-height: calc(90vh - 130px); object-fit: contain; border-radius: 8px;
+  box-shadow: var(--shadow-md); background: var(--surface); }
+.rv-loading { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--pine);
+  animation: refresh-spin .8s linear infinite; }
+.rv-file { display: grid; justify-items: center; gap: 10px; text-align: center; color: var(--muted); max-width: 300px; }
+.rv-file svg { width: 44px; height: 44px; }
+.rv-file p { margin: 0; }
+.rv-nav { width: 42px; height: 42px; display: grid; place-items: center; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; box-shadow: var(--shadow-sm);
+  transition: border-color .15s, background .15s; }
+.rv-nav:hover { border-color: var(--pine); background: var(--pine-tint); }
+.rv-nav:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.rv-nav svg { width: 20px; height: 20px; }
+.rv-prev { grid-column: 1; }
+.rv-next { grid-column: 3; }
+@media (max-width: 720px) {
+  .rthumb { width: 56px; height: 56px; }
+  /* Phones: the arrows float over the image edges; swiping works too. */
+  .rv-body { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+  .rv-stage { grid-column: 1; grid-row: 1; min-height: 50vh; }
+  .rv-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; width: 38px; height: 38px; opacity: .92; }
+  .rv-prev { left: 8px; }
+  .rv-next { right: 8px; }
+  /* Icon only, so a long file name keeps the room. */
+  .rv-open { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .rv-open svg { width: 18px; height: 18px; }
+  .rv-open-t { display: none; }
+}
 
 /* --- Per-line approval ------------------------------------------------------
    In the detail drawer an approver can reject single lines; a rejected line
@@ -1751,7 +1799,6 @@ body.no-scroll { overflow: hidden; }
 .drawer-lines tr.line-rejected td { color: var(--muted); }
 /* Strike the figure only — on phones the cell also carries its label. */
 .drawer-lines tr.line-rejected td.meal-amt .amt-v { text-decoration: line-through; }
-.drawer-lines tr.line-rejected .line-receipt { color: var(--muted); }
 .drawer-lines tr.line-marked td { background: var(--red-tint); }
 .drawer-lines tr.line-rejected td:first-child,
 .drawer-lines tr.line-marked td:first-child,

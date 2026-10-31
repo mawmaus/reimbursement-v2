@@ -1373,4 +1373,12 @@ I18N.addDict('km', {
   'File not found': 'រកមិនឃើញឯកសារ',
   'You have too many drafts — submit or delete some first': 'អ្នកមានសេចក្ដីព្រាងច្រើនពេក — សូមដាក់ស្នើ ឬលុបខ្លះជាមុនសិន',
   'A draft can hold at most 100 receipts': 'សេចក្ដីព្រាងមួយអាចមានបង្កាន់ដៃច្រើនបំផុត 100',
+  // Receipt thumbnails + viewer (claim detail)
+  'Receipt': 'វិក្កយបត្រ',
+  'View receipt {name}': 'មើលវិក្កយបត្រ {name}',
+  'Previous receipt': 'វិក្កយបត្រមុន',
+  'Next receipt': 'វិក្កយបត្របន្ទាប់',
+  'Receipt {n} of {total}': 'វិក្កយបត្រ {n} នៃ {total}',
+  'No preview for this file — open it to view.': 'មិនអាចមើលជាមុនឯកសារនេះបានទេ — សូមបើកវាដើម្បីមើល។',
+  'Could not load this receipt.': 'មិនអាចផ្ទុកវិក្កយបត្រនេះបានទេ។',
 });

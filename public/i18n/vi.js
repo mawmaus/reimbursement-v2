@@ -1373,4 +1373,12 @@ I18N.addDict('vi', {
   'File not found': 'Không tìm thấy tệp',
   'You have too many drafts — submit or delete some first': 'Bạn có quá nhiều bản nháp — hãy gửi hoặc xóa bớt trước',
   'A draft can hold at most 100 receipts': 'Một bản nháp chứa tối đa 100 hóa đơn',
+  // Receipt thumbnails + viewer (claim detail)
+  'Receipt': 'Hóa đơn',
+  'View receipt {name}': 'Xem hóa đơn {name}',
+  'Previous receipt': 'Hóa đơn trước',
+  'Next receipt': 'Hóa đơn tiếp theo',
+  'Receipt {n} of {total}': 'Hóa đơn {n}/{total}',
+  'No preview for this file — open it to view.': 'Không có bản xem trước cho tệp này — hãy mở tệp để xem.',
+  'Could not load this receipt.': 'Không tải được hóa đơn này.',
 });

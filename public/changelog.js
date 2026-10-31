@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-10-31.3',
+    date: '2026-10-31',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Receipts now show as small previews on each line of a claim. Click one to see it large, and use the arrows (or swipe on a phone) to step through every receipt on the claim — each one says which line it belongs to.',
+        id: 'Bukti kini tampil sebagai pratinjau kecil di setiap baris klaim. Klik untuk melihatnya dalam ukuran besar, lalu gunakan tanda panah (atau geser di ponsel) untuk melihat semua bukti di klaim tersebut — masing-masing menunjukkan baris asalnya.',
+        th: 'ใบเสร็จแสดงเป็นภาพตัวอย่างขนาดเล็กในแต่ละรายการของการเบิกแล้ว คลิกเพื่อดูภาพใหญ่ และใช้ลูกศร (หรือปัดบนโทรศัพท์) เพื่อดูใบเสร็จทั้งหมดในการเบิกนั้น — แต่ละใบบอกว่าเป็นของรายการใด',
+        vi: 'Hóa đơn giờ hiển thị dưới dạng ảnh xem trước nhỏ trên từng dòng của yêu cầu. Nhấp vào để xem ảnh lớn, và dùng mũi tên (hoặc vuốt trên điện thoại) để xem lần lượt mọi hóa đơn của yêu cầu — mỗi hóa đơn cho biết thuộc dòng nào.',
+        km: 'ឥឡូវវិក្កយបត្របង្ហាញជារូបមើលជាមុនតូចៗនៅលើជួរនីមួយៗនៃសំណើ។ ចុចលើវាដើម្បីមើលធំ ហើយប្រើព្រួញ (ឬអូសនៅលើទូរស័ព្ទ) ដើម្បីមើលវិក្កយបត្រទាំងអស់ក្នុងសំណើ — វិក្កយបត្រនីមួយៗប្រាប់ថាវាជារបស់ជួរណា។',
+        fil: 'Lumalabas na ngayon ang mga resibo bilang maliliit na preview sa bawat linya ng claim. I-click ang isa para makita ito nang malaki, at gamitin ang mga arrow (o mag-swipe sa phone) para isa-isahin ang lahat ng resibo sa claim — sinasabi ng bawat isa kung saang linya ito kabilang.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-31.2',
     date: '2026-10-31',
     items: [

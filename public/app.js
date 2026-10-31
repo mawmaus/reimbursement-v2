@@ -2038,7 +2038,7 @@ function openModal2(html) {
   $('#modal2').hidden = false;
   syncScrollLock();
 }
-function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp', 'modal-hp-lb'); syncScrollLock(); }
+function closeModal2() { leaveGhost($('#modal2')); leaveGhost($('#modal2Scrim')); $('#modal2').hidden = true; $('#modal2Scrim').hidden = true; $('#modal2').classList.remove('modal-wide', 'modal-xwide', 'modal-flex', 'modal-ue', 'modal-rp', 'modal-hp-lb', 'modal-rv'); syncScrollLock(); }
 $('#modal2Scrim').addEventListener('click', closeModal2);
 
 // Open a receipt <input type="file">. `camera` (the phone-only "Take photo"

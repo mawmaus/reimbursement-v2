@@ -247,9 +247,7 @@ const sourceDrawerType = (k) => k === 'meal' ? 'meal' : k === 'advance' ? 'advan
 // Column set per document type. Amount is always the 4th column so the total
 // rows line up the same way for all three.
 function lineColumns(c) {
-  const receiptLinks = (atts) => (atts && atts.length)
-    ? `<div class="line-receipt-list">${atts.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/${c.type === 'advance' ? 'cash-advances' : 'claims'}/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join('')}</div>`
-    : `<span class="muted">${esc(t('—'))}</span>`;
+  const receiptBase = `/api/${c.type === 'advance' ? 'cash-advances' : 'claims'}/${c.id}/attachments`;
   const dash = '<span class="muted">—</span>';
   if (c.type === 'meal' && c.scheme === 'gps') return gpsLineColumns(c, dash);
   if (c.type === 'meal') return [
@@ -265,7 +263,7 @@ function lineColumns(c) {
     { h: 'Type of expense', v: l => esc(l.expense_type) },
     { h: 'Amount', cls: 'meal-amt', v: l => `<span class="amt-v">${esc(money(l.amount, c.currency))}</span>` },
     { h: 'Description / purpose', v: l => l.description ? esc(l.description) : dash },
-    { h: 'Receipts', cls: 'line-receipts', v: l => receiptLinks(l.attachments) }
+    { h: 'Receipts', cls: 'line-receipts', v: l => receiptThumbsHtml(l.attachments, receiptBase, lineCtx(c, l, l.expense_type)) }
   ];
 }
 // --- GPS meal lines -------------------------------------------------------------
@@ -294,9 +292,8 @@ function gpsLineColumns(c, dash) {
         <div class="gl-sub">${esc(t('Approved by {name}', { name: l.approved_by || t('approver') }))}${l.approved_note ? ` — ${esc(l.approved_note)}` : ''}</div>` : ''}
       ${btn}`;
   };
-  const receipts = (l) => (l.attachments && l.attachments.length)
-    ? `<div class="line-receipt-list">${l.attachments.map(a => `<a class="line-receipt" title="${esc(a.original_name)}" href="/api/meal-claims/${c.id}/attachments/${a.id}" target="_blank" rel="noopener">📎 ${esc(a.original_name)}</a>`).join('')}</div>`
-    : dash;
+  const receipts = (l) => receiptThumbsHtml(l.attachments, `/api/meal-claims/${c.id}/attachments`,
+    lineCtx(c, l, t(l.trip_type === 'out_of_town' ? 'Out of town' : 'In town')));
   const details = (l) => [l.site ? dbFmt(l.site) : '', l.job_category, l.description].filter(Boolean).map(esc).join('<br>') || dash;
   return [
     { h: 'Date', cls: 'mono', v: l => esc(l.line_date) },
@@ -440,9 +437,146 @@ function renderDrawerLines(c) {
     syncLineActions(c);
   }));
   wireDocLinks(box);
+  wireReceiptThumbs(box);
   wireAdjust(c, box);
   syncLineActions(c);
 }
+// --- Receipt thumbnails + viewer ----------------------------------------------
+// Each line shows its receipts as small previews; pressing one opens a viewer
+// that steps through every receipt on the document (arrows, ← / →, or a swipe).
+// Receipts are served `no-store`, so each image is fetched once into an object
+// URL that the thumbnail and the viewer share rather than downloading it twice.
+// The cache belongs to the signed-in account: a same-tab login switch drops it,
+// so nobody is shown an image the server never authorised for them.
+const RECEIPT_FILE_ICON = svgI('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>');
+const isImageAtt = (a) => String(a.mime_type || '').startsWith('image/');
+const attExt = (a) => (String(a.original_name || '').match(/\.([a-z0-9]{1,5})$/i) || [, String(a.mime_type || '').split('/')[1] || 'file'])[1].toUpperCase();
+const receiptUrls = new Map(); // src -> Promise<object URL | null>
+let receiptUrlsOwner = null;
+function receiptObjectUrl(src) {
+  const owner = state.user && state.user.id;
+  if (owner !== receiptUrlsOwner) {
+    receiptUrls.forEach(p => p.then(u => u && URL.revokeObjectURL(u)));
+    receiptUrls.clear();
+    receiptUrlsOwner = owner;
+  }
+  if (!receiptUrls.has(src)) {
+    receiptUrls.set(src, fetch(src, { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.blob() : null))
+      .then(b => (b && b.type.startsWith('image/') ? URL.createObjectURL(b) : null))
+      .catch(() => null)
+      .then(u => { if (!u) receiptUrls.delete(src); return u; })); // a failure may retry later
+    // Keep the newest few dozen; an older one is fetched again if reopened.
+    if (receiptUrls.size > 60) {
+      const [oldSrc, oldUrl] = receiptUrls.entries().next().value;
+      receiptUrls.delete(oldSrc);
+      oldUrl.then(u => u && setTimeout(() => URL.revokeObjectURL(u), 60000));
+    }
+  }
+  return receiptUrls.get(src);
+}
+// "2026-10-27 · Toll · IDR 122,500": which line a receipt belongs to, for the viewer.
+const lineCtx = (c, l, what) => [l.line_date, what, money(l.amount, c.currency)].filter(Boolean).join(' · ');
+function receiptThumbsHtml(atts, base, ctx) {
+  if (!(atts && atts.length)) return '<span class="muted">—</span>';
+  return `<div class="rthumbs">${atts.map(a => {
+    const img = isImageAtt(a);
+    return `<button type="button" class="rthumb${img ? ' is-img' : ''}" data-receipt="${esc(`${base}/${a.id}`)}"
+      data-name="${esc(a.original_name || '')}" data-ctx="${esc(ctx)}" data-img="${img ? 1 : ''}" title="${esc(a.original_name || '')}"
+      aria-label="${esc(t('View receipt {name}', { name: a.original_name || '' }))}">${img ? ''
+      : `${RECEIPT_FILE_ICON}<span class="rthumb-ext">${esc(attExt(a))}</span>`}</button>`;
+  }).join('')}</div>`;
+}
+// Fill image thumbnails as they scroll into view, and open the viewer on press.
+function wireReceiptThumbs(root) {
+  const thumbs = [...root.querySelectorAll('.rthumb')];
+  if (!thumbs.length) return;
+  const fill = (el) => receiptObjectUrl(el.dataset.receipt).then(u => {
+    if (!u) { el.classList.add('is-broken'); el.innerHTML = RECEIPT_FILE_ICON; return; }
+    const img = new Image();
+    img.alt = '';
+    img.onload = () => el.classList.add('loaded');
+    img.onerror = () => { el.classList.add('is-broken'); el.innerHTML = RECEIPT_FILE_ICON; };
+    img.src = u;
+    el.replaceChildren(img);
+  });
+  const imgs = thumbs.filter(el => el.dataset.img);
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => entries.forEach(e => {
+      if (e.isIntersecting) { io.unobserve(e.target); fill(e.target); }
+    }), { rootMargin: '200px' });
+    imgs.forEach(el => io.observe(el));
+  } else imgs.forEach(fill);
+  const list = thumbs.map(el => ({ src: el.dataset.receipt, name: el.dataset.name, ctx: el.dataset.ctx, img: !!el.dataset.img }));
+  thumbs.forEach((el, i) => el.addEventListener('click', (e) => { e.stopPropagation(); openReceiptViewer(list, i); }));
+}
+const RV_PREV = svgI('<path d="M15 18l-6-6 6-6"/>');
+const RV_NEXT = svgI('<path d="M9 18l6-6-6-6"/>');
+const RV_OPEN = svgI('<path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>');
+function openReceiptViewer(list, start) {
+  let i = start;
+  const many = list.length > 1;
+  openModal2(`
+    <div class="modal-head rv-head">
+      <div class="rv-title"><h2 class="rv-name"></h2><div class="rv-sub"></div></div>
+      <a class="btn btn-ghost btn-sm rv-open" target="_blank" rel="noopener" aria-label="${esc(t('Open full size'))}">${RV_OPEN}<span class="rv-open-t">${esc(t('Open full size'))}</span></a>
+      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button>
+    </div>
+    <div class="modal-body rv-body">
+      ${many ? `<button type="button" class="rv-nav rv-prev" aria-label="${esc(t('Previous receipt'))}">${RV_PREV}</button>` : ''}
+      <div class="rv-stage" aria-live="polite"></div>
+      ${many ? `<button type="button" class="rv-nav rv-next" aria-label="${esc(t('Next receipt'))}">${RV_NEXT}</button>` : ''}
+    </div>`);
+  const m = $('#modal2');
+  m.classList.add('modal-xwide', 'modal-rv');
+  const stage = m.querySelector('.rv-stage');
+  const show = () => {
+    const r = list[i];
+    m.querySelector('.rv-name').textContent = r.name || t('Receipt');
+    m.querySelector('.rv-sub').textContent = [many ? t('Receipt {n} of {total}', { n: i + 1, total: list.length }) : '', r.ctx].filter(Boolean).join(' · ');
+    m.querySelector('.rv-open').href = r.src;
+    if (!r.img) {
+      stage.innerHTML = `<div class="rv-file">${RECEIPT_FILE_ICON}<p>${esc(t('No preview for this file — open it to view.'))}</p>
+        <a class="btn btn-primary btn-sm" href="${esc(r.src)}" target="_blank" rel="noopener">${esc(t('Open'))}</a></div>`;
+      return;
+    }
+    stage.innerHTML = '<div class="rv-loading" aria-hidden="true"></div>';
+    const at = i;
+    receiptObjectUrl(r.src).then(u => {
+      if (at !== i || m.hidden) return; // moved on while it loaded
+      stage.innerHTML = u ? `<img src="${u}" alt="${esc(r.name || t('Receipt'))}" />`
+        : `<div class="rv-file">${RECEIPT_FILE_ICON}<p>${esc(t('Could not load this receipt.'))}</p></div>`;
+    });
+    // Warm the neighbours so stepping through feels instant.
+    [list[i + 1], list[i - 1]].forEach(n => n && n.img && receiptObjectUrl(n.src));
+  };
+  const go = (d) => { if (!many) return; i = (i + d + list.length) % list.length; show(); };
+  m.querySelector('.x-btn').addEventListener('click', closeModal2);
+  if (many) {
+    m.querySelector('.rv-prev').addEventListener('click', () => go(-1));
+    m.querySelector('.rv-next').addEventListener('click', () => go(1));
+  }
+  // Swipe on phones.
+  let x0 = null;
+  stage.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener('touchend', (e) => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+  });
+  // Captured ahead of the drawer's Escape handler, so Escape closes only the
+  // viewer. Detaches itself once the viewer is gone (scrim click included).
+  const onKey = (e) => {
+    if (m.hidden || !m.contains(stage)) { document.removeEventListener('keydown', onKey, true); return; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeModal2(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); go(1); }
+  };
+  document.addEventListener('keydown', onKey, true);
+  show();
+  m.querySelector('.x-btn').focus();
+}
+
 // Links to another document (a re-claim, or the claim it came from) open it in
 // the drawer.
 function wireDocLinks(root) {

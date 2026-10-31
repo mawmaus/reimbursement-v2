@@ -1396,4 +1396,12 @@ I18N.addDict('id', {
   'File not found': 'File tidak ditemukan',
   'You have too many drafts — submit or delete some first': 'Draf Anda terlalu banyak — kirim atau hapus sebagian dulu',
   'A draft can hold at most 100 receipts': 'Satu draf maksimal berisi 100 kuitansi',
+  // Receipt thumbnails + viewer (claim detail)
+  'Receipt': 'Bukti',
+  'View receipt {name}': 'Lihat bukti {name}',
+  'Previous receipt': 'Bukti sebelumnya',
+  'Next receipt': 'Bukti berikutnya',
+  'Receipt {n} of {total}': 'Bukti {n} dari {total}',
+  'No preview for this file — open it to view.': 'Pratinjau tidak tersedia untuk file ini — buka untuk melihatnya.',
+  'Could not load this receipt.': 'Bukti ini tidak dapat dimuat.',
 });

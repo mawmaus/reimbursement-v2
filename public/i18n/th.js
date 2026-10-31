@@ -1373,4 +1373,12 @@ I18N.addDict('th', {
   'File not found': 'ไม่พบไฟล์',
   'You have too many drafts — submit or delete some first': 'คุณมีฉบับร่างมากเกินไป — ส่งหรือลบบางรายการก่อน',
   'A draft can hold at most 100 receipts': 'ฉบับร่างหนึ่งมีใบเสร็จได้ไม่เกิน 100 ใบ',
+  // Receipt thumbnails + viewer (claim detail)
+  'Receipt': 'ใบเสร็จ',
+  'View receipt {name}': 'ดูใบเสร็จ {name}',
+  'Previous receipt': 'ใบเสร็จก่อนหน้า',
+  'Next receipt': 'ใบเสร็จถัดไป',
+  'Receipt {n} of {total}': 'ใบเสร็จ {n} จาก {total}',
+  'No preview for this file — open it to view.': 'ไม่มีตัวอย่างสำหรับไฟล์นี้ — เปิดไฟล์เพื่อดู',
+  'Could not load this receipt.': 'โหลดใบเสร็จนี้ไม่ได้',
 });

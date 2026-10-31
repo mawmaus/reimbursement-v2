@@ -1373,4 +1373,12 @@ I18N.addDict('fil', {
   'File not found': 'Hindi nahanap ang file',
   'You have too many drafts — submit or delete some first': 'Masyadong marami na ang draft mo — isumite o burahin muna ang ilan',
   'A draft can hold at most 100 receipts': 'Hanggang 100 resibo lang ang kasya sa isang draft',
+  // Receipt thumbnails + viewer (claim detail)
+  'Receipt': 'Resibo',
+  'View receipt {name}': 'Tingnan ang resibong {name}',
+  'Previous receipt': 'Naunang resibo',
+  'Next receipt': 'Susunod na resibo',
+  'Receipt {n} of {total}': 'Resibo {n} ng {total}',
+  'No preview for this file — open it to view.': 'Walang preview para sa file na ito — buksan ito para makita.',
+  'Could not load this receipt.': 'Hindi ma-load ang resibong ito.',
 });
