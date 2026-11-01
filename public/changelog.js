@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-01.1',
+    date: '2026-11-01',
+    items: [
+      { kind: 'fixed', text: {
+        en: 'The Glass look is much lighter. With a claim open beside the list, the list no longer tilts sideways — it stays flat and readable. Long lists scroll smoothly again: the heavy blur behind the list and the claim window is gone, and rows lift no more on hover.',
+        id: 'Tampilan Glass kini jauh lebih ringan. Saat klaim dibuka di samping daftar, daftar tidak lagi miring — tetap rata dan mudah dibaca. Daftar panjang kembali bergulir dengan mulus: efek blur berat di belakang daftar dan jendela klaim dihapus, dan baris tidak lagi terangkat saat disorot.',
+        th: 'รูปแบบ Glass เบาลงมาก เมื่อเปิดรายการเบิกข้างรายการ รายการจะไม่เอียงอีกต่อไป — แสดงแบนราบและอ่านง่าย รายการยาวเลื่อนได้ลื่นอีกครั้ง: เอฟเฟกต์เบลอหนักด้านหลังรายการและหน้าต่างรายการเบิกถูกนำออก และแถวไม่ยกขึ้นเมื่อชี้เมาส์อีกต่อไป',
+        vi: 'Giao diện Glass giờ nhẹ hơn nhiều. Khi mở một yêu cầu bên cạnh danh sách, danh sách không còn bị nghiêng — luôn phẳng và dễ đọc. Danh sách dài cuộn mượt trở lại: hiệu ứng làm mờ nặng phía sau danh sách và cửa sổ yêu cầu đã được bỏ, và các dòng không còn nổi lên khi rê chuột.',
+        km: 'រចនាប័ទ្ម Glass ឥឡូវស្រាលជាងមុនច្រើន។ ពេលបើកសំណើនៅក្បែរបញ្ជី បញ្ជីលែងទ្រេតទៀតហើយ — វានៅរាបស្មើ និងងាយអាន។ បញ្ជីវែងៗរំកិលបានរលូនវិញ៖ ភាពព្រាលធ្ងន់នៅពីក្រោយបញ្ជី និងបង្អួចសំណើត្រូវបានដកចេញ ហើយជួរលែងលើកឡើងពេលដាក់កណ្ដុរលើ។',
+        fil: 'Mas magaan na ang Glass na itsura. Kapag may claim na bukas sa tabi ng listahan, hindi na tumatagilid ang listahan — nananatili itong patag at madaling basahin. Maayos na ulit ang pag-scroll sa mahahabang listahan: tinanggal ang mabigat na blur sa likod ng listahan at ng window ng claim, at hindi na umaangat ang mga row kapag tinapatan.'
+      } }
+    ]
+  },
+  {
     id: '2026-10-31.6',
     date: '2026-10-31',
     items: [

@@ -193,6 +193,11 @@ input[type="search"] { min-width: 220px; }
 #listView:not([hidden]) { display: flex; flex-direction: column; }
 #listView .ledger { overflow: clip; }
 #listView .ledger-head { position: sticky; top: var(--topbar-h, 0px); z-index: 5; }
+/* A ledger can hold well over a thousand claims; rows off screen are skipped
+   (layout and paint) until they scroll near. The size is a first guess the
+   browser replaces with each row's real height once it has drawn it. */
+#listView .ledger-row { content-visibility: auto; contain-intrinsic-size: auto 56px; }
+@media (max-width: 720px) { #listView .ledger-row { contain-intrinsic-size: auto 104px; } }
 
 /* ---------- Home menu (clean landing) ---------- */
 .home { padding: 8px 0; }
@@ -2340,14 +2345,17 @@ a[data-open-doc]:hover { text-decoration: underline; }
 :root[data-glass] .home-tile:hover,
 :root[data-glass] .card-filter:hover { background: var(--glass-hover); border-color: var(--glass-edge); box-shadow: var(--glass-shadow), var(--shadow-md); }
 
-/* Panes people read in: the strong tint. */
-:root[data-glass] .ledger,
+/* Panes people read in: the strong tint. The claims list and the claim
+   window are nearly solid with no backdrop blur: the list is as tall as the
+   page, and blurring what's behind a surface that size made scrolling heavy. */
 :root[data-glass] .login-card,
-:root[data-glass] .modal,
-:root[data-glass] .drawer {
+:root[data-glass] .modal {
   background: var(--glass-strong); border: 1px solid var(--glass-edge);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
 }
+:root[data-glass] .ledger,
+:root[data-glass] .drawer {
+  background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--glass-edge); }
 :root[data-glass] .ledger,
 :root[data-glass] .login-card { box-shadow: var(--glass-shadow); }
 :root[data-glass] .drawer { border-width: 0 0 0 1px; }
@@ -2444,9 +2452,9 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass] .ledger-row:hover { background: var(--glass-strong); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
 }
 
-/* Spatial list (Glass look). Rows sit on a padded pane and lift towards you
-   on hover / keyboard focus; the row whose claim is open stays lifted with an
-   accent ring. On phones a tapped card lifts as the claim slides in. */
+/* Glass list rows sit on a padded pane; hover / keyboard focus tints a row
+   and the row whose claim is open gets an accent ring. Nothing lifts or casts
+   a shadow, so a long list stays cheap to scroll. */
 :root[data-glass] #listView #claimRows { padding: 4px 6px 8px; }
 /* Wide screens: the list uses the room instead of wrapping names onto three
    lines inside the 1080px column the other looks keep. */
@@ -2455,28 +2463,20 @@ a[data-open-doc]:hover { text-decoration: underline; }
    status tag says the same thing, and the floating rows read cleaner without
    it. The desktop grid keeps its 4px track so the columns don't shift. */
 :root[data-glass] .ledger .row-spine { visibility: hidden; }
-:root[data-glass] .ledger-row { position: relative; border-radius: 12px;
-  transition: transform .2s var(--ease-out), box-shadow .2s var(--ease-out), background-color .2s; }
+:root[data-glass] .ledger-row { border-radius: 12px; transition: background-color .15s; }
 :root[data-glass] .ledger-row:hover,
-:root[data-glass] .ledger-row:focus-visible,
-:root[data-glass] .ledger-row.is-open { z-index: 2; transform: translateY(-2px);
-  background: var(--glass-hover); box-shadow: 0 14px 28px -14px rgba(20,30,60,.45), inset 0 0 0 1px var(--glass-edge); }
-:root[data-glass] .ledger-row:focus-visible { outline: none; }
-:root[data-glass] .ledger-row.is-open { background: var(--surface);
-  box-shadow: 0 16px 32px -14px rgba(20,30,60,.5), inset 0 0 0 1.5px var(--pine); }
-:root[data-glass][data-theme="dark"] .ledger-row:hover,
-:root[data-glass][data-theme="dark"] .ledger-row.is-open { box-shadow: 0 14px 28px -12px rgba(0,0,0,.75), inset 0 0 0 1px var(--glass-edge); }
-:root[data-glass][data-theme="dark"] .ledger-row.is-open { box-shadow: 0 16px 32px -12px rgba(0,0,0,.8), inset 0 0 0 1.5px var(--pine); }
+:root[data-glass] .ledger-row:focus-visible { background: var(--pine-tint); }
+:root[data-glass] .ledger-row:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--focus-ring); }
+:root[data-glass] .ledger-row.is-open { background: var(--pine-tint); box-shadow: inset 0 0 0 1.5px var(--pine); }
 @media (max-width: 720px) {
   :root[data-glass] #listView #claimRows { padding: 2px 0 8px; }
-  :root[data-glass] .ledger-row:hover { transform: none; box-shadow: var(--glass-shadow); background: var(--glass-strong); }
-  :root[data-glass] .ledger-row:active { transform: translateY(-3px) scale(1.01); box-shadow: 0 18px 30px -14px rgba(20,30,60,.5); transition-duration: .08s; }
+  :root[data-glass] .ledger-row:hover { box-shadow: none; background: var(--surface); }
 }
 
 /* Side-by-side windows (Glass, wide screens; drawer.js sets .split-win on the
-   drawer and .glass-split on <body>). The claim floats as a window on the right,
-   swinging in with perspective; the list window moves left, drops the columns
-   the claim already shows, and turns a few degrees towards it. */
+   drawer and .glass-split on <body>). The claim opens as a window on the right
+   and the list moves left, dropping the columns the claim already shows. Both
+   stay flat: the list is page-tall, so any 3D turn would skew it wildly. */
 @media (min-width: 1200px) {
   :root[data-glass] body.glass-split #drawerScrim { display: none; }
   :root[data-glass] .drawer.split-win { top: 74px; right: 18px; bottom: 18px; width: min(600px, 44%);
@@ -2485,8 +2485,6 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass][data-theme="dark"] .drawer.split-win { box-shadow: var(--glass-shadow), 0 40px 80px -30px rgba(0,0,0,.85); }
   :root[data-glass] .drawer.split-win.leaving { animation: win-out .2s var(--ease-in) forwards; }
   :root[data-glass] body.glass-split #appView:has(#listView:not([hidden])) .container { max-width: none; width: calc(100% - min(600px, 44%) - 54px); margin: 0 0 0 18px; }
-  :root[data-glass] #listView .ledger { transition: transform .45s var(--ease-out); }
-  :root[data-glass] body.glass-split #listView .ledger { transform: perspective(2200px) rotateY(3deg); transform-origin: left center; }
   /* Narrower list, same information: each row takes two lines, with the
      secondary fields (claim no, No DB, Paid on) under the main ones and amount +
      status spanning both. The header stacks its titles the same way. */
@@ -2515,8 +2513,8 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass] body.glass-split .ledger-head { height: auto; min-height: 56px; padding-top: 6px; padding-bottom: 6px; }
   :root[data-glass] body.glass-split .ledger-head [data-sort] { padding-top: 3px; padding-bottom: 3px; }
 }
-@keyframes win-in { from { opacity: 0; transform: perspective(1400px) translateX(70px) rotateY(-18deg) scale(.95); } }
-@keyframes win-out { to { opacity: 0; transform: perspective(1400px) translateX(40px) rotateY(-12deg) scale(.97); } }
+@keyframes win-in { from { opacity: 0; transform: translateX(24px); } }
+@keyframes win-out { to { opacity: 0; transform: translateX(16px); } }
 /* Narrower screens: the claim covers the list, so there's nothing to see
    through it. A solid sheet with no blur keeps the slide-in on the GPU's cheap
    path: animating a full-screen backdrop blur stutters on phones. */
@@ -2528,9 +2526,8 @@ a[data-open-doc]:hover { text-decoration: underline; }
   :root[data-glass] .modal { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root[data-glass] .ledger-row, :root[data-glass] #listView .ledger { transition: none; }
+  :root[data-glass] .ledger-row { transition: none; }
   :root[data-glass] .drawer, :root[data-glass] .drawer.split-win { animation: none; }
-  :root[data-glass] body.glass-split #listView .ledger { transform: none; }
 }
 
 /* Appearance picker (Profile): three small preview swatches, radio-style. */
@@ -2733,8 +2730,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 #listView .selection-bar::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--pine-tint); z-index: -1; }
 @keyframes selbar-in { from { opacity: 0; transform: translateY(10px); } }
 @media (prefers-reduced-motion: reduce) { #listView .selection-bar { animation: none; } }
-:root[data-glass] #listView .ledger-head { background: color-mix(in srgb, var(--surface) 82%, transparent);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+:root[data-glass] #listView .ledger-head { background: var(--surface); }
 
 /* Phones */
 @media (max-width: 720px) {
