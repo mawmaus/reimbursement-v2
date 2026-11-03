@@ -478,7 +478,9 @@ input[type="search"] { min-width: 220px; }
 .ledger-row .col-name { font-weight: 560; }
 .ledger-row .col-type, .ledger-row .col-date { color: var(--ink-soft); font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ledger-row .col-db { font-family: var(--mono); font-size: .85rem; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ledger-row .col-amt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 560; }
+/* Money reads in the text face with aligned (tabular) digits, in every look;
+   codes (claim / DB numbers, dates) keep the typewriter face. */
+.ledger-row .col-amt { font-variant-numeric: tabular-nums; font-weight: 600; }
 .empty { text-align: center; padding: 40px; }
 
 /* Status tags, app-wide: sentence case on one line ("Pending review - Manager",
@@ -516,7 +518,7 @@ input[type="search"] { min-width: 220px; }
 .kv { display: grid; grid-template-columns: 130px 1fr; gap: 8px 14px; margin: 8px 0 18px; }
 .kv dt { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 650; }
 .kv dd { margin: 0; }
-.kv dd.amt { font-family: var(--mono); font-size: 1.05rem; font-weight: 650; }
+.kv dd.amt { font-variant-numeric: tabular-nums; font-size: 1.05rem; font-weight: 650; }
 
 .section-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--muted); margin: 22px 0 10px; }
 
@@ -785,7 +787,7 @@ input[type="search"] { min-width: 220px; }
   border-top: 1px solid var(--line); padding-top: 10px; }
 .calc-total-wrap { display: flex; align-items: baseline; gap: 8px; }
 .calc-total-wrap span { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 700; }
-.calc-total-wrap strong { font-family: var(--mono); font-size: 1.15rem; font-variant-numeric: tabular-nums; color: var(--ink); }
+.calc-total-wrap strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; color: var(--ink); }
 .calc-foot-btns { display: flex; gap: 8px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
@@ -2075,7 +2077,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --mono: var(--sans);
   --ink:        #0f1b2d;
   --ink-soft:   #3a4558;
-  --muted:      #667085;
+  --muted:      #5f6b7f;
   --line:       #d5dae3;
   --line-soft:  #e6e9f0;
   --paper:      #f1f3f7;
@@ -2106,8 +2108,10 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --tip-bg:     rgba(28,28,30,.9);
   --tip-ink:    #ffffff;
   --seg-on:     #ffffff;
-  --danger-fill: #ff3b30;  --danger-fill-hi: #e6342a;
-  --approve-fill: #248a3d; --approve-fill-hi: #1e7533;
+  /* System red / green, deepened just enough for white labels to clear 4.5:1
+     (#ff3b30 managed 3.6, so "Reject & return" was hard to read). */
+  --danger-fill: #db3329;  --danger-fill-hi: #c42d24;
+  --approve-fill: #23863b; --approve-fill-hi: #1e7533;
   --info-fill:  #5856d6;
   --sand-fill:  #c96a00;
   --focus-ring: rgba(30,58,110,.4);
@@ -2123,11 +2127,13 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --line-soft:  #1b2538;
   --paper:      #0a1120;
   --surface:    #121b2d;
-  --pine:       #4c7bd6;
+  /* A touch deeper than the original #4c7bd6 so the white "+ New" / primary
+     labels clear 4.5:1; the hover deepens rather than lightens for the same reason. */
+  --pine:       #4773c8;
   --pine-deep:  #9ab8f2;
   --pine-tint:  #16264a;
   --pine-tint-hi: #1d3160;
-  --pine-hover: #5d8ae0;
+  --pine-hover: #3f68b8;
   --amber:      #ffb340;
   --amber-mark: #ff9f0a;
   --amber-tint: #33240d;
@@ -2149,8 +2155,8 @@ a[data-open-doc]:hover { text-decoration: underline; }
   --tip-bg:     rgba(27,37,56,.94);
   --tip-ink:    #ffffff;
   --seg-on:     #34425e;
-  --danger-fill: #ff453a;  --danger-fill-hi: #ff5c52;
-  --approve-fill: #248a3d; --approve-fill-hi: #2a9a46;
+  --danger-fill: #d73a31;  --danger-fill-hi: #c4352d;
+  --approve-fill: #23863b; --approve-fill-hi: #1f7a36;
   --info-fill:  #5e5ce6;
   --sand-fill:  #c96a00;
   --focus-ring: rgba(76,123,214,.6);
@@ -2283,6 +2289,9 @@ a[data-open-doc]:hover { text-decoration: underline; }
    --------------------------------------------------------------------------- */
 :root[data-glass] {
   --paper:        #e9eef8;
+  /* Secondary text sits straight on the colour blobs here, so it needs a
+     shade more weight than the Modern grey to stay readable. */
+  --muted:        #5b6577;
   --glass-bg:     rgba(255,255,255,.5);
   --glass-strong: rgba(255,255,255,.76);
   --glass-hover:  rgba(255,255,255,.7);
@@ -2344,6 +2353,22 @@ a[data-open-doc]:hover { text-decoration: underline; }
 }
 :root[data-glass] .home-tile:hover,
 :root[data-glass] .card-filter:hover { background: var(--glass-hover); border-color: var(--glass-edge); box-shadow: var(--glass-shadow), var(--shadow-md); }
+/* The tile that needs action ("Needs my approval" with claims waiting) keeps
+   its accent wash here too; the plain frosted pane above used to wipe it. */
+:root[data-glass] .home-tile.ht-attn { background: color-mix(in srgb, var(--pine-tint) 88%, transparent);
+  border-color: color-mix(in srgb, var(--pine) 40%, transparent); }
+:root[data-glass] .home-tile.ht-attn:hover { background: var(--pine-tint); border-color: color-mix(in srgb, var(--pine) 55%, transparent); }
+
+/* Controls that sit straight on the blobs (search, filters, Filters / Select,
+   Menu, Refresh): frosted white instead of the Modern look's translucent
+   grey, which turned muddy over the teal and violet blobs. Focus and open
+   states keep the Modern rules (more specific), which go solid. */
+:root[data-glass] .input,
+:root[data-glass] .msel-trigger,
+:root[data-glass] .date-range { background: var(--glass-strong); border-color: var(--glass-edge); }
+:root[data-glass] .msel-trigger:hover { background: var(--surface); border-color: var(--glass-edge); }
+:root[data-glass] .btn-ghost { background: var(--glass-strong); border-color: var(--glass-edge); }
+:root[data-glass] .btn-ghost:hover { background: var(--surface); border-color: var(--glass-edge); }
 
 /* Panes people read in: the strong tint. The claims list and the claim
    window are nearly solid with no backdrop blur: the list is as tall as the
@@ -2875,7 +2900,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .dh-top .x-btn { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 9px; }
 .dh-top .x-btn:hover { background: var(--paper); color: var(--ink); }
 .dh-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-top: 12px; }
-.dh-amt { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.7rem; font-weight: 700;
+.dh-amt { font-variant-numeric: tabular-nums; font-size: 1.7rem; font-weight: 700;
   letter-spacing: -.02em; line-height: 1.1; color: var(--ink); }
 .dh-amt-l { margin-top: 3px; font-size: .78rem; color: var(--muted); }
 .dh-pills { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
@@ -2964,12 +2989,12 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .amt-cur { flex: none; display: flex; align-items: center; padding: 0 12px; background: var(--paper);
   border-right: 1px solid var(--line); font-size: .85rem; font-weight: 650; color: var(--muted); }
 .form .amt-field input { flex: 1 1 auto; min-width: 0; border: 0; border-radius: 0; box-shadow: none;
-  font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  font-variant-numeric: tabular-nums; }
 .form .amt-field input:focus { box-shadow: none; }
 /* Footer: Total · amount · line count, then the buttons. */
 .lf-total { margin-right: auto; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
 .lf-total-l { font-size: .82rem; font-weight: 650; color: var(--muted); }
-.lf-total .meal-total { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.25rem; font-weight: 700; color: var(--ink); }
+.lf-total .meal-total { font-variant-numeric: tabular-nums; font-size: 1.25rem; font-weight: 700; color: var(--ink); }
 .lf-total-n { font-size: .8rem; color: var(--muted); }
 .lf-total-n:empty { display: none; }
 .meal-foot .btn { white-space: nowrap; }
@@ -3796,7 +3821,7 @@ a[data-open-doc]:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { .guide-hole, .guide-bubble { transition: none; } }
 .mg-day-head { display: flex; align-items: center; gap: 10px; margin: -2px 0 -2px; }
 .mg-day-n { font-weight: 700; color: var(--ink); }
-.mg-day-sum { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 650; color: var(--ink-soft); }
+.mg-day-sum { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 650; color: var(--ink-soft); }
 .mg-day-sum:empty { display: none; }
 .mg-day-head .x-btn { margin-left: auto; }
 .mg-day-sum:not(:empty) + .x-btn { margin-left: 0; }

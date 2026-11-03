@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-03.1',
+    date: '2026-11-03',
+    items: [
+      { kind: 'improved', text: {
+        en: 'All three looks are easier to read. Modern and Glass: the Approve, Reject & return and New buttons have clearer labels, and grey text is a little darker. Glass: the search box and the Filters / Select buttons are crisp frosted white instead of murky over the coloured background, and "Needs my approval" stands out again on the home screen. Classic: amounts use the regular typeface with neatly aligned digits instead of the heavy typewriter one.',
+        id: 'Ketiga tampilan kini lebih mudah dibaca. Modern dan Glass: label tombol Setujui, Tolak & kembalikan, dan Baru lebih jelas, dan teks abu-abu sedikit lebih gelap. Glass: kotak pencarian serta tombol Filter / Pilih kini putih bening seperti kaca, tidak lagi keruh di atas latar berwarna, dan "Perlu persetujuan saya" kembali menonjol di beranda. Klasik: nominal memakai huruf biasa dengan angka yang rata rapi, bukan huruf mesin ketik yang tebal.',
+        th: 'ทั้งสามรูปแบบอ่านง่ายขึ้น Modern และ Glass: ปุ่มอนุมัติ ปฏิเสธและส่งคืน และสร้างใหม่ มีป้ายที่ชัดเจนขึ้น และข้อความสีเทาเข้มขึ้นเล็กน้อย Glass: ช่องค้นหาและปุ่มตัวกรอง / เลือก เป็นกระจกสีขาวที่คมชัด ไม่ขุ่นบนพื้นหลังสีอีกต่อไป และ "รอการอนุมัติของฉัน" โดดเด่นอีกครั้งบนหน้าแรก Classic: จำนวนเงินใช้แบบอักษรปกติที่ตัวเลขเรียงตรงกัน แทนแบบอักษรพิมพ์ดีดที่หนา',
+        vi: 'Cả ba giao diện đều dễ đọc hơn. Modern và Glass: nhãn các nút Duyệt, Từ chối & trả lại và Tạo mới rõ hơn, chữ xám đậm hơn một chút. Glass: ô tìm kiếm và các nút Bộ lọc / Chọn giờ là kính trắng sắc nét thay vì đục trên nền màu, và "Chờ tôi duyệt" lại nổi bật trên trang chủ. Classic: số tiền dùng kiểu chữ thường với các chữ số thẳng hàng, thay cho kiểu chữ máy đánh chữ đậm.',
+        km: 'រចនាប័ទ្មទាំងបីឥឡូវងាយអានជាងមុន។ Modern និង Glass៖ ស្លាកលើប៊ូតុង អនុម័ត បដិសេធ និងប្រគល់វិញ និងថ្មី កាន់តែច្បាស់ ហើយអក្សរពណ៌ប្រផេះដិតជាងមុនបន្តិច។ Glass៖ ប្រអប់ស្វែងរក និងប៊ូតុងតម្រង / ជ្រើសរើស ជាកញ្ចក់ពណ៌សច្បាស់ មិនស្រអាប់នៅលើផ្ទៃពណ៌ទៀតទេ ហើយ "រង់ចាំការអនុម័តរបស់ខ្ញុំ" លេចធ្លោម្ដងទៀតនៅទំព័រដើម។ Classic៖ ចំនួនទឹកប្រាក់ប្រើពុម្ពអក្សរធម្មតាដែលលេខតម្រៀបស្មើគ្នា ជំនួសពុម្ពអក្សរម៉ាស៊ីនអង្គុលីលេខដែលធ្ងន់។',
+        fil: 'Mas madaling basahin ang tatlong itsura. Modern at Glass: mas malinaw ang mga label ng Aprubahan, Tanggihan at ibalik, at Bago, at medyo mas madilim ang kulay-abong teksto. Glass: ang search box at ang mga button na Mga filter / Pumili ay malinaw na puting salamin na, hindi na malabo sa ibabaw ng makulay na background, at muling namumukod ang "Kailangan ng aking pag-apruba" sa home screen. Classic: ang mga halaga ay nasa karaniwang typeface na may maayos na nakahanay na mga numero, sa halip na ang mabigat na typewriter.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-01.1',
     date: '2026-11-01',
     items: [
