@@ -828,11 +828,12 @@ async function renderCustomerSitesTab() {
   panel.innerHTML = `
     <div class="settings-controls ws-card bs-card">
       ${manager && data.accounts ? csEditorsHtml(data.accounts) : ''}
-      <div class="ws-card-label">${esc(t('Pin a customer site'))}</div>
-      <div class="cs-add">${siteFieldsHtml('csNew', {})}
-        <button type="button" class="btn btn-primary btn-sm" id="csAdd">${esc(t('Add site'))}</button></div>
-      <p class="form-error" id="csErr" hidden></p>
-      <div class="ws-card-split"></div>
+      <section class="cs-pin" aria-labelledby="csPinH">
+        <h3 class="cs-pin-h" id="csPinH"><span aria-hidden="true">📌</span>${esc(t('Pin a customer site'))}</h3>
+        <div class="cs-add">${siteFieldsHtml('csNew', {})}
+          <button type="button" class="btn btn-primary" id="csAdd">${esc(t('Add site'))}</button></div>
+        <p class="form-error" id="csErr" hidden></p>
+      </section>
       <p class="bs-summary">${esc(sites.length === 1 ? t('1 customer site is pinned in {region}.', { region: where }) : t('{n} customer sites are pinned in {region}.', { n: sites.length, region: where }))}</p>
       <input class="input cs-q" id="csQ" type="search" autocomplete="off" value="${esc(csState.q)}" placeholder="${esc(t('Search by DB number, name, alias or address'))}" aria-label="${esc(t('Search customer sites'))}" />
       <div class="bs-list" id="csList"></div>

@@ -4125,12 +4125,25 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .cs-alias-l { font-size: .84rem; font-weight: 600; color: var(--indigo); overflow-wrap: anywhere; }
 .cs-addr-l { font-size: .8rem; color: var(--ink-soft); overflow-wrap: anywhere; }
 .cs-more { margin: 8px 2px 0; font-size: .8rem; color: var(--muted); }
-.cs-add, .cs-edit { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, 1.2fr); gap: 8px 12px; align-items: end; }
-.cs-add .cs-addr, .cs-edit .cs-addr { grid-column: 1 / -1; }
-.cs-add .cs-alias, .cs-edit .cs-alias { grid-column: span 2; }
-.cs-add > .btn { grid-column: 1 / -1; justify-self: end; }
+/* "Pin a customer site": its own framed panel at the top of the tab, a tidy
+   two-column form (DB | name, alias | coordinates, address full width), the
+   coordinates read-out and the Add button sharing the footer row. */
+.cs-pin { margin: 0 0 20px; padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: 14px;
+  background: color-mix(in srgb, var(--pine-tint) 45%, var(--surface)); }
+.cs-pin-h { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 1rem; font-weight: 700; color: var(--ink); }
+.cs-pin-h span { font-size: .95rem; }
+.cs-pin .form-error { margin: 10px 0 0; }
+.cs-pin .input { background: var(--surface); border-color: var(--line); }
+/* Glass frosts inputs white-on-white, which vanish on this solid card. */
+:root[data-glass] .bs-card .input { background: var(--surface); border-color: var(--line); }
+.cs-add, .cs-edit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 14px; align-items: end; }
+.cs-add .cs-addr, .cs-edit .cs-addr, .cs-edit .bs-read { grid-column: 1 / -1; }
+.cs-add .bs-read { grid-column: 1; align-self: center; }
+.cs-add > .btn { grid-column: 2; justify-self: end; min-width: 132px; white-space: nowrap; }
 @media (max-width: 720px) {
+  .cs-pin { padding: 14px; }
   .cs-add, .cs-edit { grid-template-columns: minmax(0, 1fr); }
+  .cs-add .bs-read, .cs-add > .btn { grid-column: 1; }
   .cs-add > .btn { justify-self: stretch; }
 }
 /* Its "accounts on this base" checklist (modal2). */
