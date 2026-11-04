@@ -1339,7 +1339,7 @@ I18N.addDict('id', {
   "Search customer sites": "Cari lokasi customer",
   "Pin a customer site": "Pin lokasi customer",
   "Add site": "Tambah lokasi",
-  "No customer sites in {region} yet — pin the first one below.": "Belum ada lokasi customer di {region} — pin yang pertama di bawah.",
+  "No customer sites in {region} yet — pin the first one above.": "Belum ada lokasi customer di {region} — pin yang pertama di atas.",
   "Showing {n} of {m} — search to narrow the list.": "Menampilkan {n} dari {m} — cari untuk mempersempit daftar.",
   "Customer site saved": "Lokasi customer disimpan",
   "Customer site deleted": "Lokasi customer dihapus",

@@ -1316,7 +1316,7 @@ I18N.addDict('vi', {
   "Search customer sites": "Tìm địa điểm khách hàng",
   "Pin a customer site": "Ghim một địa điểm khách hàng",
   "Add site": "Thêm địa điểm",
-  "No customer sites in {region} yet — pin the first one below.": "Chưa có địa điểm khách hàng nào tại {region} — ghim địa điểm đầu tiên bên dưới.",
+  "No customer sites in {region} yet — pin the first one above.": "Chưa có địa điểm khách hàng nào tại {region} — ghim địa điểm đầu tiên ở trên.",
   "Showing {n} of {m} — search to narrow the list.": "Đang hiện {n} trên {m} — tìm kiếm để thu hẹp danh sách.",
   "Customer site saved": "Đã lưu địa điểm khách hàng",
   "Customer site deleted": "Đã xóa địa điểm khách hàng",

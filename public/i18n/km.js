@@ -1316,7 +1316,7 @@ I18N.addDict('km', {
   "Search customer sites": "ស្វែងរកទីតាំងអតិថិជន",
   "Pin a customer site": "ដៅទីតាំងអតិថិជន",
   "Add site": "បន្ថែមទីតាំង",
-  "No customer sites in {region} yet — pin the first one below.": "មិនទាន់មានទីតាំងអតិថិជនក្នុង {region} ទេ — ដៅទីតាំងដំបូងខាងក្រោម។",
+  "No customer sites in {region} yet — pin the first one above.": "មិនទាន់មានទីតាំងអតិថិជនក្នុង {region} ទេ — ដៅទីតាំងដំបូងខាងលើ។",
   "Showing {n} of {m} — search to narrow the list.": "កំពុងបង្ហាញ {n} នៃ {m} — ស្វែងរកដើម្បីបង្រួមបញ្ជី។",
   "Customer site saved": "បានរក្សាទុកទីតាំងអតិថិជន",
   "Customer site deleted": "បានលុបទីតាំងអតិថិជន",

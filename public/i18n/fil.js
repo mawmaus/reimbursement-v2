@@ -1316,7 +1316,7 @@ I18N.addDict('fil', {
   "Search customer sites": "Maghanap ng site ng customer",
   "Pin a customer site": "Mag-pin ng site ng customer",
   "Add site": "Idagdag ang site",
-  "No customer sites in {region} yet — pin the first one below.": "Wala pang site ng customer sa {region} — i-pin ang una sa ibaba.",
+  "No customer sites in {region} yet — pin the first one above.": "Wala pang site ng customer sa {region} — i-pin ang una sa itaas.",
   "Showing {n} of {m} — search to narrow the list.": "Ipinapakita ang {n} sa {m} — maghanap para paliitin ang listahan.",
   "Customer site saved": "Na-save ang site ng customer",
   "Customer site deleted": "Nabura ang site ng customer",

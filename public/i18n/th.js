@@ -1316,7 +1316,7 @@ I18N.addDict('th', {
   "Search customer sites": "ค้นหาสถานที่ลูกค้า",
   "Pin a customer site": "ปักหมุดสถานที่ลูกค้า",
   "Add site": "เพิ่มสถานที่",
-  "No customer sites in {region} yet — pin the first one below.": "ยังไม่มีสถานที่ลูกค้าใน {region} — ปักหมุดแห่งแรกด้านล่าง",
+  "No customer sites in {region} yet — pin the first one above.": "ยังไม่มีสถานที่ลูกค้าใน {region} — ปักหมุดแห่งแรกด้านบน",
   "Showing {n} of {m} — search to narrow the list.": "แสดง {n} จาก {m} — ค้นหาเพื่อจำกัดรายการ",
   "Customer site saved": "บันทึกสถานที่ลูกค้าแล้ว",
   "Customer site deleted": "ลบสถานที่ลูกค้าแล้ว",
