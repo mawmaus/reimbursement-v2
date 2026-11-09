@@ -175,9 +175,14 @@ function helpQuery(sql, params) {
     T.feedback.push({ id: T.feedback.length + 1, user_id, anonymous, region, department, kind, topic, body, status: 'new', response: '' });
     return [];
   }
+  if (/^SELECT f\.id, f\.user_id, u\.full_name/.test(sql)) {
+    const r = T.feedback.find(x => x.id === Number(params[0]));
+    return r ? [{ id: r.id, user_id: r.user_id, full_name: r.user_id ? 'User ' + r.user_id : null, email: '', department: '', region: '' }] : [];
+  }
   if (/^SELECT f\.id, .* FROM feedback f/.test(sql)) {
-    const mine = /WHERE f\.user_id = \$1/.test(sql);
-    return T.feedback.filter(x => !mine || x.user_id === params[0]).map(x => ({ ...x, sender_name: x.user_id ? 'User ' + x.user_id : null }));
+    const mine = /WHERE f\.user_id = \$1 AND f\.anonymous = FALSE/.test(sql);
+    return T.feedback.filter(x => !mine || (x.user_id === params[0] && !x.anonymous))
+      .map(({ user_id, ...x }) => ({ ...x, sender_name: user_id ? 'User ' + user_id : null }));
   }
   if (/^SELECT \* FROM feedback WHERE id = \$1/.test(sql)) { const r = T.feedback.find(x => x.id === Number(params[0])); return r ? [{ ...r }] : []; }
   if (/^UPDATE feedback SET/.test(sql)) {

@@ -424,7 +424,8 @@ function feedbackCard(x, staff) {
       : x.status === 'read' ? `<span class="hp-chip hp-st-closed">${esc(t('Read'))}</span>` : `<span class="hp-chip hp-st-open">${esc(t('Sent'))}</span>`);
   const acts = staff ? `<div class="hp-fb-acts">
       ${x.status === 'new' ? `<button type="button" class="btn btn-ghost btn-sm" data-fb-read="${x.id}">${esc(t('Mark as read'))}</button>` : ''}
-      ${!x.anonymous ? `<button type="button" class="btn btn-brand-soft btn-sm" data-fb-answer="${x.id}">${esc(x.response ? t('Edit answer') : t('Answer'))}</button>` : ''}
+      ${x.anonymous ? `<button type="button" class="btn btn-ghost btn-sm" data-fb-sender="${x.id}">${esc(t('Show sender'))}</button>`
+        : `<button type="button" class="btn btn-brand-soft btn-sm" data-fb-answer="${x.id}">${esc(x.response ? t('Edit answer') : t('Answer'))}</button>`}
     </div>` : '';
   return `<article class="hp-fb${staff && x.status === 'new' ? ' hp-unread' : ''}">
     <div class="hp-fb-top"><span class="hp-kind hp-kind-${esc(x.kind)}">${esc(feedbackKindLabel(x.kind))}</span>
@@ -454,7 +455,7 @@ function renderFeedbackForm() {
           <textarea name="body" rows="5" maxlength="4000" placeholder="${esc(t('Be as specific as you can — what happened, and what would be better.'))}"></textarea>
         </label>
         <label class="hp-anon-opt"><input type="checkbox" name="anonymous" />
-          <span><strong>${esc(t('Send anonymously'))}</strong><span>${esc(t('Your name, department and the time you sent it aren’t saved — only the date — so it won’t be listed below and can’t be answered.'))}</span></span></label>
+          <span><strong>${esc(t('Send anonymously'))}</strong><span>${esc(t('Your name isn’t shown with it, and it won’t be listed below or answered. Only a Super Admin can look up who sent it, if needed.'))}</span></span></label>
         <p class="form-error" id="hpFbErr" hidden></p>
         <div class="hp-fb-send"><button type="submit" class="btn btn-primary" id="hpFbSend" disabled>${esc(t('Send feedback'))}</button></div>
       </form>
@@ -513,6 +514,27 @@ function renderFeedbackInbox() {
   $$('#helpBody [data-fb-answer]').forEach(b => b.addEventListener('click', () => {
     const fb = all.find(x => String(x.id) === b.dataset.fbAnswer);
     if (fb) openFeedbackAnswer(fb, (text) => review(fb.id, text));
+  }));
+  // Anonymous notes: the sender is looked up on demand and shown in place of
+  // the button, never kept in the list data.
+  $$('#helpBody [data-fb-sender]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      const r = await api(`/help/feedback/${b.dataset.fbSender}/sender`, { method: 'POST' });
+      const line = document.createElement('div');
+      line.className = 'hp-fb-sender';
+      const label = document.createElement('span');
+      label.textContent = t('Sender');
+      const who = document.createElement('strong');
+      who.textContent = r.known
+        ? [r.name, r.department, r.email].filter(Boolean).join(' · ')
+        : t('Sent before senders were recorded — unknown');
+      line.append(label, who);
+      const acts = b.closest('.hp-fb-acts');
+      acts.before(line);
+      b.remove();
+      if (!acts.children.length) acts.remove();
+    } catch (ex) { b.disabled = false; toast(t(ex.message), true); }
   }));
 }
 function openFeedbackAnswer(fb, onSend) {

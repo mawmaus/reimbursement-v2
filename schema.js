@@ -625,8 +625,8 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_helpdesk_attachments_ticket ON helpdesk_attachments(ticket_id, id)`,
   // Feedback (kritik & saran): one-way notes to the Super Admins, who mark them
-  // read and may answer. An anonymous note keeps no account and no department,
-  // only the region.
+  // read and may answer. An anonymous note keeps its account (hidden; only a
+  // Super Admin can look it up, see routes/help.js) but no department.
   `CREATE TABLE IF NOT EXISTS feedback (
     id            SERIAL PRIMARY KEY,
     user_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,

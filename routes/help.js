@@ -230,13 +230,14 @@ router.post('/api/help/feedback', requireAuth, ah(async (req, res) => {
   if (body.error) return res.status(400).json({ error: body.error });
   const anonymous = b.anonymous === true;
   if (await rateLimited(req, res, 'feedback')) return;
-  // Anonymous feedback keeps only the day it was sent (stored as noon UTC, so
-  // it reads as the same date in every region): an exact time could be matched
-  // against who was online.
+  // Anonymous feedback still records its sender (the form tells them so): the
+  // name stays hidden everywhere and only a Super Admin can look it up, one note
+  // at a time, through /sender below. It keeps only the day it was sent (stored
+  // as noon UTC, so it reads as the same date in every region).
   await q(
     `INSERT INTO feedback (user_id, anonymous, region, department, kind, topic, body, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, CASE WHEN $2 THEN date_trunc('day', now()) + interval '12 hours' ELSE now() END)`,
-    [anonymous ? null : req.user.id, anonymous, String(req.user.region || ''),
+    [req.user.id, anonymous, String(req.user.region || ''),
       anonymous ? '' : String(req.user.department || ''), kind, topic, body.value]);
   res.json({ ok: true });
 }));
@@ -248,11 +249,12 @@ router.get('/api/help/feedback', requireAuth, ah(async (req, res) => {
   const staff = isHelpStaff(req.user);
   const where = [];
   const params = [];
-  if (!staff) { params.push(req.user.id); where.push(`f.user_id = $${params.length}`); }
+  // An account's own list stays named-only: its anonymous notes aren't shown back.
+  if (!staff) { params.push(req.user.id); where.push(`f.user_id = $${params.length} AND f.anonymous = FALSE`); }
   if (staff && ['new', 'read'].includes(req.query.status)) { params.push(req.query.status); where.push(`f.status = $${params.length}`); }
   if (FEEDBACK_KINDS.includes(req.query.kind)) { params.push(req.query.kind); where.push(`f.kind = $${params.length}`); }
   if (staff && req.query.region) { params.push(String(req.query.region)); where.push(`f.region = $${params.length}`); }
-  where.push(`(f.status = 'new' OR f.id IN (SELECT r.id FROM feedback r WHERE r.status <> 'new'${staff ? '' : ' AND r.user_id = $1'}
+  where.push(`(f.status = 'new' OR f.id IN (SELECT r.id FROM feedback r WHERE r.status <> 'new'${staff ? '' : ' AND r.user_id = $1 AND r.anonymous = FALSE'}
                                            ORDER BY r.created_at DESC LIMIT ${ARCHIVE_MAX}))`);
   const rows = await q(
     `SELECT f.id, f.anonymous, f.region, f.department, f.kind, f.topic, f.body, f.status, f.response,
@@ -277,11 +279,24 @@ router.post('/api/help/feedback/:id/review', requireAuth, requireHelpStaff, ah(a
   if (raw) {
     await q(`UPDATE feedback SET status = 'read', response = $2, responded_by = $3, responded_at = now() WHERE id = $1`,
       [fb.id, raw, req.user.id]);
-    if (fb.user_id) await notifyFeedbackAnswered(Number(fb.user_id), raw, req.user.full_name);
+    if (fb.user_id && !fb.anonymous) await notifyFeedbackAnswered(Number(fb.user_id), raw, req.user.full_name);
   } else {
     await q(`UPDATE feedback SET status = 'read' WHERE id = $1`, [fb.id]);
   }
   res.json({ ok: true });
+}));
+
+// Who sent an anonymous note — Super Admins only, one note per request, never
+// part of the list. Notes sent before senders were recorded have no one to show.
+router.post('/api/help/feedback/:id/sender', requireAuth, requireHelpStaff, ah(async (req, res) => {
+  const id = idParam(req.params.id);
+  const rows = id ? await q(
+    `SELECT f.id, f.user_id, u.full_name, u.email, u.department, u.region
+       FROM feedback f LEFT JOIN users u ON u.id = f.user_id WHERE f.id = $1`, [id]) : [];
+  const fb = rows[0];
+  if (!fb) return res.status(404).json({ error: 'Feedback not found' });
+  if (!fb.user_id || !fb.full_name) return res.json({ known: false });
+  res.json({ known: true, name: fb.full_name, email: fb.email || '', department: fb.department || '', region: fb.region || '' });
 }));
 
 module.exports = router;

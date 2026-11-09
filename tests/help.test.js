@@ -2,7 +2,7 @@
 
 // Helpdesk tickets and feedback through the real app (see _app.js): an account
 // sees only its own tickets and named feedback, the Super Admins answer
-// everyone's, and anonymous feedback keeps no trace of who sent it.
+// everyone's, and only a Super Admin can look up who sent anonymous feedback.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { state, account, serve, call } = require('./_app');
@@ -69,7 +69,7 @@ test('close and reopen', async (t) => {
   assert.equal(state.tables.helpdesk_tickets[0].status, 'open');
 });
 
-test('feedback: validated, anonymous keeps no account, only the helpdesk reviews', async (t) => {
+test('feedback: validated, anonymous hides its sender from all but Super Admins, only the helpdesk reviews', async (t) => {
   await serve(t);
   state.writes.length = 0;
   for (const body of [{}, { kind: 'praise', body: 'x' }, { kind: 'suggestion', body: ' ' }]) {
@@ -81,12 +81,20 @@ test('feedback: validated, anonymous keeps no account, only the helpdesk reviews
   const [named, anon] = state.tables.feedback;
   assert.equal(named.user_id, ANA);
   assert.equal(named.department, 'Sales');
-  assert.deepEqual([anon.user_id, anon.anonymous, anon.department, anon.region, anon.topic], [null, true, '', 'Indonesia', 'other']);
+  // Anonymous still records the sender (hidden), but no department.
+  assert.deepEqual([anon.user_id, anon.anonymous, anon.department, anon.region, anon.topic], [ANA, true, '', 'Indonesia', 'other']);
   // The sender sees only their named feedback; the helpdesk sees both, without a name on the anonymous one.
   assert.deepEqual((await call(ANA, 'GET', '/api/help/feedback')).json.feedback.map(f => f.id), [named.id]);
   const all = (await call(ROOT, 'GET', '/api/help/feedback')).json.feedback;
   assert.equal(all.length, 2);
   assert.equal(all.find(f => f.anonymous).sender_name, '');
+  assert.ok(all.every(f => !('user_id' in f)), 'the list never carries the account id');
+  // Only a Super Admin can look up an anonymous sender, one note at a time.
+  assert.equal((await call(ANA, 'POST', `/api/help/feedback/${anon.id}/sender`)).status, 403);
+  assert.equal((await call(BEN, 'POST', `/api/help/feedback/${anon.id}/sender`)).status, 403);
+  const who = await call(ROOT, 'POST', `/api/help/feedback/${anon.id}/sender`);
+  assert.deepEqual([who.status, who.json.known, who.json.name], [200, true, 'User ' + ANA]);
+  assert.equal((await call(ROOT, 'POST', '/api/help/feedback/999/sender')).status, 404);
   assert.equal((await call(ROOT, 'GET', '/api/help/summary')).json.feedback, 2);
   state.writes.length = 0;
   assert.equal((await call(ANA, 'POST', `/api/help/feedback/${named.id}/review`, {})).status, 403);

@@ -3676,6 +3676,9 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .hp-answer-text { margin-top: 3px; font-size: .87rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
 .hp-fb-acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .hp-fb-acts .btn { white-space: nowrap; }
+.hp-fb-sender { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 10px; padding: 8px 11px; border-radius: 9px; background: var(--paper); font-size: .84rem; }
+.hp-fb-sender > span { font-size: .74rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.hp-fb-sender > strong { min-width: 0; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
 .hp-quote { padding: 11px 13px; border-radius: 10px; background: var(--paper); }
 .hp-quote p { margin: 8px 0 0; font-size: .88rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); max-height: 180px; overflow-y: auto; }
 
