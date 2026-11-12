@@ -28,6 +28,28 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-13.1',
+    date: '2026-11-13',
+    items: [
+      { kind: 'improved', audience: ['meal'], text: {
+        en: 'Meal allowance (GPS): in town, 30 km or more from your base, is now up to IDR 40,000 a day (was IDR 35,000). The limits shown on the form always match your region’s current rates.',
+        id: 'Tunjangan makan (GPS): dalam kota, 30 km atau lebih dari base Anda, kini maksimal IDR 40.000 per hari (sebelumnya IDR 35.000). Batas yang tampil di formulir selalu sesuai tarif wilayah Anda saat ini.',
+        th: 'ค่าอาหาร (GPS): ในเมือง ตั้งแต่ 30 กม. ขึ้นไปจากฐานของคุณ เบิกได้สูงสุด IDR 40,000 ต่อวันแล้ว (เดิม IDR 35,000) วงเงินที่แสดงในแบบฟอร์มตรงกับอัตราปัจจุบันของภูมิภาคคุณเสมอ',
+        vi: 'Phụ cấp ăn (GPS): trong thành phố, từ 30 km trở lên tính từ cơ sở của bạn, giờ tối đa IDR 40.000 mỗi ngày (trước đây IDR 35.000). Hạn mức hiển thị trên biểu mẫu luôn khớp với mức hiện tại của khu vực bạn.',
+        km: 'ប្រាក់ឧបត្ថម្ភអាហារ (GPS)៖ ក្នុងក្រុង ចាប់ពី 30 គ.ម ពីមូលដ្ឋានរបស់អ្នក ឥឡូវអតិបរមា IDR 40,000 ក្នុងមួយថ្ងៃ (ពីមុន IDR 35,000)។ កម្រិតដែលបង្ហាញលើទម្រង់ តែងតែត្រូវនឹងអត្រាបច្ចុប្បន្ននៃតំបន់របស់អ្នក។',
+        fil: 'Meal allowance (GPS): sa loob ng bayan, 30 km o higit pa mula sa base mo, hanggang IDR 40,000 na kada araw (dati IDR 35,000). Laging tugma sa kasalukuyang rate ng rehiyon mo ang mga limit na nakikita sa form.'
+      } },
+      { kind: 'new', audience: ['settings'], text: {
+        en: 'Settings → GPS meal allowance: set the in-town and out-of-town daily limits for each region. The claim form, its guide and the server checks all follow what you save.',
+        id: 'Pengaturan → Tunjangan makan GPS: atur batas harian dalam kota dan luar kota untuk tiap wilayah. Formulir klaim, panduannya, dan pemeriksaan server mengikuti yang Anda simpan.',
+        th: 'การตั้งค่า → ค่าอาหาร GPS: กำหนดวงเงินรายวันในเมืองและนอกเมืองของแต่ละภูมิภาค แบบฟอร์มเบิก คู่มือ และการตรวจสอบของเซิร์ฟเวอร์จะเป็นไปตามที่คุณบันทึก',
+        vi: 'Cài đặt → Phụ cấp ăn GPS: đặt hạn mức mỗi ngày trong và ngoài thành phố cho từng khu vực. Biểu mẫu yêu cầu, hướng dẫn và kiểm tra của máy chủ đều theo mức bạn lưu.',
+        km: 'ការកំណត់ → ប្រាក់ឧបត្ថម្ភអាហារ GPS៖ កំណត់កម្រិតប្រចាំថ្ងៃក្នុងក្រុង និងក្រៅក្រុងសម្រាប់តំបន់នីមួយៗ។ ទម្រង់ទាមទារ មគ្គុទ្ទេសក៍ និងការត្រួតពិនិត្យរបស់ម៉ាស៊ីនមេ ធ្វើតាមអ្វីដែលអ្នករក្សាទុក។',
+        fil: 'Settings → GPS meal allowance: itakda ang arawang limit sa loob at labas ng bayan para sa bawat rehiyon. Sinusunod ng claim form, ng gabay nito at ng server ang ise-save mo.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-12.3',
     date: '2026-11-12',
     items: [

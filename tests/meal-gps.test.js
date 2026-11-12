@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { state, account, doc, serve, call } = require('./_app');
-const { normaliseGpsLines, parseCoords, distanceMeters, parseBaseInput, RULES } = require('../lib/meal-gps');
+const { normaliseGpsLines, parseCoords, distanceMeters, parseBaseInput, mealGpsRules, RULES } = require('../lib/meal-gps');
 
 // Jakarta (Monas) as the base; Bogor is ~43 km south, Kemang ~8 km.
 const BASE = { name: 'Jakarta office', lat: -6.1754, lng: 106.8272 };
@@ -29,14 +29,14 @@ test('distance is the straight line from the base', () => {
   assert.ok(distanceMeters(BASE, KEMANG) / 1000 < RULES.minKm);
 });
 
-test('in town under 30 km is refused; 30 km or more is capped at 35,000 a day', () => {
+test('in town under 30 km is refused; 30 km or more is capped at 40,000 a day', () => {
   assert.match(run([line({ site: 'DB 500333' })]).error, /customer site is .* RADIUS \(straight line, not road distance\).*within 30 km can't be claimed/);
-  const ok = run([line({ amount: 35000 })]);
+  const ok = run([line({ amount: 40000 })]);
   assert.equal(ok.error, undefined);
-  assert.equal(ok.totalCents, 3500000);
+  assert.equal(ok.totalCents, 4000000);
   assert.ok(ok.lines[0].distance_m > 40000);
   assert.equal(ok.lines[0].site_id, 1);
-  assert.match(run([line({ amount: 35001 })]).error, /capped at IDR 35,000 a day/);
+  assert.match(run([line({ amount: 40001 })]).error, /capped at IDR 40,000 a day/);
 });
 
 test('out of town: up to three meals, 120,000 a day in total, at any distance', () => {
@@ -134,4 +134,56 @@ test('managers and above may register customer sites; staff may not', () => {
   assert.equal(mayEditCustomerSites(who('Supervisor'), {}, pos), false);
   assert.equal(mayEditCustomerSites(who('Staff'), { customer_site_editors: '[77]' }, pos), true, 'a named editor');
   assert.equal(mayEditCustomerSites(who('Staff', { caps: { manage_settings: true } }), {}, pos), true);
+});
+
+
+test('in-town cap is resolved per region and enforced without changing the distance or out-of-town rules', () => {
+  const settings = { meal_gps_by_region: JSON.stringify({ Indonesia: { enabled: true, inTownCapCents: 5000000 } }) };
+  const rules = mealGpsRules(settings, 'Indonesia');
+  assert.equal(rules.inTownCapCents, 5000000);
+  assert.equal(mealGpsRules(settings, 'Thailand').inTownCapCents, 4000000);
+  assert.equal(normaliseGpsLines([line({ amount: 50000 })], BASE, 'IDR', { sites: SITES, rules }).totalCents, 5000000);
+  assert.match(normaliseGpsLines([line({ amount: 50001 })], BASE, 'IDR', { sites: SITES, rules }).error, /capped at IDR 50,000/);
+  assert.equal(rules.minKm, 30);
+  assert.equal(rules.outOfTownCapCents, 12000000);
+  for (const value of [0, -1, '5000000', null]) {
+    assert.equal(mealGpsRules({ meal_gps_by_region: JSON.stringify({ Indonesia: { inTownCapCents: value } }) }, 'Indonesia').inTownCapCents, 4000000);
+  }
+});
+
+
+test('settings managers can save the cap; toggling availability preserves it and invalid amounts do not overwrite it', async (t) => {
+  state.settings.role_permissions = { admin: { manage_settings: true } };
+  await require('../lib/settings').loadAppSettings({ fresh: true });
+  state.users.set(99, account({ id: 99, role: 'admin' }));
+  await serve(t);
+  assert.equal((await call(CLAIMANT, 'PUT', '/api/meal-gps-settings', { inTownCap: 50000 })).status, 403);
+  const saved = await call(99, 'PUT', '/api/meal-gps-settings', { region: 'Indonesia', enabled: true, inTownCap: 50000 });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.rules.inTownCapCents, 5000000);
+  const toggle = await call(99, 'PUT', '/api/meal-gps-settings', { region: 'Indonesia', enabled: false });
+  assert.equal(toggle.json.rules.inTownCapCents, 5000000);
+  for (const cap of [0, -1, 'abc']) assert.equal((await call(99, 'PUT', '/api/meal-gps-settings', { region: 'Indonesia', inTownCap: cap })).status, 400);
+  const read = await call(CLAIMANT, 'GET', '/api/meal-gps-settings');
+  assert.equal(read.json.rules.inTownCapCents, 5000000);
+  assert.equal(read.json.enabled, false);
+});
+
+test('the out-of-town cap follows the region setting too', async (t) => {
+  const settings = { meal_gps_by_region: JSON.stringify({ Indonesia: { outOfTownCapCents: 15000000 } }) };
+  const rules = mealGpsRules(settings, 'Indonesia');
+  assert.equal(rules.outOfTownCapCents, 15000000);
+  assert.equal(rules.inTownCapCents, 4000000, 'in town keeps the default');
+  const out = (meals) => normaliseGpsLines([line({ trip_type: 'out_of_town', site: 'DB 500333', meals })], BASE, 'IDR', { sites: SITES, rules });
+  assert.equal(out([50000, 50000, 50000]).totalCents, 15000000);
+  assert.match(out([50000, 50000, 50001]).error, /capped at IDR 150,000 a day/);
+  state.settings.role_permissions = { admin: { manage_settings: true } };
+  await require('../lib/settings').loadAppSettings({ fresh: true });
+  state.users.set(99, account({ id: 99, role: 'admin' }));
+  await serve(t);
+  const saved = await call(99, 'PUT', '/api/meal-gps-settings', { region: 'Indonesia', inTownCap: 45000, outOfTownCap: 150000 });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.rules.inTownCapCents, 4500000);
+  assert.equal(saved.json.rules.outOfTownCapCents, 15000000);
+  assert.equal((await call(99, 'PUT', '/api/meal-gps-settings', { region: 'Indonesia', outOfTownCap: 0 })).status, 400);
 });

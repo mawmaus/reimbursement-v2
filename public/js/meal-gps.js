@@ -22,7 +22,7 @@ const mgRules = () => {
   const r = mgCfg().rules || {};
   return {
     from: r.effectiveFrom || '2026-11-01', minKm: r.minKm || 30, maxMeals: r.maxMeals || 3,
-    inCap: (r.inTownCapCents || 3500000) / 100, outCap: (r.outOfTownCapCents || 12000000) / 100
+    inCap: (r.inTownCapCents || 4000000) / 100, outCap: (r.outOfTownCapCents || 12000000) / 100
   };
 };
 const mgBlank = () => ({ date: '', trip: '', amount: '', meals: ['', '', ''], site: '', siteId: null, q: '', category: '', desc: '', files: [], kept: [] });
@@ -413,6 +413,11 @@ function collectMealGpsDraft() {
 const collectMealGpsFiles = () => mgRows.map(r => r.files.slice());
 
 async function openMealGpsModal(existing = null) {
+  // Fetch the region's current daily limits so the hints and checks follow them.
+  try {
+    const data = await api('/meal-gps-settings' + (existing?.region ? '?region=' + encodeURIComponent(existing.region) : ''));
+    state.user.meal_gps = { ...state.user.meal_gps, rules: data.rules };
+  } catch (ex) { toast(ex.message, true); return; }
   const isEdit = !!existing;
   mgEditId = isEdit ? existing.id : null;
   setClaimDateContext(isEdit ? existing : null);

@@ -638,7 +638,7 @@ async function renderMealRatesTab() {
 
 // --- GPS meal allowance (per-region on/off) -------------------------------------
 // One switch per region, saved via PUT /api/meal-gps-settings (manage_settings).
-// The page also shows the fixed rules and how many of the region's accounts
+// The page also shows the rules and how many of the region's accounts
 // already have a base — an account without one can't submit.
 async function renderMealGpsTab() {
   const panel = $('#settingsPanel');
@@ -666,6 +666,13 @@ async function renderMealGpsTab() {
       <div class="cw-rule">
         <div class="ws-card-label">${esc(t('Rules'))}</div>
         ${radiusNoteHtml(r.minKm)}
+        <form id="mgsCapForm" class="mgs-caps">
+          <label class="mgs-cap-field"><span>${esc(t('In-town daily limit'))}</span>
+            <span class="mgs-cap-input"><span class="mgs-cur">${esc(cur)}</span><input class="input" id="mgsCap" inputmode="numeric" autocomplete="off" required value="${esc(groupAmount(String(Math.round(r.inTownCapCents / 100))))}" /></span></label>
+          <label class="mgs-cap-field"><span>${esc(t('Out-of-town daily limit'))}</span>
+            <span class="mgs-cap-input"><span class="mgs-cur">${esc(cur)}</span><input class="input" id="mgsOutCap" inputmode="numeric" autocomplete="off" required value="${esc(groupAmount(String(Math.round(r.outOfTownCapCents / 100))))}" /></span></label>
+          <button type="submit" class="btn btn-primary" id="mgsCapSave">${esc(t('Save'))}</button>
+        </form>
         <ul class="mgs-rules">
           <li>${withRadius(t('In town, within {min} km {radius}: not claimable', { min: r.minKm }))}</li>
           <li>${withRadius(t('In town, {min} km {radius} or more: up to {cap} a day', { min: r.minKm, cap: money((r.inTownCapCents || 0) / 100, cur) }))}</li>
@@ -683,6 +690,22 @@ async function renderMealGpsTab() {
       </div>
       <p class="form-error" id="mgsErr" hidden></p>
     </div>`;
+  for (const id of ['#mgsCap', '#mgsOutCap']) {
+    const inp = $(id);
+    inp.addEventListener('input', () => { inp.value = groupAmount(inp.value.replace(/D/g, '')); });
+  }
+  $('#mgsCapForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('#mgsCapSave'); btn.disabled = true;
+    const err = $('#mgsErr'); err.hidden = true;
+    try {
+      const amt = (sel) => mealAmount($(sel).value);
+      const res = await api('/meal-gps-settings', { method: 'PUT', body: JSON.stringify({ inTownCap: amt('#mgsCap'), outOfTownCap: amt('#mgsOutCap'), ...(region ? { region } : {}) }) });
+      if (!region || region === state.user.region) state.user.meal_gps = { ...state.user.meal_gps, rules: res.rules };
+      toast(t('Meal allowance amounts saved'));
+      renderMealGpsTab();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+  });
   const acc = $('#mgsAccounts');
   if (acc) acc.addEventListener('click', () => { const b = $('#settingsTabs [data-tab="bases"]'); if (b) b.click(); });
   $('#mgsOn').addEventListener('change', async (e) => {

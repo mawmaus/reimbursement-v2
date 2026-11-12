@@ -26,7 +26,7 @@ const { claimDateViolation, carriedLineDates } = require('../lib/claim-window');
 const { liveDateChange, dateChangeGranted, consumeDateChange } = require('../lib/date-changes');
 const { logMealHistory } = require('../lib/documents');
 const {
-  RULES, mealGpsMap, mealGpsEnabled, mayRaiseGps, baseView, normaliseGpsLines, datesTakenElsewhere, loadBase, loadRegionSites
+  mealGpsRules, mealGpsMap, mealGpsEnabled, mayRaiseGps, baseView, normaliseGpsLines, datesTakenElsewhere, loadBase, loadRegionSites
 } = require('../lib/meal-gps');
 
 const router = express.Router();
@@ -66,7 +66,7 @@ async function submitGpsMeal(req, res) {
   const base = await loadBase(req.user.id);
   const region = String(req.user.region || '');
   const currency = (await regionPrefsFor(region)).currency;
-  const parsed = normaliseGpsLines(b.lines, base, currency, { sites: await loadRegionSites(region) });
+  const parsed = normaliseGpsLines(b.lines, base, currency, { sites: await loadRegionSites(region), rules: mealGpsRules(settings, region) });
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
@@ -94,7 +94,7 @@ async function resubmitGpsMeal(req, res, row) {
   const emp = (await q(
     `SELECT full_name, department, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options,
             base_name, base_lat, base_lng FROM users WHERE id = $1`, [row.employee_id]))[0] || {};
-  const parsed = normaliseGpsLines(b.lines, baseView(emp), row.currency, { sites: await loadRegionSites(row.region) });
+  const parsed = normaliseGpsLines(b.lines, baseView(emp), row.currency, { sites: await loadRegionSites(row.region), rules: mealGpsRules(await loadAppSettings(), row.region) });
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const grant = await liveDateChange('meal', row.id);
   if (!dateChangeGranted(grant)) {
@@ -230,7 +230,7 @@ router.get('/api/meal-gps-settings', requireAuth, ah(async (req, res) => {
   const region = await resolveLookupRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const settings = await loadAppSettings();
-  const out = { region, enabled: mealGpsEnabled(settings, region), rules: RULES };
+  const out = { region, enabled: mealGpsEnabled(settings, region), rules: mealGpsRules(settings, region) };
   if (userCan(req.user, 'manage_settings') && region) {
     const rows = await q(
       `SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE base_lat IS NOT NULL)::int AS with_base
@@ -248,9 +248,22 @@ router.put('/api/meal-gps-settings', requireAuth, requireCap('manage_settings'),
   if (region === null || !region || region === '*') return res.status(400).json({ error: 'Choose a region' });
   const settings = await loadAppSettings({ fresh: true });
   const byRegion = mealGpsMap(settings);
-  byRegion[region] = { enabled: b.enabled === true };
+  const current = byRegion[region] || {};
+  const next = { ...current };
+  if (Object.hasOwn(b, 'enabled')) next.enabled = b.enabled === true;
+  if (Object.hasOwn(b, 'inTownCap')) {
+    const cap = parseAmountToCents(b.inTownCap);
+    if (!Number.isSafeInteger(cap) || cap <= 0) return res.status(400).json({ error: 'Enter a positive amount' });
+    next.inTownCapCents = cap;
+  }
+  if (Object.hasOwn(b, 'outOfTownCap')) {
+    const cap = parseAmountToCents(b.outOfTownCap);
+    if (!Number.isSafeInteger(cap) || cap <= 0) return res.status(400).json({ error: 'Enter a positive amount' });
+    next.outOfTownCapCents = cap;
+  }
+  byRegion[region] = next;
   await setAppSetting('meal_gps_by_region', JSON.stringify(byRegion));
-  res.json({ region, enabled: byRegion[region].enabled, rules: RULES });
+  res.json({ region, enabled: byRegion[region].enabled, rules: mealGpsRules({ meal_gps_by_region: JSON.stringify(byRegion) }, region) });
 }));
 
 module.exports = { router, submitGpsMeal, resubmitGpsMeal, canAdjustApproved };
