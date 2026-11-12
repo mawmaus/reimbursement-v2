@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-12.3',
+    date: '2026-11-12',
+    items: [
+      { kind: 'improved', audience: ['insights'], text: {
+        en: 'Approval times in Insights is now compact: ten rows with Show all, a search box, and sortable columns (slowest first). Switch to Departments to see each department’s average, with an overall average on top; tap a department to see its employees.',
+        id: 'Waktu persetujuan di Insights kini ringkas: sepuluh baris dengan Tampilkan semua, kotak pencarian, dan kolom yang bisa diurutkan (terlama dulu). Pilih Departemen untuk melihat rata-rata tiap departemen, dengan rata-rata keseluruhan di atas; ketuk departemen untuk melihat karyawannya.',
+        th: 'ระยะเวลาอนุมัติใน Insights กระชับขึ้น: แสดงสิบแถวพร้อมปุ่มแสดงทั้งหมด ช่องค้นหา และคอลัมน์ที่เรียงลำดับได้ (ช้าที่สุดก่อน) สลับไปที่แผนกเพื่อดูค่าเฉลี่ยของแต่ละแผนก พร้อมค่าเฉลี่ยรวมด้านบน แตะแผนกเพื่อดูพนักงาน',
+        vi: 'Thời gian phê duyệt trong Insights giờ gọn hơn: mười dòng với Hiện tất cả, ô tìm kiếm và cột sắp xếp được (chậm nhất trước). Chuyển sang Phòng ban để xem trung bình từng phòng ban, có trung bình chung ở trên; chạm vào phòng ban để xem nhân viên.',
+        km: 'រយៈពេលអនុម័តក្នុង Insights ឥឡូវខ្លីជាងមុន៖ ដប់ជួរជាមួយ បង្ហាញទាំងអស់ ប្រអប់ស្វែងរក និងជួរឈរដែលអាចតម្រៀបបាន (យឺតបំផុតមុន)។ ប្តូរទៅផ្នែក ដើម្បីមើលមធ្យមភាគនៃផ្នែកនីមួយៗ ជាមួយមធ្យមភាគរួមនៅខាងលើ ចុចលើផ្នែកដើម្បីមើលបុគ្គលិក។',
+        fil: 'Mas maikli na ang Tagal ng pag-apruba sa Insights: sampung hilera na may Ipakita lahat, search box, at mga column na puwedeng ayusin (pinakamabagal muna). Lumipat sa Mga departamento para makita ang average ng bawat departamento, may kabuuang average sa itaas; i-tap ang departamento para makita ang mga empleyado nito.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-12.2',
     date: '2026-11-12',
     items: [

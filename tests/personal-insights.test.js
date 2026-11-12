@@ -43,7 +43,7 @@ test('an approver sees their own approval times in Insights next to their team',
   state.positions = [{ name: 'Supervisor', rank: 10 }, { name: 'Staff', rank: 13 }];
   const event = (employee_id, action, hours, appr) => ({
     cid: `c${employee_id}`, employee_id, name: `User ${employee_id}`, username: `user${employee_id}`,
-    action, at_ms: hours * 3600000, d: '2026-11-01', appr
+    action, at_ms: hours * 3600000, d: '2026-11-01', appr, department: 'Ops'
   });
   state.approvalEvents = [
     event(supervisor, 'submitted', 0, [99]),
@@ -54,7 +54,14 @@ test('an approver sees their own approval times in Insights next to their team',
   await serve(t);
   const res = await call(supervisor, 'GET', '/api/insights');
   assert.equal(res.status, 200, res.body);
-  const rows = Object.fromEntries(res.json.approvalByEmployee.map(e => [e.employee_id, e.manager]));
-  assert.deepEqual(rows[supervisor], { n: 1, avg_days: 1 });
-  assert.deepEqual(rows[report], { n: 1, avg_days: 0.25 });
+  // The team row comes from the scope; the viewer's own row is added apart
+  // and stays out of the department and overall averages.
+  assert.deepEqual(res.json.approvalByEmployee.map(e => [e.employee_id, e.department, e.manager]),
+    [[report, 'Ops', { n: 1, avg_days: 0.25 }]]);
+  assert.equal(res.json.approvalSelf.employee_id, supervisor);
+  assert.deepEqual(res.json.approvalSelf.manager, { n: 1, avg_days: 1 });
+  assert.equal(res.json.approvalSelf.claims, undefined);
+  assert.deepEqual(res.json.approvalTotal.manager, { n: 1, avg_days: 0.25 });
+  assert.deepEqual(res.json.approvalByDepartment.map(d => [d.department, d.employees, d.manager]),
+    [['Ops', 1, { n: 1, avg_days: 0.25 }]]);
 });

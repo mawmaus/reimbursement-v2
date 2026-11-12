@@ -1448,5 +1448,15 @@ I18N.addDict('vi', {
   "How long your claims take to be approved": "Yêu cầu của bạn mất bao lâu để được duyệt",
   "Per claim": "Theo từng yêu cầu",
   "To Manager approval": "Đến khi Quản lý duyệt",
-  "To Finance AP approval": "Đến khi Finance AP duyệt"
+  "To Finance AP approval": "Đến khi Finance AP duyệt",
+  "Approval times": "Thời gian phê duyệt",
+  "Employees": "Nhân viên",
+  "All in scope": "Toàn bộ phạm vi",
+  "{n} people": "{n} người",
+  "Search department": "Tìm phòng ban",
+  "Search name or email": "Tìm tên hoặc email",
+  "Search": "Tìm",
+  "Showing {shown} of {n}": "Hiển thị {shown} / {n}",
+  "Show all": "Hiện tất cả",
+  "Show fewer": "Thu gọn"
 });

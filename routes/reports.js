@@ -11,7 +11,7 @@ const {
   viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions
 } = require('../lib/settings');
 const { todayInZone } = require('../lib/claim-window');
-const { insightPeriods, summarize, rankBy, speedStats, approvalPeriod, approvalStatsByEmployee, pipelineStats } = require('../lib/insights');
+const { insightPeriods, summarize, rankBy, speedStats, approvalPeriod, approvalStatsByEmployee, approvalStatsByDepartment, pipelineStats } = require('../lib/insights');
 const { buildXlsx, XLSX_MIME } = require('../lib/xlsx');
 
 const router = express.Router();
@@ -68,26 +68,17 @@ const docCols = (t, lines, fk, dbCol) =>
   `${t}.department, ${t}.region, ${t}.approver_ids AS appr, ${t}.claimant_name AS claimant,
             (SELECT string_agg(COALESCE(l.${dbCol},''), ' ') FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL) AS dbs`;
 
-// Insights (`conditions` = the viewer's scope) always adds the viewer's own
-// claims (`selfId`), so an approver sees their own row next to their team's.
-async function loadApprovalTimes(query, tz, { conditions, ownerId, selfId }) {
+// Either one account's own claims (`ownerId`, with per-claim rows) or the
+// Insights scope (`conditions`, with per-department and overall averages).
+async function loadApprovalTimes(query, tz, { conditions, ownerId }) {
   const today = todayInZone(tz);
   const approvalWindow = approvalPeriod(
     String(query.approvalPeriod || ''), String(query.approvalFrom || ''), String(query.approvalTo || ''), today
   );
   const approvalParams = [tz, approvalWindow.to || null];
   const own = ownerId != null;
-  let approvalWhere;
-  if (own) {
-    approvalParams.push(ownerId);
-    approvalWhere = 'WHERE employee_id = $3';
-  } else {
-    approvalWhere = conditions(approvalParams);
-    if (approvalWhere && selfId != null) {
-      approvalParams.push(selfId);
-      approvalWhere = `WHERE (${approvalWhere.slice(6)}) OR employee_id = $${approvalParams.length}`;
-    }
-  }
+  const approvalWhere = own ? 'WHERE employee_id = $3' : conditions(approvalParams);
+  if (own) approvalParams.push(ownerId);
   const approvalEvents = await q(
     `WITH docs AS (
        SELECT 'c' AS kind, c.id, c.employee_id, c.claim_no${own ? '' : ', ' + docCols('c', 'claim_lines', 'claim_id', 'db_no')}
@@ -96,9 +87,9 @@ async function loadApprovalTimes(query, tz, { conditions, ownerId, selfId }) {
        SELECT 'm' AS kind, m.id, m.employee_id, m.claim_no${own ? '' : ', ' + docCols('m', 'meal_claim_lines', 'meal_claim_id', 'site')}
          FROM meal_claims m
      ), scoped AS (
-       SELECT kind, id, employee_id, claim_no FROM docs ${approvalWhere}
+       SELECT kind, id, employee_id, claim_no${own ? '' : ', department'} FROM docs ${approvalWhere}
      )
-     SELECT d.kind || d.id AS cid, d.claim_no, d.employee_id, u.full_name AS name, u.username,
+     SELECT d.kind || d.id AS cid, d.claim_no, d.employee_id${own ? '' : ', d.department'}, u.full_name AS name, u.username,
             h.action, EXTRACT(EPOCH FROM h.created_at) * 1000 AS at_ms,
             to_char(h.created_at AT TIME ZONE $1, 'YYYY-MM-DD') AS d
        FROM scoped d JOIN users u ON u.id = d.employee_id
@@ -110,7 +101,13 @@ async function loadApprovalTimes(query, tz, { conditions, ownerId, selfId }) {
       WHERE (h.action IN ('submitted','resubmitted','approved','reverted approval') OR h.action LIKE 'approved — step %')
         AND ($2::date IS NULL OR h.created_at < (($2::date + 1)::timestamp AT TIME ZONE $1))
       ORDER BY d.kind, d.id, h.created_at, h.id`, approvalParams);
-  return { approvalWindow, approvalByEmployee: approvalStatsByEmployee(approvalEvents, approvalWindow, { claims: own }) };
+  const out = { approvalWindow, approvalByEmployee: approvalStatsByEmployee(approvalEvents, approvalWindow, { claims: own }) };
+  if (!own) {
+    const { total, byDepartment } = approvalStatsByDepartment(approvalEvents, approvalWindow);
+    out.approvalTotal = total;
+    out.approvalByDepartment = byDepartment;
+  }
+  return out;
 }
 
 router.get('/api/insights/mine', requireAuth, ah(async (req, res) => {
@@ -344,7 +341,17 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
      ) s ${spWhere}`, spParams);
   const speed = speedStats(spRows, per.start, per.end);
 
-  const approvals = await loadApprovalTimes(req.query, tz, { conditions: docConds, selfId: req.user.id });
+  const approvals = await loadApprovalTimes(req.query, tz, { conditions: docConds });
+  // The viewer's own row always shows (pinned by the page). When their claims
+  // are outside the scope it is fetched on its own and kept out of the
+  // department and overall averages.
+  if (!approvals.approvalByEmployee.some(e => e.employee_id === req.user.id)) {
+    const mine = (await loadApprovalTimes(req.query, tz, { ownerId: req.user.id })).approvalByEmployee[0];
+    if (mine) {
+      const { claims, ...row } = mine;
+      approvals.approvalSelf = { ...row, department: req.user.department || '', outside_scope: true };
+    }
+  }
 
   // Department options for the filter dropdown. See-all viewers get every
   // department (scoped to the picked region when one is chosen); approver-scoped

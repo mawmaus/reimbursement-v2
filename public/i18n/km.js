@@ -1448,5 +1448,15 @@ I18N.addDict('km', {
   "How long your claims take to be approved": "រយៈពេលដែលសំណើរបស់អ្នកត្រូវការដើម្បីទទួលបានការអនុម័ត",
   "Per claim": "តាមសំណើនីមួយៗ",
   "To Manager approval": "រហូតដល់អ្នកគ្រប់គ្រងអនុម័ត",
-  "To Finance AP approval": "រហូតដល់ Finance AP អនុម័ត"
+  "To Finance AP approval": "រហូតដល់ Finance AP អនុម័ត",
+  "Approval times": "រយៈពេលអនុម័ត",
+  "Employees": "បុគ្គលិក",
+  "All in scope": "ទាំងអស់ក្នុងវិសាលភាព",
+  "{n} people": "{n} នាក់",
+  "Search department": "ស្វែងរកផ្នែក",
+  "Search name or email": "ស្វែងរកឈ្មោះ ឬអ៊ីមែល",
+  "Search": "ស្វែងរក",
+  "Showing {shown} of {n}": "បង្ហាញ {shown} ក្នុងចំណោម {n}",
+  "Show all": "បង្ហាញទាំងអស់",
+  "Show fewer": "បង្ហាញតិចជាងនេះ"
 });

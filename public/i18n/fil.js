@@ -1448,5 +1448,15 @@ I18N.addDict('fil', {
   "How long your claims take to be approved": "Gaano katagal bago maaprubahan ang mga claim mo",
   "Per claim": "Bawat claim",
   "To Manager approval": "Hanggang maaprubahan ng Manager",
-  "To Finance AP approval": "Hanggang maaprubahan ng Finance AP"
+  "To Finance AP approval": "Hanggang maaprubahan ng Finance AP",
+  "Approval times": "Tagal ng pag-apruba",
+  "Employees": "Mga empleyado",
+  "All in scope": "Lahat sa saklaw",
+  "{n} people": "{n} tao",
+  "Search department": "Maghanap ng departamento",
+  "Search name or email": "Maghanap ng pangalan o email",
+  "Search": "Maghanap",
+  "Showing {shown} of {n}": "Ipinapakita ang {shown} sa {n}",
+  "Show all": "Ipakita lahat",
+  "Show fewer": "Ipakita nang mas kaunti"
 });

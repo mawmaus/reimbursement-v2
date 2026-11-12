@@ -1471,5 +1471,15 @@ I18N.addDict('id', {
   "How long your claims take to be approved": "Berapa lama klaim Anda disetujui",
   "Per claim": "Per klaim",
   "To Manager approval": "Hingga disetujui Manajer",
-  "To Finance AP approval": "Hingga disetujui Finance AP"
+  "To Finance AP approval": "Hingga disetujui Finance AP",
+  "Approval times": "Waktu persetujuan",
+  "Employees": "Karyawan",
+  "All in scope": "Semua dalam cakupan",
+  "{n} people": "{n} orang",
+  "Search department": "Cari departemen",
+  "Search name or email": "Cari nama atau email",
+  "Search": "Cari",
+  "Showing {shown} of {n}": "Menampilkan {shown} dari {n}",
+  "Show all": "Tampilkan semua",
+  "Show fewer": "Tampilkan lebih sedikit"
 });

@@ -252,7 +252,7 @@ function renderInsights() {
       <div class="in-section-sub">${esc(t('Waiting is as of now, whatever the status filter. Speed covers reimbursements and meal allowances in {period}.', { period: periodLabel }))}</div>
     </div>
     <div class="insights-kpis insights-flow">${flowCards}</div>
-    ${renderEmployeeApprovalTimes(d.approvalWindow, d.approvalByEmployee)}
+    ${renderApprovalInsights(d)}
     <div class="insights-charts">
       <div class="chart-card">
         <div class="chart-head"><div>
@@ -285,6 +285,7 @@ function renderInsights() {
   renderTrend();
 
   bindApprovalPeriod(f);
+  bindApprovalInsights();
 
   // Filters — every one is a dropdown now, so all refetch on change.
   $('#inYear').addEventListener('change', e => { f.year = e.target.value; loadInsights(); });
@@ -335,16 +336,7 @@ function bindApprovalPeriod(f) {
 
 function renderEmployeeApprovalTimes(window, employees, personal = false) {
   if (!window) return '';
-  // The viewer's own claims always lead the list (an empty row when they have
-  // none yet), so an approver sees their own times next to their team's.
   const myId = state.user && state.user.id;
-  if (!personal && myId != null) {
-    const mine = employees.find(e => e.employee_id === myId) || {
-      employee_id: myId, name: state.user.full_name || state.user.username, username: state.user.username,
-      manager: { n: 0, avg_days: null }, finance: { n: 0, avg_days: null }
-    };
-    employees = [mine, ...employees.filter(e => e !== mine)];
-  }
   const periods = [
     ['all', t('All time')],
     ['month', t('This month')],
@@ -379,6 +371,159 @@ function renderEmployeeApprovalTimes(window, employees, personal = false) {
       </tr>`).join('')}</tbody>
     </table></div>` : `<p class="muted">${esc(t('No claim history in this scope.'))}</p>`}
   </section>`;
+}
+
+// --- Insights: approval times card ------------------------------------------
+// Employees or departments, searchable and sortable, ten rows until "Show all".
+// The viewer's own row is pinned first (approvalSelf when their claims are
+// outside the scope — it is then left out of the department/overall averages).
+const APPROVAL_ROWS = 10;
+function approvalUi() {
+  return state.insights.approvalUi || (state.insights.approvalUi = { group: 'employee', q: '', sort: 'name', dir: 1, all: false });
+}
+
+function approvalPeriodForm(window) {
+  const periods = [
+    ['all', t('All time')], ['month', t('This month')], ['quarter', t('This quarter')],
+    ['half', t('This half-year')], ['year', t('This year')], ['custom', t('Custom range')]
+  ];
+  const custom = window.preset === 'custom';
+  return `<form class="in-approval-filters" id="inApprovalPeriod">
+      <label>${esc(t('Approval period'))}<select class="input" name="period">
+        ${periods.map(([value, label]) => `<option value="${value}"${window.preset === value ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+      </select></label>
+      <div class="in-approval-filters" id="inApprovalDates"${custom ? '' : ' hidden'}>
+        <label>${esc(t('From'))}<input class="input" type="date" name="from" value="${custom ? esc(window.from) : ''}" required${custom ? '' : ' disabled'}></label>
+        <label>${esc(t('To'))}<input class="input" type="date" name="to" value="${custom ? esc(window.to) : ''}" min="${custom ? esc(window.from) : ''}" required${custom ? '' : ' disabled'}></label>
+      </div>
+      <button type="submit" class="btn btn-ghost">${esc(t('Apply'))}</button>
+    </form>`;
+}
+
+function approvalAvg(s) {
+  return s && s.n
+    ? `<span>${esc(approvalDuration(s.avg_days))} <small class="muted">(${esc(s.n.toLocaleString())})</small></span>`
+    : '<span class="muted">—</span>';
+}
+
+function renderApprovalInsights(d) {
+  if (!d.approvalWindow) return '';
+  const ui = approvalUi();
+  const total = d.approvalTotal || { manager: { n: 0 }, finance: { n: 0 }, employees: 0 };
+  const scopeLabel = state.insights.department || t('All in scope');
+  return `<section class="chart-card in-approval">
+    <div class="chart-head in-approval-head">
+      <div>
+        <h3 class="chart-title" id="inApprovalTitle">${esc(t('Approval times'))}</h3>
+        <p class="chart-sub">${esc(t('Manager time starts at submission. Finance AP time starts at Manager approval. Counts show claims approved at each stage during the period.'))}</p>
+      </div>
+      <div class="seg" id="inApprovalGroup" role="group" aria-label="${esc(t('Approval times'))}">
+        <button type="button" data-group="employee" class="${ui.group === 'employee' ? 'on' : ''}" aria-pressed="${ui.group === 'employee'}">${esc(t('Employees'))}</button>
+        <button type="button" data-group="department" class="${ui.group === 'department' ? 'on' : ''}" aria-pressed="${ui.group === 'department'}">${esc(t('Departments'))}</button>
+      </div>
+    </div>
+    <div class="in-approval-total">
+      <div class="in-approval-total-l">${esc(scopeLabel)}<small class="muted">${esc(t('{n} people', { n: (total.employees || 0).toLocaleString() }))}</small></div>
+      <div><span class="muted">${esc(t('Manager average'))}</span> ${approvalAvg(total.manager)}</div>
+      <div><span class="muted">${esc(t('Finance AP average'))}</span> ${approvalAvg(total.finance)}</div>
+    </div>
+    <div class="in-approval-bar">
+      ${approvalPeriodForm(d.approvalWindow)}
+      <input class="input in-approval-search" id="inApprovalSearch" type="search" value="${esc(ui.q)}"
+        placeholder="${esc(ui.group === 'department' ? t('Search department') : t('Search name or email'))}" aria-label="${esc(t('Search'))}">
+    </div>
+    <div id="inApprovalList"></div>
+  </section>`;
+}
+
+function approvalRows() {
+  const d = state.insights.data;
+  const ui = approvalUi();
+  const q = ui.q.trim().toLowerCase();
+  const myId = state.user && state.user.id;
+  let rows;
+  if (ui.group === 'department') {
+    rows = (d.approvalByDepartment || []).map(r => ({ ...r, key: r.department, label: r.department || t('No department') }));
+  } else {
+    rows = (d.approvalByEmployee || []).slice();
+    if (d.approvalSelf) rows.push(d.approvalSelf);
+    if (myId != null && !rows.some(r => r.employee_id === myId)) {
+      rows.push({ employee_id: myId, name: state.user.full_name || state.user.username, username: state.user.username,
+        department: state.user.department || '', manager: { n: 0, avg_days: null }, finance: { n: 0, avg_days: null } });
+    }
+    rows = rows.map(r => ({ ...r, key: r.employee_id, label: r.name, me: r.employee_id === myId }));
+  }
+  if (q) rows = rows.filter(r => [r.label, r.username, r.department].some(v => String(v || '').toLowerCase().includes(q)));
+  const val = r => ui.sort === 'name' ? null : r[ui.sort] && r[ui.sort].n ? r[ui.sort].avg_days : null;
+  rows.sort((a, b) => {
+    if (a.me !== b.me) return a.me ? -1 : 1;
+    if (ui.sort !== 'name') {
+      const x = val(a), y = val(b);
+      if (x == null || y == null) { if (x !== y) return x == null ? 1 : -1; }
+      else if (x !== y) return (x - y) * ui.dir;
+    }
+    return String(a.label).localeCompare(String(b.label)) * (ui.sort === 'name' ? ui.dir : 1);
+  });
+  return rows;
+}
+
+function fillApprovalList() {
+  const box = $('#inApprovalList');
+  if (!box) return;
+  const ui = approvalUi();
+  const rows = approvalRows();
+  const shown = ui.all ? rows : rows.slice(0, APPROVAL_ROWS);
+  const dept = ui.group === 'department';
+  const head = (key, label, num) => {
+    const on = ui.sort === key;
+    const arrow = on ? (ui.dir === 1 ? ' ↑' : ' ↓') : '';
+    return `<th scope="col" class="${num ? 'num ' : ''}in-approval-sort" aria-sort="${on ? (ui.dir === 1 ? 'ascending' : 'descending') : 'none'}">
+      <button type="button" data-sort="${key}">${esc(label)}<span class="sort-arrow">${arrow}</span></button></th>`;
+  };
+  box.innerHTML = rows.length ? `<div class="in-approval-table"><table class="pivot-table" aria-labelledby="inApprovalTitle">
+      <thead><tr>${head('name', dept ? t('Department') : t('Employee'))}${head('manager', t('Manager average'), true)}${head('finance', t('Finance AP average'), true)}</tr></thead>
+      <tbody>${shown.map(r => `<tr class="${r.me ? 'in-approval-me' : ''}${dept ? ' in-approval-dept' : ''}"${dept ? ` data-dept="${esc(r.key)}" tabindex="0" role="button"` : ''}>
+        <td class="pv-name">${r.me ? `<span class="in-approval-you">${esc(t('You'))}</span> ` : ''}${esc(r.label)}
+          <small class="muted">${dept ? esc(t('{n} people', { n: r.employees.toLocaleString() })) : `(${esc(r.username)})`}</small></td>
+        <td class="num" data-label="${esc(t('Manager average'))}">${approvalAvg(r.manager)}</td>
+        <td class="num" data-label="${esc(t('Finance AP average'))}">${approvalAvg(r.finance)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${rows.length > APPROVAL_ROWS ? `<div class="in-approval-more">
+      <span class="muted">${esc(t('Showing {shown} of {n}', { shown: shown.length.toLocaleString(), n: rows.length.toLocaleString() }))}</span>
+      <button type="button" class="btn btn-ghost btn-sm" id="inApprovalMore">${esc(ui.all ? t('Show fewer') : t('Show all'))}</button>
+    </div>` : ''}`
+    : `<p class="muted in-approval-empty">${esc(ui.q ? t('No matches.') : t('No claim history in this scope.'))}</p>`;
+  $$('#inApprovalList th button[data-sort]').forEach(b => b.addEventListener('click', () => {
+    const key = b.dataset.sort;
+    if (ui.sort === key) ui.dir = -ui.dir;
+    else { ui.sort = key; ui.dir = key === 'name' ? 1 : -1; } // averages: slowest first
+    fillApprovalList();
+  }));
+  const more = $('#inApprovalMore');
+  if (more) more.addEventListener('click', () => { ui.all = !ui.all; fillApprovalList(); });
+  // A department row narrows the whole page to that department's employees.
+  $$('#inApprovalList tr[data-dept]').forEach(tr => {
+    const go = () => {
+      state.insights.department = tr.dataset.dept;
+      Object.assign(ui, { group: 'employee', q: '', all: false });
+      loadInsights();
+    };
+    tr.addEventListener('click', go);
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  });
+}
+
+function bindApprovalInsights() {
+  const ui = approvalUi();
+  $$('#inApprovalGroup button').forEach(b => b.addEventListener('click', () => {
+    if (ui.group === b.dataset.group) return;
+    Object.assign(ui, { group: b.dataset.group, q: '', all: false, sort: 'name', dir: 1 });
+    renderInsights();
+  }));
+  const search = $('#inApprovalSearch');
+  if (search) search.addEventListener('input', () => { ui.q = search.value; ui.all = false; fillApprovalList(); });
+  fillApprovalList();
 }
 
 function currentStatusLabel(v) {

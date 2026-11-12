@@ -1448,5 +1448,15 @@ I18N.addDict('th', {
   "How long your claims take to be approved": "คำขอของคุณใช้เวลานานเท่าใดจึงได้รับอนุมัติ",
   "Per claim": "รายคำขอ",
   "To Manager approval": "จนผู้จัดการอนุมัติ",
-  "To Finance AP approval": "จน Finance AP อนุมัติ"
+  "To Finance AP approval": "จน Finance AP อนุมัติ",
+  "Approval times": "ระยะเวลาอนุมัติ",
+  "Employees": "พนักงาน",
+  "All in scope": "ทั้งหมดในขอบเขต",
+  "{n} people": "{n} คน",
+  "Search department": "ค้นหาแผนก",
+  "Search name or email": "ค้นหาชื่อหรืออีเมล",
+  "Search": "ค้นหา",
+  "Showing {shown} of {n}": "แสดง {shown} จาก {n}",
+  "Show all": "แสดงทั้งหมด",
+  "Show fewer": "แสดงน้อยลง"
 });
