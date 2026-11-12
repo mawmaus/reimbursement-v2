@@ -28,6 +28,48 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-12.1',
+    date: '2026-11-12',
+    items: [
+      { kind: 'new', text: {
+        en: 'My approval times now lists each of your claims: how long the Manager took to approve it after you submitted, and how long Finance AP took after the Manager approved. Tap a claim number to open it.',
+        id: 'Waktu persetujuan klaim saya kini menampilkan setiap klaim Anda: berapa lama Manajer menyetujuinya sejak Anda mengajukan, dan berapa lama Finance AP menyetujuinya sejak Manajer menyetujui. Ketuk nomor klaim untuk membukanya.',
+        th: 'ระยะเวลาอนุมัติคำขอของฉันแสดงคำขอแต่ละรายการแล้ว: ผู้จัดการใช้เวลาอนุมัตินานเท่าใดหลังจากคุณส่ง และ Finance AP ใช้เวลานานเท่าใดหลังจากผู้จัดการอนุมัติ แตะหมายเลขคำขอเพื่อเปิดดู',
+        vi: 'Thời gian duyệt yêu cầu của tôi giờ liệt kê từng yêu cầu của bạn: Quản lý mất bao lâu để duyệt sau khi bạn gửi, và Finance AP mất bao lâu sau khi Quản lý duyệt. Chạm vào số yêu cầu để mở.',
+        km: 'រយៈពេលអនុម័តសំណើរបស់ខ្ញុំ ឥឡូវបង្ហាញសំណើនីមួយៗរបស់អ្នក៖ រយៈពេលដែលអ្នកគ្រប់គ្រងអនុម័តបន្ទាប់ពីអ្នកដាក់ស្នើ និងរយៈពេលដែល Finance AP អនុម័តបន្ទាប់ពីអ្នកគ្រប់គ្រងអនុម័ត។ ចុចលេខសំណើដើម្បីបើកវា។',
+        fil: 'Nakalista na sa Tagal ng pag-apruba ng mga claim ko ang bawat claim mo: gaano katagal bago inaprubahan ng Manager mula nang isumite mo, at gaano katagal bago inaprubahan ng Finance AP mula nang aprubahan ng Manager. I-tap ang numero ng claim para buksan ito.'
+      } }
+    ]
+  },
+  {
+    id: '2026-11-11.2',
+    date: '2026-11-11',
+    items: [
+      { kind: 'new', text: {
+        en: 'Open My approval times under Your claims to see how long your own claims take on average. Manager time runs from submission to Manager approval. Finance AP time runs from Manager approval to Finance AP approval.',
+        id: 'Buka Waktu persetujuan klaim saya di bagian Klaim Anda untuk melihat rata-rata waktu persetujuan klaim Anda. Waktu Manajer dihitung sejak klaim diajukan hingga Manajer menyetujuinya. Waktu Finance AP dihitung sejak persetujuan Manajer hingga persetujuan Finance AP.',
+        th: 'เปิดระยะเวลาอนุมัติคำขอของฉันในส่วนคำขอของคุณเพื่อดูเวลาเฉลี่ยของคำขอที่คุณส่ง เวลาของผู้จัดการนับจากการส่งคำขอถึงการอนุมัติของผู้จัดการ เวลาของ Finance AP นับจากการอนุมัติของผู้จัดการถึงการอนุมัติของ Finance AP',
+        vi: 'Mở Thời gian duyệt yêu cầu của tôi trong mục Yêu cầu của bạn để xem thời gian phê duyệt trung bình cho các yêu cầu bạn đã gửi. Thời gian của Quản lý tính từ lúc gửi đến lúc Quản lý phê duyệt. Thời gian của Finance AP tính từ lúc Quản lý phê duyệt đến lúc Finance AP phê duyệt.',
+        km: 'បើក រយៈពេលអនុម័តសំណើរបស់ខ្ញុំ ក្នុងផ្នែកសំណើរបស់អ្នក ដើម្បីមើលរយៈពេលអនុម័តជាមធ្យមសម្រាប់សំណើរបស់អ្នក។ ពេលវេលារបស់អ្នកគ្រប់គ្រងគិតពីពេលដាក់សំណើដល់ពេលអ្នកគ្រប់គ្រងអនុម័ត។ ពេលវេលារបស់ Finance AP គិតពីពេលអ្នកគ្រប់គ្រងអនុម័តដល់ពេល Finance AP អនុម័ត។',
+        fil: 'Buksan ang Tagal ng pag-apruba ng mga claim ko sa ilalim ng Mga claim mo para makita ang average na tagal ng pag-apruba sa sarili mong mga claim. Ang oras ng Manager ay mula sa pagsumite hanggang sa pag-apruba ng Manager. Ang oras ng Finance AP ay mula sa pag-apruba ng Manager hanggang sa pag-apruba ng Finance AP.'
+      } }
+    ]
+  },
+  {
+    id: '2026-11-11.1',
+    date: '2026-11-11',
+    items: [
+      { kind: 'new', audience: ['insights'], text: {
+        en: 'Insights now shows how long the Manager and Finance AP take, on average, to approve each employee’s claims. Choose this month, quarter, half-year, year, all time, or a custom date range.',
+        id: 'Insights kini menampilkan rata-rata waktu yang dibutuhkan Manajer dan Finance AP untuk menyetujui klaim tiap karyawan. Pilih bulan, kuartal, semester, atau tahun ini, sepanjang waktu, atau rentang tanggal khusus.',
+        th: 'หน้า Insights แสดงระยะเวลาเฉลี่ยที่ผู้จัดการและ Finance AP ใช้ในการอนุมัติคำขอของพนักงานแต่ละคน เลือกดูเดือนนี้ ไตรมาสนี้ ครึ่งปีนี้ ปีนี้ ตลอดเวลา หรือกำหนดช่วงวันที่เองได้',
+        vi: 'Insights hiện hiển thị thời gian trung bình mà Quản lý và Finance AP cần để phê duyệt yêu cầu của từng nhân viên. Chọn tháng này, quý này, nửa năm này, năm nay, toàn bộ thời gian hoặc khoảng ngày tùy chọn.',
+        km: 'ឥឡូវនេះ Insights បង្ហាញរយៈពេលជាមធ្យមដែលអ្នកគ្រប់គ្រង និង Finance AP ចំណាយដើម្បីអនុម័តសំណើរបស់បុគ្គលិកម្នាក់ៗ។ ជ្រើសរើសខែនេះ ត្រីមាសនេះ ឆមាសនេះ ឆ្នាំនេះ គ្រប់ពេល ឬចន្លោះកាលបរិច្ឆេទផ្ទាល់ខ្លួន។',
+        fil: 'Makikita na sa Insights ang average na tagal ng pag-apruba ng Manager at Finance AP sa mga claim ng bawat empleyado. Puwedeng piliin ang kasalukuyang buwan, quarter, kalahating taon, taon, lahat ng panahon, o sariling saklaw ng petsa.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-03.1',
     date: '2026-11-03',
     items: [

@@ -5,6 +5,43 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const R = require('./_rules');
+const { approvalPeriod, approvalStatsByEmployee } = require('../lib/insights');
+
+test('approval periods use calendar boundaries and validate custom dates', () => {
+  const today = '2026-11-11';
+  for (const [preset, from] of [
+    ['month', '2026-11-01'], ['quarter', '2026-10-01'], ['half', '2026-07-01'], ['year', '2026-01-01']
+  ]) {
+    assert.deepEqual(approvalPeriod(preset, '', '', today), { preset, from, to: today });
+  }
+  assert.deepEqual(approvalPeriod('custom', '2024-02-29', today, today),
+    { preset: 'custom', from: '2024-02-29', to: today });
+  assert.deepEqual(approvalPeriod('custom', '2026-02-29', today, today),
+    { preset: 'all', from: '', to: '' });
+});
+
+test('employee approval averages use stage completion dates and count each claim once', () => {
+  const event = (cid, employee_id, action, hour, d) => ({
+    cid, employee_id, name: 'Same Name', username: `user${employee_id}`, action, at_ms: hour * 3600000, d
+  });
+  const rows = [
+    event('c1', 1, 'submitted', 0, '2026-09-30'),
+    event('c1', 1, 'approved — step 1 of 2', 6, '2026-09-30'),
+    event('c1', 1, 'approved — step 2 of 2', 30, '2026-10-01'),
+    event('c1', 1, 'reverted approval', 36, '2026-10-01'),
+    event('c1', 1, 'approved — step 2 of 2', 42, '2026-10-01'),
+    event('c2', 1, 'submitted', 0, '2026-09-30'),
+    event('c2', 1, 'resubmitted', 24, '2026-10-01'),
+    event('c2', 1, 'approved — step 1 of 2', 36, '2026-10-01'),
+    event('m1', 2, 'submitted', 24, '2026-10-01'),
+    event('m1', 2, 'approved', 48, '2026-10-02')
+  ];
+  const [first, second] = approvalStatsByEmployee(rows, { from: '2026-10-01', to: '2026-10-31' });
+  assert.deepEqual(first.manager, { n: 1, avg_days: 0.5 });
+  assert.deepEqual(first.finance, { n: 1, avg_days: 1.5 });
+  assert.deepEqual(second.manager, { n: 1, avg_days: 1 });
+  assert.deepEqual(second.finance, { n: 0, avg_days: null });
+});
 
 test('insightPeriods: a finished month compares to the whole month before', () => {
   const p = R.insightPeriods('2026', '09', '2026-10-18');

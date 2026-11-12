@@ -11,7 +11,7 @@ const {
   viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions
 } = require('../lib/settings');
 const { todayInZone } = require('../lib/claim-window');
-const { insightPeriods, summarize, rankBy, speedStats, pipelineStats } = require('../lib/insights');
+const { insightPeriods, summarize, rankBy, speedStats, approvalPeriod, approvalStatsByEmployee, pipelineStats } = require('../lib/insights');
 const { buildXlsx, XLSX_MIME } = require('../lib/xlsx');
 
 const router = express.Router();
@@ -64,6 +64,49 @@ function exportStatusLabel(baseStatus, step) {
 // Filters: `year`, `department` (narrows within the viewer's scope), `db`
 // (DB-number substring — DB lives on claims.db_no and, for meals, on each line's
 // `site`), and `status` (comma-separated; defaults to approved + paid).
+const docCols = (t, lines, fk, dbCol) =>
+  `${t}.department, ${t}.region, ${t}.approver_ids AS appr, ${t}.claimant_name AS claimant,
+            (SELECT string_agg(COALESCE(l.${dbCol},''), ' ') FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL) AS dbs`;
+
+async function loadApprovalTimes(query, tz, { conditions, ownerId }) {
+  const today = todayInZone(tz);
+  const approvalWindow = approvalPeriod(
+    String(query.approvalPeriod || ''), String(query.approvalFrom || ''), String(query.approvalTo || ''), today
+  );
+  const approvalParams = [tz, approvalWindow.to || null];
+  const own = ownerId != null;
+  const approvalWhere = own ? 'WHERE employee_id = $3' : conditions(approvalParams);
+  if (own) approvalParams.push(ownerId);
+  const approvalEvents = await q(
+    `WITH docs AS (
+       SELECT 'c' AS kind, c.id, c.employee_id, c.claim_no${own ? '' : ', ' + docCols('c', 'claim_lines', 'claim_id', 'db_no')}
+         FROM claims c
+       UNION ALL
+       SELECT 'm' AS kind, m.id, m.employee_id, m.claim_no${own ? '' : ', ' + docCols('m', 'meal_claim_lines', 'meal_claim_id', 'site')}
+         FROM meal_claims m
+     ), scoped AS (
+       SELECT kind, id, employee_id, claim_no FROM docs ${approvalWhere}
+     )
+     SELECT d.kind || d.id AS cid, d.claim_no, d.employee_id, u.full_name AS name, u.username,
+            h.action, EXTRACT(EPOCH FROM h.created_at) * 1000 AS at_ms,
+            to_char(h.created_at AT TIME ZONE $1, 'YYYY-MM-DD') AS d
+       FROM scoped d JOIN users u ON u.id = d.employee_id
+       JOIN LATERAL (
+         SELECT id, action, created_at FROM claim_history WHERE d.kind = 'c' AND claim_id = d.id
+         UNION ALL
+         SELECT id, action, created_at FROM meal_claim_history WHERE d.kind = 'm' AND meal_claim_id = d.id
+       ) h ON TRUE
+      WHERE (h.action IN ('submitted','resubmitted','approved','reverted approval') OR h.action LIKE 'approved — step %')
+        AND ($2::date IS NULL OR h.created_at < (($2::date + 1)::timestamp AT TIME ZONE $1))
+      ORDER BY d.kind, d.id, h.created_at, h.id`, approvalParams);
+  return { approvalWindow, approvalByEmployee: approvalStatsByEmployee(approvalEvents, approvalWindow, { claims: own }) };
+}
+
+router.get('/api/insights/mine', requireAuth, ah(async (req, res) => {
+  const { timezone } = await regionPrefsFor(req.user.region);
+  res.json(await loadApprovalTimes(req.query, timezone, { ownerId: req.user.id }));
+}));
+
 const INSIGHT_STATUSES = ['submitted', 'approved', 'rejected', 'paid'];
 router.get('/api/insights', requireAuth, ah(async (req, res) => {
   const pos = await loadPositions(req.user.region);
@@ -228,9 +271,6 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
     if (db) { params.push(likeContains(db)); c.push(`dbs ILIKE $${params.length}`); }
     return c.length ? 'WHERE ' + c.join(' AND ') : '';
   };
-  const docCols = (t, lines, fk, dbCol) =>
-    `${t}.department, ${t}.region, ${t}.approver_ids AS appr, ${t}.claimant_name AS claimant,
-              (SELECT string_agg(COALESCE(l.${dbCol},''), ' ') FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL) AS dbs`;
   // A GPS meal line pays its approved amount where one was set (only meal lines carry it).
   const liveSum = (t, lines, fk) =>
     `(SELECT COALESCE(SUM(${lines === 'meal_claim_lines' ? 'COALESCE(l.approved_cents, l.amount_cents)' : 'l.amount_cents'}),0) FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL)`;
@@ -293,6 +333,8 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
      ) s ${spWhere}`, spParams);
   const speed = speedStats(spRows, per.start, per.end);
 
+  const approvals = await loadApprovalTimes(req.query, tz, { conditions: docConds });
+
   // Department options for the filter dropdown. See-all viewers get every
   // department (scoped to the picked region when one is chosen); approver-scoped
   // viewers get only the departments among the claims they approve (e.g. an
@@ -354,7 +396,8 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
     // the global default (their totals may span multiple currencies).
     currency: vr ? vrPrefs.currency : DEFAULT_CURRENCY,
     year, years, month, months, status: statuses, db, name: nameFilter, departments, employees, dbNos,
-    byType, byMonth, byMonthPrev, byYear, kpis, prev, byDept, byEmployee, byDb, pipeline, speed, details
+    byType, byMonth, byMonthPrev, byYear, kpis, prev, byDept, byEmployee, byDb, pipeline, speed, details,
+    ...approvals
   });
 }));
 

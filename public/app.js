@@ -29,6 +29,7 @@ const state = {
   // last payload from /api/insights (kept so the trend toggle re-renders without
   // a refetch).
   insights: { year: '', month: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null },
+  personalInsights: {},
   // Ticked claims for PDF export, keyed "type:id" (the two claim types can
   // share numeric ids, so the type must be part of the key).
   selected: new Set(),
@@ -520,7 +521,8 @@ function rerenderDynamic() {
   renderClaimantOptions();
   document.querySelectorAll('select').forEach(sel => { if (sel._mselRefresh) sel._mselRefresh(); });
   renderHome();
-  if (state.view === 'insights') { if (state.insights.data) renderInsights(); }
+  if (state.view === 'myapproval') renderPersonalInsights();
+  else if (state.view === 'insights') { if (state.insights.data) renderInsights(); }
   else if (state.view === 'help') renderHelp();
   else if (state.view && state.view !== 'home' && state.view !== 'datechange') {
     const title = $('#listTitle');
@@ -714,6 +716,7 @@ function showApp() {
   $('#helpView').hidden = true;
   resetHelpState();
   state.insights = { year: '', month: '', department: '', db: '', name: '', status: 'approved,paid', trend: 'month', drill: null, data: null };
+  state.personalInsights = {};
   state.dcPending = 0;
   // Reset the region scope on every login so a same-tab account switch never
   // carries the previous user's chosen region; then show/hide + fill the picker.
@@ -1656,6 +1659,7 @@ function renderHome() {
   // insightsCanView on the server). Among those, the backend scopes the data:
   // company-wide for super admins / Finance / GM-and-above, own department for
   // everyone else.
+  tiles.push({ key: 'myapproval', title: t('My approval times'), desc: t('How long your claims take to be approved'), link: t('Open') });
   if (u.can_view_insights) {
     tiles.push({ key: 'insights', title: t('Insights'), desc: t('Expense trends by type, month and year'), link: t('View charts') });
   }
@@ -1703,7 +1707,7 @@ function renderHome() {
   // Tiles grouped under short headings, in this order; a group with no visible
   // tile is left out.
   const groups = [
-    ['Your claims', ['mine']],
+    ['Your claims', ['mine', 'myapproval']],
     ['Approvals', ['approval', 'approved', 'reviewed']],
     ['Finance', ['paid']],
     ['Cash advances', ['unrealized', 'realized']],
@@ -1731,7 +1735,7 @@ function renderHome() {
   }).join('');
   $$('.home-tile', menu).forEach(el => el.addEventListener('click', () => {
     const v = el.dataset.view;
-    if (v === 'insights') openInsights();
+    if (v === 'insights' || v === 'myapproval') openInsights(v === 'myapproval');
     else if (v === 'datechange') openDateChanges();
     else if (v === 'basemap') openBasesMap();
     else if (v === 'helpdesk' || v === 'feedback') openHelp(v === 'feedback' ? 'feedback' : 'tickets');
@@ -1750,6 +1754,7 @@ const HOME_ICONS = {
   realized: svgI('<path d="M20 7H6a2 2 0 0 1 0-4h12v4"/><path d="M4 5v14a2 2 0 0 0 2 2h14V7"/><path d="M9 14l2 2 4-4"/>'),
   all: svgI('<path d="M12 2l10 6-10 6L2 8z"/><path d="M2 16l10 6 10-6"/>'),
   insights: svgI('<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>'),
+  myapproval: svgI('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   datechange: svgI('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
   helpdesk: svgI('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9"/>'),
   basemap: svgI('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),

@@ -24,8 +24,13 @@ const INSIGHT_STATUS_PRESETS = [
 // The status preset a fresh Insights page starts on (see showApp's reset).
 const INSIGHT_DEFAULT_STATUS = 'approved,paid';
 
-function openInsights() {
-  state.view = 'insights';
+function openInsights(personal = false) {
+  state.view = personal ? 'myapproval' : 'insights';
+  const title = $('#insightsTitle');
+  title.dataset.i18n = personal ? 'My approval times' : 'Insights';
+  title.textContent = t(title.dataset.i18n);
+  $('#insightsScope').textContent = '';
+  $('#insightsActs').textContent = '';
   $('#homeView').hidden = true;
   $('#listView').hidden = true;
   $('#insightsView').hidden = false;
@@ -35,7 +40,10 @@ function openInsights() {
 async function loadInsights() {
   const body = $('#insightsBody');
   body.innerHTML = `<p class="muted" style="padding:28px 4px">${esc(t('Loading…'))}</p>`;
-  const f = state.insights;
+  const view = state.view;
+  const personal = view === 'myapproval';
+  const f = personal ? state.personalInsights : state.insights;
+  const request = f.request = {};
   const params = new URLSearchParams();
   if (f.year) params.set('year', f.year);
   if (f.month) params.set('month', f.month);
@@ -43,9 +51,20 @@ async function loadInsights() {
   if (f.db) params.set('db', f.db);
   if (f.name) params.set('name', f.name);
   if (f.status) params.set('status', f.status);
-  if (state.viewRegion) params.set('region', state.viewRegion);
+  if (f.approvalPeriod) params.set('approvalPeriod', f.approvalPeriod);
+  if (f.approvalFrom) params.set('approvalFrom', f.approvalFrom);
+  if (f.approvalTo) params.set('approvalTo', f.approvalTo);
+  if (!personal && state.viewRegion) params.set('region', state.viewRegion);
+  const stillOpen = () => state.view === view && f.request === request
+    && f === (personal ? state.personalInsights : state.insights);
   try {
-    const data = await api('/insights?' + params.toString());
+    const data = await api((personal ? '/insights/mine?' : '/insights?') + params.toString());
+    if (!stillOpen()) return;
+    if (personal) {
+      f.data = data;
+      renderPersonalInsights();
+      return;
+    }
     state.insights.data = data;
     state.insights.year = data.year || ''; // server may resolve to the latest year
     // Server echoes the month it applied ('' when the chosen month has no data in
@@ -55,8 +74,53 @@ async function loadInsights() {
     if (f.department && !data.departments.includes(f.department)) state.insights.department = '';
     renderInsights();
   } catch (ex) {
-    body.innerHTML = `<p class="form-error" style="margin:16px 0">${esc(ex.message)}</p>`;
+    if (stillOpen()) body.innerHTML = `<p class="form-error" style="margin:16px 0">${esc(ex.message)}</p>`;
   }
+}
+
+function renderPersonalInsights() {
+  const f = state.personalInsights;
+  if (!f.data) return;
+  const me = f.data.approvalByEmployee[0];
+  $('#insightsBody').innerHTML = renderEmployeeApprovalTimes(f.data.approvalWindow, f.data.approvalByEmployee, true)
+    + renderMyApprovalClaims(me ? me.claims || [] : []);
+  bindApprovalPeriod(f);
+  $$('#insightsBody .in-approval-claim').forEach(btn => btn.addEventListener('click', () => {
+    openDrawer(Number(btn.dataset.id), btn.dataset.type).catch(ex => toast(ex.message, true));
+  }));
+}
+
+// "1 day" / "5 hr" / "20 min" — short stages read better in hours or minutes.
+function approvalDuration(days) {
+  const hours = days * 24;
+  const format = n => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  return hours < 1 ? t('{n} min', { n: format(hours * 60) })
+    : hours < 24 ? t('{n} hr', { n: format(hours) }) : daysLabel(days);
+}
+
+// One row per claim of the viewer's own that finished a stage in the period:
+// time to Manager approval (from submission) and to Finance AP approval (from
+// Manager approval). A dash means that stage has not happened (or not in the period).
+function renderMyApprovalClaims(claims) {
+  if (!claims.length) return '';
+  const cell = d => d == null ? '<span class="muted">—</span>' : esc(approvalDuration(d));
+  return `<section class="chart-card in-approval">
+    <h3 class="chart-title" id="inApprovalClaimsTitle">${esc(t('Per claim'))}</h3>
+    <div class="in-approval-table"><table class="pivot-table" aria-labelledby="inApprovalClaimsTitle">
+      <thead><tr><th scope="col">${esc(t('Claim'))}</th><th scope="col">${esc(t('Submitted'))}</th>
+        <th scope="col" class="num">${esc(t('To Manager approval'))}</th><th scope="col" class="num">${esc(t('To Finance AP approval'))}</th></tr></thead>
+      <tbody>${claims.map(c => {
+        const type = c.cid[0] === 'm' ? 'meal' : 'reimbursement';
+        const id = c.cid.slice(1);
+        return `<tr>
+        <td class="pv-name"><button type="button" class="in-approval-claim" data-id="${esc(id)}" data-type="${type}">${esc(c.claim_no || '#' + id)}</button></td>
+        <td data-label="${esc(t('Submitted'))}">${esc(c.submitted)}</td>
+        <td class="num" data-label="${esc(t('To Manager approval'))}">${cell(c.manager_days)}</td>
+        <td class="num" data-label="${esc(t('To Finance AP approval'))}">${cell(c.finance_days)}</td>
+      </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </section>`;
 }
 
 function renderInsights() {
@@ -188,6 +252,7 @@ function renderInsights() {
       <div class="in-section-sub">${esc(t('Waiting is as of now, whatever the status filter. Speed covers reimbursements and meal allowances in {period}.', { period: periodLabel }))}</div>
     </div>
     <div class="insights-kpis insights-flow">${flowCards}</div>
+    ${renderEmployeeApprovalTimes(d.approvalWindow, d.approvalByEmployee)}
     <div class="insights-charts">
       <div class="chart-card">
         <div class="chart-head"><div>
@@ -219,6 +284,8 @@ function renderInsights() {
   renderRankBars('db', d.byDb, k => k ? dbFmt(k) : t('No DB'));
   renderTrend();
 
+  bindApprovalPeriod(f);
+
   // Filters — every one is a dropdown now, so all refetch on change.
   $('#inYear').addEventListener('change', e => { f.year = e.target.value; loadInsights(); });
   $('#inMonth').addEventListener('change', e => { f.month = e.target.value; loadInsights(); });
@@ -246,6 +313,62 @@ function renderInsights() {
     $$('#trendSeg button').forEach(x => x.classList.toggle('on', x.dataset.trend === f.trend));
     renderTrend();
   }));
+}
+
+function bindApprovalPeriod(f) {
+  const form = $('#inApprovalPeriod');
+  if (!form) return;
+  const { period, from, to } = form.elements;
+  period.addEventListener('change', () => {
+    from.disabled = to.disabled = period.value !== 'custom';
+    $('#inApprovalDates').hidden = from.disabled;
+  });
+  from.addEventListener('change', () => { to.min = from.value; });
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    f.approvalPeriod = period.value;
+    f.approvalFrom = from.disabled ? '' : from.value;
+    f.approvalTo = to.disabled ? '' : to.value;
+    loadInsights();
+  });
+}
+
+function renderEmployeeApprovalTimes(window, employees, personal = false) {
+  if (!window) return '';
+  const periods = [
+    ['all', t('All time')],
+    ['month', t('This month')],
+    ['quarter', t('This quarter')],
+    ['half', t('This half-year')],
+    ['year', t('This year')],
+    ['custom', t('Custom range')]
+  ];
+  const custom = window.preset === 'custom';
+  const duration = s => s.n
+    ? `<span>${esc(approvalDuration(s.avg_days))} <small class="muted">(${esc(s.n.toLocaleString())})</small></span>`
+    : '—';
+  return `<section class="chart-card in-approval">
+    ${personal ? '' : `<h3 class="chart-title" id="inApprovalTitle">${esc(t('Approval times by employee'))}</h3>`}
+    <p class="chart-sub">${esc(t('Manager time starts at submission. Finance AP time starts at Manager approval. Counts show claims approved at each stage during the period.'))}</p>
+    <form class="in-approval-filters" id="inApprovalPeriod">
+      <label>${esc(t('Approval period'))}<select class="input" name="period">
+        ${periods.map(([value, label]) => `<option value="${value}"${window.preset === value ? ' selected' : ''}>${esc(label)}</option>`).join('')}
+      </select></label>
+      <div class="in-approval-filters" id="inApprovalDates"${custom ? '' : ' hidden'}>
+        <label>${esc(t('From'))}<input class="input" type="date" name="from" value="${custom ? esc(window.from) : ''}" required${custom ? '' : ' disabled'}></label>
+        <label>${esc(t('To'))}<input class="input" type="date" name="to" value="${custom ? esc(window.to) : ''}" min="${custom ? esc(window.from) : ''}" required${custom ? '' : ' disabled'}></label>
+      </div>
+      <button type="submit" class="btn btn-ghost">${esc(t('Apply'))}</button>
+    </form>
+    ${employees.length ? `<div class="in-approval-table"><table class="pivot-table" aria-labelledby="${personal ? 'insightsTitle' : 'inApprovalTitle'}">
+      <thead><tr>${personal ? '' : `<th scope="col">${esc(t('Employee'))}</th>`}<th scope="col" class="num">${esc(t('Manager average'))}</th><th scope="col" class="num">${esc(t('Finance AP average'))}</th></tr></thead>
+      <tbody>${employees.map(e => `<tr>
+        ${personal ? '' : `<td class="pv-name">${esc(e.name)} <small class="muted">(${esc(e.username)})</small></td>`}
+        <td class="num" data-label="${esc(t('Manager average'))}">${duration(e.manager)}</td>
+        <td class="num" data-label="${esc(t('Finance AP average'))}">${duration(e.finance)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>` : `<p class="muted">${esc(t('No claim history in this scope.'))}</p>`}
+  </section>`;
 }
 
 function currentStatusLabel(v) {

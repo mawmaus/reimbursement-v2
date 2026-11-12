@@ -20,6 +20,7 @@ const state = {
   users: new Map(),        // id -> account row
   settings: {},            // app_settings key -> value (objects are JSON-encoded)
   positions: [],           // job_positions rows { name, rank, can_manage }
+  approvalEvents: [],
   tables: { claims: [], meal_claims: [], cash_advances: [], claim_lines: [], meal_claim_lines: [], cash_advance_lines: [],
     departments: [], job_positions: [], bases: [], customer_sites: [], expense_types: [], survey_responses: [],
     helpdesk_tickets: [], helpdesk_messages: [], helpdesk_attachments: [], feedback: [], claim_drafts: [], attachments: [] },
@@ -33,6 +34,14 @@ async function q(text, params = []) {
   const sql = text.replace(/\s+/g, ' ').trim();
   state.reads.push(sql);
   let m;
+  if (sql.startsWith('WITH docs AS ') && sql.includes('FROM docs WHERE employee_id = $3')) {
+    return state.approvalEvents.filter(event => event.employee_id === params[2]);
+  }
+  if (/^INSERT INTO app_settings/.test(sql)) {
+    state.settings[params[0]] = params[1];
+    state.writes.push(sql);
+    return [];
+  }
   if (/^SELECT key, value FROM app_settings/.test(sql)) {
     return Object.entries(state.settings).map(([key, v]) => ({ key, value: typeof v === 'string' ? v : JSON.stringify(v) }));
   }
