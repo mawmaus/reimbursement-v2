@@ -4118,10 +4118,11 @@ a[data-open-doc]:hover { text-decoration: underline; }
   border: 1px solid var(--line); border-radius: 12px; }
 @media (width > 720px) {
   .modal:has(> .bm-body) {
-    width: max(72vw, min(1180px, calc(100% - 32px)));
-    max-height: 90dvh;
+    width: calc(100% - 32px);
+    height: 94dvh;
+    max-height: 94dvh;
   }
-  .bm-map { flex: 0 1 auto; height: 33dvh; min-height: 0; }
+  .bm-map { flex: 1 1 0; height: auto; min-height: 0; }
   .bm-list {
     --bm-row-height: 3.5rem;
     flex: 0 0 auto;
