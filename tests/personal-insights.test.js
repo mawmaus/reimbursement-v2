@@ -34,3 +34,27 @@ test('staff can view approval times for their own claims only', async t => {
     cid: `c${staff}`, claim_no: '', submitted: '2026-11-01', manager_days: 0.5, finance_days: 1
   }]);
 });
+
+test('an approver sees their own approval times in Insights next to their team', async t => {
+  const supervisor = 30;
+  const report = 31;
+  state.users.set(supervisor, account({ id: supervisor, position: 'Supervisor', department: 'Ops' }));
+  state.users.set(report, account({ id: report, position: 'Staff', department: 'Ops' }));
+  state.positions = [{ name: 'Supervisor', rank: 10 }, { name: 'Staff', rank: 13 }];
+  const event = (employee_id, action, hours, appr) => ({
+    cid: `c${employee_id}`, employee_id, name: `User ${employee_id}`, username: `user${employee_id}`,
+    action, at_ms: hours * 3600000, d: '2026-11-01', appr
+  });
+  state.approvalEvents = [
+    event(supervisor, 'submitted', 0, [99]),
+    event(supervisor, 'approved — step 1 of 2', 24, [99]),
+    event(report, 'submitted', 0, [supervisor]),
+    event(report, 'approved — step 1 of 2', 6, [supervisor])
+  ];
+  await serve(t);
+  const res = await call(supervisor, 'GET', '/api/insights');
+  assert.equal(res.status, 200, res.body);
+  const rows = Object.fromEntries(res.json.approvalByEmployee.map(e => [e.employee_id, e.manager]));
+  assert.deepEqual(rows[supervisor], { n: 1, avg_days: 1 });
+  assert.deepEqual(rows[report], { n: 1, avg_days: 0.25 });
+});

@@ -270,6 +270,10 @@ input[type="search"] { min-width: 220px; }
   color: var(--pine-deep); cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
   text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); }
 .in-approval-claim:hover { text-decoration-color: currentColor; }
+.in-approval-me td { background: color-mix(in srgb, var(--pine) 9%, transparent); }
+.in-approval-me td.pv-name { color: var(--ink); font-weight: 650; }
+.in-approval-you { display: inline-block; padding: 1px 7px; margin-right: 4px; border-radius: 999px; font-size: .72rem; font-weight: 700;
+  background: var(--pine); color: var(--on-accent); vertical-align: 1px; }
 .chart-title { font-size: 1rem; font-weight: 650; }
 .chart-sub { font-size: .78rem; color: var(--muted); margin-top: 2px; }
 .chart-empty { padding: 40px 4px; text-align: center; }

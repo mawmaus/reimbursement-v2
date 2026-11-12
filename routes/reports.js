@@ -68,15 +68,26 @@ const docCols = (t, lines, fk, dbCol) =>
   `${t}.department, ${t}.region, ${t}.approver_ids AS appr, ${t}.claimant_name AS claimant,
             (SELECT string_agg(COALESCE(l.${dbCol},''), ' ') FROM ${lines} l WHERE l.${fk} = ${t}.id AND l.rejected_at IS NULL) AS dbs`;
 
-async function loadApprovalTimes(query, tz, { conditions, ownerId }) {
+// Insights (`conditions` = the viewer's scope) always adds the viewer's own
+// claims (`selfId`), so an approver sees their own row next to their team's.
+async function loadApprovalTimes(query, tz, { conditions, ownerId, selfId }) {
   const today = todayInZone(tz);
   const approvalWindow = approvalPeriod(
     String(query.approvalPeriod || ''), String(query.approvalFrom || ''), String(query.approvalTo || ''), today
   );
   const approvalParams = [tz, approvalWindow.to || null];
   const own = ownerId != null;
-  const approvalWhere = own ? 'WHERE employee_id = $3' : conditions(approvalParams);
-  if (own) approvalParams.push(ownerId);
+  let approvalWhere;
+  if (own) {
+    approvalParams.push(ownerId);
+    approvalWhere = 'WHERE employee_id = $3';
+  } else {
+    approvalWhere = conditions(approvalParams);
+    if (approvalWhere && selfId != null) {
+      approvalParams.push(selfId);
+      approvalWhere = `WHERE (${approvalWhere.slice(6)}) OR employee_id = $${approvalParams.length}`;
+    }
+  }
   const approvalEvents = await q(
     `WITH docs AS (
        SELECT 'c' AS kind, c.id, c.employee_id, c.claim_no${own ? '' : ', ' + docCols('c', 'claim_lines', 'claim_id', 'db_no')}
@@ -333,7 +344,7 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
      ) s ${spWhere}`, spParams);
   const speed = speedStats(spRows, per.start, per.end);
 
-  const approvals = await loadApprovalTimes(req.query, tz, { conditions: docConds });
+  const approvals = await loadApprovalTimes(req.query, tz, { conditions: docConds, selfId: req.user.id });
 
   // Department options for the filter dropdown. See-all viewers get every
   // department (scoped to the picked region when one is chosen); approver-scoped

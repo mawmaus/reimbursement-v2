@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-12.2',
+    date: '2026-11-12',
+    items: [
+      { kind: 'improved', audience: ['insights'], text: {
+        en: 'Approval times by employee in Insights now always includes your own claims, pinned at the top and marked You, next to the claims you approve.',
+        id: 'Waktu persetujuan per karyawan di Insights kini selalu menyertakan klaim Anda sendiri, disematkan di paling atas dan ditandai Anda, di samping klaim yang Anda setujui.',
+        th: 'ระยะเวลาอนุมัติรายพนักงานใน Insights จะแสดงคำขอของคุณเองเสมอ โดยปักไว้ด้านบนและทำเครื่องหมายว่าคุณ ถัดจากคำขอที่คุณอนุมัติ',
+        vi: 'Thời gian phê duyệt theo nhân viên trong Insights giờ luôn gồm cả yêu cầu của chính bạn, được ghim ở đầu và đánh dấu Bạn, bên cạnh các yêu cầu bạn duyệt.',
+        km: 'រយៈពេលអនុម័តតាមបុគ្គលិកក្នុង Insights ឥឡូវតែងតែរួមបញ្ចូលសំណើរបស់អ្នកផ្ទាល់ ដែលខ្ទាស់នៅខាងលើ និងសម្គាល់ថាអ្នក នៅជាប់នឹងសំណើដែលអ្នកអនុម័ត។',
+        fil: 'Laging kasama na sa Tagal ng pag-apruba bawat empleyado sa Insights ang sarili mong mga claim, naka-pin sa itaas at may markang Ikaw, katabi ng mga claim na inaaprubahan mo.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-12.1',
     date: '2026-11-12',
     items: [

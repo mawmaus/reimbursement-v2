@@ -37,6 +37,12 @@ async function q(text, params = []) {
   if (sql.startsWith('WITH docs AS ') && sql.includes('FROM docs WHERE employee_id = $3')) {
     return state.approvalEvents.filter(event => event.employee_id === params[2]);
   }
+  // Insights approval times for an approver: claims they approve ($3 = ANY(appr))
+  // OR their own claims (the last parameter).
+  if (sql.startsWith('WITH docs AS ') && sql.includes('$3 = ANY(appr)')) {
+    const self = /\) OR employee_id = \$\d+ \)/.test(sql) ? params[params.length - 1] : null;
+    return state.approvalEvents.filter(event => event.employee_id === self || (event.appr || []).includes(params[2]));
+  }
   if (/^INSERT INTO app_settings/.test(sql)) {
     state.settings[params[0]] = params[1];
     state.writes.push(sql);

@@ -335,6 +335,16 @@ function bindApprovalPeriod(f) {
 
 function renderEmployeeApprovalTimes(window, employees, personal = false) {
   if (!window) return '';
+  // The viewer's own claims always lead the list (an empty row when they have
+  // none yet), so an approver sees their own times next to their team's.
+  const myId = state.user && state.user.id;
+  if (!personal && myId != null) {
+    const mine = employees.find(e => e.employee_id === myId) || {
+      employee_id: myId, name: state.user.full_name || state.user.username, username: state.user.username,
+      manager: { n: 0, avg_days: null }, finance: { n: 0, avg_days: null }
+    };
+    employees = [mine, ...employees.filter(e => e !== mine)];
+  }
   const periods = [
     ['all', t('All time')],
     ['month', t('This month')],
@@ -362,8 +372,8 @@ function renderEmployeeApprovalTimes(window, employees, personal = false) {
     </form>
     ${employees.length ? `<div class="in-approval-table"><table class="pivot-table" aria-labelledby="${personal ? 'insightsTitle' : 'inApprovalTitle'}">
       <thead><tr>${personal ? '' : `<th scope="col">${esc(t('Employee'))}</th>`}<th scope="col" class="num">${esc(t('Manager average'))}</th><th scope="col" class="num">${esc(t('Finance AP average'))}</th></tr></thead>
-      <tbody>${employees.map(e => `<tr>
-        ${personal ? '' : `<td class="pv-name">${esc(e.name)} <small class="muted">(${esc(e.username)})</small></td>`}
+      <tbody>${employees.map(e => `<tr${e.employee_id === myId ? ' class="in-approval-me"' : ''}>
+        ${personal ? '' : `<td class="pv-name">${e.employee_id === myId ? `<span class="in-approval-you">${esc(t('You'))}</span> ` : ''}${esc(e.name)} <small class="muted">(${esc(e.username)})</small></td>`}
         <td class="num" data-label="${esc(t('Manager average'))}">${duration(e.manager)}</td>
         <td class="num" data-label="${esc(t('Finance AP average'))}">${duration(e.finance)}</td>
       </tr>`).join('')}</tbody>
