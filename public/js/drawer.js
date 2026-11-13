@@ -181,6 +181,8 @@ function revertApprover1Choices(c) {
   return [];
 }
 function buildActions(c, u, isOwner) {
+  // Region-locked admins may open other regions' documents, view only.
+  if (!actsInRegionUI(u, c.region)) return '';
   const btns = [];
   if (inApprovalStage(c) && canApprove(u, c)) {
     btns.push(`<button class="btn btn-approve" data-act="approve">${esc(t('Approve'))}</button>`);
@@ -808,7 +810,9 @@ async function openDrawer(id, type = 'reimbursement') {
       ${renderChainProgress(c)}
       ${renderHistory(c)}
     </div>
-    <div class="drawer-actions">${actions || `<span class="muted da-none">${esc(t('No actions available for your role at this stage.'))}</span>`}</div>`;
+    <div class="drawer-actions">${actions || `<span class="muted da-none">${esc(actsInRegionUI(u, c.region)
+      ? t('No actions available for your role at this stage.')
+      : t('View only — this document is in {region}. You can act only on documents in {own}.', { region: c.region || '—', own: u.region || '—' }))}</span>`}</div>`;
 
   $('#drawer .x-btn').addEventListener('click', closeDrawer);
   // Copy the account number (Finance pastes it into the bank transfer).

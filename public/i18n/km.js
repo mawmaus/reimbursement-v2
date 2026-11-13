@@ -1538,5 +1538,10 @@ I18N.addDict('km', {
   "{column}: \"{value}\" should be Yes or No": "{column}: \"{value}\" ត្រូវតែជា Yes ឬ No",
   "{column}: no account with username \"{value}\"": "{column}: គ្មានគណនីដែលមានឈ្មោះអ្នកប្រើ \"{value}\"",
   "{column}: an account cannot list itself": "{column}: គណនីមិនអាចដាក់ខ្លួនឯងបានទេ",
-  "{column}: {value} is in {other}, not {region}": "{column}: {value} នៅក្នុង {other} មិនមែន {region}"
+  "{column}: {value} is in {other}, not {region}": "{column}: {value} នៅក្នុង {other} មិនមែន {region}",
+  "View only — this document is in {region}. You can act only on documents in {own}.": "មើលតែប៉ុណ្ណោះ — ឯកសារនេះស្ថិតនៅ {region}។ អ្នកអាចធ្វើសកម្មភាពបានតែលើឯកសារនៅ {own} ប៉ុណ្ណោះ។",
+  "{region} (yours)": "{region} (របស់អ្នក)",
+  "View only. You can change settings only in {region}.": "មើលតែប៉ុណ្ណោះ។ អ្នកអាចប្តូរការកំណត់បានតែនៅ {region} ប៉ុណ្ណោះ។",
+  "Go to {region}": "ទៅ {region}",
+  "You can only change settings in your own region": "អ្នកអាចប្តូរការកំណត់បានតែក្នុងតំបន់របស់អ្នកប៉ុណ្ណោះ"
 });

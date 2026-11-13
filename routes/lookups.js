@@ -5,7 +5,7 @@
 
 const express = require('express');
 const { q, qq, transaction } = require('../db');
-const { seesAllRegions, resolveLookupRegion } = require('../lib/settings');
+const { seesAllRegions, resolveLookupRegion, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR } = require('../lib/settings');
 const { requireAuth, requireCap, requireRole } = require('../lib/auth');
 const { userCan } = require('../lib/permissions');
 const { OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL } = require('../lib/workflow');
@@ -40,7 +40,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     const managing = req.query.manage === '1' && userCan(req.user, 'manage_settings');
     const onlyActive = req.user.role !== 'superadmin' && !managing;
     const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
-    const region = regional ? await resolveLookupRegion(req.user, req.query.region) : null;
+    const region = regional ? await resolveSettingsReadRegion(req.user, req.query.region) : null;
     if (regional && region === null) return res.status(400).json({ error: 'Invalid region' });
     const wheres = [];
     const params = [];
@@ -82,6 +82,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
       for (const v of order) { const n = Number(v); if (Number.isInteger(n) && n > 0) ids.push(n); }
       if (!ids.length) return res.status(400).json({ error: 'order must contain valid ids' });
       if (regional) {
+        if (namesOtherRegion(req.user, (req.body || {}).region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
         const region = await resolveLookupRegion(req.user, (req.body || {}).region);
         if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
         // Scope every update to the region so a stray cross-region id is a no-op.
@@ -98,6 +99,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
     if (!name) return res.status(400).json({ error: 'Name is required' });
     let region = '';
     if (regional) {
+      if (namesOtherRegion(req.user, (req.body || {}).region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
       region = await resolveLookupRegion(req.user, (req.body || {}).region);
       if (region === null) return res.status(400).json({ error: 'Invalid region' });
       if (!region) return res.status(400).json({ error: 'Choose a region' });

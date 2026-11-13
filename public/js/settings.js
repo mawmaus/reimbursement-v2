@@ -51,14 +51,18 @@ function visibleSettingsTabs() {
     if (tab.regionPrefs) return isSuper || isCmMd;
     // Accounts: Super Admins get the full editor; anyone who can create or manage
     // accounts (CM/MD, delegated seniors) gets the delegated view of the tab.
-    if (tab.accounts) return isSuper || uCan('create_accounts') || !!(u && u.can_manage_accounts);
+    // Another region's people (and their bank details) stay out of the view-only workspace.
+    if (tab.accounts) return !settingsState.viewOnly && (isSuper || uCan('create_accounts') || !!(u && u.can_manage_accounts));
     if (tab.super) return isSuper;
     // People named as customer-site editors get that tab without manage_settings.
     if (tab.siteEditor && u && u.customer_sites_editor) return true;
     return tab.cap ? uCan(tab.cap) : true;
   });
 }
-const settingsState = { tab: 'accounts', positions: [], departments: [], users: [] };
+const settingsState = { tab: 'accounts', positions: [], departments: [], users: [], viewOnly: false };
+// A region-locked Country Manager / Managing Director may open any region's
+// settings to look at them; only their own region's pages stay editable.
+const browsesOtherRegions = (u) => !!u && u.role !== 'superadmin' && readsAllRegionsUI(u) && !seesAllRegionsUI(u);
 
 $('#settingsBtn').addEventListener('click', () => openSettingsModal());
 // Phones clamp long page descriptions to two lines (.clamp-desc); a tap
@@ -280,6 +284,8 @@ function openRegionWorkspace() {
   const u = state.user;
   const isSuper = u && u.role === 'superadmin';
   const region = settingsState.region;
+  const browse = browsesOtherRegions(u);
+  settingsState.viewOnly = browse && String(region || '') !== String(u.region || '');
   const tabs = visibleSettingsTabs();
   if (!tabs.some(x => x.key === settingsState.tab)) settingsState.tab = tabs.length ? tabs[0].key : 'roles';
   const groups = SETTINGS_GROUPS.map(g => ({ g, items: tabs.filter(x => x.group === g) })).filter(x => x.items.length);
@@ -287,7 +293,9 @@ function openRegionWorkspace() {
     <div class="modal-head">
       <div class="ws-head">
         ${isSuper ? `<button type="button" class="btn btn-ghost btn-sm ws-back" id="wsBack">← ${esc(t('Regions'))}</button>` : ''}
-        <h2>${esc(t('Settings'))}${region ? ` <span class="ws-region">${esc(region)}</span>` : ''}</h2>
+        <h2>${esc(t('Settings'))}${region && !browse ? ` <span class="ws-region">${esc(region)}</span>` : ''}</h2>
+        ${browse ? `<div class="ws-region-pick"><select id="wsRegion" aria-label="${esc(t('Region'))}">${[...new Set([String(u.region || ''), ...(state.lookups.regions || [])])].filter(Boolean).map(r =>
+          `<option value="${esc(r)}"${r === region ? ' selected' : ''}>${esc(r === u.region ? t('{region} (yours)', { region: r }) : r)}</option>`).join('')}</select></div>` : ''}
       </div>
       <div style="display:flex;gap:8px;align-items:center"><button class="x-btn">×</button></div>
     </div>
@@ -304,6 +312,8 @@ function openRegionWorkspace() {
           <div class="ws-page-text"><h3 id="wsTitle"></h3><p id="wsDesc" class="clamp-desc"></p></div>
           <div class="ws-page-acts" id="wsActs"></div>
         </header>
+        ${settingsState.viewOnly ? `<div class="ws-ro-note" role="note"><span>${esc(t('View only. You can change settings only in {region}.', { region: u.region || '—' }))}</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="wsOwnRegion">${esc(t('Go to {region}', { region: u.region || '—' }))}</button></div>` : ''}
         <div id="settingsPanel"></div>
       </section>
     </div>`);
@@ -312,6 +322,11 @@ function openRegionWorkspace() {
   $('#modal .x-btn').addEventListener('click', closeModal);
   const back = $('#wsBack');
   if (back) back.addEventListener('click', () => { settingsState.region = null; openRegionsLanding(); });
+  const pick = $('#wsRegion');
+  if (pick) pick.addEventListener('change', () => { settingsState.region = pick.value; openRegionWorkspace(); });
+  const own = $('#wsOwnRegion');
+  if (own) own.addEventListener('click', () => { settingsState.region = String(u.region || ''); openRegionWorkspace(); });
+  watchReadOnly();
   $$('#settingsTabs .ws-nav-item').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.tab === settingsState.tab) return;
     settingsState.tab = b.dataset.tab;
@@ -338,7 +353,26 @@ function showWorkspacePage() {
 function setWsPage({ desc, actions } = {}) {
   const d = $('#wsDesc'), a = $('#wsActs');
   if (d && desc !== undefined) { d.textContent = desc; d.hidden = !desc; d.classList.remove('open'); }
-  if (a) a.innerHTML = actions || '';
+  // Viewing another region: no Add / Save actions in the header.
+  if (a) { a.innerHTML = settingsState.viewOnly ? '' : (actions || ''); a.hidden = settingsState.viewOnly; }
+}
+// View-only workspace: every control a page renders (now or after a re-render)
+// is disabled, except search boxes for finding things. The server refuses the
+// saves anyway; this keeps the page from offering them.
+let roObserver = null;
+function lockReadOnly(root) {
+  root.querySelectorAll('input, select, textarea, button').forEach(el => {
+    if (el.type === 'search' || el.closest('.ws-ro-keep')) return;
+    if (!el.disabled) el.disabled = true;
+  });
+}
+function watchReadOnly() {
+  if (roObserver) { roObserver.disconnect(); roObserver = null; }
+  const panel = $('#settingsPanel');
+  if (!settingsState.viewOnly || !panel) return;
+  panel.classList.add('ws-readonly');
+  roObserver = new MutationObserver(() => lockReadOnly(panel));
+  roObserver.observe(panel, { childList: true, subtree: true });
 }
 
 // Confirm email delivery: sends a test message (default: the admin's own email).

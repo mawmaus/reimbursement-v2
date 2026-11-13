@@ -12,7 +12,7 @@ const {
   AVAILABLE_CURRENCIES, AVAILABLE_TIMEZONES, CURRENCY_SET, TIMEZONE_SET,
   isValidTimezone, MAX_BANK_NAME_LEN, MAX_BANK_FEE, regionPrefsMap,
   mealRatesFor, MAX_MEAL_RATES, mealRatesMap, toMealAmount, MAX_MEAL_AMOUNT,
-  seesAllRegions, normRegion, ALL_REGIONS
+  seesAllRegions, normRegion, ALL_REGIONS, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR
 } = require('../lib/settings');
 const { claimWindowView } = require('../lib/claim-window');
 const { OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL } = require('../lib/workflow');
@@ -29,13 +29,14 @@ const router = express.Router();
 // body.region. Only accounts that can manage settings change it, and region
 // -scoped managers only for their own region.
 router.get('/api/claim-window', requireAuth, ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
+  const region = await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   res.json(claimWindowView(await loadAppSettings(), region));
 }));
 
 router.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   // Rolling window in days: a positive integer, or blank/0 to disable.
@@ -84,7 +85,7 @@ function regionPrefsView(settings, region) {
 // region's open documents by currency, so a currency change can say what it
 // leaves as it is.
 router.get('/api/region-prefs', requireAuth, ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
+  const region = await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const view = regionPrefsView(await loadAppSettings(), region);
   if (req.query.manage === '1' && canManageRegionPrefs(req.user) && region) {
@@ -101,6 +102,7 @@ router.get('/api/region-prefs', requireAuth, ah(async (req, res) => {
 router.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
   if (!canManageRegionPrefs(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   const currency = String(b.currency || '').trim();
@@ -128,7 +130,7 @@ router.put('/api/region-prefs', requireAuth, ah(async (req, res) => {
 // region's currency, whether the list is still the built-in default, and how
 // many meal-allowance lines in the region used each amount (and when last).
 router.get('/api/meal-rates', requireAuth, ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
+  const region = await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const settings = await loadAppSettings();
   const out = { region, rates: mealRatesFor(settings, region) };
@@ -147,6 +149,7 @@ router.get('/api/meal-rates', requireAuth, ah(async (req, res) => {
 
 router.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   if (!Array.isArray(b.rates)) return res.status(400).json({ error: 'Rates must be a list' });
@@ -184,7 +187,8 @@ async function resolveMatrixRegion(user, requested) {
 // Read the editable capability matrix for a region (?region=Name).
 router.get('/api/role-permissions', requireAuth, ah(async (req, res) => {
   if (!canAccessRoleMatrix(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
-  const region = await resolveMatrixRegion(req.user, req.query.region);
+  const region = seesAllRegions(req.user) ? await resolveMatrixRegion(req.user, req.query.region)
+    : await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   res.json({
     capabilities: CAPABILITIES,
@@ -202,6 +206,7 @@ router.get('/api/role-permissions', requireAuth, ah(async (req, res) => {
 router.put('/api/role-permissions', requireAuth, ah(async (req, res) => {
   if (!canAccessRoleMatrix(req.user)) return res.status(403).json({ error: 'You do not have permission for this action' });
   const { role, cap, value } = req.body || {};
+  if (namesOtherRegion(req.user, (req.body || {}).region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveMatrixRegion(req.user, (req.body || {}).region);
   if (!region || region === ALL_REGIONS) return res.status(400).json({ error: 'Choose a region' });
   if (!editableRolesFor(req.user).includes(role)) return res.status(400).json({ error: 'This role is not editable' });

@@ -1561,5 +1561,10 @@ I18N.addDict('id', {
   "{column}: \"{value}\" should be Yes or No": "{column}: \"{value}\" harus Yes atau No",
   "{column}: no account with username \"{value}\"": "{column}: tidak ada akun dengan username \"{value}\"",
   "{column}: an account cannot list itself": "{column}: akun tidak dapat mencantumkan dirinya sendiri",
-  "{column}: {value} is in {other}, not {region}": "{column}: {value} ada di {other}, bukan {region}"
+  "{column}: {value} is in {other}, not {region}": "{column}: {value} ada di {other}, bukan {region}",
+  "View only — this document is in {region}. You can act only on documents in {own}.": "Hanya lihat — dokumen ini ada di {region}. Anda hanya dapat bertindak atas dokumen di {own}.",
+  "{region} (yours)": "{region} (milik Anda)",
+  "View only. You can change settings only in {region}.": "Hanya lihat. Anda hanya dapat mengubah pengaturan di {region}.",
+  "Go to {region}": "Ke {region}",
+  "You can only change settings in your own region": "Anda hanya dapat mengubah pengaturan di region Anda sendiri"
 });

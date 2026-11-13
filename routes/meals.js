@@ -9,7 +9,7 @@ const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } 
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
-const { viewRegionFilter, seesAllRegions } = require('../lib/settings');
+const { viewRegionFilter, seesAllRegions, readsAllRegions } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
@@ -86,7 +86,7 @@ router.get('/api/meal-claims/summary', requireAuth, ah(async (req, res) => {
 router.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
-  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+  if (!readsAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
     return res.status(403).json({ error: 'You can only view your own meal claims' });
   }
   if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id

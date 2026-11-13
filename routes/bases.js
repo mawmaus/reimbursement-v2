@@ -9,7 +9,7 @@ const { q, qq, transaction } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
-const { resolveLookupRegion, seesAllRegions } = require('../lib/settings');
+const { resolveLookupRegion, seesAllRegions, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR } = require('../lib/settings');
 const { parseBaseInput, RULES } = require('../lib/meal-gps');
 
 const router = express.Router();
@@ -30,7 +30,7 @@ const dupeName = (e) => e && e.code === '23505';
 // many active accounts sit on each, and the region's active accounts with
 // their base (for the assign screen).
 router.get('/api/bases', requireAuth, ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
+  const region = await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const rows = await q(`SELECT * FROM bases ${region ? 'WHERE region = $1' : ''} ORDER BY lower(name)`, region ? [region] : []);
   // min_km: the radius the map draws around each base.
@@ -54,6 +54,7 @@ router.get('/api/bases', requireAuth, ah(async (req, res) => {
 
 router.post('/api/bases', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   const parsed = parseBaseInput(b.name, b.coords);

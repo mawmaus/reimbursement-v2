@@ -11,7 +11,7 @@ const express = require('express');
 const { q } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, asIntArray } = require('../lib/util');
-const { resolveLookupRegion, seesAllRegions, loadAppSettings, setAppSetting } = require('../lib/settings');
+const { resolveLookupRegion, seesAllRegions, loadAppSettings, setAppSetting, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR } = require('../lib/settings');
 const { userCan, customerSiteEditors, mayEditCustomerSites, loadPositions } = require('../lib/permissions');
 const { parseCoords } = require('../lib/meal-gps');
 
@@ -47,7 +47,7 @@ const requireSiteEditor = ah(async (req, res, next) => {
 });
 
 router.get('/api/customer-sites', requireAuth, ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
+  const region = await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   let rows;
   try {
@@ -73,6 +73,7 @@ router.get('/api/customer-sites', requireAuth, ah(async (req, res) => {
 // change; editors named for other regions stay as they are.
 router.put('/api/customer-sites/editors', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   const ids = [...new Set(asIntArray(b.user_ids))];
@@ -86,6 +87,7 @@ router.put('/api/customer-sites/editors', requireAuth, requireCap('manage_settin
 
 router.post('/api/customer-sites', requireAuth, requireSiteEditor, ah(async (req, res) => {
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region) return res.status(400).json({ error: 'Choose a region' });
   const parsed = parseSiteInput(b);

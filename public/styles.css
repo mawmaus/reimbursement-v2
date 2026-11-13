@@ -1711,6 +1711,16 @@ body.has-ios-hint .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)
   color: var(--pine-deep); background: var(--pine-tint);
   border-radius: 999px; vertical-align: middle;
 }
+/* Region-locked admins switch which region's settings they are looking at. */
+.ws-region-pick { min-width: 180px; max-width: 260px; }
+/* Looking at another region: a sand note above the page, controls dimmed. */
+.ws-ro-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 10px 14px; border-radius: 10px;
+  background: var(--amber-tint); color: var(--amber); font-size: .88rem; font-weight: 600;
+}
+.ws-ro-note .btn { white-space: nowrap; }
+.ws-readonly :is(input, select, textarea, button):disabled:not([type="search"]) { cursor: not-allowed; }
 
 /* --- Reimbursement line table (per-row receipts) -------------------------- */
 /* Wider than the meal table (it has a Type + Receipts column), so it scrolls

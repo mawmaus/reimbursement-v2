@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-13.3',
+    date: '2026-11-13',
+    items: [
+      { kind: 'improved', audience: ['settings'], text: {
+        en: 'Country Managers / Managing Directors can now look at other regions: pick a region in the top bar to see its claims and insights, or in Settings to see its settings. Other regions are view only — approving, paying and changing settings still work only in your own region.',
+        id: 'Country Manager / Managing Director kini dapat melihat region lain: pilih region di bilah atas untuk melihat klaim dan insight-nya, atau di Pengaturan untuk melihat pengaturannya. Region lain hanya bisa dilihat — menyetujui, membayar, dan mengubah pengaturan tetap hanya di region Anda sendiri.',
+        th: 'Country Manager / Managing Director ดูภูมิภาคอื่นได้แล้ว: เลือกภูมิภาคที่แถบด้านบนเพื่อดูเคลมและข้อมูลเชิงลึก หรือในการตั้งค่าเพื่อดูการตั้งค่าของภูมิภาคนั้น ภูมิภาคอื่นดูได้อย่างเดียว — การอนุมัติ การจ่ายเงิน และการเปลี่ยนการตั้งค่ายังทำได้เฉพาะในภูมิภาคของคุณ',
+        vi: 'Country Manager / Managing Director giờ có thể xem các khu vực khác: chọn khu vực ở thanh trên cùng để xem yêu cầu và phân tích, hoặc trong Cài đặt để xem cài đặt của khu vực đó. Các khu vực khác chỉ xem — duyệt, thanh toán và thay đổi cài đặt vẫn chỉ áp dụng trong khu vực của bạn.',
+        km: 'Country Manager / Managing Director ឥឡូវអាចមើលតំបន់ផ្សេងទៀតបាន៖ ជ្រើសតំបន់នៅរបារខាងលើដើម្បីមើលការទាមទារ និងការវិភាគ ឬនៅក្នុងការកំណត់ដើម្បីមើលការកំណត់របស់តំបន់នោះ។ តំបន់ផ្សេងទៀតមើលបានតែប៉ុណ្ណោះ — ការអនុម័ត ការបង់ប្រាក់ និងការប្តូរការកំណត់ នៅតែធ្វើបានតែក្នុងតំបន់របស់អ្នក។',
+        fil: 'Makikita na ng mga Country Manager / Managing Director ang ibang rehiyon: pumili ng rehiyon sa itaas para makita ang mga claim at insight nito, o sa Settings para makita ang settings nito. Tingin lang ang ibang rehiyon — sa sarili mo lang na rehiyon maaaring mag-approve, magbayad at magbago ng settings.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-13.2',
     date: '2026-11-13',
     items: [

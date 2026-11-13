@@ -10,7 +10,8 @@ const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
 const {
-  loadAppSettings, setAppSetting, resolveLookupRegion, regionPrefsFor, seesAllRegions
+  loadAppSettings, setAppSetting, resolveLookupRegion, regionPrefsFor, seesAllRegions,
+  readsAllRegions, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR
 } = require('../lib/settings');
 const { deleteReceipt, sendReceipt } = require('../lib/blob');
 const { verifyAttachments } = require('../lib/uploads');
@@ -209,7 +210,7 @@ router.put('/api/meal-claims/:id/lines/:lineId/approved', requireAuth, ah(async 
 router.get('/api/meal-claims/:id/attachments/:attId', requireAuth, ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
-  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+  if (!readsAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
     return res.status(403).json({ error: 'You can only view your own attachments' });
   }
   if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
@@ -227,7 +228,7 @@ router.get('/api/meal-claims/:id/attachments/:attId', requireAuth, ah(async (req
 // Read by any signed-in account for its own region; settings managers read and
 // switch any region they may manage (resolveLookupRegion pins the rest).
 router.get('/api/meal-gps-settings', requireAuth, ah(async (req, res) => {
-  const region = await resolveLookupRegion(req.user, req.query.region);
+  const region = await resolveSettingsReadRegion(req.user, req.query.region);
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const settings = await loadAppSettings();
   const out = { region, enabled: mealGpsEnabled(settings, region), rules: mealGpsRules(settings, region) };
@@ -244,6 +245,7 @@ router.get('/api/meal-gps-settings', requireAuth, ah(async (req, res) => {
 
 router.put('/api/meal-gps-settings', requireAuth, requireCap('manage_settings'), ah(async (req, res) => {
   const b = req.body || {};
+  if (namesOtherRegion(req.user, b.region)) return res.status(403).json({ error: OTHER_REGION_ERROR });
   const region = await resolveLookupRegion(req.user, b.region);
   if (region === null || !region || region === '*') return res.status(400).json({ error: 'Choose a region' });
   const settings = await loadAppSettings({ fresh: true });

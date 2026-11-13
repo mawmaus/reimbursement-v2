@@ -1538,5 +1538,10 @@ I18N.addDict('fil', {
   "{column}: \"{value}\" should be Yes or No": "{column}: dapat Yes o No ang \"{value}\"",
   "{column}: no account with username \"{value}\"": "{column}: walang account na may username na \"{value}\"",
   "{column}: an account cannot list itself": "{column}: hindi puwedeng ilista ng account ang sarili nito",
-  "{column}: {value} is in {other}, not {region}": "{column}: nasa {other} si {value}, hindi sa {region}"
+  "{column}: {value} is in {other}, not {region}": "{column}: nasa {other} si {value}, hindi sa {region}",
+  "View only — this document is in {region}. You can act only on documents in {own}.": "Tingin lang — ang dokumentong ito ay nasa {region}. Sa mga dokumento lang sa {own} ka maaaring kumilos.",
+  "{region} (yours)": "{region} (iyo)",
+  "View only. You can change settings only in {region}.": "Tingin lang. Sa {region} ka lang maaaring magbago ng settings.",
+  "Go to {region}": "Pumunta sa {region}",
+  "You can only change settings in your own region": "Sa sarili mong rehiyon ka lang maaaring magbago ng settings"
 });

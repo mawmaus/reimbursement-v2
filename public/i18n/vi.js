@@ -1538,5 +1538,10 @@ I18N.addDict('vi', {
   "{column}: \"{value}\" should be Yes or No": "{column}: \"{value}\" phải là Yes hoặc No",
   "{column}: no account with username \"{value}\"": "{column}: không có tài khoản với tên đăng nhập \"{value}\"",
   "{column}: an account cannot list itself": "{column}: tài khoản không thể tự ghi chính mình",
-  "{column}: {value} is in {other}, not {region}": "{column}: {value} thuộc {other}, không phải {region}"
+  "{column}: {value} is in {other}, not {region}": "{column}: {value} thuộc {other}, không phải {region}",
+  "View only — this document is in {region}. You can act only on documents in {own}.": "Chỉ xem — chứng từ này thuộc {region}. Bạn chỉ có thể thao tác với chứng từ ở {own}.",
+  "{region} (yours)": "{region} (của bạn)",
+  "View only. You can change settings only in {region}.": "Chỉ xem. Bạn chỉ có thể thay đổi cài đặt ở {region}.",
+  "Go to {region}": "Đến {region}",
+  "You can only change settings in your own region": "Bạn chỉ có thể thay đổi cài đặt trong khu vực của mình"
 });

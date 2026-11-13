@@ -1538,5 +1538,10 @@ I18N.addDict('th', {
   "{column}: \"{value}\" should be Yes or No": "{column}: \"{value}\" ต้องเป็น Yes หรือ No",
   "{column}: no account with username \"{value}\"": "{column}: ไม่มีบัญชีชื่อผู้ใช้ \"{value}\"",
   "{column}: an account cannot list itself": "{column}: บัญชีไม่สามารถระบุตัวเองได้",
-  "{column}: {value} is in {other}, not {region}": "{column}: {value} อยู่ใน {other} ไม่ใช่ {region}"
+  "{column}: {value} is in {other}, not {region}": "{column}: {value} อยู่ใน {other} ไม่ใช่ {region}",
+  "View only — this document is in {region}. You can act only on documents in {own}.": "ดูได้อย่างเดียว — เอกสารนี้อยู่ใน {region} คุณดำเนินการได้เฉพาะเอกสารใน {own}",
+  "{region} (yours)": "{region} (ของคุณ)",
+  "View only. You can change settings only in {region}.": "ดูได้อย่างเดียว คุณเปลี่ยนการตั้งค่าได้เฉพาะใน {region}",
+  "Go to {region}": "ไปที่ {region}",
+  "You can only change settings in your own region": "คุณเปลี่ยนการตั้งค่าได้เฉพาะในภูมิภาคของคุณเท่านั้น"
 });

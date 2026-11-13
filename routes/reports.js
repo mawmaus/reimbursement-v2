@@ -8,7 +8,7 @@ const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, tzOffsetLabel, tsInZone, iso, likeContains } = require('../lib/util');
 const { loadPositions, insightsCanView, insightsSeeAll } = require('../lib/permissions');
 const {
-  viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions
+  viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions, readsAllRegions
 } = require('../lib/settings');
 const { todayInZone } = require('../lib/claim-window');
 const { insightPeriods, summarize, rankBy, speedStats, approvalPeriod, approvalStatsByEmployee, approvalStatsByDepartment, pipelineStats } = require('../lib/insights');
@@ -472,7 +472,7 @@ router.get('/api/export.xlsx', requireAuth, requireCap('export_csv'), ah(async (
     where.push('l.rejected_at IS NULL');
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
-    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
+    if (!readsAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`c.region = $${params.length}`); }
     // One row per line so each expense category exports on its own row (instead of
     // the claim header's "Multiple" summary). first_approved_at is when the FIRST
     // approver (step 1) approved in the CURRENT cycle: the latest step-1 approval
@@ -521,7 +521,7 @@ router.get('/api/export.xlsx', requireAuth, requireCap('export_csv'), ah(async (
     where.push('l.rejected_at IS NULL');
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
-    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`m.region = $${params.length}`); }
+    if (!readsAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`m.region = $${params.length}`); }
     const rows = await q(
       `SELECT m.claim_no, m.claimant_name, m.department, m.bank_name, m.recipient_name,
               m.bank_account_no, m.currency, m.status, m.current_step, m.manager_comment, m.decided_at, m.paid_at,
@@ -572,7 +572,7 @@ router.get('/api/export.xlsx', requireAuth, requireCap('export_csv'), ah(async (
     where.push('l.rejected_at IS NULL');
     if (from) { params.push(from); where.push(`l.line_date >= $${params.length}`); }
     if (to) { params.push(to); where.push(`l.line_date <= $${params.length}`); }
-    if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
+    if (!readsAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`a.region = $${params.length}`); }
     // first_approved_at = when the first approver (step 1) approved the request
     // phase, in the current cycle: the latest step-1 approval dated after the most
     // recent request (re)submission, so a reject + resubmit clears it until re-approved.
@@ -639,7 +639,7 @@ router.get('/api/export.xlsx', requireAuth, requireCap('export_csv'), ah(async (
 router.get('/api/claim-submitters', requireAuth, requireCap('export_csv'), ah(async (req, res) => {
   const where = [];
   const params = [];
-  if (!seesAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
+  if (!readsAllRegions(req.user)) { params.push(req.user.region || ''); where.push(`region = $${params.length}`); }
   const users = await q(
     `SELECT id, full_name, username FROM users
      ${where.length ? 'WHERE ' + where.join(' AND ') : ''}

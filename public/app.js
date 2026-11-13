@@ -615,6 +615,15 @@ function seesAllAdvances(u) {
 function seesAllRegionsUI(u) {
   return !!(u && (u.role === 'superadmin' || u.role === 'vp' || u.region === '*'));
 }
+// Region-locked Country Managers / Managing Directors (admin) may LOOK at every
+// region — claims, insights, settings — but act only in their own. Mirrors the
+// server's readsAllRegions; actsInRegionUI mirrors inUserRegion.
+function readsAllRegionsUI(u) {
+  return seesAllRegionsUI(u) || !!(u && u.role === 'admin');
+}
+function actsInRegionUI(u, region) {
+  return seesAllRegionsUI(u) || String(region || '') === String((u && u.region) || '');
+}
 // Top-bar region picker: populate its options and toggle visibility for the
 // signed-in user. All-region viewers pick "All regions" or a single region; the
 // choice scopes the home tiles, claim lists and insights. Hidden for everyone
@@ -623,7 +632,7 @@ function renderRegionPicker() {
   const wrap = $('#regionPicker');
   const sel = $('#regionSelect');
   if (!wrap || !sel) return;
-  const show = seesAllRegionsUI(state.user);
+  const show = readsAllRegionsUI(state.user);
   wrap.hidden = !show;
   if (!show) return;
   const cur = state.viewRegion || '';
@@ -720,7 +729,8 @@ function showApp() {
   state.dcPending = 0;
   // Reset the region scope on every login so a same-tab account switch never
   // carries the previous user's chosen region; then show/hide + fill the picker.
-  state.viewRegion = '';
+  // A region-locked admin may look at other regions but starts on their own.
+  state.viewRegion = readsAllRegionsUI(state.user) && !seesAllRegionsUI(state.user) ? String(state.user.region || '') : '';
   renderRegionPicker();
   loadLookups();
   playEnter($('#homeMenu'));

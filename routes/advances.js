@@ -22,7 +22,7 @@ const {
   planAdvanceRevert, serializeManyAdvance
 } = require('../lib/advances');
 const { verifyAttachments, MAX_FILES } = require('../lib/uploads');
-const { regionPrefsFor, viewRegionFilter, seesAllRegions } = require('../lib/settings');
+const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions } = require('../lib/settings');
 const { logAdvanceHistory } = require('../lib/documents');
 const {
   planLineRejections, applyLineRejections, freezeRejectionsQuery,
@@ -408,7 +408,7 @@ router.get('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
   if (!row) return;
   // GET /api/cash-advances region-scopes the list via viewRegionFilter; without
   // the same check here a direct id read reached advances from other regions.
-  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+  if (!readsAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
     return res.status(403).json({ error: 'You can only view your own cash advances' });
   }
   if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id
@@ -429,7 +429,7 @@ router.get('/api/cash-advances/:id/attachments/:attId', requireAuth, ah(async (r
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
   // Mirrors GET /api/cash-advances/:id (see the region note there).
-  if (!seesAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
+  if (!readsAllRegions(req.user) && String(row.region || '') !== String(req.user.region || '')) {
     return res.status(403).json({ error: 'You can only view your own attachments' });
   }
   if (!userCan(req.user, 'view_all_claims') && row.employee_id !== req.user.id

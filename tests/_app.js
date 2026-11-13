@@ -51,6 +51,10 @@ async function q(text, params = []) {
   }
   if (/^SELECT .* FROM users WHERE id = \$1/.test(sql)) { const u = state.users.get(Number(params[0])); return u ? [{ ...u }] : []; }
   if (/^SELECT name, rank, can_manage FROM job_positions/.test(sql)) return state.positions.map(p => ({ ...p }));
+  // normRegion: the known regions, matched case-insensitively.
+  if (/^SELECT name FROM regions WHERE lower\(name\) = lower\(\$1\) AND active = TRUE$/.test(sql)) {
+    return (state.regions || ['Indonesia', 'Thailand']).filter(r => r.toLowerCase() === String(params[0]).toLowerCase()).map(name => ({ name }));
+  }
   if ((m = sql.match(/^SELECT \* FROM (claims|meal_claims|cash_advances|departments|job_positions|expense_types|bases|customer_sites) WHERE id ?= ?\$1$/))) {
     return state.tables[m[1]].filter(r => r.id === Number(params[0])).map(r => ({ ...r }));
   }
