@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-13.4',
+    date: '2026-11-13',
+    items: [
+      { kind: 'new', text: {
+        en: 'Every screen now has a step-by-step guide, like the GPS meal form’s: the menu, the claim lists, a claim’s details, every claim form, cash advances, Insights, Help, the Bases map, your profile, Settings and Manage accounts. It opens by itself the first time you visit a screen, and the Guide button (?) beside the title replays it any time.',
+        id: 'Kini setiap layar punya panduan langkah demi langkah, seperti formulir makan GPS: menu, daftar klaim, detail klaim, semua formulir klaim, uang muka, Insight, Bantuan, Peta base, profil, Pengaturan, dan Kelola akun. Panduan terbuka sendiri saat pertama kali Anda membuka layar itu, dan tombol Panduan (?) di samping judul bisa memutarnya lagi kapan saja.',
+        th: 'ตอนนี้ทุกหน้าจอมีคำแนะนำทีละขั้นตอน เหมือนแบบฟอร์มค่าอาหาร GPS: เมนู รายการการเบิก รายละเอียดการเบิก แบบฟอร์มเบิกทุกแบบ เงินทดรอง Insights ความช่วยเหลือ แผนที่ฐาน โปรไฟล์ การตั้งค่า และจัดการบัญชี คำแนะนำจะเปิดเองเมื่อคุณเข้าหน้าจอนั้นครั้งแรก และปุ่ม คำแนะนำ (?) ข้างชื่อหน้าจอเปิดดูซ้ำได้ทุกเมื่อ',
+        vi: 'Giờ mọi màn hình đều có hướng dẫn từng bước, giống biểu mẫu phụ cấp ăn GPS: menu, danh sách yêu cầu, chi tiết yêu cầu, mọi biểu mẫu yêu cầu, tạm ứng, Thống kê, Hỗ trợ, bản đồ cơ sở, hồ sơ, Cài đặt và Quản lý tài khoản. Hướng dẫn tự mở lần đầu bạn vào một màn hình, và nút Hướng dẫn (?) cạnh tiêu đề cho xem lại bất cứ lúc nào.',
+        km: 'ឥឡូវអេក្រង់នីមួយៗមានការណែនាំមួយជំហានម្ដងៗ ដូចទម្រង់អាហារ GPS៖ ម៉ឺនុយ បញ្ជីការទាមទារ ព័ត៌មានលម្អិតនៃការទាមទារ ទម្រង់ទាមទារទាំងអស់ ប្រាក់បុរេប្រទាន Insights ជំនួយ ផែនទីមូលដ្ឋាន ប្រវត្តិរូប ការកំណត់ និងគ្រប់គ្រងគណនី។ វាបើកដោយខ្លួនឯងនៅពេលអ្នកចូលអេក្រង់នោះជាលើកដំបូង ហើយប៊ូតុង ការណែនាំ (?) នៅជាប់ចំណងជើង អាចចាក់វាឡើងវិញពេលណាក៏បាន។',
+        fil: 'May hakbang-hakbang na gabay na ang bawat screen, gaya ng sa GPS meal form: ang menu, mga listahan ng claim, detalye ng claim, bawat claim form, cash advance, Insights, Tulong, mapa ng mga base, profile mo, Settings at Manage accounts. Kusa itong bumubukas sa unang beses na bisitahin mo ang isang screen, at maaari itong ulitin anumang oras gamit ang Gabay na button (?) sa tabi ng pamagat.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-13.3',
     date: '2026-11-13',
     items: [

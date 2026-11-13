@@ -12,7 +12,17 @@
 
 let guideState = null;
 
-const guideVisible = (el) => !!el && el.isConnected && !el.closest('[hidden]') && el.getClientRects().length > 0;
+// An element with display: contents has no box of its own (the claims list's
+// filter row): it counts, and is lit, by the union of its visible children.
+function guideBox(el) {
+  if (getComputedStyle(el).display !== 'contents') return el.getClientRects().length ? el.getBoundingClientRect() : null;
+  const rs = [...el.children].map(c => c.getClientRects().length ? c.getBoundingClientRect() : null).filter(r => r && r.width);
+  if (!rs.length) return null;
+  const top = Math.min(...rs.map(r => r.top)), left = Math.min(...rs.map(r => r.left));
+  const right = Math.max(...rs.map(r => r.right)), bottom = Math.max(...rs.map(r => r.bottom));
+  return { top, left, right, bottom, width: right - left, height: bottom - top };
+}
+const guideVisible = (el) => !!el && el.isConnected && !el.closest('[hidden]') && !!guideBox(el);
 
 function runGuide(steps, { onEnd } = {}) {
   endGuide();
@@ -35,15 +45,18 @@ function runGuide(steps, { onEnd } = {}) {
     if (g.i >= list.length) g.i = list.length - 1;
     const step = list[g.i];
     const el = step.el();
-    if (scroll) el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    // The timer passes 'keep': bring the element back only if something else
+    // (a re-render, a late layout shift) scrolled it fully out of sight.
+    const out = () => { const q = guideBox(el); return q.bottom < 0 || q.top > window.innerHeight; };
+    if (scroll === true || (scroll === 'keep' && out())) (getComputedStyle(el).display === 'contents' ? el.firstElementChild : el).scrollIntoView({ block: 'center', inline: 'nearest' });
     // The root is zoomed (80% on desktop, styles.css --app-zoom): rects come back
     // in screen pixels, while the fixed hole and bubble are placed in CSS pixels.
     const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-    const sr = el.getBoundingClientRect();
+    const sr = guideBox(el);
     const r = { top: sr.top / z, left: sr.left / z, width: sr.width / z, height: sr.height / z, bottom: sr.bottom / z };
     const pad = 6;
     Object.assign(hole.style, { top: `${r.top - pad}px`, left: `${r.left - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
-    if (g.last !== step || scroll) {
+    if (g.last !== step || scroll === true) {
       g.last = step;
       const n = list.length, at = g.i + 1;
       bubble.innerHTML = `
@@ -91,7 +104,7 @@ function runGuide(steps, { onEnd } = {}) {
   window.addEventListener('resize', guideState.onMove);
   document.addEventListener('scroll', guideState.onMove, true);
   // The form may re-render under the guide (customer sites arriving, say).
-  guideState.timer = setInterval(guideState.onMove, 400);
+  guideState.timer = setInterval(() => paint('keep'), 400);
   paint(true);
 }
 

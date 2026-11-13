@@ -3849,9 +3849,26 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .mg-step-list.all-done + .mg-step-left { color: var(--green); }
 /* The header's Guide button. */
 .lf-guide-btn { flex: none; margin-left: auto; white-space: nowrap; }
-.lf-guide-btn span { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
+.lf-guide-btn > span[aria-hidden] { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%;
   background: var(--pine-tint); color: var(--pine-deep); font-size: .74rem; font-weight: 800; }
 .lf-modal-head .lf-guide-btn + .x-btn { margin-left: 0; }
+/* The Guide button js/guides.js adds to every screen: before the × of a modal or
+   the drawer, at the end of a view's header row, top-right of the home greeting. */
+.list-head > .screen-guide-btn { margin-left: auto; }
+.list-head > .refresh-btn + .screen-guide-btn, .list-head > .list-acts:not(:empty) + .screen-guide-btn { margin-left: 0; }
+.home-hero { position: relative; }
+.home-hero:has(> .screen-guide-btn) { padding-right: 96px; }
+.home-hero > .screen-guide-btn { position: absolute; top: 4px; right: 0; }
+.dh-top .screen-guide-btn { margin-left: auto; }
+.dh-top .screen-guide-btn + .x-btn { margin-left: 0; }
+.modal-head .screen-guide-btn + .x-btn { margin-left: 0; }
+@media (max-width: 560px) {
+  /* Phones: just the round ? in tight header rows. */
+  .list-head > .screen-guide-btn .sg-l, .dh-top .screen-guide-btn .sg-l, .home-hero > .screen-guide-btn .sg-l { display: none; }
+  .list-head > .screen-guide-btn, .dh-top .screen-guide-btn, .home-hero > .screen-guide-btn { padding-left: 8px; padding-right: 8px; }
+  .home-hero:has(> .screen-guide-btn) { padding-right: 44px; }
+  .list-head > .screen-guide-btn { min-height: 34px; min-width: 38px; justify-content: center; } /* same size as Refresh beside it */
+}
 /* Step-by-step guide (js/guide.js): a lit hole over one element, a bubble beside it. */
 .guide-block { position: fixed; inset: 0; z-index: 90; }
 .guide-hole { position: fixed; z-index: 91; border-radius: 12px; pointer-events: none;
