@@ -124,6 +124,7 @@ app.use(require('./routes/advances'));
 app.use(require('./routes/bulk-payments'));
 app.use(require('./routes/cron'));
 app.use(require('./routes/reports'));
+app.use(require('./routes/accounts-xlsx'));
 app.use(require('./routes/users'));
 app.use(require('./routes/lookups'));
 app.use(require('./routes/survey'));

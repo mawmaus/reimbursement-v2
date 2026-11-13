@@ -44,7 +44,7 @@ const clientSrc = clientFiles.map(read).join('\n');
 const serverSrc = serverFiles.map(read).join('\n');
 
 // Server files / strings that never reach the UI.
-const SERVER_IGNORE_FILES = new Set(['lib/notify.js', 'lib/email.js']);
+const SERVER_IGNORE_FILES = new Set(['lib/notify.js', 'lib/email.js', 'lib/accounts-sheet.js']); // accounts-sheet: the workbook's own (English) text
 const SERVER_IGNORE = new Set([
   'Reset your password', 'Reset your Reimbursement Portal password',                  // reset email
   'Reimbursement Portal — test email', 'Test email',                                   // test email

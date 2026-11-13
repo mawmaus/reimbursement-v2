@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-13.2',
+    date: '2026-11-13',
+    items: [
+      { kind: 'new', audience: ['superadmin'], text: {
+        en: 'Accounts in Excel: Settings → Accounts → Excel exports a market’s accounts (or a blank template) with roles, departments, positions, approvers, bank details and bases. Fill it in and import it to add or update accounts in bulk — you see every new account and change first, and nothing is saved while any row has a problem.',
+        id: 'Akun di Excel: Pengaturan → Akun → Excel mengekspor akun suatu pasar (atau template kosong) beserta peran, departemen, jabatan, penyetuju, data bank, dan base. Isi lalu impor untuk menambah atau memperbarui akun secara massal — Anda melihat setiap akun baru dan perubahan terlebih dahulu, dan tidak ada yang disimpan selama masih ada baris yang bermasalah.',
+        th: 'บัญชีใน Excel: การตั้งค่า → บัญชี → Excel ส่งออกบัญชีของตลาด (หรือเทมเพลตเปล่า) พร้อมบทบาท แผนก ตำแหน่ง ผู้อนุมัติ ข้อมูลธนาคาร และฐาน กรอกแล้วนำเข้าเพื่อเพิ่มหรืออัปเดตบัญชีจำนวนมาก — คุณจะเห็นบัญชีใหม่และการเปลี่ยนแปลงทั้งหมดก่อน และระบบจะไม่บันทึกขณะที่ยังมีแถวที่มีปัญหา',
+        vi: 'Tài khoản trong Excel: Cài đặt → Tài khoản → Excel xuất tài khoản của một thị trường (hoặc mẫu trống) kèm vai trò, phòng ban, chức vụ, người duyệt, thông tin ngân hàng và cơ sở. Điền rồi nhập để thêm hoặc cập nhật hàng loạt — bạn xem trước mọi tài khoản mới và thay đổi, và không có gì được lưu khi còn dòng có lỗi.',
+        km: 'គណនីក្នុង Excel៖ ការកំណត់ → គណនី → Excel នាំចេញគណនីរបស់ទីផ្សារមួយ (ឬគំរូទទេ) រួមទាំងតួនាទី នាយកដ្ឋាន មុខតំណែង អ្នកអនុម័ត ព័ត៌មានធនាគារ និងមូលដ្ឋាន។ បំពេញ ហើយនាំចូលដើម្បីបន្ថែម ឬធ្វើបច្ចុប្បន្នភាពគណនីច្រើនក្នុងពេលតែមួយ — អ្នកឃើញគណនីថ្មី និងការផ្លាស់ប្តូរទាំងអស់ជាមុន ហើយគ្មានអ្វីត្រូវបានរក្សាទុកទេ ខណៈដែលនៅមានជួរមានបញ្ហា។',
+        fil: 'Mga account sa Excel: ang Settings → Accounts → Excel ay nag-e-export ng mga account ng isang market (o blangkong template) kasama ang tungkulin, departamento, posisyon, approver, bank details at base. Punan at i-import para magdagdag o mag-update ng maraming account — makikita mo muna ang bawat bagong account at pagbabago, at walang mase-save habang may row na may problema.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-13.1',
     date: '2026-11-13',
     items: [

@@ -4323,3 +4323,68 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .ledger.view-mine:not(.selecting) .ledger-row { grid-template-areas: "name amt" "type status" "no no"; }
   .ledger.view-mine.selecting .ledger-row { grid-template-areas: "check name amt" "check type status" "check no no"; }
 }
+
+/* ---------- Accounts in Excel (js/accounts-excel.js) ---------- */
+.modal.modal-ax { width: min(860px, calc(100% - 32px)); max-height: min(86vh, 900px); }
+.modal-ax .ax-body { padding: 0; }
+.ax-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 20px 22px; }
+.ax-foot { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 22px;
+  border-top: 1px solid var(--line); background: var(--surface); }
+.ax-foot .form-error { margin: 0 auto 0 0; }
+.ax-lead { margin: 0 0 10px; color: var(--ink); line-height: 1.5; }
+.ax-steps { margin: 0 0 18px; padding-left: 20px; color: var(--muted); line-height: 1.6; font-size: .9rem; }
+.ax-field { display: flex; flex-direction: column; gap: 6px; font-size: .85rem; font-weight: 600; margin-bottom: 14px; max-width: 420px; }
+.ax-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 30px 18px; }
+.ax-drop-icon { font-size: 1.6rem; line-height: 1; color: var(--pine-deep); }
+.ax-drop-sub { font-size: .8rem; }
+.ax-wait { padding: 40px 22px; text-align: center; }
+.ax-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ax-file-name { font-weight: 600; overflow-wrap: anywhere; }
+.ax-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.ax-stat { font-size: .85rem; padding: 6px 12px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.ax-stat b { font-size: 1rem; color: var(--ink); margin-right: 2px; }
+.ax-stat-new { background: var(--green-tint); border-color: transparent; color: var(--green); }
+.ax-stat-new b { color: var(--green); }
+.ax-stat-upd { background: var(--amber-tint); border-color: transparent; color: var(--amber); }
+.ax-stat-upd b { color: var(--amber); }
+.ax-stat-bad { background: var(--red-tint); border-color: transparent; color: var(--red); }
+.ax-stat-bad b { color: var(--red); }
+.ax-sec { margin-bottom: 22px; }
+.ax-sec h3 { font-size: .95rem; margin: 0 0 8px; }
+.ax-sec-bad h3 { color: var(--red); }
+.ax-hint { margin: 0 0 10px; font-size: .85rem; color: var(--muted); }
+.ax-table { font-size: .86rem; }
+.ax-issues td:first-child, .ax-issues th:first-child { width: 56px; white-space: nowrap; }
+.ax-issues td:nth-child(2) { width: 22%; }
+.ax-upd { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px; }
+.ax-upd-who { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.ax-changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ax-changes li { display: grid; grid-template-columns: minmax(120px, 30%) 1fr; gap: 10px; font-size: .86rem; }
+.ax-k { color: var(--muted); }
+.ax-vals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; overflow-wrap: anywhere; }
+.ax-from { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.ax-arrow { color: var(--muted); }
+.ax-to { color: var(--ink); font-weight: 600; }
+.ax-empty { padding: 24px 0; text-align: center; color: var(--muted); }
+.ax-done { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.ax-done h3 { margin: 0 0 2px; }
+.ax-done p { margin: 0; color: var(--muted); }
+.ax-done-mark { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--green-tint); color: var(--green); font-size: 1.2rem; font-weight: 700; }
+.ax-creds-note { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; }
+@media (max-width: 640px) {
+  .ax-scroll { padding: 16px; }
+  .ax-foot { padding: 10px 16px; flex-wrap: wrap; }
+  .ax-changes li { grid-template-columns: 1fr; gap: 0; }
+  .ax-file { flex-wrap: wrap; }
+}
+/* Phones: the import tables become labelled cards, like the accounts table. */
+@media (max-width: 640px) {
+  .ax-table thead { display: none; }
+  .ax-table, .ax-table tbody, .ax-table tr, .ax-table td { display: block; width: auto !important; }
+  .ax-table tr { border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px 10px; margin-bottom: 8px; background: var(--surface); }
+  .ax-table td { border: none; padding: 6px 0 0; overflow-wrap: anywhere; }
+  .ax-table td[data-label]::before { content: attr(data-label); display: block; color: var(--muted);
+    font-size: .64rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; margin-bottom: 1px; white-space: nowrap; }
+  .ax-issues td:first-child, .ax-issues td:nth-child(2) { display: inline-block; width: auto; margin-right: 14px; }
+}

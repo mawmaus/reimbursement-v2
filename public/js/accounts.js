@@ -172,7 +172,7 @@ function paintAccounts() {
     const arrow = on ? (accountsSort.dir === 1 ? ' ▲' : ' ▼') : '';
     return `<th class="sortable" data-sort="${key}" role="button" tabindex="0" aria-sort="${on ? (accountsSort.dir === 1 ? 'ascending' : 'descending') : 'none'}">${esc(label)}<span class="sort-arrow">${arrow}</span></th>`;
   };
-  setWsPage({ actions: `<button type="button" class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` });
+  setWsPage({ actions: `<button type="button" class="btn btn-ghost btn-sm ax-btn" id="acctExcelBtn" aria-haspopup="menu">${esc(t('Excel'))} <span aria-hidden="true">▾</span></button><button type="button" class="btn btn-primary btn-sm" id="addUserBtn">${esc(t('+ Add user'))}</button>` });
   panel.innerHTML = `
     <div class="settings-controls">
       <div class="ws-toolbar">
@@ -218,6 +218,7 @@ function paintAccounts() {
     accountsFilter = b.dataset.filter; repaintKeepingSearch(paintAccounts);
   }));
   $('#addUserBtn').addEventListener('click', () => renderUserForm(null));
+  $('#acctExcelBtn').addEventListener('click', (e) => { e.stopPropagation(); openAccountsExcelMenu(e.currentTarget); });
   $$('#settingsPanel [data-edit]').forEach(b =>
     b.addEventListener('click', () => renderUserForm(users.find(x => x.id == b.dataset.edit))));
   $$('#settingsPanel [data-menu]').forEach(b => b.addEventListener('click', (e) => {
