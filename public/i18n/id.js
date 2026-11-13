@@ -128,6 +128,7 @@ I18N.addDict('id', {
   // Insights
   'Loading…': 'Memuat…',
   'Company-wide': 'Seluruh perusahaan',
+  'Region-wide': 'Seluruh region',
   'Claims you approve': 'Klaim yang Anda setujui',
   'Approved + paid': 'Disetujui + dibayar',
   'Paid only': 'Hanya dibayar',
@@ -595,7 +596,9 @@ I18N.addDict('id', {
   'Manage settings': 'Kelola pengaturan',
   'Edit departments, job positions, expense types, meal allowance amounts and the claim date limit.': 'Mengedit departemen, posisi jabatan, jenis pengeluaran, jumlah tunjangan makan, dan batas tanggal klaim.',
   'View company-wide insights': 'Lihat wawasan seluruh perusahaan',
-  'Open expense insights across every department.': 'Membuka wawasan pengeluaran di semua departemen.',
+  'Open expense insights across every department in every region.': 'Membuka wawasan pengeluaran di semua departemen di semua region.',
+  'View region-wide insights': 'Lihat wawasan seluruh region',
+  'Open expense insights across every department, in their own region only.': 'Membuka wawasan pengeluaran di semua departemen, hanya di region sendiri.',
   'Roles': 'Peran',
   'region': 'wilayah',
   'Mid Management': 'Manajemen Menengah',

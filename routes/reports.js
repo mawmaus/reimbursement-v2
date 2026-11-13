@@ -6,7 +6,7 @@ const express = require('express');
 const { q } = require('../db');
 const { requireAuth, requireCap } = require('../lib/auth');
 const { ah, tzOffsetLabel, tsInZone, iso, likeContains } = require('../lib/util');
-const { loadPositions, insightsCanView, insightsSeeAll } = require('../lib/permissions');
+const { loadPositions, insightsCanView, insightsSeeAll, insightsRegionPin } = require('../lib/permissions');
 const {
   viewRegionFilter, regionPrefsFor, DEFAULT_CURRENCY, seesAllRegions, readsAllRegions
 } = require('../lib/settings');
@@ -147,8 +147,11 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   if (nameFilter) { params.push(likeContains(nameFilter)); where.push(`claimant ILIKE $${params.length}`); }
   // Region scope: region-locked viewers are pinned to their own region; all
   // -region viewers (Super Admins / VPs) may narrow to one via the top-bar picker
-  // (?region=Name), else they see every region. Reused for the option lists below.
-  const vr = await viewRegionFilter(req);
+  // (?region=Name), else they see every region. Region-wide insights (rather
+  // than company-wide) pin even a CM/MD to their own region and ignore ?region.
+  // Reused for the option lists below.
+  const pinned = insightsRegionPin(req.user);
+  const vr = pinned !== null ? pinned : await viewRegionFilter(req);
   if (vr !== null) { params.push(vr); where.push(`region = $${params.length}`); }
 
   // Reimbursement rows come from each claim's LINES (claim_lines), not the claim
@@ -409,7 +412,7 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   const dbNos = dbrows.map(r => r.db);
 
   res.json({
-    scope: { mode, department: deptFilter || null },
+    scope: { mode, department: deptFilter || null, region: pinned },
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
     currency: vr ? vrPrefs.currency : DEFAULT_CURRENCY,

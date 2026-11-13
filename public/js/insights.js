@@ -136,7 +136,10 @@ function renderInsights() {
   const scopeEl = $('#insightsScope');
   const remit = d.scope.department
     ? d.scope.department
-    : (d.scope.mode === 'all' ? t('Company-wide') : t('Claims you approve'));
+    : d.scope.mode !== 'all' ? t('Claims you approve')
+    // Region-wide insights are pinned to the viewer's own region (the top-bar
+    // picker doesn't move them), so the header names that region instead.
+    : d.scope.region ? t('Region-wide') : t('Company-wide');
 
   const yearOpts = (d.years.length ? d.years : [d.year])
     .map(y => `<option value="${esc(y)}"${y === d.year ? ' selected' : ''}>${esc(y)}</option>`).join('');
@@ -150,7 +153,7 @@ function renderInsights() {
   // Period label for the breakdown card's subtitle: month + year, or just year.
   const periodLabel = d.month ? `${monthNames[parseInt(d.month, 10) - 1] || d.month} ${d.year}` : String(d.year);
   // Header line: (region ·) scope · period · statuses — what every figure below covers.
-  scopeEl.innerHTML = [state.viewRegion, remit, periodLabel, currentStatusLabel(f.status)]
+  scopeEl.innerHTML = [d.scope.region || state.viewRegion, remit, periodLabel, currentStatusLabel(f.status)]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
   // Filters that differ from a fresh Insights page (the year doesn't count: it
   // always holds a value). They drive the phone "Filters (n)" badge and Reset.

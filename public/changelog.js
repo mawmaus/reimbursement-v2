@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-13.5',
+    date: '2026-11-13',
+    items: [
+      { kind: 'new', audience: ['settings', 'insights'], text: {
+        en: 'Roles can now be given region-wide insights instead of company-wide: a Country Manager / Managing Director with “View region-wide insights” sees Insights for every department in their own region only — picking another region in the top bar doesn’t change it. Set it per region in Settings → Roles.',
+        id: 'Peran kini bisa diberi wawasan seluruh region, bukan seluruh perusahaan: Country Manager / Managing Director dengan “Lihat wawasan seluruh region” melihat Insight untuk semua departemen di region-nya sendiri saja — memilih region lain di bilah atas tidak mengubahnya. Atur per region di Pengaturan → Peran.',
+        th: 'ตอนนี้กำหนดให้บทบาทเห็นข้อมูลเชิงลึกทั่วทั้งภูมิภาคแทนทั้งบริษัทได้แล้ว: Country Manager / Managing Director ที่มีสิทธิ์ “ดูข้อมูลเชิงลึกทั่วทั้งภูมิภาค” จะเห็น Insights ของทุกแผนกเฉพาะในภูมิภาคของตนเอง — การเลือกภูมิภาคอื่นที่แถบด้านบนไม่เปลี่ยนสิ่งนี้ ตั้งค่าแยกตามภูมิภาคได้ที่ การตั้งค่า → บทบาท',
+        vi: 'Giờ có thể cấp cho vai trò thông tin chi tiết toàn khu vực thay vì toàn công ty: Country Manager / Managing Director có quyền “Xem thông tin chi tiết toàn khu vực” chỉ thấy Thống kê của mọi phòng ban trong khu vực của mình — chọn khu vực khác ở thanh trên cùng không thay đổi điều này. Thiết lập theo từng khu vực tại Cài đặt → Vai trò.',
+        km: 'ឥឡូវអាចផ្ដល់ឱ្យតួនាទីនូវការវិភាគទូទាំងតំបន់ ជំនួសឱ្យទូទាំងក្រុមហ៊ុន៖ Country Manager / Managing Director ដែលមាន “មើលការវិភាគទូទាំងតំបន់” ឃើញ Insights សម្រាប់គ្រប់នាយកដ្ឋាន តែក្នុងតំបន់របស់ខ្លួនប៉ុណ្ណោះ — ការជ្រើសតំបន់ផ្សេងនៅរបារខាងលើមិនប្ដូរវាទេ។ កំណត់តាមតំបន់នីមួយៗនៅ ការកំណត់ → តួនាទី។',
+        fil: 'Maaari nang bigyan ang mga role ng region-wide na insights sa halip na company-wide: ang Country Manager / Managing Director na may “Tingnan ang region-wide na insights” ay makakakita ng Insights ng bawat departamento sa sarili lang nilang rehiyon — hindi ito nababago ng pagpili ng ibang rehiyon sa itaas. I-set ito kada rehiyon sa Settings → Mga role.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-13.4',
     date: '2026-11-13',
     items: [

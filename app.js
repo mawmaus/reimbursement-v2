@@ -27,7 +27,7 @@ const {
 const {
   fillMatrix, capsFor, userCan, editableRolesFor, hasDelegation,
   creatablePositions, canManageAccount, insightsCanView, insightsSeeAll,
-  accountsSeeAllDepts, CAPABILITIES
+  insightsRegionPin, accountsSeeAllDepts, CAPABILITIES
 } = require('./lib/permissions');
 
 const app = express();
@@ -161,7 +161,7 @@ module.exports.rules = {
   resubmitEarliest, dateFloorFor, currentApproverId, userCanApprove, canMarkPaid,
   planRevert, planAdvanceRevert, undoneApprovalStep, revertLandsOnApprover1,
   fillMatrix, capsFor, userCan, editableRolesFor, hasDelegation, creatablePositions,
-  canManageAccount, insightsCanView, insightsSeeAll, accountsSeeAllDepts,
+  canManageAccount, insightsCanView, insightsSeeAll, insightsRegionPin, accountsSeeAllDepts,
   applyListStatusFilter, applyLedgerWindow, slimForList,
   OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL, CAPABILITIES, sessionCurrent, startSession,
   insightPeriods, summarize, rankBy, speedStats, pipelineStats

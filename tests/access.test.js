@@ -87,6 +87,18 @@ test('Insights: who may open it, and who sees company-wide data', () => {
   assert.equal(R.insightsSeeAll(user({ caps: { view_insights_all: true } }), P), true);
 });
 
+test('Insights: region-wide insights see every department but only the home region', () => {
+  const cm = (caps, extra) => user({ role: 'admin', region: 'Cambodia', ...extra }, caps);
+  const regionOnly = cm({ view_insights_region: true });
+  assert.equal(R.insightsCanView(regionOnly, P), true, 'the capability alone opens Insights');
+  assert.equal(R.insightsSeeAll(regionOnly, P), true, 'every department, not just approved claims');
+  assert.equal(R.insightsRegionPin(regionOnly), 'Cambodia', 'pinned to their own region');
+  assert.equal(R.insightsRegionPin(cm({ view_insights_region: true, view_insights_all: true })), null, 'company-wide wins');
+  assert.equal(R.insightsRegionPin(cm({})), null, 'no capability keeps the usual region scope');
+  assert.equal(R.insightsRegionPin(cm({ view_insights_region: true }, { region: '*' })), null, 'an All-regions account has no home region to pin');
+  assert.equal(R.insightsRegionPin(user({ role: 'superadmin', region: 'Cambodia' })), null);
+});
+
 test('Rank thresholds fall back to the seeded ranks when a position is renamed away', () => {
   const noGm = R.ladder([['Chief', 1], ['Head', 4], ['Lead', 6]]);
   assert.equal(R.insightsSeeAll(user({ position: 'Head' }), noGm), true, 'rank 4 is above the GM fallback (5)');
