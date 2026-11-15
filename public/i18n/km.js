@@ -1697,5 +1697,9 @@ I18N.addDict('km', {
   "Account details": "ព័ត៌មានលម្អិតគណនី",
   "Fill in each section: who they are, their role and job position, their approvers and what they can claim.": "បំពេញផ្នែកនីមួយៗ៖ ពួកគេជានរណា តួនាទី និងមុខតំណែង អ្នកអនុម័ត និងអ្វីដែលពួកគេអាចទាមទារ។",
   "Save when you’re done. Fields with a problem are marked in red.": "រក្សាទុកនៅពេលរួចរាល់។ វាលដែលមានបញ្ហាត្រូវបានសម្គាល់ពណ៌ក្រហម។",
-  "Show me how this screen works": "បង្ហាញខ្ញុំពីរបៀបដែលអេក្រង់នេះដំណើរការ"
+  "Show me how this screen works": "បង្ហាញខ្ញុំពីរបៀបដែលអេក្រង់នេះដំណើរការ",
+  "You can only keep accounts in your own region": "អ្នកអាចរក្សាគណនីបានតែក្នុងតំបន់របស់អ្នកប៉ុណ្ណោះ",
+  "You cannot give an account that role": "អ្នកមិនអាចផ្ដល់តួនាទីនោះឱ្យគណនីបានទេ",
+  "This account belongs to another region": "គណនីនេះជារបស់តំបន់ផ្សេង",
+  "You cannot edit this account": "អ្នកមិនអាចកែសម្រួលគណនីនេះបានទេ"
 });

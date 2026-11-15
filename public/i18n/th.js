@@ -1697,5 +1697,9 @@ I18N.addDict('th', {
   "Account details": "รายละเอียดบัญชี",
   "Fill in each section: who they are, their role and job position, their approvers and what they can claim.": "กรอกแต่ละส่วน: เป็นใคร บทบาทและตำแหน่งงาน ผู้อนุมัติ และสิ่งที่เบิกได้",
   "Save when you’re done. Fields with a problem are marked in red.": "บันทึกเมื่อเสร็จ ช่องที่มีปัญหาจะถูกทำเครื่องหมายสีแดง",
-  "Show me how this screen works": "แสดงวิธีใช้หน้าจอนี้"
+  "Show me how this screen works": "แสดงวิธีใช้หน้าจอนี้",
+  "You can only keep accounts in your own region": "คุณเก็บบัญชีไว้ได้เฉพาะในภูมิภาคของคุณเองเท่านั้น",
+  "You cannot give an account that role": "คุณไม่สามารถกำหนดบทบาทนั้นให้กับบัญชีได้",
+  "This account belongs to another region": "บัญชีนี้เป็นของภูมิภาคอื่น",
+  "You cannot edit this account": "คุณไม่สามารถแก้ไขบัญชีนี้ได้"
 });

@@ -10,7 +10,7 @@ const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } 
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
-const { viewRegionFilter, seesAllRegions, readsAllRegions } = require('../lib/settings');
+const { viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
@@ -156,7 +156,7 @@ router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadClaimOr404(req, res);
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
-  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+  if (row.employee_id !== req.user.id && !actsAsSuper(req.user)) {
     return res.status(403).json({ error: 'You can only edit your own claims' });
   }
   if (row.status !== 'rejected') {
@@ -277,7 +277,7 @@ router.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   const step = row.current_step || 0;
   // A superadmin override finalises immediately; otherwise advance one step and
   // only mark fully approved once the last approver has signed off.
-  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const finalise = actsAsSuper(req.user) || !ids.length || step >= ids.length;
   const moved = finalise
     ? await moveDocument('claims', row, `status='approved', manager_id=$1, manager_comment=$2, decided_at=now()`, [req.user.id, comment])
     : await moveDocument('claims', row, 'current_step=$1', [step + 1]);

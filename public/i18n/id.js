@@ -1720,5 +1720,9 @@ I18N.addDict('id', {
   "Account details": "Detail akun",
   "Fill in each section: who they are, their role and job position, their approvers and what they can claim.": "Isi setiap bagian: siapa orangnya, peran dan jabatan, penyetuju, dan apa yang bisa diklaim.",
   "Save when you’re done. Fields with a problem are marked in red.": "Simpan jika sudah selesai. Kolom yang bermasalah ditandai merah.",
-  "Show me how this screen works": "Tunjukkan cara kerja layar ini"
+  "Show me how this screen works": "Tunjukkan cara kerja layar ini",
+  "You can only keep accounts in your own region": "Anda hanya dapat menyimpan akun di region Anda sendiri",
+  "You cannot give an account that role": "Anda tidak dapat memberikan peran itu kepada akun",
+  "This account belongs to another region": "Akun ini milik region lain",
+  "You cannot edit this account": "Anda tidak dapat mengubah akun ini"
 });

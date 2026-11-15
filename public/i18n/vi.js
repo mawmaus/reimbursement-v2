@@ -1697,5 +1697,9 @@ I18N.addDict('vi', {
   "Account details": "Thông tin tài khoản",
   "Fill in each section: who they are, their role and job position, their approvers and what they can claim.": "Điền từng phần: người đó là ai, vai trò và chức danh, người duyệt và những gì họ được yêu cầu.",
   "Save when you’re done. Fields with a problem are marked in red.": "Lưu khi xong. Trường có vấn đề được đánh dấu màu đỏ.",
-  "Show me how this screen works": "Chỉ cho tôi cách dùng màn hình này"
+  "Show me how this screen works": "Chỉ cho tôi cách dùng màn hình này",
+  "You can only keep accounts in your own region": "Bạn chỉ có thể giữ tài khoản trong khu vực của mình",
+  "You cannot give an account that role": "Bạn không thể gán vai trò đó cho tài khoản",
+  "This account belongs to another region": "Tài khoản này thuộc khu vực khác",
+  "You cannot edit this account": "Bạn không thể chỉnh sửa tài khoản này"
 });

@@ -39,7 +39,7 @@ async function renderAccountsTab() {
   // Scope the workspace's account list to this region (All-regions accounts, e.g.
   // super admins, stay visible everywhere).
   settingsState.users = region ? users.filter(u => u.region === region || u.region === '*') : users;
-  if (state.user.role === 'superadmin') paintAccounts();
+  if (actsAsSuperUI(state.user)) paintAccounts();
   else paintDelegatedAccounts();
 }
 
@@ -184,7 +184,9 @@ function paintAccounts() {
       <table class="utable utable-users">
         <thead><tr>${th('full_name', t('User'))}${th('role', t('Role'))}${th('department', t('Dept / Position'))}${th('region', t('Region'))}${th('allow_advance', t('Cash advance'))}${th('active', t('Status'))}<th class="u-actions-h"></th></tr></thead>
         <tbody>${shown.length ? shown.map(u => {
-          const editable = state.user.role === 'superadmin' || u.role === 'employee';
+          // A Regional Admin edits the accounts the server says they manage, and themselves.
+          const editable = state.user.role === 'superadmin'
+            || (state.user.role === 'regionadmin' ? (u.can_manage || u.id === state.user.id) : u.role === 'employee');
           return `
           <tr${u.active ? '' : ' class="row-off"'}>
             <td data-label="${esc(t('User'))}"><div class="u-name">${esc(u.full_name)}</div><div class="u-sub"><span class="mono">${esc(u.username)}</span>${u.email ? ` · ${esc(u.email)}` : ''}</div>${creatorLine(u)}</td>
@@ -373,14 +375,18 @@ function parseCoordsText(input) {
 }
 function renderUserForm(u) {
   const isEdit = !!u;
-  const isSuper = state.user.role === 'superadmin';
+  // Regional Admins get the full editor; only a Super Admin picks any role or region.
+  const isSuper = actsAsSuperUI(state.user);
+  const isRealSuper = state.user.role === 'superadmin';
   const excludeId = isEdit ? u.id : null;
   acctApprovers = isEdit ? (u.approver_ids || []).map(String) : [];
   acctApprover1Options = isEdit ? (u.approver1_options || []).map(String) : [];
   const initials = isEdit ? String(u.full_name || u.username || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() : '+';
-  const roleField = isSuper ? `<label>${esc(t('Role'))}
+  // A Regional Admin assigns roles below their own, and never changes their own.
+  const raRoles = state.user.role === 'regionadmin' && !(isEdit && u.id === state.user.id) ? creatableRoles() : [];
+  const roleField = isRealSuper || raRoles.length ? `<label>${esc(t('Role'))}
           <select name="role">
-            ${['superadmin', 'vp', 'admin', 'regionadmin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
+            ${(isRealSuper ? ROLES_ORDER : raRoles).map(r =>
               `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
           </select></label>`
     : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}
@@ -388,10 +394,10 @@ function renderUserForm(u) {
             ${creatableRoles().map((r, i, arr) =>
               `<option value="${r}" ${i === arr.length - 1 ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
           </select></label>` : '');
-  const regionField = (isSuper || (!isEdit && state.user.region === '*')) ? `<label>${esc(t('Region'))}
+  const regionField = (isRealSuper || (!isEdit && state.user.region === '*')) ? `<label>${esc(t('Region'))}
           <select name="region">
             ${(state.lookups.regions || []).map(r => `<option value="${esc(r)}" ${(isEdit ? u.region === r : r === settingsState.region) ? 'selected' : ''}>${esc(r)}</option>`).join('')}
-            ${isSuper ? `<option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>` : ''}
+            ${isRealSuper ? `<option value="*" ${isEdit && u.region === '*' ? 'selected' : ''}>${esc(t('All regions'))}</option>` : ''}
           </select></label>` : '';
   // One titled card per section; the side menu jumps between them.
   const sec = (id, title, desc, body) => `
@@ -566,7 +572,7 @@ function renderUserForm(u) {
   }
   renderApproverRows(excludeId);
   $('#addApproverBtn').addEventListener('click', () => { syncApproverRows(); acctApprovers.push(''); renderApproverRows(excludeId); });
-  if (state.user.role === 'superadmin') {
+  if (actsAsSuperUI(state.user)) {
     const mgrCombo = $('#ueManagedRow .combo');
     wireApproverCombo(mgrCombo, excludeId, () => {});
     $('#ueManagedClear').addEventListener('click', () => {
@@ -618,7 +624,7 @@ function renderUserForm(u) {
   $('#uForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     syncApproverRows();
-    if (state.user.role === 'superadmin') syncApprover1Options();
+    if (actsAsSuperUI(state.user)) syncApprover1Options();
     const fd = new FormData(e.target);
     const payload = {
       username: fd.get('username'), full_name: fd.get('full_name'),
@@ -629,7 +635,7 @@ function renderUserForm(u) {
       bank_account_no: fd.get('bank_account_no') || '',
       approver_ids: acctApprovers.filter(Boolean).map(Number)
     };
-    if (state.user.role === 'superadmin') {
+    if (actsAsSuperUI(state.user)) {
       const baseChoice = String(fd.get('base_id') || '');
       if (baseChoice === 'custom') {
         payload.base_id = null;

@@ -9,7 +9,7 @@ const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } 
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
-const { viewRegionFilter, seesAllRegions, readsAllRegions } = require('../lib/settings');
+const { viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
@@ -150,7 +150,7 @@ router.put('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   const row = await loadMealClaimOr404(req, res);
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
-  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+  if (row.employee_id !== req.user.id && !actsAsSuper(req.user)) {
     return res.status(403).json({ error: 'You can only edit your own meal claims' });
   }
   if (row.status !== 'rejected') {
@@ -220,7 +220,7 @@ router.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => 
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
-  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const finalise = actsAsSuper(req.user) || !ids.length || step >= ids.length;
   const moved = finalise
     ? await moveDocument('meal_claims', row, `status='approved', manager_id=$1, manager_comment=$2, decided_at=now()`, [req.user.id, comment])
     : await moveDocument('meal_claims', row, 'current_step=$1', [step + 1]);

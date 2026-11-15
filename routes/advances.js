@@ -22,7 +22,7 @@ const {
   planAdvanceRevert, serializeManyAdvance
 } = require('../lib/advances');
 const { verifyAttachments, MAX_FILES } = require('../lib/uploads');
-const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions } = require('../lib/settings');
+const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
 const { logAdvanceHistory } = require('../lib/documents');
 const {
   planLineRejections, applyLineRejections, freezeRejectionsQuery,
@@ -71,7 +71,7 @@ router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
   const row = await loadAdvanceOr404(req, res);
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
-  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+  if (row.employee_id !== req.user.id && !actsAsSuper(req.user)) {
     return res.status(403).json({ error: 'You can only edit your own cash advances' });
   }
   if (row.status !== 'rejected') {
@@ -150,7 +150,7 @@ router.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) =
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
   const step = row.current_step || 0;
-  const finalise = req.user.role === 'superadmin' || !ids.length || step >= ids.length;
+  const finalise = actsAsSuper(req.user) || !ids.length || step >= ids.length;
   const finalStatus = realizing ? 'realize_approved' : 'approved';
   const phase = realizing ? 'realization ' : '';
   const moved = finalise
@@ -214,7 +214,7 @@ router.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res)
 // 'rejected_realize' (edit after a rejected realization). Rebuilds the lines +
 // receipts and re-enters the approver chain at step 1.
 async function submitRealization(req, res, row) {
-  if (row.employee_id !== req.user.id && req.user.role !== 'superadmin') {
+  if (row.employee_id !== req.user.id && !actsAsSuper(req.user)) {
     return res.status(403).json({ error: 'You can only realize your own cash advances' });
   }
   const b = req.body || {};

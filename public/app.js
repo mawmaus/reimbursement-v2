@@ -554,12 +554,17 @@ function showSignInPane(pane = 'signin') {
 
 // Client mirrors of the server capability checks (userCan / canMarkPaid). caps
 // is the per-role matrix sent with the user; superadmin implicitly holds all.
+// A Regional Admin is a Super Admin inside their own region (the server keeps
+// them there); actsAsSuperUI mirrors the server's actsAsSuper.
+function actsAsSuperUI(u) {
+  return !!(u && (u.role === 'superadmin' || u.role === 'regionadmin'));
+}
 function uCan(cap) {
   const u = state.user;
-  return !!(u && (u.role === 'superadmin' || (u.caps && u.caps[cap])));
+  return !!(u && (actsAsSuperUI(u) || (u.caps && u.caps[cap])));
 }
 function canPay(u) {
-  return !!(u && (u.role === 'superadmin' || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
+  return !!(u && (actsAsSuperUI(u) || u.can_mark_paid || (u.caps && u.caps.mark_paid)));
 }
 // --- Unrealized-advance hold -------------------------------------------------
 // A disbursed cash advance that has not been realized puts this account's New
@@ -599,7 +604,7 @@ function applyAdvanceHold() {
 // computePurposes). Own access comes from purposes.advance; this reads OTHER
 // accounts' rows in the Settings list.
 function hasAdvanceGrant(u) {
-  return !!(u && (u.allow_advance || u.role === 'superadmin'));
+  return !!(u && (u.allow_advance || actsAsSuperUI(u)));
 }
 // Advance oversight: Finance and CM/MD (admin) roles, plus super admin (who sits
 // above them) and Finance-AP (anyone who records payments — canPay). These track
@@ -652,7 +657,7 @@ $('#regionSelect').addEventListener('change', (e) => {
   if (state.view === 'help') loadHelpTab();
 });
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
-const ROLES_ORDER = ['superadmin', 'vp', 'admin', 'regionadmin', 'manager', 'lowmgmt', 'finance', 'employee'];
+const ROLES_ORDER = ['superadmin', 'vp', 'regionadmin', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Roles the signed-in user may assign when creating an account: every role
 // strictly below their own (super admins get all but superadmin here; they use
 // the full list directly in the form). Mirrors the server's creatableRolesFor.
@@ -706,7 +711,7 @@ function showApp() {
   // accounts (reset password / enable-disable) OR who hold the create_accounts
   // capability (so the delegated "+ Add user" form is reachable). Superadmins use
   // full Settings instead.
-  $('#accountsBtn').hidden = !(!isSuper && (u.can_manage_accounts || uCan('create_accounts')));
+  $('#accountsBtn').hidden = !(!actsAsSuperUI(u) && (u.can_manage_accounts || uCan('create_accounts')));
   // Deleting claims (used to clear out test data) follows the matrix.
   $('#deleteSelBtn').hidden = !uCan('delete_claims');
   // Bulk "Mark as paid" / "Revert payment" — both shown to anyone who may

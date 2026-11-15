@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-15.2',
+    date: '2026-11-15',
+    items: [
+      { kind: 'improved', audience: ['superadmin'], text: {
+        en: 'Regional Admin now has full Super Admin access inside its own region: every permission, the full account editor (including Excel import and export), approving or reverting any claim in the region, and every Settings page for it. It still never sees other regions. Company-wide tools — the Regions overview, Helpdesk inbox, feedback and email setup — stay with Super Admins.',
+        id: 'Regional Admin kini memiliki akses penuh Super Admin di region-nya sendiri: semua izin, editor akun lengkap (termasuk impor dan ekspor Excel), menyetujui atau membatalkan klaim apa pun di region tersebut, dan semua halaman Pengaturan untuknya. Region lain tetap tidak terlihat. Alat seluruh perusahaan — ringkasan Region, kotak masuk Helpdesk, kritik & saran, dan pengaturan email — tetap untuk Super Admin.',
+        th: 'ตอนนี้ Regional Admin มีสิทธิ์เต็มแบบ Super Admin ภายในภูมิภาคของตนเอง: ทุกสิทธิ์ ตัวแก้ไขบัญชีแบบเต็ม (รวมการนำเข้าและส่งออก Excel) การอนุมัติหรือย้อนกลับเคลมใดก็ได้ในภูมิภาค และทุกหน้าการตั้งค่าของภูมิภาคนั้น แต่ยังมองไม่เห็นภูมิภาคอื่น เครื่องมือระดับทั้งบริษัท — ภาพรวมภูมิภาค กล่องข้อความ Helpdesk ข้อเสนอแนะ และการตั้งค่าอีเมล — ยังเป็นของ Super Admin',
+        vi: 'Regional Admin giờ có toàn quyền như Super Admin trong khu vực của mình: mọi quyền, trình chỉnh sửa tài khoản đầy đủ (gồm nhập và xuất Excel), duyệt hoặc hoàn tác mọi yêu cầu trong khu vực, và mọi trang Cài đặt của khu vực đó. Vai trò này vẫn không thấy các khu vực khác. Các công cụ toàn công ty — tổng quan Khu vực, hộp thư Helpdesk, góp ý và cài đặt email — vẫn dành cho Super Admin.',
+        km: 'ឥឡូវ Regional Admin មានសិទ្ធិពេញលេញដូច Super Admin ក្នុងតំបន់របស់ខ្លួន៖ គ្រប់សិទ្ធិ កម្មវិធីកែគណនីពេញលេញ (រួមទាំងការនាំចូល និងនាំចេញ Excel) ការអនុម័ត ឬត្រឡប់ការទាមទារណាមួយក្នុងតំបន់ និងគ្រប់ទំព័រការកំណត់របស់តំបន់នោះ។ វានៅតែមិនឃើញតំបន់ផ្សេងទៀត។ ឧបករណ៍ទូទាំងក្រុមហ៊ុន — ទិដ្ឋភាពទូទៅតំបន់ ប្រអប់ Helpdesk មតិកែលម្អ និងការកំណត់អ៊ីមែល — នៅតែសម្រាប់ Super Admin។',
+        fil: 'May buong Super Admin access na ang Regional Admin sa sarili nitong rehiyon: lahat ng pahintulot, ang buong account editor (kasama ang Excel import at export), pag-approve o pag-revert ng anumang claim sa rehiyon, at bawat Settings page nito. Hindi pa rin nito nakikita ang ibang rehiyon. Ang mga company-wide na tool — Regions overview, Helpdesk inbox, feedback at email setup — ay para pa rin sa mga Super Admin.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-15.1',
     date: '2026-11-15',
     items: [

@@ -5,7 +5,7 @@
 
 const express = require('express');
 const { q, qq, transaction } = require('../db');
-const { seesAllRegions, resolveLookupRegion, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR } = require('../lib/settings');
+const { actsAsSuper, seesAllRegions, resolveLookupRegion, resolveSettingsReadRegion, namesOtherRegion, OTHER_REGION_ERROR } = require('../lib/settings');
 const { requireAuth, requireCap, requireRole } = require('../lib/auth');
 const { userCan } = require('../lib/permissions');
 const { OPEN_CLAIM_SQL, OPEN_ADVANCE_SQL } = require('../lib/workflow');
@@ -38,7 +38,7 @@ function lookupRoutes(pathName, table, flags = [], opts = {}) {
   // the region carry each one, and the latest such line's date.
   router.get(`/api/${pathName}`, requireAuth, ah(async (req, res) => {
     const managing = req.query.manage === '1' && userCan(req.user, 'manage_settings');
-    const onlyActive = req.user.role !== 'superadmin' && !managing;
+    const onlyActive = !actsAsSuper(req.user) && !managing;
     const cols = ['id', 'name', 'active', ...flags, ...extraCols, 'created_at'].join(', ');
     const region = regional ? await resolveSettingsReadRegion(req.user, req.query.region) : null;
     if (regional && region === null) return res.status(400).json({ error: 'Invalid region' });

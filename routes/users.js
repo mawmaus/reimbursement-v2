@@ -12,7 +12,7 @@ const {
   ah, normEmail, EMAIL_RE, escHtml, baseUrl, intArrayLiteral, asIntArray, iso,
   isActive
 } = require('../lib/util');
-const { ALL_REGIONS, seesAllRegions, normRegion } = require('../lib/settings');
+const { ALL_REGIONS, seesAllRegions, normRegion, actsAsSuper } = require('../lib/settings');
 const {
   loadPositions, hasDelegation, accountsSeeAllDepts, ROLES, creatableRolesFor,
   canManageAccount, loadReportIds
@@ -152,6 +152,21 @@ async function saveManagedBy(userId, managedBy) {
   }
 }
 
+// A Regional Admin has the full account editor, but only for their own region's
+// accounts below them (themselves included, minus their own role and region):
+// never a Super Admin, VP or another Regional Admin, never moving anyone out of
+// the region, and never assigning a role at or above their own.
+function regionAdminEditError(actor, target, { role, region }) {
+  if (actor.role !== 'regionadmin') return null;
+  const own = String(actor.region || '');
+  if (String(target.region || '') !== own) return 'This account belongs to another region';
+  const self = Number(target.id) === Number(actor.id);
+  if (!self && ['superadmin', 'vp', 'regionadmin'].includes(target.role)) return 'You cannot edit this account';
+  if (role && role !== target.role && (self || !creatableRolesFor(actor).includes(role))) return 'You cannot give an account that role';
+  if (region !== undefined && String(region || '').trim().toLowerCase() !== own.toLowerCase()) return 'You can only keep accounts in your own region';
+  return null;
+}
+
 router.get('/api/users', requireAuth, ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
   const pos = await loadPositions(req.user.region);
@@ -161,7 +176,9 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
   // is forbidden.
   // Accounts a Super Admin assigned to this person (managed_by, down the chain)
   // are theirs to manage too — even without the delegation flag.
-  const reports = isSuper ? new Set() : await loadReportIds(req.user.id);
+  // A Regional Admin reads every account in their region (the region filter
+  // below), so managed-by reports elsewhere don't widen it.
+  const reports = actsAsSuper(req.user) ? new Set() : await loadReportIds(req.user.id);
   const delegated = isSuper || hasDelegation(req.user, pos);
   if (!delegated && !reports.size) {
     return res.status(403).json({ error: 'You do not have permission for this action' });
@@ -208,6 +225,9 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
 // enable-disable their team; see canManageAccount).
 router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
+  // Super Admins and Regional Admins (in their region) set the per-account
+  // grants; the role a Regional Admin assigns is still limited below.
+  const full = actsAsSuper(req.user);
   const { username, password, full_name, email,
     bank_name, recipient_name, bank_account_no } = req.body || {};
   let { role, department, position, approver_ids, approver1_options } = req.body || {};
@@ -243,18 +263,18 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
   const are = await approversRegionError([...apprIds, ...appr1Ids], region);
   if (are) return res.status(400).json({ error: are });
   // Only a super admin may grant the mark-paid permission.
-  const canMarkPaidFlag = isSuper && isActive((req.body || {}).can_mark_paid);
+  const canMarkPaidFlag = full && isActive((req.body || {}).can_mark_paid);
   // Same for the cash-advance grant: it is a per-account permission now, so a
   // delegated creator's accounts start without it and a super admin grants it.
-  const allowAdvanceFlag = isSuper && isActive((req.body || {}).allow_advance);
+  const allowAdvanceFlag = full && isActive((req.body || {}).allow_advance);
   // Approval limit (cents; null = unlimited). Defaults to unlimited when the
   // caller omits both fields, preserving the historical any-amount behaviour.
   const limit = parseApprovalLimit(req.body || {});
   if (limit.error) return res.status(400).json({ error: limit.error });
   // Base location (GPS meal allowance): super admins set it; blank is allowed.
-  const baseIn = isSuper ? await resolveBaseInput(req.body || {}, region) : null;
+  const baseIn = full ? await resolveBaseInput(req.body || {}, region) : null;
   if (baseIn && baseIn.error) return res.status(400).json({ error: baseIn.error });
-  const managedIn = isSuper ? await resolveManagedBy(req.body || {}, null, region) : undefined;
+  const managedIn = full ? await resolveManagedBy(req.body || {}, null, region) : undefined;
   if (managedIn && managedIn.error) return res.status(400).json({ error: managedIn.error });
   const rows = await q(
     `INSERT INTO users (username, password_hash, full_name, role, department, position, region, email, bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid, allow_advance, approval_limit_cents, created_by, created_by_name)
@@ -269,7 +289,7 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
   if (managedIn && managedIn.id != null) await saveManagedBy(rows[0].id, managedIn.id);
   res.status(201).json({ id: rows[0].id });
 }));
-router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
+router.put('/api/users/:id', requireAuth, requireRole('superadmin', 'regionadmin'), ah(async (req, res) => {
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
@@ -277,6 +297,8 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin'), ah(async (r
     bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid,
     allow_advance } = req.body || {};
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  const refused = regionAdminEditError(req.user, u, { role, region });
+  if (refused) return res.status(403).json({ error: refused });
   // Checked up front: a refused edit must not have saved anything else.
   if (password && String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   let nextRegion = u.region;

@@ -62,7 +62,7 @@ document.addEventListener('keydown', e => {
 
 // Mirror of the server's userCanApprove — decides whether to show actions.
 function canApprove(u, c) {
-  if (u.role === 'superadmin') return true;
+  if (actsAsSuperUI(u)) return true;
   const ids = (c.approvers || []).map(a => a.id);
   if (!ids.length) return false;
   return ids[(c.current_step || 1) - 1] === u.id;
@@ -135,7 +135,7 @@ const inApprovalStage = (c) => c.status === 'submitted' || (c.type === 'advance'
 function canRevert(c, u, isOwner) {
   const ids = (c.approvers || []).map(a => a.id);
   const step = c.current_step || 0;
-  const isSuper = u.role === 'superadmin';
+  const isSuper = actsAsSuperUI(u);
   // Cash-advance realization phase mirrors the request phase one status set up.
   if (c.type === 'advance') {
     if (c.status === 'settled') return canPay(u);

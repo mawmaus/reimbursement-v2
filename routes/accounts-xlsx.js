@@ -12,11 +12,37 @@ const bcrypt = require('bcryptjs');
 const { q, qq, transaction } = require('../db');
 const { requireAuth, requireRole, SET_PASSWORD_SQL } = require('../lib/auth');
 const { ah, asIntArray } = require('../lib/util');
-const { normRegion, ALL_REGIONS } = require('../lib/settings');
+const { normRegion, ALL_REGIONS, actsAsSuper } = require('../lib/settings');
 const { openClaimsAwaitingApprover } = require('../lib/workflow');
 const { XLSX_MIME } = require('../lib/xlsx');
 const { buildAccountsWorkbook, readAccountsWorkbook } = require('../lib/accounts-sheet');
 const { planImport } = require('../lib/accounts-import');
+const { creatableRolesFor } = require('../lib/permissions');
+
+// A Regional Admin imports into their own region only: every row must stay in
+// it, may only touch accounts there below them (or themselves), and may only
+// assign roles below their own. Offending rows join the plan's issues, so the
+// all-or-nothing import refuses the file.
+function regionAdminImportIssues(actor, plan, users) {
+  const own = String(actor.region || '');
+  const allowed = creatableRolesFor(actor);
+  const byId = new Map(users.map(u => [Number(u.id), u]));
+  const out = [];
+  const bad = (it, msg) => out.push({ row: it.row, username: it.username, msg, params: {} });
+  for (const c of plan.creates) {
+    if (c.fields.region !== own) bad(c, 'You can only keep accounts in your own region');
+    else if (!allowed.includes(c.fields.role)) bad(c, 'You cannot give an account that role');
+  }
+  for (const u of plan.updates) {
+    const cur = byId.get(Number(u.id)) || {};
+    const self = Number(u.id) === Number(actor.id);
+    if (String(cur.region || '') !== own) bad(u, 'This account belongs to another region');
+    else if (!self && ['superadmin', 'vp', 'regionadmin'].includes(cur.role)) bad(u, 'You cannot edit this account');
+    else if (u.fields.region !== own) bad(u, 'You can only keep accounts in your own region');
+    else if (u.fields.role !== cur.role && !allowed.includes(u.fields.role)) bad(u, 'You cannot give an account that role');
+  }
+  return out;
+}
 
 const router = express.Router();
 
@@ -46,8 +72,10 @@ const uniq = (a) => [...new Set(a)];
 const fileStamp = () => new Date().toISOString().slice(0, 10);
 const slug = (s) => String(s || 'all').replace(/[^\w-]+/g, '-').toLowerCase();
 
-router.get('/api/users/export.xlsx', requireAuth, requireRole('superadmin'), ah(async (req, res) => {
-  const region = await normRegion(req.query.region);
+router.get('/api/users/export.xlsx', requireAuth, requireRole('superadmin', 'regionadmin'), ah(async (req, res) => {
+  // A Regional Admin exports their own region only, whatever they ask for.
+  const region = req.user.role === 'regionadmin' ? String(req.user.region || '') : await normRegion(req.query.region);
+  if (req.user.role === 'regionadmin' && !region) return res.status(403).json({ error: 'You do not have permission for this action' });
   if (region === null) return res.status(400).json({ error: 'Invalid region' });
   const template = req.query.template === '1';
   const one = region && region !== ALL_REGIONS ? region : '';
@@ -75,10 +103,12 @@ const LINK_SQL = `UPDATE users SET
     managed_by = (SELECT id FROM users WHERE username = $3)
   WHERE username = $4`;
 
-router.post('/api/users/import', requireAuth, requireRole('superadmin'),
+router.post('/api/users/import', requireAuth, requireRole('superadmin', 'regionadmin'),
   express.raw({ type: () => true, limit: '4mb' }), ah(async (req, res) => {
     const apply = req.query.mode === 'apply';
-    const defaultRegion = await normRegion(req.query.region);
+    const regionAdmin = req.user.role === 'regionadmin';
+    if (regionAdmin && !req.user.region) return res.status(403).json({ error: 'You do not have permission for this action' });
+    const defaultRegion = regionAdmin ? String(req.user.region) : await normRegion(req.query.region);
     if (defaultRegion === null) return res.status(400).json({ error: 'Invalid region' });
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Choose an Excel file to import' });
     const read = readAccountsWorkbook(req.body);
@@ -96,6 +126,7 @@ router.post('/api/users/import', requireAuth, requireRole('superadmin'),
       const n = await openClaimsAwaitingApprover(u.id);
       if (n > 0) plan.issues.push({ row: u.row, username: u.username, msg: 'This user is the current approver on {n} open claims. Resolve or reassign those before deactivating.', params: { n } });
     }
+    if (regionAdmin) plan.issues.push(...regionAdminImportIssues(req.user, plan, users));
     if (plan.issues.length) plan.issues.sort((a, b) => a.row - b.row);
     const summary = {
       creates: plan.creates.map(c => ({ row: c.row, username: c.username, ...c.summary, generated: c.generated })),

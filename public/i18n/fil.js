@@ -1697,5 +1697,9 @@ I18N.addDict('fil', {
   "Account details": "Mga detalye ng account",
   "Fill in each section: who they are, their role and job position, their approvers and what they can claim.": "Punan ang bawat seksyon: sino sila, ang role at posisyon nila, ang mga approver nila at kung ano ang puwede nilang i-claim.",
   "Save when you’re done. Fields with a problem are marked in red.": "I-save kapag tapos na. Minamarkahan ng pula ang mga field na may problema.",
-  "Show me how this screen works": "Ipakita kung paano gumagana ang screen na ito"
+  "Show me how this screen works": "Ipakita kung paano gumagana ang screen na ito",
+  "You can only keep accounts in your own region": "Sa sarili mo lang na rehiyon maaaring ilagay ang mga account",
+  "You cannot give an account that role": "Hindi mo maibibigay ang role na iyon sa isang account",
+  "This account belongs to another region": "Ang account na ito ay nasa ibang rehiyon",
+  "You cannot edit this account": "Hindi mo maaaring i-edit ang account na ito"
 });
