@@ -72,7 +72,7 @@ router.put('/api/claim-window', requireAuth, requireCap('manage_settings'), ah(a
 // Managers / Managing Directors (their own region only) — the same audience as
 // the region role matrix.
 function canManageRegionPrefs(user) {
-  return !!user && (user.role === 'superadmin' || user.role === 'admin');
+  return !!user && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'regionadmin');
 }
 // The response shape shared by GET/PUT: the region's effective prefs plus the
 // option lists the settings dropdowns render from.
@@ -174,7 +174,7 @@ router.put('/api/meal-rates', requireAuth, requireCap('manage_settings'), ah(asy
 // Admin is implicitly all-true and omitted from `matrix`; only Mid Management /
 // Low Management / Finance rows are editable.
 function canAccessRoleMatrix(user) {
-  return !!user && (user.role === 'superadmin' || user.role === 'vp' || user.role === 'admin');
+  return !!user && (user.role === 'superadmin' || user.role === 'vp' || user.role === 'admin' || user.role === 'regionadmin');
 }
 // Which region a request may act on. Non-superadmins are pinned to their own
 // region whatever they ask for; super admins / All-regions accounts may target

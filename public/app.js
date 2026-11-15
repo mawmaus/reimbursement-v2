@@ -374,7 +374,7 @@ const NOTE_AUDIENCE = {
   export: () => uCan('export_csv'),
   view_all: () => uCan('view_all_claims'),
   accounts: (u) => !!(u.can_manage_accounts || uCan('create_accounts')),
-  settings: (u) => !!(u.role === 'vp' || u.role === 'admin' || uCan('manage_settings') || u.customer_sites_editor),
+  settings: (u) => !!(u.role === 'vp' || u.role === 'admin' || u.role === 'regionadmin' || uCan('manage_settings') || u.customer_sites_editor),
   insights: (u) => !!u.can_view_insights,
   superadmin: () => false // covered by the Super Admin pass-through below
 };
@@ -607,7 +607,7 @@ function hasAdvanceGrant(u) {
 // tiles show them ALL advances and are always visible; everyone else sees only
 // their own, gated on advance access.
 function seesAllAdvances(u) {
-  return !!(u && (u.role === 'admin' || u.role === 'finance' || canPay(u)));
+  return !!(u && (u.role === 'admin' || u.role === 'regionadmin' || u.role === 'finance' || canPay(u)));
 }
 // All-region viewers (Super Admins, VPs and '*' accounts) see every region and
 // get the top-bar region picker to narrow the view. Mirrors the server's
@@ -652,7 +652,7 @@ $('#regionSelect').addEventListener('change', (e) => {
   if (state.view === 'help') loadHelpTab();
 });
 // Role ladder, most senior → most junior. Mirrors the server's ROLES.
-const ROLES_ORDER = ['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'];
+const ROLES_ORDER = ['superadmin', 'vp', 'admin', 'regionadmin', 'manager', 'lowmgmt', 'finance', 'employee'];
 // Roles the signed-in user may assign when creating an account: every role
 // strictly below their own (super admins get all but superadmin here; they use
 // the full list directly in the form). Mirrors the server's creatableRolesFor.
@@ -701,7 +701,7 @@ function showApp() {
   $('#exportBtn').hidden = !uCan('export_csv');
   // Settings opens for super admins, VP / CM/MD (who always get the Roles tab), or
   // anyone who can manage settings — or edit customer sites, the one tab they see.
-  $('#settingsBtn').hidden = !(isSuper || u.role === 'vp' || u.role === 'admin' || uCan('manage_settings') || u.customer_sites_editor);
+  $('#settingsBtn').hidden = !(isSuper || u.role === 'vp' || u.role === 'admin' || u.role === 'regionadmin' || uCan('manage_settings') || u.customer_sites_editor);
   // "Manage accounts": shown to non-superadmins who may manage their team's
   // accounts (reset password / enable-disable) OR who hold the create_accounts
   // capability (so the delegated "+ Add user" form is reachable). Superadmins use

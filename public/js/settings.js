@@ -44,7 +44,8 @@ function visibleSettingsTabs() {
   const u = state.user;
   const isSuper = u && u.role === 'superadmin';
   const isVp = u && u.role === 'vp';
-  const isCmMd = u && u.role === 'admin';
+  // A Regional Admin gets the CM/MD's tabs, for their own region only.
+  const isCmMd = u && (u.role === 'admin' || u.role === 'regionadmin');
   return SETTINGS_TABS.filter(tab => {
     if (tab.roleMatrix) return isSuper || isVp || isCmMd;
     // Currency & time zone: Super Admins (any region) and CM/MD (their own).
@@ -80,7 +81,7 @@ $('#accountsBtn').addEventListener('click', () => openManageAccountsModal());
 // in every language (like "Super Admin" and "Managing Director"), so roleLabel
 // deliberately does NOT run them through t(). Other uses of words like
 // "Employee"/"Finance" (e.g. the Insights filter) still localise normally.
-const ROLE_LABELS = { superadmin: 'Super Admin', vp: 'Vice President', admin: 'Country Manager / Managing Director', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
+const ROLE_LABELS = { superadmin: 'Super Admin', vp: 'Vice President', admin: 'Country Manager / Managing Director', regionadmin: 'Regional Admin', manager: 'Mid Management', lowmgmt: 'Low Management', finance: 'Finance', employee: 'Employee' };
 const roleLabel = (r) => ROLE_LABELS[r] || r;
 // Display label for an account/claim region: '*' -> All regions, '' -> em dash.
 const regionLabel = (r) => r === '*' ? t('All regions') : (r || '—');

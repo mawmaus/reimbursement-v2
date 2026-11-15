@@ -380,7 +380,7 @@ function renderUserForm(u) {
   const initials = isEdit ? String(u.full_name || u.username || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() : '+';
   const roleField = isSuper ? `<label>${esc(t('Role'))}
           <select name="role">
-            ${['superadmin', 'vp', 'admin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
+            ${['superadmin', 'vp', 'admin', 'regionadmin', 'manager', 'lowmgmt', 'finance', 'employee'].map(r =>
               `<option value="${r}" ${(isEdit ? u.role === r : r === 'employee') ? 'selected' : ''}>${esc(roleLabel(r))}</option>`).join('')}
           </select></label>`
     : (!isEdit && creatableRoles().length ? `<label>${esc(t('Role'))}

@@ -30,9 +30,10 @@ test('capsFor: super admins hold every capability; others get their role row', (
 });
 
 test('editableRolesFor: nobody edits their own row or anyone above it', () => {
-  assert.deepEqual(R.editableRolesFor(user({ role: 'superadmin' })), ['vp', 'admin', 'manager', 'lowmgmt', 'finance']);
+  assert.deepEqual(R.editableRolesFor(user({ role: 'superadmin' })), ['vp', 'admin', 'regionadmin', 'manager', 'lowmgmt', 'finance']);
   assert.ok(!R.editableRolesFor(user({ role: 'vp' })).includes('vp'));
-  assert.deepEqual(R.editableRolesFor(user({ role: 'admin' })), ['manager', 'lowmgmt', 'finance']);
+  assert.deepEqual(R.editableRolesFor(user({ role: 'admin' })), ['regionadmin', 'manager', 'lowmgmt', 'finance']);
+  assert.deepEqual(R.editableRolesFor(user({ role: 'regionadmin' })), ['manager', 'lowmgmt', 'finance']);
   assert.deepEqual(R.editableRolesFor(user({ role: 'manager' })), []);
   assert.ok(!R.editableRolesFor(user({ role: 'superadmin' })).includes('employee'), 'the Employee baseline is locked');
 });

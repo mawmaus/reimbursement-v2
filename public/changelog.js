@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-15.1',
+    date: '2026-11-15',
+    items: [
+      { kind: 'new', audience: ['superadmin'], text: {
+        en: 'New role: Regional Admin. It has the same powers as a Country Manager / Managing Director, but only ever sees its own region — claims, insights and settings. Unlike a CM/MD, it can’t look at other regions. Assign it in an account’s Role, and set its permissions in Settings → Roles.',
+        id: 'Peran baru: Regional Admin. Kewenangannya sama dengan Country Manager / Managing Director, tetapi hanya pernah melihat region-nya sendiri — klaim, insight, dan pengaturan. Berbeda dengan CM/MD, peran ini tidak dapat melihat region lain. Tetapkan di Peran akun, dan atur izinnya di Pengaturan → Peran.',
+        th: 'บทบาทใหม่: Regional Admin มีสิทธิ์เหมือน Country Manager / Managing Director แต่เห็นเฉพาะภูมิภาคของตนเองเท่านั้น — เคลม ข้อมูลเชิงลึก และการตั้งค่า ต่างจาก CM/MD ตรงที่ดูภูมิภาคอื่นไม่ได้ กำหนดได้ที่บทบาทของบัญชี และตั้งค่าสิทธิ์ที่ การตั้งค่า → บทบาท',
+        vi: 'Vai trò mới: Regional Admin. Có quyền như Country Manager / Managing Director nhưng chỉ thấy khu vực của mình — yêu cầu, thống kê và cài đặt. Khác với CM/MD, vai trò này không thể xem khu vực khác. Gán trong mục Vai trò của tài khoản và thiết lập quyền tại Cài đặt → Vai trò.',
+        km: 'តួនាទីថ្មី៖ Regional Admin។ មានសិទ្ធិដូច Country Manager / Managing Director ប៉ុន្តែឃើញតែតំបន់របស់ខ្លួនប៉ុណ្ណោះ — ការទាមទារ ការវិភាគ និងការកំណត់។ ខុសពី CM/MD វាមិនអាចមើលតំបន់ផ្សេងទៀតបានទេ។ កំណត់វានៅតួនាទីរបស់គណនី ហើយកំណត់សិទ្ធិរបស់វានៅ ការកំណត់ → តួនាទី។',
+        fil: 'Bagong role: Regional Admin. Kapareho ng kapangyarihan ng Country Manager / Managing Director, pero sarili lang nitong rehiyon ang nakikita — mga claim, insights at settings. Hindi tulad ng CM/MD, hindi nito makikita ang ibang rehiyon. Itakda ito sa Role ng account, at ang mga pahintulot nito sa Settings → Mga role.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-13.5',
     date: '2026-11-13',
     items: [

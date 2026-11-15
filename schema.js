@@ -8,7 +8,7 @@ const SCHEMA = [
     username      TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     full_name     TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('superadmin','vp','admin','manager','lowmgmt','finance','employee')),
+    role          TEXT NOT NULL CHECK (role IN ('superadmin','vp','admin','regionadmin','manager','lowmgmt','finance','employee')),
     department    TEXT NOT NULL DEFAULT '',
     position      TEXT NOT NULL DEFAULT '',
     active        BOOLEAN NOT NULL DEFAULT TRUE,
@@ -36,6 +36,7 @@ const SCHEMA = [
   // Role model: seven codes mapped to the org's roles —
   //   superadmin → Super Admin      vp       → Vice President
   //   admin      → Country Manager / Managing Director
+  //   regionadmin → Regional Admin (CM/MD powers, own region only — never views others)
   //   manager    → Mid Management    lowmgmt  → Low Management
   //   finance    → Finance           employee → Employee
   // Their powers are configured in the region-scoped role-permission matrix. VP
@@ -48,8 +49,8 @@ const SCHEMA = [
   // and an idempotent remap would clobber those accounts on every boot.
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`,
   `UPDATE users SET role = 'employee' WHERE role = 'user'`,
-  `UPDATE users SET role = 'employee' WHERE role NOT IN ('superadmin','vp','admin','manager','lowmgmt','finance','employee')`,
-  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','vp','admin','manager','lowmgmt','finance','employee'))`,
+  `UPDATE users SET role = 'employee' WHERE role NOT IN ('superadmin','vp','admin','regionadmin','manager','lowmgmt','finance','employee')`,
+  `ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin','vp','admin','regionadmin','manager','lowmgmt','finance','employee'))`,
   // Per-account approval limit: the largest claim amount (in cents, matching
   // claims.amount_cents / meal_claims.total_cents) this account may approve. NULL
   // means unlimited — the default, so existing accounts keep approving any amount.

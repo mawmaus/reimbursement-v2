@@ -412,7 +412,9 @@ router.get('/api/insights', requireAuth, ah(async (req, res) => {
   const dbNos = dbrows.map(r => r.db);
 
   res.json({
-    scope: { mode, department: deptFilter || null, region: pinned },
+    // Region-locked viewers (e.g. a Regional Admin) are always on their own region,
+    // so name it — the header then says "Region-wide", not "Company-wide".
+    scope: { mode, department: deptFilter || null, region: pinned !== null ? pinned : (readsAllRegions(req.user) ? null : (vr || null)) },
     // Region-scoped viewers see their region's currency; all-regions viewers see
     // the global default (their totals may span multiple currencies).
     currency: vr ? vrPrefs.currency : DEFAULT_CURRENCY,
