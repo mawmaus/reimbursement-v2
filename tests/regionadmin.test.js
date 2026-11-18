@@ -118,3 +118,22 @@ test('account Excel is open to them; global Super Admin tools stay closed', asyn
   assert.equal((await call(RA, 'POST', '/api/test-email', {})).status, 403);
   assert.notEqual((await call(RA, 'POST', '/api/users/import', {})).status, 403, 'import is open to them (own region only)');
 });
+
+// A Regional Admin's account must name one region: "All regions" would make
+// seesAllRegions treat them as unconfined, a Super Admin everywhere.
+test('a regional admin is never all-region, and cannot be given All regions', async (t) => {
+  assert.equal(seesAllRegions({ role: 'regionadmin', region: '*' }), false);
+  assert.equal(readsAllRegions({ role: 'regionadmin', region: '*' }), false);
+  assert.equal(seesAllRegions({ role: 'employee', region: '*' }), true, 'other All-regions accounts are unchanged');
+  const SA = 76;
+  state.users.set(SA, account({ id: SA, role: 'superadmin', region: '*' }));
+  await serve(t);
+  let r = await call(SA, 'POST', '/api/users', { username: 'ra2', password: 'password1', full_name: 'RA2', role: 'regionadmin', region: '*' });
+  assert.equal(r.status, 400, r.body);
+  r = await call(SA, 'PUT', `/api/users/${PEER}`, { region: '*' });
+  assert.equal(r.status, 400, r.body);
+  r = await call(SA, 'PUT', `/api/users/${VP}`, { role: 'regionadmin' });
+  assert.equal(r.status, 400, `an All-regions VP cannot become a Regional Admin: ${r.body}`);
+  r = await call(SA, 'POST', '/api/users', { username: 'ra3', password: 'password1', full_name: 'RA3', role: 'regionadmin', region: 'Thailand' });
+  assert.notEqual(r.status, 400, `one real region is fine: ${r.body}`);
+});

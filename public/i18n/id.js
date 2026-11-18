@@ -1245,6 +1245,7 @@ I18N.addDict('id', {
   'Password must be at least 8 characters': 'Kata sandi minimal 8 karakter',
   'Username already exists': 'Nama pengguna sudah ada',
   'Region is required': 'Wilayah wajib diisi',
+  'A Regional Admin needs one region, not All regions': "Regional Admin harus memiliki satu wilayah, bukan Semua wilayah",
   'User not found': 'Pengguna tidak ditemukan',
   "You do not have permission to reset this account's password": 'Anda tidak memiliki izin untuk mereset kata sandi akun ini',
   'You do not have permission to change this account': 'Anda tidak memiliki izin untuk mengubah akun ini',

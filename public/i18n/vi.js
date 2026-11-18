@@ -1222,6 +1222,7 @@ I18N.addDict('vi', {
   'Password must be at least 8 characters': 'Mật khẩu phải có ít nhất 8 ký tự',
   'Username already exists': 'Tên đăng nhập đã tồn tại',
   'Region is required': 'Cần chọn khu vực',
+  'A Regional Admin needs one region, not All regions': "Regional Admin cần có một khu vực, không phải Tất cả khu vực",
   'User not found': 'Không tìm thấy người dùng',
   "You do not have permission to reset this account's password": 'Bạn không có quyền đặt lại mật khẩu của tài khoản này',
   'You do not have permission to change this account': 'Bạn không có quyền thay đổi tài khoản này',

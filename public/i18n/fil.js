@@ -1222,6 +1222,7 @@ I18N.addDict('fil', {
   'Password must be at least 8 characters': 'Dapat hindi bababa sa 8 character ang password',
   'Username already exists': 'Mayroon na ng username na iyan',
   'Region is required': 'Kailangan ang rehiyon',
+  'A Regional Admin needs one region, not All regions': "Kailangan ng Regional Admin ng isang rehiyon, hindi Lahat ng rehiyon",
   'User not found': 'Hindi nakita ang user',
   "You do not have permission to reset this account's password": 'Wala kang pahintulot na i-reset ang password ng account na ito',
   'You do not have permission to change this account': 'Wala kang pahintulot na baguhin ang account na ito',

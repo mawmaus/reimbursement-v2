@@ -1222,6 +1222,7 @@ I18N.addDict('th', {
   'Password must be at least 8 characters': 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
   'Username already exists': 'มีชื่อผู้ใช้นี้อยู่แล้ว',
   'Region is required': 'ต้องระบุภูมิภาค',
+  'A Regional Admin needs one region, not All regions': "Regional Admin ต้องมีภูมิภาคเดียว ไม่ใช่ทุกภูมิภาค",
   'User not found': 'ไม่พบผู้ใช้',
   "You do not have permission to reset this account's password": 'คุณไม่มีสิทธิ์รีเซ็ตรหัสผ่านของบัญชีนี้',
   'You do not have permission to change this account': 'คุณไม่มีสิทธิ์เปลี่ยนแปลงบัญชีนี้',

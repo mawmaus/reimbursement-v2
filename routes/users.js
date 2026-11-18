@@ -258,6 +258,7 @@ router.post('/api/users', requireAuth, requireCap('create_accounts'), ah(async (
     region = String(req.user.region || '');
   }
   if (!region) return res.status(400).json({ error: 'Region is required' });
+  if (role === 'regionadmin' && region === ALL_REGIONS) return res.status(400).json({ error: 'A Regional Admin needs one region, not All regions' });
   const apprIds = sanitizeApproverIds(approver_ids);
   const appr1Ids = sanitizeApproverIds(approver1_options);
   const are = await approversRegionError([...apprIds, ...appr1Ids], region);
@@ -305,6 +306,9 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin', 'regionadmin
   if (region !== undefined) {
     nextRegion = await normRegion(region);
     if (nextRegion === null) return res.status(400).json({ error: 'Invalid region' });
+  }
+  if ((role || u.role) === 'regionadmin' && (!nextRegion || nextRegion === ALL_REGIONS)) {
+    return res.status(400).json({ error: 'A Regional Admin needs one region, not All regions' });
   }
   // Username can be changed, but must stay unique.
   let nextUsername = u.username;

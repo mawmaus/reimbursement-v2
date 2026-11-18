@@ -1222,6 +1222,7 @@ I18N.addDict('km', {
   'Password must be at least 8 characters': 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ 8 តួអក្សរ',
   'Username already exists': 'ឈ្មោះអ្នកប្រើមានរួចហើយ',
   'Region is required': 'ត្រូវការតំបន់',
+  'A Regional Admin needs one region, not All regions': "Regional Admin ត្រូវមានតំបន់មួយ មិនមែនតំបន់ទាំងអស់ទេ",
   'User not found': 'រកមិនឃើញអ្នកប្រើ',
   "You do not have permission to reset this account's password": 'អ្នកមិនមានសិទ្ធិកំណត់ពាក្យសម្ងាត់របស់គណនីនេះឡើងវិញទេ',
   'You do not have permission to change this account': 'អ្នកមិនមានសិទ្ធិផ្លាស់ប្ដូរគណនីនេះទេ',

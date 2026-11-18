@@ -107,3 +107,9 @@ test('headers are found by name, in any order, on a sheet of any name', () => {
   assert.deepEqual(read.rows, [{ row: 2, values: { role: 'Finance', username: 'xx', full_name: 'X X' } }]);
   assert.equal(readAccountsWorkbook(Buffer.from('not a zip')).error, 'unreadable');
 });
+
+test('a Regional Admin row must name one region, not All regions', () => {
+  const p = plan([{ username: 'ra', full_name: 'RA', role: 'regionadmin', region: 'All regions' }]);
+  assert.ok(p.issues.some(i => i.msg === 'A Regional Admin needs one region, not All regions'), JSON.stringify(p.issues));
+  assert.deepEqual(plan([{ username: 'ra', full_name: 'RA', role: 'regionadmin', region: 'Indonesia' }]).issues, []);
+});
