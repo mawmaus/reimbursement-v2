@@ -1167,6 +1167,7 @@ I18N.addDict('vi', {
   'Choose a region': 'Chọn khu vực',
   'Give the base a name and its location': 'Đặt tên và vị trí cho cơ sở',
   'You do not have permission to mark claims as paid': 'Bạn không có quyền đánh dấu yêu cầu là đã thanh toán',
+  'Someone else must record the payment of your own claim': "Người khác phải ghi nhận thanh toán cho yêu cầu của chính bạn",
   'You do not have permission to revert a payment': 'Bạn không có quyền hoàn tác thanh toán',
   'You can only view your own claims': 'Bạn chỉ có thể xem yêu cầu của chính mình',
   'You can only edit your own claims': 'Bạn chỉ có thể sửa yêu cầu của chính mình',

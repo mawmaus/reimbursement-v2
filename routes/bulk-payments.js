@@ -5,7 +5,7 @@
 const express = require('express');
 const { q, qq, transaction } = require('../db');
 const { notifyClaimantDecision } = require('../lib/notify');
-const { reimbNotify, mealNotify, canMarkPaid } = require('../lib/workflow');
+const { reimbNotify, mealNotify, canMarkPaid, paysOwnDocument } = require('../lib/workflow');
 const { advanceNotify } = require('../lib/advances');
 const { intArrayLiteral, ah, DATE_RE } = require('../lib/util');
 const { requireAuth, inUserRegion } = require('../lib/auth');
@@ -93,7 +93,9 @@ router.post('/api/claims/mark-paid-bulk', requireAuth, ah(async (req, res) => {
 
   // Only 'approved' rows move; anything else is silently skipped and counted,
   // the way the client's own pre-filter already expects.
-  const eligible = await loadBulkEligible(items, 'approved', req.user);
+  // Your own documents are skipped: someone else records their payment.
+  const eligible = (await loadBulkEligible(items, 'approved', req.user))
+    .filter(({ row }) => !paysOwnDocument(req.user, row));
   if (!eligible.length) return res.json({ paid: 0, skipped: items.length });
 
   const moved = await commitBulkTransition(eligible, req.user, {

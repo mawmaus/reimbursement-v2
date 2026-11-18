@@ -1167,6 +1167,7 @@ I18N.addDict('km', {
   'Choose a region': 'ជ្រើសរើសតំបន់',
   'Give the base a name and its location': 'ដាក់ឈ្មោះ និងទីតាំងឱ្យមូលដ្ឋាន',
   'You do not have permission to mark claims as paid': 'អ្នកមិនមានសិទ្ធិសម្គាល់សំណើថាបានបង់ទេ',
+  'Someone else must record the payment of your own claim': "ត្រូវឲ្យអ្នកផ្សេងកត់ត្រាការបង់ប្រាក់សំណើរបស់អ្នកផ្ទាល់",
   'You do not have permission to revert a payment': 'អ្នកមិនមានសិទ្ធិត្រឡប់ការបង់ប្រាក់ទេ',
   'You can only view your own claims': 'អ្នកអាចមើលបានតែសំណើរបស់អ្នកផ្ទាល់',
   'You can only edit your own claims': 'អ្នកអាចកែបានតែសំណើរបស់អ្នកផ្ទាល់',

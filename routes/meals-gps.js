@@ -19,7 +19,7 @@ const { fmtMoney, parseAmountToCents } = require('../lib/money');
 const { notifyPendingApprover } = require('../lib/notify');
 const {
   heldByUnrealizedAdvance, resolveSubmitApprovers, currentApproverId, mealNotify,
-  userCanApprove, canMarkPaid, computePurposes, stillAsRead, isStaleAbort, STALE_DOCUMENT
+  userCanApprove, canMarkPaid, computePurposes, stillAsRead, isStaleAbort, STALE_DOCUMENT, paysOwnDocument
 } = require('../lib/workflow');
 const { serializeOneMeal, loadMealClaimOr404, createMealClaim, gpsLineQueries } = require('../lib/meals');
 const { freezeRejectionsQuery, deleteReceiptIfUnused, payableTotalSql } = require('../lib/lines');
@@ -158,7 +158,7 @@ async function resubmitGpsMeal(req, res, row) {
 function canAdjustApproved(user, row) {
   if (row.scheme !== 'gps') return false;
   if (row.status === 'submitted') return userCanApprove(user, row);
-  if (row.status === 'approved') return canMarkPaid(user);
+  if (row.status === 'approved') return canMarkPaid(user) && !paysOwnDocument(user, row);
   return false;
 }
 

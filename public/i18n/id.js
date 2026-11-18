@@ -1190,6 +1190,7 @@ I18N.addDict('id', {
   'Choose a region': 'Pilih wilayah',
   'Give the base a name and its location': 'Beri base nama dan lokasinya',
   'You do not have permission to mark claims as paid': 'Anda tidak memiliki izin untuk menandai klaim sebagai dibayar',
+  'Someone else must record the payment of your own claim': "Orang lain harus mencatat pembayaran klaim Anda sendiri",
   'You do not have permission to revert a payment': 'Anda tidak memiliki izin untuk membatalkan pembayaran',
   'You can only view your own claims': 'Anda hanya dapat melihat klaim milik Anda sendiri',
   'You can only edit your own claims': 'Anda hanya dapat mengubah klaim milik Anda sendiri',

@@ -15,7 +15,7 @@ const {
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
   currentApproverId, mealNotify, userCanApprove, canMarkPaid, planRevert,
   resolveRevertApprover1, undoneApprovalStep, revertSet, moveDocument, STALE_DOCUMENT,
-  stillAsRead, isStaleAbort
+  stillAsRead, isStaleAbort, paysOwnDocument, OWN_PAYMENT_ERROR
 } = require('../lib/workflow');
 const {
   serializeManyMeal, loadMealClaimOr404, serializeOneMeal, normaliseMealLines,
@@ -264,6 +264,7 @@ router.post('/api/meal-claims/:id/mark-paid', requireAuth, ah(async (req, res) =
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved meal claims can be marked as paid' });
+  if (paysOwnDocument(req.user, row)) return res.status(403).json({ error: OWN_PAYMENT_ERROR });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a claim as paid' });
   if (!await moveDocument('meal_claims', row, `status='paid', paid_by=$1, paid_at=$2`, [req.user.id, paymentDate])) {

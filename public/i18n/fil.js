@@ -1167,6 +1167,7 @@ I18N.addDict('fil', {
   'Choose a region': 'Pumili ng rehiyon',
   'Give the base a name and its location': 'Bigyan ng pangalan at lokasyon ang base',
   'You do not have permission to mark claims as paid': 'Wala kang pahintulot na markahang bayad na ang mga claim',
+  'Someone else must record the payment of your own claim': "Ibang tao ang dapat magtala ng bayad sa sarili mong claim",
   'You do not have permission to revert a payment': 'Wala kang pahintulot na i-revert ang bayad',
   'You can only view your own claims': 'Ang sarili mong mga claim lang ang maaari mong tingnan',
   'You can only edit your own claims': 'Ang sarili mong mga claim lang ang maaari mong i-edit',

@@ -13,12 +13,14 @@ const FIN = 20, ROOT = 1, CMMD = 30;
 // on these documents, so only the region rule stands in its way.
 state.users.set(FIN, account({ id: FIN, role: 'finance', department: 'Finance', can_mark_paid: true }));
 state.users.set(ROOT, account({ id: ROOT, role: 'superadmin', region: '*' }));
+state.users.set(21, account({ id: 21, region: 'Indonesia' }));
 state.users.set(CMMD, account({ id: CMMD, role: 'admin', department: 'Management' }));
 state.settings.role_permissions = { finance: { mark_paid: true, delete_claims: true }, admin: { manage_settings: true } };
 const theirs = { employee_id: FIN, approver_ids: [FIN], manager_id: FIN };
 state.tables.claims.push(doc({ id: 5, region: 'Thailand', status: 'approved', ...theirs }),
   doc({ id: 8, region: 'Thailand', status: 'paid', ...theirs }),
-  doc({ id: 15, region: 'Indonesia', status: 'approved', ...theirs }));
+  // Someone else's claim: a payer never records the payment of their own.
+  doc({ id: 15, region: 'Indonesia', status: 'approved', ...theirs, employee_id: 21 }));
 state.tables.meal_claims.push(doc({ id: 6, region: 'Thailand', status: 'approved', ...theirs }));
 state.tables.cash_advances.push(doc({ id: 7, region: 'Thailand', status: 'approved', ...theirs }));
 

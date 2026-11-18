@@ -1167,6 +1167,7 @@ I18N.addDict('th', {
   'Choose a region': 'เลือกภูมิภาค',
   'Give the base a name and its location': 'ตั้งชื่อและระบุตำแหน่งของฐาน',
   'You do not have permission to mark claims as paid': 'คุณไม่มีสิทธิ์ทำเครื่องหมายว่าการเบิกจ่ายแล้ว',
+  'Someone else must record the payment of your own claim': "ต้องให้ผู้อื่นบันทึกการจ่ายเงินสำหรับการเบิกของคุณเอง",
   'You do not have permission to revert a payment': 'คุณไม่มีสิทธิ์ย้อนการจ่ายเงิน',
   'You can only view your own claims': 'คุณดูได้เฉพาะการเบิกของคุณเอง',
   'You can only edit your own claims': 'คุณแก้ไขได้เฉพาะการเบิกของคุณเอง',

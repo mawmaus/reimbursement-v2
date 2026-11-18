@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-18.1',
+    date: '2026-11-18',
+    items: [
+      { kind: 'improved', audience: ['pay'], text: {
+        en: 'Payments now always need a second person: if you record payments, you can no longer mark your own claim, meal claim or cash advance as paid or settled — a colleague does it. In a bulk payment your own claims are skipped. Super Admins are not affected.',
+        id: 'Pembayaran kini selalu melibatkan orang kedua: jika Anda mencatat pembayaran, Anda tidak bisa lagi menandai klaim, klaim makan, atau uang muka Anda sendiri sebagai dibayar atau diselesaikan — rekan Anda yang melakukannya. Dalam pembayaran massal, klaim Anda sendiri dilewati. Super Admin tidak terpengaruh.',
+        th: 'การจ่ายเงินต้องมีบุคคลที่สองเสมอ: หากคุณเป็นผู้บันทึกการจ่ายเงิน คุณจะทำเครื่องหมายว่าจ่ายแล้วหรือปิดยอดการเบิก ค่าอาหาร หรือเงินทดรองของตัวเองไม่ได้อีกต่อไป — ให้เพื่อนร่วมงานทำแทน ในการจ่ายแบบกลุ่ม รายการของคุณเองจะถูกข้าม ไม่มีผลกับ Super Admin',
+        vi: 'Thanh toán giờ luôn cần người thứ hai: nếu bạn ghi nhận thanh toán, bạn không thể tự đánh dấu đã thanh toán hoặc tất toán yêu cầu, yêu cầu tiền ăn hay tạm ứng của chính mình — đồng nghiệp sẽ làm. Khi thanh toán hàng loạt, yêu cầu của bạn sẽ được bỏ qua. Super Admin không bị ảnh hưởng.',
+        km: 'ការបង់ប្រាក់ឥឡូវតែងត្រូវការមនុស្សទីពីរ៖ ប្រសិនបើអ្នកកត់ត្រាការបង់ប្រាក់ អ្នកលែងអាចសម្គាល់សំណើ សំណើអាហារ ឬប្រាក់បុរេប្រទានរបស់អ្នកផ្ទាល់ថាបានបង់ ឬទូទាត់ហើយ — សហការីជាអ្នកធ្វើ។ ក្នុងការបង់ជាក្រុម សំណើរបស់អ្នកផ្ទាល់ត្រូវបានរំលង។ Super Admin មិនរងផលប៉ះពាល់ទេ។',
+        fil: 'Laging may pangalawang tao na sa mga bayad: kung ikaw ang nagtatala ng bayad, hindi mo na maaaring markahang bayad o settled ang sarili mong claim, meal claim o cash advance — kasamahan mo ang gagawa nito. Sa bulk na pagbabayad, nilalaktawan ang sarili mong mga claim. Hindi apektado ang mga Super Admin.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-15.2',
     date: '2026-11-15',
     items: [

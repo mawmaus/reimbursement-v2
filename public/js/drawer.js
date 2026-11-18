@@ -188,7 +188,9 @@ function buildActions(c, u, isOwner) {
     btns.push(`<button class="btn btn-approve" data-act="approve">${esc(t('Approve'))}</button>`);
     btns.push(`<button class="btn btn-danger" data-act="reject">${esc(t('Reject & return'))}</button>`);
   }
-  if (canPay(u) && c.status === 'approved') {
+  // Someone else records the payment of your own document (admins excepted).
+  const mayPay = canPay(u) && !(isOwner && !actsAsSuperUI(u));
+  if (mayPay && c.status === 'approved') {
     btns.push(`<button class="btn btn-primary" data-act="paid">${esc(t('Mark as paid'))}</button>`);
   }
   // Cash-advance-only actions.
@@ -196,7 +198,7 @@ function buildActions(c, u, isOwner) {
     if (isOwner && (c.status === 'paid' || c.status === 'rejected_realize')) {
       btns.push(`<button class="btn btn-primary" data-act="realize">${esc(c.status === 'paid' ? t('Realize advance') : t('Edit & resubmit realization'))}</button>`);
     }
-    if (canPay(u) && c.status === 'realize_approved') {
+    if (mayPay && c.status === 'realize_approved') {
       btns.push(`<button class="btn btn-primary" data-act="settle">${esc(owesRefund(c) ? t('Confirm refund received') : t('Settle'))}</button>`);
     }
   }

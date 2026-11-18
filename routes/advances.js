@@ -14,7 +14,7 @@ const {
   canMarkPaid, resolveRevertApprover1, undoneApprovalStep,
   applyListStatusFilter, applyLedgerWindow, OPEN_ADVANCE_SQL,
   unrealizedAdvanceCount, claimantApprover1Choices, moveDocument, STALE_DOCUMENT,
-  stillAsRead, isStaleAbort
+  stillAsRead, isStaleAbort, paysOwnDocument, OWN_PAYMENT_ERROR
 } = require('../lib/workflow');
 const {
   normaliseAdvanceRequest, advanceNotify, serializeOneAdvance,
@@ -198,6 +198,7 @@ router.post('/api/cash-advances/:id/mark-paid', requireAuth, ah(async (req, res)
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'approved') return res.status(409).json({ error: 'Only approved cash advances can be marked as paid' });
+  if (paysOwnDocument(req.user, row)) return res.status(403).json({ error: OWN_PAYMENT_ERROR });
   const paymentDate = String((req.body && req.body.payment_date) || '').trim();
   if (!DATE_RE.test(paymentDate)) return res.status(400).json({ error: 'A payment date is required to mark a cash advance as paid' });
   if (!await moveDocument('cash_advances', row, `status='paid', paid_by=$1, paid_at=$2`, [req.user.id, paymentDate])) {
@@ -330,6 +331,7 @@ router.post('/api/cash-advances/:id/settle', requireAuth, ah(async (req, res) =>
   if (!row) return;
   if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'realize_approved') return res.status(409).json({ error: 'Only an approved realization can be settled' });
+  if (paysOwnDocument(req.user, row)) return res.status(403).json({ error: OWN_PAYMENT_ERROR });
   const { direction, cents } = settlementFor(row);
   const note = String((req.body && req.body.note) || '').trim();
   if (!await moveDocument('cash_advances', row, `status='settled', settlement_cents=$1, settlement_direction=$2,
