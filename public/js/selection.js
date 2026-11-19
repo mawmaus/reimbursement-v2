@@ -304,7 +304,10 @@ async function imageToPdfFile(file) {
 // Helvetica is WinAnsi-only; drop anything it can't encode and normalise the
 // few smart-punctuation characters that show up in names/comments.
 function pdfSafe(s) {
+  // Line breaks/tabs become spaces (not deleted) so single-line fields never
+  // glue words together; multi-line text goes through wrap() which splits first.
   return String(s == null ? '' : s)
+    .replace(/[\r\n\t]+/g, ' ')
     .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
     .replace(/—/g, '-').replace(/…/g, '...').replace(/·/g, '-')
     .replace(/[^\x20-\xFF]/g, '');
@@ -328,13 +331,22 @@ async function buildClaimsPdf(claims) {
   let page, y;
   const newPage = () => { page = pdf.addPage([W, H]); y = H - M; };
   const need = (h) => { if (y - h < M) newPage(); };
+  // Word-wraps text to maxW, keeping the user's own line breaks (Enter in a
+  // textarea) as real line breaks. Runs of blank lines collapse to one.
   const wrap = (s, size, f, maxW) => {
-    const words = pdfSafe(s).split(/\s+/); const out = []; let cur = '';
-    for (const w of words) {
-      const t = cur ? cur + ' ' + w : w;
-      if (f.widthOfTextAtSize(t, size) > maxW && cur) { out.push(cur); cur = w; } else cur = t;
+    const out = [];
+    for (const para of String(s == null ? '' : s).split(/\r\n|\r|\n/)) {
+      const words = pdfSafe(para).split(/\s+/).filter(Boolean);
+      if (!words.length) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
+      let cur = '';
+      for (const w of words) {
+        const t = cur ? cur + ' ' + w : w;
+        if (f.widthOfTextAtSize(t, size) > maxW && cur) { out.push(cur); cur = w; } else cur = t;
+      }
+      if (cur) out.push(cur);
     }
-    if (cur) out.push(cur); return out.length ? out : [''];
+    while (out.length && out[out.length - 1] === '') out.pop();
+    return out.length ? out : [''];
   };
   const line = (s, { x = M, size = 10, f = font, color = ink, gap = 5 } = {}) => {
     need(size + gap); y -= size; page.drawText(pdfSafe(s), { x, y, size, font: f, color }); y -= gap;

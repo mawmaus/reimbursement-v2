@@ -28,6 +28,21 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-19.1',
+    date: '2026-11-19',
+    items: [
+      { kind: 'fixed', text: {
+        en: 'Downloaded PDFs now keep the line breaks you typed. A cash-advance purpose or a description written on several lines prints on several lines, instead of running together into one line.',
+        id: 'PDF yang diunduh kini mempertahankan baris baru yang Anda ketik. Tujuan uang muka atau deskripsi yang ditulis dalam beberapa baris kini tercetak dalam beberapa baris, tidak lagi menyatu menjadi satu baris.',
+        ms: 'PDF yang dimuat turun kini mengekalkan baris baharu yang anda taip. Tujuan pendahuluan tunai atau keterangan yang ditulis dalam beberapa baris kini dicetak dalam beberapa baris, tidak lagi bercantum menjadi satu baris.',
+        th: 'ไฟล์ PDF ที่ดาวน์โหลดจะคงการขึ้นบรรทัดใหม่ตามที่คุณพิมพ์ไว้แล้ว วัตถุประสงค์ของเงินทดรองหรือคำอธิบายที่เขียนไว้หลายบรรทัดจะพิมพ์ออกมาเป็นหลายบรรทัด ไม่ต่อกันเป็นบรรทัดเดียวอีก',
+        vi: 'Tệp PDF tải xuống giờ giữ nguyên các dòng bạn đã xuống dòng. Mục đích tạm ứng hoặc mô tả viết trên nhiều dòng sẽ được in trên nhiều dòng, không còn bị dính liền thành một dòng.',
+        km: 'ឯកសារ PDF ដែលទាញយក ឥឡូវរក្សាការចុះបន្ទាត់ដែលអ្នកបានវាយ។ គោលបំណងនៃប្រាក់បុរេប្រទាន ឬការពិពណ៌នាដែលសរសេរជាច្រើនបន្ទាត់ ត្រូវបានបោះពុម្ពជាច្រើនបន្ទាត់ ជំនួសឱ្យការជាប់គ្នាជាបន្ទាត់តែមួយ។',
+        fil: 'Pinapanatili na ng mga na-download na PDF ang mga line break na tinype mo. Ang layunin ng cash advance o paglalarawang isinulat sa ilang linya ay naka-print na sa ilang linya, sa halip na magdikit-dikit sa iisang linya.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-18.1',
     date: '2026-11-18',
     items: [
