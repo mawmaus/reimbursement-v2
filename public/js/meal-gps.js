@@ -398,7 +398,7 @@ function mgGuideSteps() {
 }
 function startMgGuide() {
   if (!$('#mgForm')) return;
-  runGuide(mgGuideSteps(), { onEnd: () => markGuideSeen(MG_GUIDE) });
+  runGuide(mgGuideSteps(), { onEnd: () => markGuideSeen(MG_GUIDE), onSkip: turnGuidesOff });
 }
 
 // Fields of one day as a draft (files go to IndexedDB separately).
@@ -509,7 +509,7 @@ async function openMealGpsModal(existing = null) {
   mgRender();
   mgInitMap();
   // First time on this device: walk through the form once the modal has opened.
-  if (!guideSeen(MG_GUIDE)) setTimeout(startMgGuide, 450);
+  if (!guideSeen(MG_GUIDE) && !guidesOff()) setTimeout(startMgGuide, 450);
   if (fresh) {
     if (draft && draft.data.approver1) { const sel = $('#mgForm [name="approver1"]'); if (sel) sel.value = draft.data.approver1; }
     $('#mgSaveDraft').addEventListener('click', () => saveDraftAndClose(MG_KIND, collectMealGpsDraft, collectMealGpsFiles));

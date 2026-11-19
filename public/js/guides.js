@@ -319,7 +319,7 @@ function topScreen() {
 }
 function startScreenGuide(g) {
   if (!g || g.own) return;
-  runGuide(g.steps(), { onEnd: () => markGuideSeen(`screen.${g.key}.v1`) });
+  runGuide(g.steps(), { onEnd: () => markGuideSeen(`screen.${g.key}.v1`), onSkip: turnGuidesOff });
 }
 
 // Where a layer's Guide button goes: before the close × of a modal or the
@@ -364,7 +364,7 @@ function syncScreenGuides() {
     const g = screenGuideFor(where);
     if (g && !g.own) ensureGuideBtn(where);
   }
-  if (guideState) return;
+  if (guideState || guidesOff()) return;
   const g = screenGuideFor(top);
   const id = g ? g.key : null;
   if (id !== guideTick.last) { guideTick.last = id; guideTick.since = Date.now(); return; }

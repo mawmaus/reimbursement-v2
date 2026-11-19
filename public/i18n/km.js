@@ -1399,6 +1399,7 @@ I18N.addDict('km', {
   // GPS meal form: step-by-step guide and day checklist
   "Step {n} of {m}": "ជំហាន {n} នៃ {m}",
   "Skip guide": "រំលងការណែនាំ",
+  "Guides won’t open by themselves any more. Tap “Guide” on any screen to see one.": "ការណែនាំនឹងមិនបើកដោយខ្លួនឯងទៀតទេ។ ចុច “ការណែនាំ” នៅលើអេក្រង់ណាមួយ ដើម្បីមើល។",
   "Back": "ថយក្រោយ",
   "Got it": "យល់ហើយ",
   "Next": "បន្ទាប់",

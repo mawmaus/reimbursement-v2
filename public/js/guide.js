@@ -24,7 +24,8 @@ function guideBox(el) {
 }
 const guideVisible = (el) => !!el && el.isConnected && !el.closest('[hidden]') && !!guideBox(el);
 
-function runGuide(steps, { onEnd } = {}) {
+// `onSkip` runs when the person presses "Skip guide" (not Got it / Esc).
+function runGuide(steps, { onEnd, onSkip } = {}) {
   endGuide();
   const shown = () => steps.filter(s => guideVisible(s.el()));
   const block = document.createElement('div');
@@ -92,7 +93,7 @@ function runGuide(steps, { onEnd } = {}) {
     if (!b) return;
     if (b.dataset.g === 'next') go(1);
     else if (b.dataset.g === 'back') go(-1);
-    else endGuide();
+    else { endGuide(); if (onSkip) onSkip(); }
   });
   guideState.onKey = (e) => {
     if (e.key === 'Escape') { e.stopPropagation(); endGuide(); }
@@ -127,4 +128,20 @@ function guideSeen(key) {
 }
 function markGuideSeen(key) {
   try { localStorage.setItem(`guide.${key}.${(state.user && state.user.id) || ''}`, '1'); } catch { /* not stored: offered again next time */ }
+}
+
+// "Skip guide" turns the automatic guides off for the whole account: no screen
+// opens one by itself again, on any device (stored on the account; this browser
+// also remembers it in case the save can't reach the server). The "? Guide"
+// button on each screen still opens one on purpose.
+function guidesOff() {
+  if (state.user && state.user.guides_off) return true;
+  return guideSeen('off');
+}
+function turnGuidesOff() {
+  if (guidesOff()) return;
+  if (state.user) state.user.guides_off = true;
+  markGuideSeen('off');
+  toast(t('Guides won’t open by themselves any more. Tap “Guide” on any screen to see one.'));
+  api('/me', { method: 'PUT', body: JSON.stringify({ guides_off: true }) }).catch(() => { /* kept in this browser */ });
 }

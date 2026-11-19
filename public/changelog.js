@@ -28,6 +28,21 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-19.3',
+    date: '2026-11-19',
+    items: [
+      { kind: 'improved', text: {
+        en: 'Pressing “Skip guide” now turns the guides off for good: they stop opening by themselves on every screen, on all your devices. You can still open one any time with the “Guide” button at the top of a screen.',
+        id: 'Menekan “Lewati panduan” kini mematikan panduan seterusnya: panduan tidak lagi terbuka sendiri di layar mana pun, di semua perangkat Anda. Anda tetap bisa membukanya kapan saja dengan tombol “Panduan” di bagian atas layar.',
+        ms: 'Menekan “Langkau panduan” kini mematikan panduan seterusnya: panduan tidak lagi dibuka sendiri pada mana-mana skrin, pada semua peranti anda. Anda masih boleh membukanya bila-bila masa dengan butang “Panduan” di bahagian atas skrin.',
+        th: 'การกด “ข้ามคำแนะนำ” จะปิดคำแนะนำไปเลย: คำแนะนำจะไม่เปิดขึ้นเองอีกในทุกหน้าจอ บนทุกอุปกรณ์ของคุณ คุณยังเปิดดูได้ทุกเมื่อด้วยปุ่ม “คำแนะนำ” ที่ด้านบนของหน้าจอ',
+        vi: 'Nhấn “Bỏ qua hướng dẫn” giờ sẽ tắt hẳn hướng dẫn: chúng không còn tự mở trên bất kỳ màn hình nào, trên mọi thiết bị của bạn. Bạn vẫn có thể mở bất cứ lúc nào bằng nút “Hướng dẫn” ở đầu màn hình.',
+        km: 'ការចុច “រំលងការណែនាំ” ឥឡូវបិទការណែនាំជាអចិន្ត្រៃយ៍៖ វាលែងបើកដោយខ្លួនឯងនៅលើអេក្រង់ណាមួយ លើឧបករណ៍ទាំងអស់របស់អ្នក។ អ្នកនៅតែអាចបើកវាបានគ្រប់ពេលដោយប៊ូតុង “ការណែនាំ” នៅខាងលើអេក្រង់។',
+        fil: 'Ang pagpindot sa “Laktawan ang gabay” ay pinapatay na ang mga gabay nang tuluyan: hindi na sila kusang nagbubukas sa anumang screen, sa lahat ng iyong device. Mabubuksan mo pa rin ang isa anumang oras gamit ang button na “Gabay” sa itaas ng screen.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-19.2',
     date: '2026-11-19',
     items: [

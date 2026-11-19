@@ -28,6 +28,9 @@ const SCHEMA = [
   // Set when a user picks a language from the switcher; it becomes their default
   // and follows the account across devices. Defaults to English.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'`,
+  // Set when the person presses "Skip guide": the screen guides stop opening by
+  // themselves on every screen and device (the "? Guide" button still works).
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS guides_off BOOLEAN NOT NULL DEFAULT FALSE`,
   // Region the account belongs to (a regions.name value, or '*' = All regions).
   // Data outside the account's region is hidden; super admins and '*' accounts
   // see everything. Existing super admins get '*' so they keep full visibility.

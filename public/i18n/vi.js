@@ -1399,6 +1399,7 @@ I18N.addDict('vi', {
   // GPS meal form: step-by-step guide and day checklist
   "Step {n} of {m}": "Bước {n}/{m}",
   "Skip guide": "Bỏ qua hướng dẫn",
+  "Guides won’t open by themselves any more. Tap “Guide” on any screen to see one.": "Hướng dẫn sẽ không tự mở nữa. Nhấn “Hướng dẫn” trên bất kỳ màn hình nào để xem.",
   "Back": "Quay lại",
   "Got it": "Đã hiểu",
   "Next": "Tiếp",

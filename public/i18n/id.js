@@ -1422,6 +1422,7 @@ I18N.addDict('id', {
   // GPS meal form: step-by-step guide and day checklist
   "Step {n} of {m}": "Langkah {n} dari {m}",
   "Skip guide": "Lewati panduan",
+  "Guides won’t open by themselves any more. Tap “Guide” on any screen to see one.": "Panduan tidak akan terbuka sendiri lagi. Ketuk “Panduan” di layar mana pun untuk melihatnya.",
   "Back": "Kembali",
   "Got it": "Mengerti",
   "Next": "Lanjut",

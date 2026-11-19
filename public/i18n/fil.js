@@ -1399,6 +1399,7 @@ I18N.addDict('fil', {
   // GPS meal form: step-by-step guide and day checklist
   "Step {n} of {m}": "Hakbang {n} sa {m}",
   "Skip guide": "Laktawan ang gabay",
+  "Guides won’t open by themselves any more. Tap “Guide” on any screen to see one.": "Hindi na kusang magbubukas ang mga gabay. I-tap ang “Gabay” sa anumang screen para makakita ng isa.",
   "Back": "Bumalik",
   "Got it": "Gets ko",
   "Next": "Susunod",

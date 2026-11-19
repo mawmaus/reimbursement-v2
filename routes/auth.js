@@ -91,11 +91,23 @@ router.post('/api/logout', (req, res) => { req.session = null; res.json({ ok: tr
 // defaults, what it may submit, what it may manage, its caps). Shared by sign-in,
 // /api/me and the profile saves; the lookups are independent so they run
 // together. Attaches u.caps as a side effect.
+// Whether this account turned the automatic screen guides off ("Skip guide").
+// Before the migration the column is missing (42703): guides stay on.
+async function guidesOff(userId) {
+  try {
+    const rows = await q('SELECT guides_off FROM users WHERE id = $1', [userId]);
+    return !!(rows[0] && rows[0].guides_off);
+  } catch (e) {
+    if (e && e.code === '42703') return false;
+    throw e;
+  }
+}
+
 async function sessionExtras(u) {
-  const [pos, prefs, purposes, unrealized, approver1, survey, reports] = await Promise.all([
+  const [pos, prefs, purposes, unrealized, approver1, survey, reports, , noGuides] = await Promise.all([
     loadPositions(u.region), regionPrefsFor(u.region), computePurposes(u),
     unrealizedAdvanceCount(u.id), approver1Choices(u.approver1_options),
-    surveyPending(u.id), loadReportIds(u.id), attachCaps(u)
+    surveyPending(u.id), loadReportIds(u.id), attachCaps(u), guidesOff(u.id)
   ]);
   const settings = await loadAppSettings();
   return {
@@ -106,7 +118,8 @@ async function sessionExtras(u) {
     can_view_insights: insightsCanView(u, pos),
     sees_all_departments: accountsSeeAllDepts(u, pos), caps: u.caps, survey_pending: survey,
     // A named customer-site editor or a manager (Settings → Customer sites only).
-    customer_sites_editor: mayEditCustomerSites(u, settings, pos)
+    customer_sites_editor: mayEditCustomerSites(u, settings, pos),
+    guides_off: noGuides
   };
 }
 
@@ -126,6 +139,16 @@ router.put('/api/me', requireAuth, ah(async (req, res) => {
     await q('UPDATE users SET language = $1 WHERE id = $2', [normLang(body.language), req.user.id]);
     const u = await loadUser(req);
     return res.json({ user: { ...u, ...(await sessionExtras(u)) } });
+  }
+  // "Skip guide" (or turning guides back on): only this one flag.
+  if (Object.prototype.hasOwnProperty.call(body, 'guides_off') && Object.keys(body).length === 1) {
+    try {
+      await q('UPDATE users SET guides_off = $1 WHERE id = $2', [body.guides_off === true, req.user.id]);
+    } catch (e) {
+      // Before the migration: nothing to store; the browser still remembers it.
+      if (!(e && e.code === '42703')) throw e;
+    }
+    return res.json({ ok: true, guides_off: await guidesOff(req.user.id) });
   }
   const { bank_name, recipient_name, bank_account_no, email } = body;
   const nextEmail = normEmail(email);
