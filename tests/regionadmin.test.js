@@ -97,6 +97,12 @@ test('the full account editor works in their region, and only there', async (t) 
   assert.ok(state.reads.some(x => /FROM users WHERE .*region = \$/.test(x)), 'the list is their region only');
   let r = await call(RA, 'PUT', `/api/users/${LOCAL}`, { full_name: 'Renamed', role: 'manager' });
   assert.equal(r.status, 200, r.body);
+  // What the real editor form sends: every field, region blank (it has no Region field).
+  r = await call(RA, 'PUT', `/api/users/${LOCAL}`, { username: 'local', full_name: 'Local', role: 'employee', email: '',
+    department: 'Sales', position: 'Staff', bank_name: '', recipient_name: '', bank_account_no: '', approver_ids: [],
+    can_mark_paid: false, allow_advance: false, approver1_options: [], managed_by: null, region: '',
+    approval_unlimited: true, approval_limit: '' });
+  assert.equal(r.status, 200, `the editor form's own payload saves: ${r.body}`);
   r = await call(RA, 'PUT', `/api/users/${CM}`, { full_name: 'CM' });
   assert.equal(r.status, 200, `a CM/MD is below them: ${r.body}`);
   for (const [id, body] of [[CLAIMANT, { full_name: 'X' }], [PEER, { full_name: 'X' }], [VP, { full_name: 'X' }],

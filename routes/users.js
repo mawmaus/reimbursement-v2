@@ -294,9 +294,13 @@ router.put('/api/users/:id', requireAuth, requireRole('superadmin', 'regionadmin
   const rows = await q('SELECT * FROM users WHERE id = $1', [req.params.id]);
   const u = rows[0];
   if (!u) return res.status(404).json({ error: 'User not found' });
-  const { username, full_name, role, department, position, region, active, password, email,
+  const { username, full_name, role, department, position, active, password, email,
     bank_name, recipient_name, bank_account_no, approver_ids, approver1_options, can_mark_paid,
     allow_advance } = req.body || {};
+  // A Regional Admin's editor has no Region field (accounts stay in their region),
+  // so a blank region from them means "unchanged", not "move out of the region".
+  let { region } = req.body || {};
+  if (req.user.role === 'regionadmin' && (region === '' || region === null)) region = undefined;
   if (role && !ROLES.includes(role)) return res.status(400).json({ error: 'Invalid role' });
   const refused = regionAdminEditError(req.user, u, { role, region });
   if (refused) return res.status(403).json({ error: refused });

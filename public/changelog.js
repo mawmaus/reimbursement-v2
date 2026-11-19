@@ -28,6 +28,21 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-19.2',
+    date: '2026-11-19',
+    items: [
+      { kind: 'fixed', audience: ['accounts'], text: {
+        en: 'Regional Admins can save account edits again. Saving any account in their region was refused with “You can only keep accounts in your own region”, even though nothing about the region was changed.',
+        id: 'Regional Admin kini dapat menyimpan perubahan akun lagi. Sebelumnya, menyimpan akun apa pun di region-nya ditolak dengan pesan “Anda hanya dapat mempertahankan akun di region Anda sendiri”, padahal region tidak diubah.',
+        ms: 'Regional Admin kini boleh menyimpan suntingan akaun semula. Sebelum ini, menyimpan mana-mana akaun di rantau mereka ditolak dengan mesej “Anda hanya boleh mengekalkan akaun di rantau anda sendiri”, walaupun rantau tidak diubah.',
+        th: 'Regional Admin บันทึกการแก้ไขบัญชีได้อีกครั้งแล้ว ก่อนหน้านี้การบันทึกบัญชีใดๆ ในภูมิภาคของตนถูกปฏิเสธด้วยข้อความ “คุณเก็บบัญชีไว้ได้เฉพาะในภูมิภาคของคุณเท่านั้น” แม้จะไม่ได้เปลี่ยนภูมิภาคเลย',
+        vi: 'Regional Admin giờ đã lưu được chỉnh sửa tài khoản trở lại. Trước đây, lưu bất kỳ tài khoản nào trong khu vực của họ đều bị từ chối với thông báo “Bạn chỉ có thể giữ tài khoản trong khu vực của mình”, dù không hề thay đổi khu vực.',
+        km: 'Regional Admin អាចរក្សាទុកការកែប្រែគណនីបានវិញហើយ។ ពីមុន ការរក្សាទុកគណនីណាមួយក្នុងតំបន់របស់ខ្លួនត្រូវបានបដិសេធដោយសារ “អ្នកអាចរក្សាគណនីបានតែក្នុងតំបន់របស់អ្នកប៉ុណ្ណោះ” ទោះបីមិនបានប្ដូរតំបន់ក៏ដោយ។',
+        fil: 'Nakakapag-save na ulit ng mga pagbabago sa account ang mga Regional Admin. Dati, tinatanggihan ang pag-save ng anumang account sa kanilang rehiyon na may “Maaari mo lang panatilihin ang mga account sa sarili mong rehiyon”, kahit walang binago sa rehiyon.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-19.1',
     date: '2026-11-19',
     items: [

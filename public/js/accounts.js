@@ -648,7 +648,9 @@ function renderUserForm(u) {
       payload.allow_advance = fd.get('allow_advance') === 'on';
       payload.approver1_options = acctApprover1Options.filter(Boolean).map(Number);
       payload.managed_by = fd.get('mgr_0') ? Number(fd.get('mgr_0')) : null;
-      payload.region = fd.get('region') || '';
+      // Only a Super Admin's form has a Region field; a Regional Admin's accounts
+      // stay in their region, so nothing is sent (blank would mean "no region").
+      if ($('#uForm select[name="region"]')) payload.region = fd.get('region') || '';
       const unlimited = fd.get('approval_unlimited') === 'on';
       const limitAmt = String(fd.get('approval_limit') || '').trim();
       if (!unlimited && !limitAmt) { const el = $('#uErr'); el.textContent = t('Enter an approval limit or choose Unlimited.'); el.hidden = false; return; }
