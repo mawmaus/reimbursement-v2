@@ -117,6 +117,26 @@ test('once approved, whoever records payment may lower it; never after payment',
   assert.equal((await adjust(MANAGER, 503, 20000)).status, 400, 'standard meal claims have no approved amount');
 });
 
+// --- Rejecting single days of a GPS claim -------------------------------------------
+state.tables.meal_claims.push(doc({ id: 504, ...chain, status: 'submitted', current_step: 1 }));
+state.tables.meal_claim_lines.push(
+  { id: 5041, meal_claim_id: 504, line_date: '2026-11-04', amount_cents: 3500000, sort_order: 0 },
+  { id: 5042, meal_claim_id: 504, line_date: '2026-11-05', amount_cents: 4000000, approved_cents: 2000000, sort_order: 1 });
+
+test('the approver may reject one day of a GPS claim and approve the rest', async (t) => {
+  await serve(t);
+  const all = await call(MANAGER, 'POST', '/api/meal-claims/504/approve',
+    { rejected_lines: [{ id: 5041, reason: 'no receipt' }, { id: 5042, reason: 'duplicate' }] });
+  assert.equal(all.status, 400, 'rejecting every day is Reject & return');
+  assert.match(all.json.error, /Every line would be rejected/);
+  const noReason = await call(MANAGER, 'POST', '/api/meal-claims/504/approve', { rejected_lines: [{ id: 5041, reason: ' ' }] });
+  assert.equal(noReason.status, 400);
+  state.writes.length = 0;
+  const ok = await call(MANAGER, 'POST', '/api/meal-claims/504/approve', { rejected_lines: [{ id: 5041, reason: 'no receipt' }] });
+  assert.equal(ok.status, 200);
+  assert.ok(state.writes.some(w => w.startsWith('UPDATE meal_claim_lines SET rejected_at = now()')), 'the day is marked rejected');
+});
+
 test('a GPS claim cannot be raised where the form is switched off', async (t) => {
   await serve(t);
   const r = await call(CLAIMANT, 'POST', '/api/meal-claims', { scheme: 'gps', lines: [] });

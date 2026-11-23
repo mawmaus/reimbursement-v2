@@ -1061,7 +1061,8 @@ I18N.addDict('fil', {
   'Location': 'Lokasyon',
   'Details': 'Mga detalye',
   'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.': 'I-on o i-off ang GPS meal allowance para sa {region}. Kapag naka-on, nire-record ng mga nag-claim ang lokasyon nila at naglalakip ng resibo sa bawat araw, sinusukat mula sa base sa kanilang account.',
-  'Lower the line’s approved amount instead of rejecting it': 'Ibaba ang halagang in-approve ng linya sa halip na tanggihan ito',
+  'Re-claim GPS meal days on the GPS meal allowance form': 'I-claim muli ang mga araw ng GPS meal sa form ng Meal allowance (GPS)',
+  'Re-claim standard meal lines on the standard meal allowance form': 'I-claim muli ang mga linya ng standard meal allowance sa form ng standard meal allowance',
   // Settings → Bases (2026-10-23)
   'Manage bases': 'Pamahalaan ang mga base',
   'Paste "latitude, longitude" or a Google Maps link from the address bar.': 'I-paste ang "latitude, longitude" o Google Maps link mula sa address bar.',

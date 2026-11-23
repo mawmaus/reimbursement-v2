@@ -1084,7 +1084,8 @@ I18N.addDict('id', {
   'Location': 'Lokasi',
   'Details': 'Rincian',
   'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.': 'Aktifkan atau nonaktifkan tunjangan makan GPS untuk {region}. Saat aktif, pengklaim merekam lokasi dan melampirkan struk untuk setiap hari, diukur dari base di akunnya.',
-  'Lower the line’s approved amount instead of rejecting it': 'Turunkan nominal disetujui baris ini alih-alih menolaknya',
+  'Re-claim GPS meal days on the GPS meal allowance form': 'Klaim ulang hari makan GPS lewat formulir tunjangan makan (GPS)',
+  'Re-claim standard meal lines on the standard meal allowance form': 'Klaim ulang baris tunjangan makan standar lewat formulir tunjangan makan standar',
   // Settings → Bases (2026-10-23)
   'Manage bases': 'Kelola base',
   'Paste "latitude, longitude" or a Google Maps link from the address bar.': 'Tempel "lintang, bujur" atau tautan Google Maps dari address bar.',

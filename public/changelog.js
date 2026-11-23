@@ -28,6 +28,20 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-23.1',
+    date: '2026-11-23',
+    items: [
+      { kind: 'new', text: {
+        en: 'GPS meal allowance claims can now have single days rejected, like other claims. The approver presses "Reject line" on a day and gives a reason; the other days are approved and paid as usual. The claimant re-claims a rejected day on a new GPS claim with "Re-claim rejected lines", and its receipt comes along.',
+        id: 'Klaim tunjangan makan (GPS) kini juga bisa ditolak per hari, seperti klaim lainnya. Penyetuju menekan "Tolak baris" pada satu hari dan memberi alasan; hari-hari lainnya tetap disetujui dan dibayar seperti biasa. Pengklaim mengajukan hari yang ditolak di klaim GPS baru lewat "Klaim ulang baris yang ditolak", dan struknya ikut terbawa.',
+        th: 'คำขอเบิกค่าอาหาร (GPS) สามารถปฏิเสธเป็นรายวันได้แล้ว เหมือนคำขอเบิกอื่นๆ ผู้อนุมัติกด "ปฏิเสธรายการ" ที่วันนั้นและระบุเหตุผล วันอื่นๆ จะได้รับอนุมัติและจ่ายตามปกติ ผู้เบิกสามารถเบิกวันที่ถูกปฏิเสธใหม่ในคำขอ GPS ใหม่ด้วย "เบิกรายการที่ถูกปฏิเสธใหม่" และใบเสร็จจะติดไปด้วย',
+        vi: 'Yêu cầu Phụ cấp ăn (GPS) giờ cũng có thể bị từ chối theo từng ngày, như các yêu cầu khác. Người duyệt nhấn "Từ chối dòng" trên một ngày và nêu lý do; các ngày còn lại vẫn được duyệt và thanh toán như bình thường. Người yêu cầu yêu cầu lại ngày bị từ chối trên một yêu cầu GPS mới bằng "Yêu cầu lại các dòng bị từ chối", kèm theo biên lai của ngày đó.',
+        km: 'ការទាមទារប្រាក់ឧបត្ថម្ភអាហារ (GPS) ឥឡូវអាចបដិសេធតាមថ្ងៃបានដែរ ដូចការទាមទារផ្សេងទៀត។ អ្នកអនុម័តចុច "បដិសេធជួរ" លើថ្ងៃមួយ ហើយផ្តល់មូលហេតុ ថ្ងៃផ្សេងទៀតនៅតែត្រូវបានអនុម័ត និងបង់ប្រាក់ធម្មតា។ អ្នកទាមទារអាចទាមទារថ្ងៃដែលបានបដិសេធឡើងវិញលើការទាមទារ GPS ថ្មីតាម "ទាមទារឡើងវិញនូវជួរដែលបានបដិសេធ" ហើយបង្កាន់ដៃរបស់វាក៏ភ្ជាប់មកជាមួយ។',
+        fil: 'Ang mga Meal allowance (GPS) claim ay puwede na ring tanggihan kada araw, gaya ng ibang claim. Pipindutin ng approver ang "Tanggihan ang linya" sa isang araw at magbibigay ng dahilan; ang ibang araw ay aaprubahan at babayaran gaya ng dati. I-claim muli ng claimant ang tinanggihang araw sa bagong GPS claim gamit ang "I-claim muli ang mga tinanggihang linya", kasama ang resibo nito.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-19.3',
     date: '2026-11-19',
     items: [

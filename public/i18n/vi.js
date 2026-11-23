@@ -1061,7 +1061,8 @@ I18N.addDict('vi', {
   'Location': 'Vị trí',
   'Details': 'Chi tiết',
   'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.': 'Bật hoặc tắt phụ cấp ăn GPS cho {region}. Khi bật, người yêu cầu ghi vị trí và đính kèm hóa đơn cho mỗi ngày, đo so với cơ sở trong tài khoản của họ.',
-  'Lower the line’s approved amount instead of rejecting it': 'Hãy giảm số tiền được duyệt của dòng thay vì từ chối',
+  'Re-claim GPS meal days on the GPS meal allowance form': 'Hãy yêu cầu lại các ngày ăn GPS bằng biểu mẫu Phụ cấp ăn (GPS)',
+  'Re-claim standard meal lines on the standard meal allowance form': 'Hãy yêu cầu lại các dòng phụ cấp ăn tiêu chuẩn bằng biểu mẫu phụ cấp ăn tiêu chuẩn',
   // Settings → Bases (2026-10-23)
   'Manage bases': 'Quản lý cơ sở',
   'Paste "latitude, longitude" or a Google Maps link from the address bar.': 'Dán "vĩ độ, kinh độ" hoặc liên kết Google Maps từ thanh địa chỉ.',

@@ -22,7 +22,7 @@ const {
   userCanApprove, canMarkPaid, computePurposes, stillAsRead, isStaleAbort, STALE_DOCUMENT, paysOwnDocument
 } = require('../lib/workflow');
 const { serializeOneMeal, loadMealClaimOr404, createMealClaim, gpsLineQueries } = require('../lib/meals');
-const { freezeRejectionsQuery, deleteReceiptIfUnused, payableTotalSql } = require('../lib/lines');
+const { freezeRejectionsQuery, deleteReceiptIfUnused, payableTotalSql, resolveLineSource } = require('../lib/lines');
 const { claimDateViolation, carriedLineDates } = require('../lib/claim-window');
 const { liveDateChange, dateChangeGranted, consumeDateChange } = require('../lib/date-changes');
 const { logMealHistory } = require('../lib/documents');
@@ -63,23 +63,34 @@ async function submitGpsMeal(req, res) {
   if (!mayRaiseGps(req.user, await computePurposes(req.user), settings)) {
     return res.status(403).json({ error: 'The GPS meal allowance is not switched on for your region' });
   }
-  if (await heldByUnrealizedAdvance(req, res)) return;
+  // A re-claim of another GPS claim's rejected days isn't a new claim (see POST /api/claims).
+  const src = await resolveLineSource(req, 'meal', b.source);
+  if (src && src.error) return res.status(400).json({ error: src.error });
+  if (src && src.row.scheme !== 'gps') return res.status(400).json({ error: 'Re-claim standard meal lines on the standard meal allowance form' });
+  if (!src && await heldByUnrealizedAdvance(req, res)) return;
   const base = await loadBase(req.user.id);
   const region = String(req.user.region || '');
-  const currency = (await regionPrefsFor(region)).currency;
+  const currency = src ? src.row.currency : (await regionPrefsFor(region)).currency;
   const parsed = normaliseGpsLines(b.lines, base, currency, { sites: await loadRegionSites(region), rules: mealGpsRules(settings, region) });
   if (parsed.error) return res.status(400).json({ error: parsed.error });
-  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region);
+  const dv = await claimDateViolation(parsed.lines.map(l => l.line_date), req.user.region,
+    src ? src.carried : undefined, src ? src.windowFrom : undefined);
   if (dv) return res.status(400).json({ error: dv.error, code: 'claim_date', earliest: dv.earliest });
   const clash = await takenError(req.user.id, parsed.lines, 0);
   if (clash) return res.status(409).json({ error: clash });
   const built = await resolveSubmitApprovers(req.user.approver1_options, req.user.approver_ids, b.approver1);
   if (built.error) return res.status(400).json({ error: built.error });
+  // A re-claimed day may keep the receipts of the rejected day it came from
+  // (re-linked to the same blobs); a fresh claim has none to keep.
+  const keepable = new Map((src ? src.atts : []).map(a => [Number(a.id), a]));
+  const keptByLine = parsed.lines.map(l => l.keepIds.filter(id => keepable.has(id)).map(id => keepable.get(id)));
+  const bare = parsed.lines.findIndex((l, i) => !keptByLine[i].length && !l.rawAttachments.length);
+  if (bare >= 0) return res.status(400).json({ error: `Line ${bare + 1} (${parsed.lines[bare].line_date}): attach the meal receipt` });
   const up = await verifyLineUploads(parsed.lines);
   if (up.error) return res.status(400).json({ error: up.error });
   let claimId;
   try {
-    claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, built.ids, region, null, { uploadsByLine: up.byLine });
+    claimId = await createMealClaim(req, parsed.lines, parsed.totalCents, built.ids, region, src, { uploadsByLine: up.byLine, keptByLine });
   } catch (e) { await dropUploads(up.all); throw e; }
   const rows = await q('SELECT * FROM meal_claims WHERE id = $1', [claimId]);
   const first = currentApproverId(rows[0]);

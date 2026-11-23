@@ -128,6 +128,7 @@ router.post('/api/meal-claims', requireAuth, ah(async (req, res) => {
   // A re-claim of rejected lines isn't a new claim (see POST /api/claims).
   const src = await resolveLineSource(req, 'meal', b.source);
   if (src && src.error) return res.status(400).json({ error: src.error });
+  if (src && src.row.scheme === 'gps') return res.status(400).json({ error: 'Re-claim GPS meal days on the GPS meal allowance form' });
   if (!src && await heldByUnrealizedAdvance(req, res)) return;
   const parsed = normaliseMealLines(b.lines);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
@@ -209,10 +210,8 @@ router.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => 
   if (refuseOutOfRegion(req, res, row)) return;
   if (row.status !== 'submitted') return res.status(409).json({ error: `Cannot approve a meal claim that is "${row.status}"` });
   if (!userCanApprove(req.user, row)) return res.status(403).json({ error: 'You are not the approver for this step' });
-  // A GPS claim is trimmed per line through its approved amounts instead.
-  if (row.scheme === 'gps' && Array.isArray(req.body && req.body.rejected_lines) && req.body.rejected_lines.length) {
-    return res.status(400).json({ error: 'Lower the line’s approved amount instead of rejecting it' });
-  }
+  // Both standard and GPS days can be rejected one by one (a GPS day can also
+  // just be lowered through its approved amount).
   const plan = await planLineRejections('meal', row, req.body && req.body.rejected_lines);
   if (plan.error) return res.status(400).json({ error: plan.error });
   const le = approvalLimitError(req.user, plan.remainingCents, row.currency);

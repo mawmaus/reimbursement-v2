@@ -1061,7 +1061,8 @@ I18N.addDict('km', {
   'Location': 'ទីតាំង',
   'Details': 'ព័ត៌មានលម្អិត',
   'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.': 'បើក ឬបិទប្រាក់ឧបត្ថម្ភអាហារ GPS សម្រាប់ {region}។ ពេលបើក អ្នកទាមទារកត់ត្រាទីតាំង និងភ្ជាប់វិក្កយបត្រសម្រាប់រាល់ថ្ងៃ ដោយវាស់ពីមូលដ្ឋាននៅលើគណនីរបស់ពួកគេ។',
-  'Lower the line’s approved amount instead of rejecting it': 'បន្ថយចំនួនទឹកប្រាក់ដែលបានអនុម័តរបស់ជួរជំនួសឱ្យការបដិសេធ',
+  'Re-claim GPS meal days on the GPS meal allowance form': 'សូមទាមទារថ្ងៃអាហារ GPS ឡើងវិញតាមទម្រង់ប្រាក់ឧបត្ថម្ភអាហារ (GPS)',
+  'Re-claim standard meal lines on the standard meal allowance form': 'សូមទាមទារជួរប្រាក់ឧបត្ថម្ភអាហារស្តង់ដារឡើងវិញតាមទម្រង់ប្រាក់ឧបត្ថម្ភអាហារស្តង់ដារ',
   // Settings → Bases (2026-10-23)
   'Manage bases': 'គ្រប់គ្រងមូលដ្ឋាន',
   'Paste "latitude, longitude" or a Google Maps link from the address bar.': 'បិទភ្ជាប់ "រយៈទទឹង, រយៈបណ្តោយ" ឬតំណ Google Maps ពីរបារអាសយដ្ឋាន។',

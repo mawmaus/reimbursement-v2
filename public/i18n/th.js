@@ -1061,7 +1061,8 @@ I18N.addDict('th', {
   'Location': 'ตำแหน่ง',
   'Details': 'รายละเอียด',
   'Switch the GPS meal allowance on or off for {region}. When it is on, claimants record their location and attach a receipt for every day, measured against the base on their account.': 'เปิดหรือปิดค่าอาหาร GPS สำหรับ {region} เมื่อเปิด ผู้เบิกจะบันทึกตำแหน่งและแนบใบเสร็จทุกวัน โดยวัดระยะจากฐานในบัญชี',
-  'Lower the line’s approved amount instead of rejecting it': 'ลดจำนวนเงินที่อนุมัติของรายการแทนการปฏิเสธ',
+  'Re-claim GPS meal days on the GPS meal allowance form': 'เบิกวันค่าอาหาร GPS ใหม่ผ่านแบบฟอร์มค่าอาหาร (GPS)',
+  'Re-claim standard meal lines on the standard meal allowance form': 'เบิกรายการค่าอาหารแบบมาตรฐานใหม่ผ่านแบบฟอร์มค่าอาหารแบบมาตรฐาน',
   // Settings → Bases (2026-10-23)
   'Manage bases': 'จัดการฐาน',
   'Paste "latitude, longitude" or a Google Maps link from the address bar.': 'วาง "ละติจูด, ลองจิจูด" หรือลิงก์ Google Maps จากแถบที่อยู่',

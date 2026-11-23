@@ -13,7 +13,7 @@
 const MG_KIND = 'mealgps';
 const MG_MEALS = ['Breakfast', 'Lunch', 'Dinner'];
 let mgRows = [];
-let mgEditId = null;   // the claim being resubmitted (kept receipts link to it)
+let mgEditId = null;   // the claim being resubmitted or re-claimed from (kept receipts link to it)
 let mgSites = [];      // pinned customer sites (Settings → Customer sites): what each day is measured to
 let mgSitesReady = false;
 
@@ -412,19 +412,22 @@ function collectMealGpsDraft() {
 }
 const collectMealGpsFiles = () => mgRows.map(r => r.files.slice());
 
-async function openMealGpsModal(existing = null) {
+// `reclaim` opens a NEW GPS claim prefilled with another GPS claim's rejected days.
+async function openMealGpsModal(existing = null, reclaim = null) {
   // Fetch the region's current daily limits so the hints and checks follow them.
   try {
     const data = await api('/meal-gps-settings' + (existing?.region ? '?region=' + encodeURIComponent(existing.region) : ''));
     state.user.meal_gps = { ...state.user.meal_gps, rules: data.rules };
   } catch (ex) { toast(ex.message, true); return; }
   const isEdit = !!existing;
-  mgEditId = isEdit ? existing.id : null;
-  setClaimDateContext(isEdit ? existing : null);
-  const fresh = !isEdit;
+  mgEditId = isEdit ? existing.id : reclaim ? reclaim.id : null;
+  setClaimDateContext(isEdit ? existing : reclaim ? { date_floor: reclaim.floor, lines: reclaim.lines } : null);
+  const fresh = !isEdit && !reclaim;
   const draft = fresh ? draftForForm(MG_KIND) : null;
-  if (isEdit) {
-    mgRows = activeLines(existing).map(l => {
+  if (isEdit || reclaim) {
+    // The claim's live days, or the rejected days being re-claimed — each with
+    // its receipts kept (they stay linked to the same files).
+    mgRows = (isEdit ? activeLines(existing) : reclaim.lines).map(l => {
       const meals = (l.meals || []).map(n => String(Math.round(n)));
       while (meals.length < 3) meals.push('');
       return {
@@ -450,10 +453,11 @@ async function openMealGpsModal(existing = null) {
   });
   const base = mgCfg().base;
   openModal(`
-    ${formHeadHtml(isEdit ? t('Edit & resubmit GPS meal allowance') : t('Meal allowance (GPS)'))}
+    ${formHeadHtml(isEdit ? t('Edit & resubmit GPS meal allowance') : reclaim ? t('Re-claim rejected lines') : t('Meal allowance (GPS)'))}
     <div class="modal-body">
       <form id="mgForm" class="form lf-form" novalidate>
         ${draft ? draftBannerHtml() : ''}
+        ${reclaim ? reclaimNoteHtml(reclaim) : ''}
         <p class="form-error" id="mgError" hidden></p>
         <div class="meal-scroll">
           ${mgBaseHtml()}
@@ -504,7 +508,7 @@ async function openMealGpsModal(existing = null) {
     mgRender();
     if (unpick) { const q = $(`#mgDays .mg-day[data-i="${i}"] .mg-cust-q`); if (q) q.focus(); }
   });
-  $('#mgForm').addEventListener('submit', e => submitMealGps(e, existing));
+  $('#mgForm').addEventListener('submit', e => submitMealGps(e, existing, reclaim));
   renderClaimDateBox();
   mgRender();
   mgInitMap();
@@ -518,7 +522,7 @@ async function openMealGpsModal(existing = null) {
   }
 }
 
-async function submitMealGps(e, existing) {
+async function submitMealGps(e, existing, reclaim = null) {
   e.preventDefault();
   mgReadRows();
   const err = $('#mgError'); err.hidden = true;
@@ -555,6 +559,7 @@ async function submitMealGps(e, existing) {
     }
     const payload = { scheme: 'gps', lines };
     if (needsApprover1) payload.approver1 = Number(approver1);
+    if (reclaim) payload.source = { type: reclaim.type, id: reclaim.id, line_ids: reclaim.lines.map(l => l.id) };
     btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
     if (existing) {
       payload.resubmit_note = String(new FormData(e.target).get('resubmit_note') || '').trim();
@@ -563,7 +568,7 @@ async function submitMealGps(e, existing) {
     } else {
       await api('/meal-claims', { method: 'POST', body: JSON.stringify(payload) });
       toast(t('Meal claim submitted'));
-      clearDraft(MG_KIND);
+      if (!reclaim) clearDraft(MG_KIND);
     }
     modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
