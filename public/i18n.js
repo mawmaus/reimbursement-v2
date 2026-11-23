@@ -23,6 +23,7 @@
   const LANGS = [
     { code: 'en', label: 'English' },
     { code: 'id', label: 'Indonesia' },
+    { code: 'ms', label: 'Malaysia' },
     { code: 'th', label: 'Thailand' },
     { code: 'vi', label: 'Vietnam' },
     { code: 'km', label: 'Cambodia' },
@@ -33,7 +34,7 @@
 
   // Native-name for the option label, so a speaker recognises their language
   // even when the current UI is in another language.
-  const NATIVE = { en: 'English', id: 'Bahasa Indonesia', th: 'ไทย', vi: 'Tiếng Việt', km: 'ខ្មែរ', fil: 'Filipino' };
+  const NATIVE = { en: 'English', id: 'Bahasa Indonesia', ms: 'Bahasa Melayu', th: 'ไทย', vi: 'Tiếng Việt', km: 'ខ្មែរ', fil: 'Filipino' };
 
   // Translations live in public/i18n/<code>.js, one file per language, so a
   // browser downloads only the language in use. Each file registers itself via
@@ -47,6 +48,7 @@
   const MONTHS = {
     en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
     id: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'],
+    ms: ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'],
     th: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'],
     vi: ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'],
     km: ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'],

@@ -10,12 +10,8 @@
 // "Meal Allowance Claim Form": a title, an editable table (one row per day),
 // a live total, and the rate note at the bottom.
 // ---------------------------------------------------------------------------
-// A running total in the region's default currency (Settings → Currency & time
-// zone). Mirrors money()'s locale/currency convention so the live total in a
-// claim form reads the same as the claim will once submitted — and follows the
-// region when its default currency changes (e.g. IDR → USD).
-function liveAmt(n) { return money(n || 0, regionCurrency()); }
-const mealAmount = (s) => { const n = Number(String(s == null ? '' : s).replace(/[^0-9]/g, '')); return Number.isFinite(n) ? n : 0; };
+function liveAmt(n) { return money(n || 0, formCurrency()); }
+const mealAmount = (s) => { const n = Number(String(s ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : 0; };
 
 // The preset meal-allowance amounts are configured per region in Settings → Meal
 // allowance and loaded into state.mealRates. The Amount field is a dropdown of
@@ -36,10 +32,17 @@ function mealAmountSelect(val) {
   </select>`;
 }
 
+// Cap the standard scheme while preserving the claim window's earlier bounds.
+function standardMealDateInput(r) {
+  const html = claimDateInput('date', r.date, r.carried);
+  const max = html.match(/max="([^"]*)"/);
+  if (!max) return html.replace('<input ', '<input max="2026-10-31" ');
+  return max[1] <= '2026-10-31' ? html : html.replace(max[0], 'max="2026-10-31"');
+}
 let mealRows = [];
 function mealRowHtml(r, i) {
   return `<tr data-i="${i}" data-n="${esc(t('Line {n}', { n: i + 1 }))}">
-    <td data-label="${esc(t('Date'))}">${claimDateInput('date', r.date, r.carried)}</td>
+    <td data-label="${esc(t('Date'))}">${standardMealDateInput(r)}</td>
     <td data-label="${esc(t('DB Number Site'))}">${dbCellHtml(r.site)}</td>
     <td data-label="${esc(t('Job Category'))}"><input name="category" value="${esc(r.category || '')}" placeholder="${i ? '' : esc(t('Install / Repair / Service…'))}" /></td>
     <td data-label="${esc(t('Amount'))}">${mealAmountSelect(r.amount)}</td>
@@ -91,7 +94,7 @@ async function openMealAllowanceModal(existing = null, reclaim = null) {
     // the rejected lines being re-claimed.
     mealRows = (isEdit ? activeLines(existing) : reclaim.lines).map(l => ({
       date: l.line_date, site: l.site, category: l.job_category,
-      amount: l.amount != null ? Math.round(l.amount) : '', desc: l.description, carried: !claimDateUnlocked()
+      amount: l.amount ?? '', desc: l.description, carried: !claimDateUnlocked()
     }));
     if (!mealRows.length) mealRows = [{ date: '', site: '', category: '', amount: '', desc: '' }];
   } else if (draft && Array.isArray(draft.data.rows) && draft.data.rows.length) {
@@ -103,9 +106,10 @@ async function openMealAllowanceModal(existing = null, reclaim = null) {
     mealRows = Array.from({ length: 5 }, () => ({ date: '', site: '', category: '', amount: '', desc: '' }));
   }
   openModal(`
-    ${formHeadHtml(isEdit ? t('Edit & resubmit meal allowance') : reclaim ? t('Re-claim rejected lines') : t('Meal Allowance Claim Form'))}
+    ${formHeadHtml(isEdit ? t('Edit & resubmit meal allowance') : reclaim ? t('Re-claim rejected lines') : t('Meal Allowance Claim Form'), existing?.currency || reclaim?.currency)}
     <div class="modal-body">
       <form id="mealForm" class="form lf-form">
+        <p class="muted">${esc(t('The standard meal allowance only covers dates through 31 October 2026.'))}</p>
         ${draft ? draftBannerHtml() : ''}
         ${reclaim ? reclaimNoteHtml(reclaim) : ''}
         <p class="form-error" id="mealError" hidden></p>
@@ -174,6 +178,10 @@ async function submitMealClaim(e, existing, reclaim = null) {
     .filter(r => r.date || r.site || r.category || r.desc || mealAmount(r.amount))
     .map(r => ({ date: r.date, site: r.site, category: r.category, amount: mealAmount(r.amount), desc: r.desc }));
   if (!lines.length) { err.textContent = t('Add at least one line with a date and amount'); err.hidden = false; return; }
+  if (lines.some(l => l.date > '2026-10-31')) {
+    err.textContent = t('The standard meal allowance only covers dates through 31 October 2026.');
+    err.hidden = false; return;
+  }
   // Claim-date policy, with the same carry-over exemption as reimbursement claims.
   const dateErr = claimDatesError(lines.map(l => l.date));
   if (dateErr) { err.textContent = dateErr; err.hidden = false; return; }
@@ -182,7 +190,7 @@ async function submitMealClaim(e, existing, reclaim = null) {
   if (needsApprover1 && !approver1) { err.textContent = t('Please choose Approver 1.'); err.hidden = false; return; }
   const btn = e.target.querySelector('button[type="submit"]');
   btn.disabled = true;
-  const payload = { lines };
+  const payload = { lines, ...(!existing && { display_currency: formCurrency() }) };
   if (needsApprover1) payload.approver1 = Number(approver1);
   if (existing) payload.resubmit_note = (new FormData(e.target).get('resubmit_note') || '').trim();
   if (reclaim) payload.source = { type: reclaim.type, id: reclaim.id, line_ids: reclaim.lines.map(l => l.id) };

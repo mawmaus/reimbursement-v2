@@ -101,20 +101,14 @@ async function openExportModal() {
   $('#exportCancel').addEventListener('click', closeModal);
 
   // Quick date presets: fill From/To with this or last calendar month / year.
-  // Dates are formatted from local components (not toISOString) so the day never
-  // shifts. `off` steps back one period; a 0 day rolls to the period's last day.
-  const ymd = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  // Anchor to the account region's calendar, then use UTC for date-only math.
+  const ymd = (year, month, day) => new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
   $$('.date-presets button').forEach(b => b.addEventListener('click', () => {
-    const now = new Date();
+    const [year, month] = todayWIB().split('-').map(Number);
     const off = Number(b.dataset.off) || 0;
-    const first = b.dataset.unit === 'year'
-      ? new Date(now.getFullYear() - off, 0, 1)
-      : new Date(now.getFullYear(), now.getMonth() - off, 1);
-    const last = b.dataset.unit === 'year'
-      ? new Date(now.getFullYear() - off, 11, 31)
-      : new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
-    $('#exportForm [name="from"]').value = ymd(first);
-    $('#exportForm [name="to"]').value = ymd(last);
+    const yearly = b.dataset.unit === 'year';
+    $('#exportForm [name="from"]').value = yearly ? ymd(year - off, 0, 1) : ymd(year, month - 1 - off, 1);
+    $('#exportForm [name="to"]').value = yearly ? ymd(year - off, 11, 31) : ymd(year, month - off, 0);
     $$('.date-presets .ex-chip').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     syncExportSummary();
   }));

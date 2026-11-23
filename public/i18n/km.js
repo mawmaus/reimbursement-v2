@@ -4,6 +4,9 @@
 // demand by i18n.js (only the active language is fetched) and registered via
 // I18N.addDict. Add a key here whenever a new t('…') string is added.
 I18N.addDict('km', {
+  // Regional currency validation
+  "This claim uses a different currency from your approval limit.": "រូបិយប័ណ្ណនៃការទាមទារនេះខុសពីរូបិយប័ណ្ណនៃដែនកំណត់អនុម័តរបស់អ្នក។",
+  "Your claim currency has changed. Refresh the page before submitting.": "រូបិយប័ណ្ណនៃការទាមទាររបស់អ្នកបានផ្លាស់ប្ដូរ។ សូមផ្ទុកទំព័រឡើងវិញមុនពេលដាក់ស្នើ។",
   // Per-line approval
   '1 line rejected': 'បានបដិសេធ 1 ជួរ',
   '{n} lines rejected': 'បានបដិសេធ {n} ជួរ',
@@ -167,6 +170,8 @@ I18N.addDict('km', {
   'With DB': 'មាន DB',
   'DB number': 'លេខ DB',
   'Job Category': 'ប្រភេទការងារ',
+  'Work details': 'ព័ត៌មានលម្អិតការងារ',
+  'e.g. Training Owner and BAST': 'ឧ. Training Owner និង BAST',
   'Additional Description': 'ការពិពណ៌នាបន្ថែម',
   'No lines.': 'គ្មានបន្ទាត់។',
   'TOTAL CLAIM MEAL ALLOWANCE': 'សំណើប្រាក់ឧបត្ថម្ភអាហារសរុប',
@@ -1439,6 +1444,7 @@ I18N.addDict('km', {
   "Check the total, then press Submit claim. If anything is missing, the day turns red and says what to fix. Not finished? Save draft and come back later.": "ពិនិត្យសរុប រួចចុច ដាក់ស្នើសំណើ។ ប្រសិនបើខ្វះអ្វី ថ្ងៃនោះប្រែពណ៌ក្រហម ហើយប្រាប់អ្វីដែលត្រូវកែ។ មិនទាន់រួច? ចុច រក្សាទុកសេចក្ដីព្រាង ហើយត្រឡប់មកវិញពេលក្រោយ។",
   "Guide": "ការណែនាំ",
   "Show me how to fill this in": "បង្ហាញខ្ញុំពីរបៀបបំពេញ",
+  "The standard meal allowance only covers dates through 31 October 2026.": "ប្រាក់ឧបត្ថម្ភអាហារស្តង់ដារអនុវត្តតែសម្រាប់កាលបរិច្ឆេទរហូតដល់ថ្ងៃទី 31 ខែតុលា ឆ្នាំ 2026 ប៉ុណ្ណោះ។",
   "All time": "គ្រប់ពេល",
   "This quarter": "ត្រីមាសនេះ",
   "This half-year": "ឆមាសនេះ",

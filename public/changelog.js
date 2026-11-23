@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // "What's new" — the release notes behind the top-bar ✦ button.
 //
-// Newest release first. Every item's `text` MUST carry all six UI languages
-// (en, id, th, vi, km, fil): `node scripts/check-changelog.js` fails on a
+// Newest release first. Every item's `text` MUST carry all supported UI languages
+// (en, id, ms, th, vi, km, fil): `node scripts/check-changelog.js` fails on a
 // missing or empty one, so run it before every deploy that adds an entry. At
 // runtime a missing language falls back to English rather than showing blank.
 //
@@ -28,12 +28,46 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-23.2',
+    date: '2026-11-23',
+    items: [
+      { kind: 'new', text: {
+        en: 'The portal is now available in Malay (Bahasa Melayu). Pick it from the language menu.',
+        id: 'Portal kini tersedia dalam bahasa Melayu (Bahasa Melayu). Pilih dari menu bahasa.',
+        ms: 'Portal kini tersedia dalam Bahasa Melayu. Pilih daripada menu bahasa.',
+        th: 'พอร์ทัลรองรับภาษามลายู (Bahasa Melayu) แล้ว เลือกได้จากเมนูภาษา',
+        vi: 'Cổng thông tin giờ đã có tiếng Mã Lai (Bahasa Melayu). Chọn trong menu ngôn ngữ.',
+        km: 'វិបផតថលឥឡូវមានជាភាសាម៉ាឡេ (Bahasa Melayu)។ ជ្រើសរើសវាពីម៉ឺនុយភាសា។',
+        fil: 'Available na ang portal sa Malay (Bahasa Melayu). Piliin ito sa menu ng wika.'
+      } },
+      { kind: 'improved', audience: ['meal'], text: {
+        en: 'The standard meal allowance form now only takes dates up to 31 October 2026. For days from 1 November, use Meal allowance (GPS). On the GPS form, "Submit claim" stays greyed out until every day is complete, and the last field is now called "Work details".',
+        id: 'Formulir tunjangan makan standar kini hanya menerima tanggal sampai 31 Oktober 2026. Untuk hari mulai 1 November, gunakan Tunjangan makan (GPS). Di formulir GPS, tombol "Ajukan klaim" tetap abu-abu sampai setiap hari lengkap, dan kolom terakhir kini bernama "Detail pekerjaan".',
+        ms: 'Borang elaun makan standard kini hanya menerima tarikh sehingga 31 Oktober 2026. Untuk hari mulai 1 November, gunakan Elaun makan (GPS). Pada borang GPS, butang "Hantar tuntutan" kekal kelabu sehingga setiap hari lengkap, dan medan terakhir kini dinamakan "Butiran kerja".',
+        th: 'แบบฟอร์มค่าอาหารแบบมาตรฐานรับเฉพาะวันที่ถึง 31 ตุลาคม 2026 เท่านั้น สำหรับวันตั้งแต่ 1 พฤศจิกายน ให้ใช้ค่าอาหาร (GPS) ในแบบฟอร์ม GPS ปุ่ม "ส่งคำขอเบิก" จะเป็นสีเทาจนกว่าทุกวันจะกรอกครบ และช่องสุดท้ายเปลี่ยนชื่อเป็น "รายละเอียดงาน"',
+        vi: 'Biểu mẫu phụ cấp ăn tiêu chuẩn giờ chỉ nhận ngày đến hết 31/10/2026. Với các ngày từ 1/11, hãy dùng Phụ cấp ăn (GPS). Trên biểu mẫu GPS, nút "Gửi yêu cầu" sẽ mờ cho đến khi mọi ngày được điền đủ, và ô cuối giờ có tên "Chi tiết công việc".',
+        km: 'ទម្រង់ប្រាក់ឧបត្ថម្ភអាហារស្តង់ដារឥឡូវទទួលតែកាលបរិច្ឆេទរហូតដល់ 31 តុលា 2026 ប៉ុណ្ណោះ។ សម្រាប់ថ្ងៃចាប់ពី 1 វិច្ឆិកា សូមប្រើប្រាក់ឧបត្ថម្ភអាហារ (GPS)។ នៅលើទម្រង់ GPS ប៊ូតុង "ដាក់ស្នើការទាមទារ" នៅតែពណ៌ប្រផេះរហូតដល់គ្រប់ថ្ងៃបានបំពេញគ្រប់ ហើយវាលចុងក្រោយឥឡូវមានឈ្មោះ "ព័ត៌មានលម្អិតការងារ"។',
+        fil: 'Tumatanggap na lang ang standard na meal allowance form ng mga petsa hanggang 31 Oktubre 2026. Para sa mga araw mula 1 Nobyembre, gamitin ang Meal allowance (GPS). Sa GPS form, mananatiling kulay-abo ang "Isumite ang claim" hanggang kumpleto ang bawat araw, at "Detalye ng trabaho" na ang tawag sa huling field.'
+      } },
+      { kind: 'fixed', text: {
+        en: 'A claim, meal claim or cash advance now always keeps the currency it was submitted in, even when edited or re-claimed. If your region\'s currency changes while a form is open, you are asked to refresh before submitting. Claim numbers follow your region\'s calendar year.',
+        id: 'Klaim, klaim makan, atau uang muka kini selalu mempertahankan mata uang saat diajukan, termasuk saat diedit atau diklaim ulang. Jika mata uang wilayah Anda berubah saat formulir terbuka, Anda diminta memuat ulang halaman sebelum mengirim. Nomor klaim mengikuti tahun kalender wilayah Anda.',
+        ms: 'Tuntutan, tuntutan makan atau pendahuluan tunai kini sentiasa mengekalkan mata wang semasa dihantar, termasuk semasa diubah atau dituntut semula. Jika mata wang wilayah anda berubah semasa borang dibuka, anda diminta memuat semula halaman sebelum menghantar. Nombor tuntutan mengikut tahun kalendar wilayah anda.',
+        th: 'คำขอเบิก คำขอเบิกค่าอาหาร หรือเงินทดรองจะคงสกุลเงินที่ใช้ตอนส่งไว้เสมอ แม้ตอนแก้ไขหรือเบิกใหม่ หากสกุลเงินของภูมิภาคเปลี่ยนขณะเปิดแบบฟอร์มอยู่ ระบบจะให้รีเฟรชหน้าก่อนส่ง เลขที่คำขอเบิกจะเป็นไปตามปีปฏิทินของภูมิภาคคุณ',
+        vi: 'Yêu cầu, yêu cầu tiền ăn hoặc tạm ứng giờ luôn giữ đơn vị tiền tệ lúc gửi, kể cả khi chỉnh sửa hoặc yêu cầu lại. Nếu tiền tệ của khu vực thay đổi khi biểu mẫu đang mở, bạn sẽ được yêu cầu tải lại trang trước khi gửi. Số yêu cầu theo năm dương lịch của khu vực bạn.',
+        km: 'ការទាមទារ ការទាមទារអាហារ ឬប្រាក់បុរេប្រទាន ឥឡូវតែងរក្សារូបិយប័ណ្ណដែលបានដាក់ស្នើ សូម្បីពេលកែ ឬទាមទារឡើងវិញ។ ប្រសិនបើរូបិយប័ណ្ណនៃតំបន់របស់អ្នកផ្លាស់ប្តូរពេលទម្រង់កំពុងបើក អ្នកនឹងត្រូវបានស្នើឱ្យផ្ទុកទំព័រឡើងវិញមុនដាក់ស្នើ។ លេខការទាមទារធ្វើតាមឆ្នាំប្រតិទិននៃតំបន់របស់អ្នក។',
+        fil: 'Pinananatili na ng claim, meal claim o cash advance ang currency kung saan ito isinumite, kahit kapag ine-edit o kine-claim muli. Kung magbago ang currency ng iyong rehiyon habang bukas ang form, hihilingin sa iyong i-refresh muna bago magsumite. Sumusunod ang mga numero ng claim sa taon ng kalendaryo ng iyong rehiyon.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-23.1',
     date: '2026-11-23',
     items: [
       { kind: 'new', text: {
         en: 'GPS meal allowance claims can now have single days rejected, like other claims. The approver presses "Reject line" on a day and gives a reason; the other days are approved and paid as usual. The claimant re-claims a rejected day on a new GPS claim with "Re-claim rejected lines", and its receipt comes along.',
         id: 'Klaim tunjangan makan (GPS) kini juga bisa ditolak per hari, seperti klaim lainnya. Penyetuju menekan "Tolak baris" pada satu hari dan memberi alasan; hari-hari lainnya tetap disetujui dan dibayar seperti biasa. Pengklaim mengajukan hari yang ditolak di klaim GPS baru lewat "Klaim ulang baris yang ditolak", dan struknya ikut terbawa.',
+        ms: 'Tuntutan elaun makan (GPS) kini juga boleh ditolak mengikut hari, seperti tuntutan lain. Pelulus menekan "Tolak baris" pada satu hari dan memberi sebab; hari-hari lain tetap diluluskan dan dibayar seperti biasa. Penuntut menuntut semula hari yang ditolak dalam tuntutan GPS baharu melalui "Tuntutan semula baris yang ditolak", dan resitnya turut dibawa.',
         th: 'คำขอเบิกค่าอาหาร (GPS) สามารถปฏิเสธเป็นรายวันได้แล้ว เหมือนคำขอเบิกอื่นๆ ผู้อนุมัติกด "ปฏิเสธรายการ" ที่วันนั้นและระบุเหตุผล วันอื่นๆ จะได้รับอนุมัติและจ่ายตามปกติ ผู้เบิกสามารถเบิกวันที่ถูกปฏิเสธใหม่ในคำขอ GPS ใหม่ด้วย "เบิกรายการที่ถูกปฏิเสธใหม่" และใบเสร็จจะติดไปด้วย',
         vi: 'Yêu cầu Phụ cấp ăn (GPS) giờ cũng có thể bị từ chối theo từng ngày, như các yêu cầu khác. Người duyệt nhấn "Từ chối dòng" trên một ngày và nêu lý do; các ngày còn lại vẫn được duyệt và thanh toán như bình thường. Người yêu cầu yêu cầu lại ngày bị từ chối trên một yêu cầu GPS mới bằng "Yêu cầu lại các dòng bị từ chối", kèm theo biên lai của ngày đó.',
         km: 'ការទាមទារប្រាក់ឧបត្ថម្ភអាហារ (GPS) ឥឡូវអាចបដិសេធតាមថ្ងៃបានដែរ ដូចការទាមទារផ្សេងទៀត។ អ្នកអនុម័តចុច "បដិសេធជួរ" លើថ្ងៃមួយ ហើយផ្តល់មូលហេតុ ថ្ងៃផ្សេងទៀតនៅតែត្រូវបានអនុម័ត និងបង់ប្រាក់ធម្មតា។ អ្នកទាមទារអាចទាមទារថ្ងៃដែលបានបដិសេធឡើងវិញលើការទាមទារ GPS ថ្មីតាម "ទាមទារឡើងវិញនូវជួរដែលបានបដិសេធ" ហើយបង្កាន់ដៃរបស់វាក៏ភ្ជាប់មកជាមួយ។',
@@ -93,6 +127,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['pay'], text: {
         en: 'Payments now always need a second person: if you record payments, you can no longer mark your own claim, meal claim or cash advance as paid or settled — a colleague does it. In a bulk payment your own claims are skipped. Super Admins are not affected.',
         id: 'Pembayaran kini selalu melibatkan orang kedua: jika Anda mencatat pembayaran, Anda tidak bisa lagi menandai klaim, klaim makan, atau uang muka Anda sendiri sebagai dibayar atau diselesaikan — rekan Anda yang melakukannya. Dalam pembayaran massal, klaim Anda sendiri dilewati. Super Admin tidak terpengaruh.',
+        ms: 'Pembayaran kini sentiasa memerlukan orang kedua: jika anda merekod pembayaran, anda tidak lagi boleh menandakan tuntutan, tuntutan makan atau pendahuluan tunai anda sendiri sebagai dibayar atau diselesaikan — rakan sekerja yang melakukannya. Dalam pembayaran pukal, tuntutan anda sendiri dilangkau. Super Admin tidak terjejas.',
         th: 'การจ่ายเงินต้องมีบุคคลที่สองเสมอ: หากคุณเป็นผู้บันทึกการจ่ายเงิน คุณจะทำเครื่องหมายว่าจ่ายแล้วหรือปิดยอดการเบิก ค่าอาหาร หรือเงินทดรองของตัวเองไม่ได้อีกต่อไป — ให้เพื่อนร่วมงานทำแทน ในการจ่ายแบบกลุ่ม รายการของคุณเองจะถูกข้าม ไม่มีผลกับ Super Admin',
         vi: 'Thanh toán giờ luôn cần người thứ hai: nếu bạn ghi nhận thanh toán, bạn không thể tự đánh dấu đã thanh toán hoặc tất toán yêu cầu, yêu cầu tiền ăn hay tạm ứng của chính mình — đồng nghiệp sẽ làm. Khi thanh toán hàng loạt, yêu cầu của bạn sẽ được bỏ qua. Super Admin không bị ảnh hưởng.',
         km: 'ការបង់ប្រាក់ឥឡូវតែងត្រូវការមនុស្សទីពីរ៖ ប្រសិនបើអ្នកកត់ត្រាការបង់ប្រាក់ អ្នកលែងអាចសម្គាល់សំណើ សំណើអាហារ ឬប្រាក់បុរេប្រទានរបស់អ្នកផ្ទាល់ថាបានបង់ ឬទូទាត់ហើយ — សហការីជាអ្នកធ្វើ។ ក្នុងការបង់ជាក្រុម សំណើរបស់អ្នកផ្ទាល់ត្រូវបានរំលង។ Super Admin មិនរងផលប៉ះពាល់ទេ។',
@@ -102,11 +137,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-15.2',
+    ms: '2026-11-15.2',
     date: '2026-11-15',
     items: [
       { kind: 'improved', audience: ['superadmin'], text: {
         en: 'Regional Admin now has full Super Admin access inside its own region: every permission, the full account editor (including Excel import and export), approving or reverting any claim in the region, and every Settings page for it. It still never sees other regions. Company-wide tools — the Regions overview, Helpdesk inbox, feedback and email setup — stay with Super Admins.',
         id: 'Regional Admin kini memiliki akses penuh Super Admin di region-nya sendiri: semua izin, editor akun lengkap (termasuk impor dan ekspor Excel), menyetujui atau membatalkan klaim apa pun di region tersebut, dan semua halaman Pengaturan untuknya. Region lain tetap tidak terlihat. Alat seluruh perusahaan — ringkasan Region, kotak masuk Helpdesk, kritik & saran, dan pengaturan email — tetap untuk Super Admin.',
+        ms: 'Pentadbir Wilayah kini mempunyai akses penuh Super Admin di wilayahnya sendiri: semua kebenaran, penyunting akaun lengkap (termasuk import dan eksport Excel), meluluskan atau membatalkan tuntutan apa-apa di wilayah tersebut, dan semua halaman Tetapan untuknya. Wilayah lain tetap tidak terlihat. Alat seluruh perusahaan — ringkasan Wilayah, peti masuk Helpdesk, maklum balas, dan tetapan e-mel — tetap untuk Super Admin.',
         th: 'ตอนนี้ Regional Admin มีสิทธิ์เต็มแบบ Super Admin ภายในภูมิภาคของตนเอง: ทุกสิทธิ์ ตัวแก้ไขบัญชีแบบเต็ม (รวมการนำเข้าและส่งออก Excel) การอนุมัติหรือย้อนกลับเคลมใดก็ได้ในภูมิภาค และทุกหน้าการตั้งค่าของภูมิภาคนั้น แต่ยังมองไม่เห็นภูมิภาคอื่น เครื่องมือระดับทั้งบริษัท — ภาพรวมภูมิภาค กล่องข้อความ Helpdesk ข้อเสนอแนะ และการตั้งค่าอีเมล — ยังเป็นของ Super Admin',
         vi: 'Regional Admin giờ có toàn quyền như Super Admin trong khu vực của mình: mọi quyền, trình chỉnh sửa tài khoản đầy đủ (gồm nhập và xuất Excel), duyệt hoặc hoàn tác mọi yêu cầu trong khu vực, và mọi trang Cài đặt của khu vực đó. Vai trò này vẫn không thấy các khu vực khác. Các công cụ toàn công ty — tổng quan Khu vực, hộp thư Helpdesk, góp ý và cài đặt email — vẫn dành cho Super Admin.',
         km: 'ឥឡូវ Regional Admin មានសិទ្ធិពេញលេញដូច Super Admin ក្នុងតំបន់របស់ខ្លួន៖ គ្រប់សិទ្ធិ កម្មវិធីកែគណនីពេញលេញ (រួមទាំងការនាំចូល និងនាំចេញ Excel) ការអនុម័ត ឬត្រឡប់ការទាមទារណាមួយក្នុងតំបន់ និងគ្រប់ទំព័រការកំណត់របស់តំបន់នោះ។ វានៅតែមិនឃើញតំបន់ផ្សេងទៀត។ ឧបករណ៍ទូទាំងក្រុមហ៊ុន — ទិដ្ឋភាពទូទៅតំបន់ ប្រអប់ Helpdesk មតិកែលម្អ និងការកំណត់អ៊ីមែល — នៅតែសម្រាប់ Super Admin។',
@@ -116,11 +153,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-15.1',
+    ms: '2026-11-15.1',
     date: '2026-11-15',
     items: [
       { kind: 'new', audience: ['superadmin'], text: {
         en: 'New role: Regional Admin. It has the same powers as a Country Manager / Managing Director, but only ever sees its own region — claims, insights and settings. Unlike a CM/MD, it can’t look at other regions. Assign it in an account’s Role, and set its permissions in Settings → Roles.',
         id: 'Peran baru: Regional Admin. Kewenangannya sama dengan Country Manager / Managing Director, tetapi hanya pernah melihat region-nya sendiri — klaim, insight, dan pengaturan. Berbeda dengan CM/MD, peran ini tidak dapat melihat region lain. Tetapkan di Peran akun, dan atur izinnya di Pengaturan → Peran.',
+        ms: 'Peranan baharu: Pentadbir Wilayah. Kewenangannya sama dengan Country Manager / Managing Director, tetapi hanya pernah melihat wilayahnya sendiri — tuntutan, analisis, dan tetapan. Berbeza dengan CM/MD, peranan ini tidak dapat melihat wilayah lain. Tetapkan di Peranan akaun, dan tetapkan kebenarannya di Tetapan → Peranan.',
         th: 'บทบาทใหม่: Regional Admin มีสิทธิ์เหมือน Country Manager / Managing Director แต่เห็นเฉพาะภูมิภาคของตนเองเท่านั้น — เคลม ข้อมูลเชิงลึก และการตั้งค่า ต่างจาก CM/MD ตรงที่ดูภูมิภาคอื่นไม่ได้ กำหนดได้ที่บทบาทของบัญชี และตั้งค่าสิทธิ์ที่ การตั้งค่า → บทบาท',
         vi: 'Vai trò mới: Regional Admin. Có quyền như Country Manager / Managing Director nhưng chỉ thấy khu vực của mình — yêu cầu, thống kê và cài đặt. Khác với CM/MD, vai trò này không thể xem khu vực khác. Gán trong mục Vai trò của tài khoản và thiết lập quyền tại Cài đặt → Vai trò.',
         km: 'តួនាទីថ្មី៖ Regional Admin។ មានសិទ្ធិដូច Country Manager / Managing Director ប៉ុន្តែឃើញតែតំបន់របស់ខ្លួនប៉ុណ្ណោះ — ការទាមទារ ការវិភាគ និងការកំណត់។ ខុសពី CM/MD វាមិនអាចមើលតំបន់ផ្សេងទៀតបានទេ។ កំណត់វានៅតួនាទីរបស់គណនី ហើយកំណត់សិទ្ធិរបស់វានៅ ការកំណត់ → តួនាទី។',
@@ -130,11 +169,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-13.5',
+    ms: '2026-11-13.5',
     date: '2026-11-13',
     items: [
       { kind: 'new', audience: ['settings', 'insights'], text: {
         en: 'Roles can now be given region-wide insights instead of company-wide: a Country Manager / Managing Director with “View region-wide insights” sees Insights for every department in their own region only — picking another region in the top bar doesn’t change it. Set it per region in Settings → Roles.',
         id: 'Peran kini bisa diberi wawasan seluruh region, bukan seluruh perusahaan: Country Manager / Managing Director dengan “Lihat wawasan seluruh region” melihat Insight untuk semua departemen di region-nya sendiri saja — memilih region lain di bilah atas tidak mengubahnya. Atur per region di Pengaturan → Peran.',
+        ms: 'Peranan kini boleh diberi analisis seluruh wilayah, bukan seluruh perusahaan: Country Manager / Managing Director dengan “Lihat analisis seluruh wilayah” melihat Analisis untuk semua jabatan di wilayahnya sendiri sahaja — memilih wilayah lain di bilah atas tidak mengubahnya. Tetapkan per wilayah di Tetapan → Peranan.',
         th: 'ตอนนี้กำหนดให้บทบาทเห็นข้อมูลเชิงลึกทั่วทั้งภูมิภาคแทนทั้งบริษัทได้แล้ว: Country Manager / Managing Director ที่มีสิทธิ์ “ดูข้อมูลเชิงลึกทั่วทั้งภูมิภาค” จะเห็น Insights ของทุกแผนกเฉพาะในภูมิภาคของตนเอง — การเลือกภูมิภาคอื่นที่แถบด้านบนไม่เปลี่ยนสิ่งนี้ ตั้งค่าแยกตามภูมิภาคได้ที่ การตั้งค่า → บทบาท',
         vi: 'Giờ có thể cấp cho vai trò thông tin chi tiết toàn khu vực thay vì toàn công ty: Country Manager / Managing Director có quyền “Xem thông tin chi tiết toàn khu vực” chỉ thấy Thống kê của mọi phòng ban trong khu vực của mình — chọn khu vực khác ở thanh trên cùng không thay đổi điều này. Thiết lập theo từng khu vực tại Cài đặt → Vai trò.',
         km: 'ឥឡូវអាចផ្ដល់ឱ្យតួនាទីនូវការវិភាគទូទាំងតំបន់ ជំនួសឱ្យទូទាំងក្រុមហ៊ុន៖ Country Manager / Managing Director ដែលមាន “មើលការវិភាគទូទាំងតំបន់” ឃើញ Insights សម្រាប់គ្រប់នាយកដ្ឋាន តែក្នុងតំបន់របស់ខ្លួនប៉ុណ្ណោះ — ការជ្រើសតំបន់ផ្សេងនៅរបារខាងលើមិនប្ដូរវាទេ។ កំណត់តាមតំបន់នីមួយៗនៅ ការកំណត់ → តួនាទី។',
@@ -144,11 +185,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-13.4',
+    ms: '2026-11-13.4',
     date: '2026-11-13',
     items: [
       { kind: 'new', text: {
         en: 'Every screen now has a step-by-step guide, like the GPS meal form’s: the menu, the claim lists, a claim’s details, every claim form, cash advances, Insights, Help, the Bases map, your profile, Settings and Manage accounts. It opens by itself the first time you visit a screen, and the Guide button (?) beside the title replays it any time.',
         id: 'Kini setiap layar punya panduan langkah demi langkah, seperti formulir makan GPS: menu, daftar klaim, detail klaim, semua formulir klaim, uang muka, Insight, Bantuan, Peta base, profil, Pengaturan, dan Kelola akun. Panduan terbuka sendiri saat pertama kali Anda membuka layar itu, dan tombol Panduan (?) di samping judul bisa memutarnya lagi kapan saja.',
+        ms: 'Kini setiap skrin ada panduan langkah demi langkah, seperti borang makan GPS: menu, senarai tuntutan, butiran tuntutan, semua borang tuntutan, pendahuluan tunai, Analisis, Bantuan, Peta pangkalan, profil, Tetapan, dan Urus akaun. Panduan terbuka sendiri saat pertama kali anda membuka skrin itu, dan butang Panduan (?) di samping judul boleh memutarnya lagi kapan sahaja.',
         th: 'ตอนนี้ทุกหน้าจอมีคำแนะนำทีละขั้นตอน เหมือนแบบฟอร์มค่าอาหาร GPS: เมนู รายการการเบิก รายละเอียดการเบิก แบบฟอร์มเบิกทุกแบบ เงินทดรอง Insights ความช่วยเหลือ แผนที่ฐาน โปรไฟล์ การตั้งค่า และจัดการบัญชี คำแนะนำจะเปิดเองเมื่อคุณเข้าหน้าจอนั้นครั้งแรก และปุ่ม คำแนะนำ (?) ข้างชื่อหน้าจอเปิดดูซ้ำได้ทุกเมื่อ',
         vi: 'Giờ mọi màn hình đều có hướng dẫn từng bước, giống biểu mẫu phụ cấp ăn GPS: menu, danh sách yêu cầu, chi tiết yêu cầu, mọi biểu mẫu yêu cầu, tạm ứng, Thống kê, Hỗ trợ, bản đồ cơ sở, hồ sơ, Cài đặt và Quản lý tài khoản. Hướng dẫn tự mở lần đầu bạn vào một màn hình, và nút Hướng dẫn (?) cạnh tiêu đề cho xem lại bất cứ lúc nào.',
         km: 'ឥឡូវអេក្រង់នីមួយៗមានការណែនាំមួយជំហានម្ដងៗ ដូចទម្រង់អាហារ GPS៖ ម៉ឺនុយ បញ្ជីការទាមទារ ព័ត៌មានលម្អិតនៃការទាមទារ ទម្រង់ទាមទារទាំងអស់ ប្រាក់បុរេប្រទាន Insights ជំនួយ ផែនទីមូលដ្ឋាន ប្រវត្តិរូប ការកំណត់ និងគ្រប់គ្រងគណនី។ វាបើកដោយខ្លួនឯងនៅពេលអ្នកចូលអេក្រង់នោះជាលើកដំបូង ហើយប៊ូតុង ការណែនាំ (?) នៅជាប់ចំណងជើង អាចចាក់វាឡើងវិញពេលណាក៏បាន។',
@@ -158,11 +201,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-13.3',
+    ms: '2026-11-13.3',
     date: '2026-11-13',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Country Managers / Managing Directors can now look at other regions: pick a region in the top bar to see its claims and insights, or in Settings to see its settings. Other regions are view only — approving, paying and changing settings still work only in your own region.',
         id: 'Country Manager / Managing Director kini dapat melihat region lain: pilih region di bilah atas untuk melihat klaim dan insight-nya, atau di Pengaturan untuk melihat pengaturannya. Region lain hanya bisa dilihat — menyetujui, membayar, dan mengubah pengaturan tetap hanya di region Anda sendiri.',
+        ms: 'Country Manager / Managing Director kini dapat melihat wilayah lain: pilih wilayah di bilah atas untuk melihat tuntutan dan analisis-nya, atau di Tetapan untuk melihat tetapannya. Wilayah lain hanya boleh dilihat — meluluskan, membayar, dan mengubah tetapan tetap hanya di wilayah anda sendiri.',
         th: 'Country Manager / Managing Director ดูภูมิภาคอื่นได้แล้ว: เลือกภูมิภาคที่แถบด้านบนเพื่อดูเคลมและข้อมูลเชิงลึก หรือในการตั้งค่าเพื่อดูการตั้งค่าของภูมิภาคนั้น ภูมิภาคอื่นดูได้อย่างเดียว — การอนุมัติ การจ่ายเงิน และการเปลี่ยนการตั้งค่ายังทำได้เฉพาะในภูมิภาคของคุณ',
         vi: 'Country Manager / Managing Director giờ có thể xem các khu vực khác: chọn khu vực ở thanh trên cùng để xem yêu cầu và phân tích, hoặc trong Cài đặt để xem cài đặt của khu vực đó. Các khu vực khác chỉ xem — duyệt, thanh toán và thay đổi cài đặt vẫn chỉ áp dụng trong khu vực của bạn.',
         km: 'Country Manager / Managing Director ឥឡូវអាចមើលតំបន់ផ្សេងទៀតបាន៖ ជ្រើសតំបន់នៅរបារខាងលើដើម្បីមើលការទាមទារ និងការវិភាគ ឬនៅក្នុងការកំណត់ដើម្បីមើលការកំណត់របស់តំបន់នោះ។ តំបន់ផ្សេងទៀតមើលបានតែប៉ុណ្ណោះ — ការអនុម័ត ការបង់ប្រាក់ និងការប្តូរការកំណត់ នៅតែធ្វើបានតែក្នុងតំបន់របស់អ្នក។',
@@ -172,11 +217,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-13.2',
+    ms: '2026-11-13.2',
     date: '2026-11-13',
     items: [
       { kind: 'new', audience: ['superadmin'], text: {
         en: 'Accounts in Excel: Settings → Accounts → Excel exports a market’s accounts (or a blank template) with roles, departments, positions, approvers, bank details and bases. Fill it in and import it to add or update accounts in bulk — you see every new account and change first, and nothing is saved while any row has a problem.',
         id: 'Akun di Excel: Pengaturan → Akun → Excel mengekspor akun suatu pasar (atau template kosong) beserta peran, departemen, jabatan, penyetuju, data bank, dan base. Isi lalu impor untuk menambah atau memperbarui akun secara massal — Anda melihat setiap akun baru dan perubahan terlebih dahulu, dan tidak ada yang disimpan selama masih ada baris yang bermasalah.',
+        ms: 'Akaun di Excel: Tetapan → Akaun → Excel mengeksport akaun suatu pasar (atau templat kosong) beserta peranan, jabatan, jawatan, pelulus, data bank, dan pangkalan. Isi kemudian import untuk menambah atau mengemas kini akaun secara massal — anda melihat setiap akaun baharu dan perubahan terlebih dahulu, dan tiada yang disimpan selama masih ada baris yang bermasalah.',
         th: 'บัญชีใน Excel: การตั้งค่า → บัญชี → Excel ส่งออกบัญชีของตลาด (หรือเทมเพลตเปล่า) พร้อมบทบาท แผนก ตำแหน่ง ผู้อนุมัติ ข้อมูลธนาคาร และฐาน กรอกแล้วนำเข้าเพื่อเพิ่มหรืออัปเดตบัญชีจำนวนมาก — คุณจะเห็นบัญชีใหม่และการเปลี่ยนแปลงทั้งหมดก่อน และระบบจะไม่บันทึกขณะที่ยังมีแถวที่มีปัญหา',
         vi: 'Tài khoản trong Excel: Cài đặt → Tài khoản → Excel xuất tài khoản của một thị trường (hoặc mẫu trống) kèm vai trò, phòng ban, chức vụ, người duyệt, thông tin ngân hàng và cơ sở. Điền rồi nhập để thêm hoặc cập nhật hàng loạt — bạn xem trước mọi tài khoản mới và thay đổi, và không có gì được lưu khi còn dòng có lỗi.',
         km: 'គណនីក្នុង Excel៖ ការកំណត់ → គណនី → Excel នាំចេញគណនីរបស់ទីផ្សារមួយ (ឬគំរូទទេ) រួមទាំងតួនាទី នាយកដ្ឋាន មុខតំណែង អ្នកអនុម័ត ព័ត៌មានធនាគារ និងមូលដ្ឋាន។ បំពេញ ហើយនាំចូលដើម្បីបន្ថែម ឬធ្វើបច្ចុប្បន្នភាពគណនីច្រើនក្នុងពេលតែមួយ — អ្នកឃើញគណនីថ្មី និងការផ្លាស់ប្តូរទាំងអស់ជាមុន ហើយគ្មានអ្វីត្រូវបានរក្សាទុកទេ ខណៈដែលនៅមានជួរមានបញ្ហា។',
@@ -186,11 +233,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-13.1',
+    ms: '2026-11-13.1',
     date: '2026-11-13',
     items: [
       { kind: 'improved', audience: ['meal'], text: {
         en: 'Meal allowance (GPS): in town, 30 km or more from your base, is now up to IDR 40,000 a day (was IDR 35,000). The limits shown on the form always match your region’s current rates.',
         id: 'Tunjangan makan (GPS): dalam kota, 30 km atau lebih dari base Anda, kini maksimal IDR 40.000 per hari (sebelumnya IDR 35.000). Batas yang tampil di formulir selalu sesuai tarif wilayah Anda saat ini.',
+        ms: 'Elaun makan (GPS): dalam kawasan bandar, 30 km atau lebih dari pangkalan anda, kini maksimum IDR 40.000 sehari (sebelumnya IDR 35.000). Had yang tampil di borang selalu sesuai tarif wilayah anda pada masa ini.',
         th: 'ค่าอาหาร (GPS): ในเมือง ตั้งแต่ 30 กม. ขึ้นไปจากฐานของคุณ เบิกได้สูงสุด IDR 40,000 ต่อวันแล้ว (เดิม IDR 35,000) วงเงินที่แสดงในแบบฟอร์มตรงกับอัตราปัจจุบันของภูมิภาคคุณเสมอ',
         vi: 'Phụ cấp ăn (GPS): trong thành phố, từ 30 km trở lên tính từ cơ sở của bạn, giờ tối đa IDR 40.000 mỗi ngày (trước đây IDR 35.000). Hạn mức hiển thị trên biểu mẫu luôn khớp với mức hiện tại của khu vực bạn.',
         km: 'ប្រាក់ឧបត្ថម្ភអាហារ (GPS)៖ ក្នុងក្រុង ចាប់ពី 30 គ.ម ពីមូលដ្ឋានរបស់អ្នក ឥឡូវអតិបរមា IDR 40,000 ក្នុងមួយថ្ងៃ (ពីមុន IDR 35,000)។ កម្រិតដែលបង្ហាញលើទម្រង់ តែងតែត្រូវនឹងអត្រាបច្ចុប្បន្ននៃតំបន់របស់អ្នក។',
@@ -199,6 +248,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['settings'], text: {
         en: 'Settings → GPS meal allowance: set the in-town and out-of-town daily limits for each region. The claim form, its guide and the server checks all follow what you save.',
         id: 'Pengaturan → Tunjangan makan GPS: atur batas harian dalam kota dan luar kota untuk tiap wilayah. Formulir klaim, panduannya, dan pemeriksaan server mengikuti yang Anda simpan.',
+        ms: 'Tetapan → Elaun makan GPS: tetapkan had harian dalam kawasan bandar dan luar kawasan bandar untuk tiap wilayah. Borang tuntutan, panduannya, dan pemeriksaan pelayan mengikuti yang anda simpan.',
         th: 'การตั้งค่า → ค่าอาหาร GPS: กำหนดวงเงินรายวันในเมืองและนอกเมืองของแต่ละภูมิภาค แบบฟอร์มเบิก คู่มือ และการตรวจสอบของเซิร์ฟเวอร์จะเป็นไปตามที่คุณบันทึก',
         vi: 'Cài đặt → Phụ cấp ăn GPS: đặt hạn mức mỗi ngày trong và ngoài thành phố cho từng khu vực. Biểu mẫu yêu cầu, hướng dẫn và kiểm tra của máy chủ đều theo mức bạn lưu.',
         km: 'ការកំណត់ → ប្រាក់ឧបត្ថម្ភអាហារ GPS៖ កំណត់កម្រិតប្រចាំថ្ងៃក្នុងក្រុង និងក្រៅក្រុងសម្រាប់តំបន់នីមួយៗ។ ទម្រង់ទាមទារ មគ្គុទ្ទេសក៍ និងការត្រួតពិនិត្យរបស់ម៉ាស៊ីនមេ ធ្វើតាមអ្វីដែលអ្នករក្សាទុក។',
@@ -208,11 +258,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-12.3',
+    ms: '2026-11-12.3',
     date: '2026-11-12',
     items: [
       { kind: 'improved', audience: ['insights'], text: {
         en: 'Approval times in Insights is now compact: ten rows with Show all, a search box, and sortable columns (slowest first). Switch to Departments to see each department’s average, with an overall average on top; tap a department to see its employees.',
         id: 'Waktu persetujuan di Insights kini ringkas: sepuluh baris dengan Tampilkan semua, kotak pencarian, dan kolom yang bisa diurutkan (terlama dulu). Pilih Departemen untuk melihat rata-rata tiap departemen, dengan rata-rata keseluruhan di atas; ketuk departemen untuk melihat karyawannya.',
+        ms: 'Waktu kelulusan di Insights kini ringkas: sepuluh baris dengan Paparkan semua, kotak pencarian, dan lajur yang boleh diurutkan (terlama dahulu). Pilih Jabatan untuk melihat purata tiap jabatan, dengan purata keseluruhan di atas; ketik jabatan untuk melihat karyawannya.',
         th: 'ระยะเวลาอนุมัติใน Insights กระชับขึ้น: แสดงสิบแถวพร้อมปุ่มแสดงทั้งหมด ช่องค้นหา และคอลัมน์ที่เรียงลำดับได้ (ช้าที่สุดก่อน) สลับไปที่แผนกเพื่อดูค่าเฉลี่ยของแต่ละแผนก พร้อมค่าเฉลี่ยรวมด้านบน แตะแผนกเพื่อดูพนักงาน',
         vi: 'Thời gian phê duyệt trong Insights giờ gọn hơn: mười dòng với Hiện tất cả, ô tìm kiếm và cột sắp xếp được (chậm nhất trước). Chuyển sang Phòng ban để xem trung bình từng phòng ban, có trung bình chung ở trên; chạm vào phòng ban để xem nhân viên.',
         km: 'រយៈពេលអនុម័តក្នុង Insights ឥឡូវខ្លីជាងមុន៖ ដប់ជួរជាមួយ បង្ហាញទាំងអស់ ប្រអប់ស្វែងរក និងជួរឈរដែលអាចតម្រៀបបាន (យឺតបំផុតមុន)។ ប្តូរទៅផ្នែក ដើម្បីមើលមធ្យមភាគនៃផ្នែកនីមួយៗ ជាមួយមធ្យមភាគរួមនៅខាងលើ ចុចលើផ្នែកដើម្បីមើលបុគ្គលិក។',
@@ -222,11 +274,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-12.2',
+    ms: '2026-11-12.2',
     date: '2026-11-12',
     items: [
       { kind: 'improved', audience: ['insights'], text: {
         en: 'Approval times by employee in Insights now always includes your own claims, pinned at the top and marked You, next to the claims you approve.',
         id: 'Waktu persetujuan per karyawan di Insights kini selalu menyertakan klaim Anda sendiri, disematkan di paling atas dan ditandai Anda, di samping klaim yang Anda setujui.',
+        ms: 'Waktu kelulusan per pekerja di Insights kini selalu menyertakan tuntutan anda sendiri, disematkan di yang paling atas dan ditandakan anda, di samping tuntutan yang anda luluskan.',
         th: 'ระยะเวลาอนุมัติรายพนักงานใน Insights จะแสดงคำขอของคุณเองเสมอ โดยปักไว้ด้านบนและทำเครื่องหมายว่าคุณ ถัดจากคำขอที่คุณอนุมัติ',
         vi: 'Thời gian phê duyệt theo nhân viên trong Insights giờ luôn gồm cả yêu cầu của chính bạn, được ghim ở đầu và đánh dấu Bạn, bên cạnh các yêu cầu bạn duyệt.',
         km: 'រយៈពេលអនុម័តតាមបុគ្គលិកក្នុង Insights ឥឡូវតែងតែរួមបញ្ចូលសំណើរបស់អ្នកផ្ទាល់ ដែលខ្ទាស់នៅខាងលើ និងសម្គាល់ថាអ្នក នៅជាប់នឹងសំណើដែលអ្នកអនុម័ត។',
@@ -236,11 +290,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-12.1',
+    ms: '2026-11-12.1',
     date: '2026-11-12',
     items: [
       { kind: 'new', text: {
         en: 'My approval times now lists each of your claims: how long the Manager took to approve it after you submitted, and how long Finance AP took after the Manager approved. Tap a claim number to open it.',
         id: 'Waktu persetujuan klaim saya kini menampilkan setiap klaim Anda: berapa lama Manajer menyetujuinya sejak Anda mengajukan, dan berapa lama Finance AP menyetujuinya sejak Manajer menyetujui. Ketuk nomor klaim untuk membukanya.',
+        ms: 'Waktu kelulusan tuntutan saya kini memaparkan setiap tuntutan anda: berapa lama Pengurus menyetujuinya sejak anda menghantar, dan berapa lama Finance AP menyetujuinya sejak Pengurus meluluskan. Ketik nombor tuntutan untuk membukanya.',
         th: 'ระยะเวลาอนุมัติคำขอของฉันแสดงคำขอแต่ละรายการแล้ว: ผู้จัดการใช้เวลาอนุมัตินานเท่าใดหลังจากคุณส่ง และ Finance AP ใช้เวลานานเท่าใดหลังจากผู้จัดการอนุมัติ แตะหมายเลขคำขอเพื่อเปิดดู',
         vi: 'Thời gian duyệt yêu cầu của tôi giờ liệt kê từng yêu cầu của bạn: Quản lý mất bao lâu để duyệt sau khi bạn gửi, và Finance AP mất bao lâu sau khi Quản lý duyệt. Chạm vào số yêu cầu để mở.',
         km: 'រយៈពេលអនុម័តសំណើរបស់ខ្ញុំ ឥឡូវបង្ហាញសំណើនីមួយៗរបស់អ្នក៖ រយៈពេលដែលអ្នកគ្រប់គ្រងអនុម័តបន្ទាប់ពីអ្នកដាក់ស្នើ និងរយៈពេលដែល Finance AP អនុម័តបន្ទាប់ពីអ្នកគ្រប់គ្រងអនុម័ត។ ចុចលេខសំណើដើម្បីបើកវា។',
@@ -250,11 +306,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-11.2',
+    ms: '2026-11-11.2',
     date: '2026-11-11',
     items: [
       { kind: 'new', text: {
         en: 'Open My approval times under Your claims to see how long your own claims take on average. Manager time runs from submission to Manager approval. Finance AP time runs from Manager approval to Finance AP approval.',
         id: 'Buka Waktu persetujuan klaim saya di bagian Klaim Anda untuk melihat rata-rata waktu persetujuan klaim Anda. Waktu Manajer dihitung sejak klaim diajukan hingga Manajer menyetujuinya. Waktu Finance AP dihitung sejak persetujuan Manajer hingga persetujuan Finance AP.',
+        ms: 'Buka Waktu kelulusan tuntutan saya di bagian Tuntutan anda untuk melihat purata waktu kelulusan tuntutan anda. Waktu Pengurus dikira sejak tuntutan dihantar hingga Pengurus menyetujuinya. Waktu Finance AP dikira sejak kelulusan Pengurus hingga kelulusan Finance AP.',
         th: 'เปิดระยะเวลาอนุมัติคำขอของฉันในส่วนคำขอของคุณเพื่อดูเวลาเฉลี่ยของคำขอที่คุณส่ง เวลาของผู้จัดการนับจากการส่งคำขอถึงการอนุมัติของผู้จัดการ เวลาของ Finance AP นับจากการอนุมัติของผู้จัดการถึงการอนุมัติของ Finance AP',
         vi: 'Mở Thời gian duyệt yêu cầu của tôi trong mục Yêu cầu của bạn để xem thời gian phê duyệt trung bình cho các yêu cầu bạn đã gửi. Thời gian của Quản lý tính từ lúc gửi đến lúc Quản lý phê duyệt. Thời gian của Finance AP tính từ lúc Quản lý phê duyệt đến lúc Finance AP phê duyệt.',
         km: 'បើក រយៈពេលអនុម័តសំណើរបស់ខ្ញុំ ក្នុងផ្នែកសំណើរបស់អ្នក ដើម្បីមើលរយៈពេលអនុម័តជាមធ្យមសម្រាប់សំណើរបស់អ្នក។ ពេលវេលារបស់អ្នកគ្រប់គ្រងគិតពីពេលដាក់សំណើដល់ពេលអ្នកគ្រប់គ្រងអនុម័ត។ ពេលវេលារបស់ Finance AP គិតពីពេលអ្នកគ្រប់គ្រងអនុម័តដល់ពេល Finance AP អនុម័ត។',
@@ -264,11 +322,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-11.1',
+    ms: '2026-11-11.1',
     date: '2026-11-11',
     items: [
       { kind: 'new', audience: ['insights'], text: {
         en: 'Insights now shows how long the Manager and Finance AP take, on average, to approve each employee’s claims. Choose this month, quarter, half-year, year, all time, or a custom date range.',
         id: 'Insights kini menampilkan rata-rata waktu yang dibutuhkan Manajer dan Finance AP untuk menyetujui klaim tiap karyawan. Pilih bulan, kuartal, semester, atau tahun ini, sepanjang waktu, atau rentang tanggal khusus.',
+        ms: 'Insights kini memaparkan purata waktu yang diperlukan Pengurus dan Finance AP untuk meluluskan tuntutan tiap pekerja. Pilih bulan, kuartal, semester, atau tahun ini, sepanjang waktu, atau julat tarikh khusus.',
         th: 'หน้า Insights แสดงระยะเวลาเฉลี่ยที่ผู้จัดการและ Finance AP ใช้ในการอนุมัติคำขอของพนักงานแต่ละคน เลือกดูเดือนนี้ ไตรมาสนี้ ครึ่งปีนี้ ปีนี้ ตลอดเวลา หรือกำหนดช่วงวันที่เองได้',
         vi: 'Insights hiện hiển thị thời gian trung bình mà Quản lý và Finance AP cần để phê duyệt yêu cầu của từng nhân viên. Chọn tháng này, quý này, nửa năm này, năm nay, toàn bộ thời gian hoặc khoảng ngày tùy chọn.',
         km: 'ឥឡូវនេះ Insights បង្ហាញរយៈពេលជាមធ្យមដែលអ្នកគ្រប់គ្រង និង Finance AP ចំណាយដើម្បីអនុម័តសំណើរបស់បុគ្គលិកម្នាក់ៗ។ ជ្រើសរើសខែនេះ ត្រីមាសនេះ ឆមាសនេះ ឆ្នាំនេះ គ្រប់ពេល ឬចន្លោះកាលបរិច្ឆេទផ្ទាល់ខ្លួន។',
@@ -278,11 +338,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-03.1',
+    ms: '2026-11-03.1',
     date: '2026-11-03',
     items: [
       { kind: 'improved', text: {
         en: 'All three looks are easier to read. Modern and Glass: the Approve, Reject & return and New buttons have clearer labels, and grey text is a little darker. Glass: the search box and the Filters / Select buttons are crisp frosted white instead of murky over the coloured background, and "Needs my approval" stands out again on the home screen. Classic: amounts use the regular typeface with neatly aligned digits instead of the heavy typewriter one.',
         id: 'Ketiga tampilan kini lebih mudah dibaca. Modern dan Glass: label tombol Setujui, Tolak & kembalikan, dan Baru lebih jelas, dan teks abu-abu sedikit lebih gelap. Glass: kotak pencarian serta tombol Filter / Pilih kini putih bening seperti kaca, tidak lagi keruh di atas latar berwarna, dan "Perlu persetujuan saya" kembali menonjol di beranda. Klasik: nominal memakai huruf biasa dengan angka yang rata rapi, bukan huruf mesin ketik yang tebal.',
+        ms: 'Ketiga paparan kini lebih mudah dibaca. Modern dan Glass: label butang Luluskan, Tolak & pulangkan, dan Baharu lebih jelas, dan teks abu-abu sedikit lebih gelap. Glass: kotak pencarian serta butang Penapis / Pilih kini putih bening seperti kaca, tidak lagi keruh di atas latar berwarna, dan "Perlu kelulusan saya" kembali menonjol di beranda. Klasik: amaun menggunakan huruf biasa dengan angka yang rata rapi, bukan huruf mesin taip yang tebal.',
         th: 'ทั้งสามรูปแบบอ่านง่ายขึ้น Modern และ Glass: ปุ่มอนุมัติ ปฏิเสธและส่งคืน และสร้างใหม่ มีป้ายที่ชัดเจนขึ้น และข้อความสีเทาเข้มขึ้นเล็กน้อย Glass: ช่องค้นหาและปุ่มตัวกรอง / เลือก เป็นกระจกสีขาวที่คมชัด ไม่ขุ่นบนพื้นหลังสีอีกต่อไป และ "รอการอนุมัติของฉัน" โดดเด่นอีกครั้งบนหน้าแรก Classic: จำนวนเงินใช้แบบอักษรปกติที่ตัวเลขเรียงตรงกัน แทนแบบอักษรพิมพ์ดีดที่หนา',
         vi: 'Cả ba giao diện đều dễ đọc hơn. Modern và Glass: nhãn các nút Duyệt, Từ chối & trả lại và Tạo mới rõ hơn, chữ xám đậm hơn một chút. Glass: ô tìm kiếm và các nút Bộ lọc / Chọn giờ là kính trắng sắc nét thay vì đục trên nền màu, và "Chờ tôi duyệt" lại nổi bật trên trang chủ. Classic: số tiền dùng kiểu chữ thường với các chữ số thẳng hàng, thay cho kiểu chữ máy đánh chữ đậm.',
         km: 'រចនាប័ទ្មទាំងបីឥឡូវងាយអានជាងមុន។ Modern និង Glass៖ ស្លាកលើប៊ូតុង អនុម័ត បដិសេធ និងប្រគល់វិញ និងថ្មី កាន់តែច្បាស់ ហើយអក្សរពណ៌ប្រផេះដិតជាងមុនបន្តិច។ Glass៖ ប្រអប់ស្វែងរក និងប៊ូតុងតម្រង / ជ្រើសរើស ជាកញ្ចក់ពណ៌សច្បាស់ មិនស្រអាប់នៅលើផ្ទៃពណ៌ទៀតទេ ហើយ "រង់ចាំការអនុម័តរបស់ខ្ញុំ" លេចធ្លោម្ដងទៀតនៅទំព័រដើម។ Classic៖ ចំនួនទឹកប្រាក់ប្រើពុម្ពអក្សរធម្មតាដែលលេខតម្រៀបស្មើគ្នា ជំនួសពុម្ពអក្សរម៉ាស៊ីនអង្គុលីលេខដែលធ្ងន់។',
@@ -292,11 +354,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-11-01.1',
+    ms: '2026-11-01.1',
     date: '2026-11-01',
     items: [
       { kind: 'fixed', text: {
         en: 'The Glass look is much lighter. With a claim open beside the list, the list no longer tilts sideways — it stays flat and readable. Long lists scroll smoothly again: the heavy blur behind the list and the claim window is gone, and rows lift no more on hover.',
         id: 'Tampilan Glass kini jauh lebih ringan. Saat klaim dibuka di samping daftar, daftar tidak lagi miring — tetap rata dan mudah dibaca. Daftar panjang kembali bergulir dengan mulus: efek blur berat di belakang daftar dan jendela klaim dihapus, dan baris tidak lagi terangkat saat disorot.',
+        ms: 'Paparan Glass kini jauh lebih ringan. Saat tuntutan dibuka di samping senarai, senarai tidak lagi miring — tetap rata dan mudah dibaca. Senarai panjang kembali bergulir dengan mulus: efek blur berat di belakang senarai dan jendela tuntutan dipadam, dan baris tidak lagi terangkat saat disorot.',
         th: 'รูปแบบ Glass เบาลงมาก เมื่อเปิดรายการเบิกข้างรายการ รายการจะไม่เอียงอีกต่อไป — แสดงแบนราบและอ่านง่าย รายการยาวเลื่อนได้ลื่นอีกครั้ง: เอฟเฟกต์เบลอหนักด้านหลังรายการและหน้าต่างรายการเบิกถูกนำออก และแถวไม่ยกขึ้นเมื่อชี้เมาส์อีกต่อไป',
         vi: 'Giao diện Glass giờ nhẹ hơn nhiều. Khi mở một yêu cầu bên cạnh danh sách, danh sách không còn bị nghiêng — luôn phẳng và dễ đọc. Danh sách dài cuộn mượt trở lại: hiệu ứng làm mờ nặng phía sau danh sách và cửa sổ yêu cầu đã được bỏ, và các dòng không còn nổi lên khi rê chuột.',
         km: 'រចនាប័ទ្ម Glass ឥឡូវស្រាលជាងមុនច្រើន។ ពេលបើកសំណើនៅក្បែរបញ្ជី បញ្ជីលែងទ្រេតទៀតហើយ — វានៅរាបស្មើ និងងាយអាន។ បញ្ជីវែងៗរំកិលបានរលូនវិញ៖ ភាពព្រាលធ្ងន់នៅពីក្រោយបញ្ជី និងបង្អួចសំណើត្រូវបានដកចេញ ហើយជួរលែងលើកឡើងពេលដាក់កណ្ដុរលើ។',
@@ -306,11 +370,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-31.6',
+    ms: '2026-10-31.6',
     date: '2026-10-31',
     items: [
       { kind: 'new', audience: ['meal'], text: {
         en: 'The GPS meal allowance form now shows you how to fill it in. The first time you open it, a step-by-step guide walks through each part — date, trip, customer site, amount and receipt — and the Guide button replays it any time. Every day card also has a checklist that turns green as you complete each part, so nothing gets missed.',
         id: 'Formulir tunjangan makan GPS kini menunjukkan cara mengisinya. Saat pertama kali dibuka, panduan langkah demi langkah menjelaskan setiap bagian — tanggal, perjalanan, lokasi customer, jumlah, dan struk — dan tombol Panduan bisa memutarnya lagi kapan saja. Setiap kartu hari juga punya daftar periksa yang berubah hijau saat tiap bagian selesai, jadi tidak ada yang terlewat.',
+        ms: 'Borang elaun makan GPS kini menunjukkan cara mengisinya. Saat pertama kali dibuka, panduan langkah demi langkah menjelaskan setiap bagian — tarikh, perjalanan, lokasi pelanggan, jumlah, dan resit — dan butang Panduan boleh memutarnya lagi kapan sahaja. Setiap kartu hari juga ada senarai semak yang berubah hijau saat tiap bagian selesai, jadi tiada yang terlewat.',
         th: 'แบบฟอร์มค่าอาหาร GPS แสดงวิธีกรอกแล้ว เมื่อเปิดครั้งแรก คำแนะนำทีละขั้นตอนจะพาไปทีละส่วน — วันที่ การเดินทาง สถานที่ลูกค้า จำนวนเงิน และใบเสร็จ — และปุ่ม คำแนะนำ เปิดดูซ้ำได้ทุกเมื่อ การ์ดแต่ละวันยังมีรายการตรวจสอบที่เปลี่ยนเป็นสีเขียวเมื่อกรอกแต่ละส่วนเสร็จ จึงไม่พลาดอะไร',
         vi: 'Biểu mẫu phụ cấp ăn GPS giờ chỉ bạn cách điền. Lần đầu mở, hướng dẫn từng bước sẽ đi qua từng phần — ngày, chuyến đi, địa điểm khách hàng, số tiền và hóa đơn — và nút Hướng dẫn cho xem lại bất cứ lúc nào. Mỗi thẻ ngày cũng có danh sách kiểm tra chuyển xanh khi bạn hoàn thành từng phần, nên không bỏ sót gì.',
         km: 'ទម្រង់ប្រាក់អាហារ GPS ឥឡូវបង្ហាញពីរបៀបបំពេញ។ ពេលបើកលើកដំបូង ការណែនាំមួយជំហានម្តងៗនឹងនាំអ្នកឆ្លងកាត់ផ្នែកនីមួយៗ — កាលបរិច្ឆេទ ការធ្វើដំណើរ ទីតាំងអតិថិជន ចំនួនទឹកប្រាក់ និងវិក្កយបត្រ — ហើយប៊ូតុង ការណែនាំ អាចមើលម្តងទៀតបានគ្រប់ពេល។ កាតថ្ងៃនីមួយៗក៏មានបញ្ជីត្រួតពិនិត្យដែលប្រែពណ៌បៃតងពេលអ្នកបំពេញផ្នែកនីមួយៗរួច ដូច្នេះគ្មានអ្វីខកខានទេ។',
@@ -319,6 +385,7 @@ window.CHANGELOG = [
       { kind: 'fixed', audience: ['claim', 'meal'], text: {
         en: 'The “No DB” option (no DB number) was mistranslated as “DB number” in Thai, Vietnamese, Khmer and Filipino. It now reads correctly.',
         id: 'Pilihan “No DB” kini bertuliskan “Tanpa DB” agar jelas artinya tidak ada nomor DB.',
+        ms: 'Pilihan “No. DB” kini bertuliskan “Tanpa DB” supaya jelas artinya tiada nombor DB.',
         th: 'ตัวเลือก “No DB” (ไม่มีหมายเลข DB) เคยแปลผิดเป็น “เลข DB” ตอนนี้แสดงเป็น “ไม่มี DB” อย่างถูกต้องแล้ว',
         vi: 'Lựa chọn “No DB” (không có số DB) trước đây bị dịch sai thành “Số DB”. Giờ đã hiển thị đúng là “Không có DB”.',
         km: 'ជម្រើស “No DB” (គ្មានលេខ DB) ធ្លាប់បកប្រែខុសជា “លេខ DB”។ ឥឡូវបង្ហាញត្រឹមត្រូវជា “គ្មាន DB” ហើយ។',
@@ -328,11 +395,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-31.5',
+    ms: '2026-10-31.5',
     date: '2026-10-31',
     items: [
       { kind: 'improved', text: {
         en: 'Claim lists now scroll with the whole page instead of inside a small box, so far more claims fit on screen — especially on phones. The column titles stay pinned at the top as you scroll, and once you tick claims their actions (Download PDF and the rest) float at the bottom of the screen.',
         id: 'Daftar klaim kini bergulir bersama seluruh halaman, bukan di dalam kotak kecil, sehingga jauh lebih banyak klaim muat di layar — terutama di ponsel. Judul kolom tetap di atas saat Anda menggulir, dan setelah Anda mencentang klaim, tindakannya (Unduh PDF dan lainnya) mengambang di bagian bawah layar.',
+        ms: 'Senarai tuntutan kini bergulir bersama seluruh halaman, bukan di dalam kotak kecil, sehingga jauh lebih banyak tuntutan muat di skrin — terutama di telefon. Judul lajur tetap di atas saat anda menggulir, dan selepas anda mencentang tuntutan, tindakannya (Muat turun PDF dan lainnya) mengambang di bagian bawah skrin.',
         th: 'รายการเบิกเลื่อนไปพร้อมทั้งหน้าแล้ว แทนการเลื่อนในกล่องเล็ก จึงแสดงรายการได้มากขึ้นมาก — โดยเฉพาะบนโทรศัพท์ หัวคอลัมน์จะค้างอยู่ด้านบนขณะเลื่อน และเมื่อคุณติ๊กเลือกรายการ ปุ่มคำสั่ง (ดาวน์โหลด PDF และอื่นๆ) จะลอยอยู่ด้านล่างของหน้าจอ',
         vi: 'Danh sách yêu cầu giờ cuộn cùng cả trang thay vì trong một khung nhỏ, nên hiển thị được nhiều yêu cầu hơn hẳn — nhất là trên điện thoại. Tiêu đề cột luôn ghim ở trên khi cuộn, và khi bạn đánh dấu yêu cầu, các thao tác (Tải PDF và các nút khác) nổi ở cuối màn hình.',
         km: 'ឥឡូវបញ្ជីសំណើរំកិលជាមួយទំព័រទាំងមូល ជំនួសឱ្យការរំកិលក្នុងប្រអប់តូច ដូច្នេះសំណើច្រើនជាងមុនឆ្ងាយអាចបង្ហាញលើអេក្រង់ — ជាពិសេសនៅលើទូរស័ព្ទ។ ចំណងជើងជួរឈរនៅជាប់ខាងលើពេលអ្នករំកិល ហើយពេលអ្នកធីកជ្រើសសំណើ សកម្មភាពរបស់វា (ទាញយក PDF និងផ្សេងទៀត) អណ្តែតនៅខាងក្រោមអេក្រង់។',
@@ -342,11 +411,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-31.4',
+    ms: '2026-10-31.4',
     date: '2026-10-31',
     items: [
       { kind: 'improved', audience: ['meal', 'settings'], text: {
         en: 'GPS meal allowance: no more recording your phone’s location. Each day names the customer site — by its DB number, or by searching the customer’s name when there is no DB — and the distance is measured from your base to that site’s pin. If a customer isn’t listed, ask your manager: managers can now register customer sites (with or without a DB number) in Settings → Customer sites.',
         id: 'Uang makan GPS: tidak perlu lagi merekam lokasi ponsel. Setiap hari menyebutkan lokasi pelanggan — lewat nomor DB, atau cari nama pelanggan jika tidak ada DB — dan jaraknya diukur dari base Anda ke pin lokasi tersebut. Jika pelanggan tidak ada di daftar, hubungi manajer Anda: manajer kini dapat mendaftarkan lokasi pelanggan (dengan atau tanpa nomor DB) di Pengaturan → Lokasi pelanggan.',
+        ms: 'Elaun makan GPS: tidak perlu lagi merekam lokasi telefon. Setiap hari menyebutkan lokasi pelanggan — melepasi nombor DB, atau cari nama pelanggan jika tiada DB — dan jaraknya diukur dari pangkalan anda ke pin lokasi tersebut. Jika pelanggan tiada di senarai, hubungi pengurus anda: pengurus kini dapat mendaftarkan lokasi pelanggan (dengan atau tanpa nombor DB) di Tetapan → Lokasi pelanggan.',
         th: 'ค่าอาหาร GPS: ไม่ต้องบันทึกตำแหน่งโทรศัพท์อีกต่อไป แต่ละวันระบุสถานที่ลูกค้า — ด้วยหมายเลข DB หรือค้นหาชื่อลูกค้าเมื่อไม่มี DB — และวัดระยะทางจากฐานของคุณถึงหมุดของสถานที่นั้น หากไม่มีลูกค้าในรายการ ให้ติดต่อผู้จัดการ: ตอนนี้ผู้จัดการลงทะเบียนสถานที่ลูกค้า (มีหรือไม่มีหมายเลข DB) ได้ใน การตั้งค่า → สถานที่ลูกค้า',
         vi: 'Phụ cấp ăn GPS: không cần ghi vị trí điện thoại nữa. Mỗi ngày ghi địa điểm khách hàng — theo số DB, hoặc tìm tên khách hàng khi không có DB — và khoảng cách được đo từ cơ sở của bạn đến ghim của địa điểm đó. Nếu khách hàng không có trong danh sách, hãy hỏi quản lý: quản lý giờ có thể đăng ký địa điểm khách hàng (có hoặc không có số DB) trong Cài đặt → Địa điểm khách hàng.',
         km: 'ប្រាក់អាហារ GPS៖ លែងត្រូវកត់ត្រាទីតាំងទូរស័ព្ទទៀតហើយ។ ថ្ងៃនីមួយៗបញ្ជាក់ទីតាំងអតិថិជន — តាមលេខ DB ឬស្វែងរកឈ្មោះអតិថិជននៅពេលគ្មាន DB — ហើយចម្ងាយត្រូវបានវាស់ពីមូលដ្ឋានរបស់អ្នកទៅម្ជុលនៃទីតាំងនោះ។ ប្រសិនបើអតិថិជនមិនមានក្នុងបញ្ជី សូមសួរអ្នកគ្រប់គ្រង៖ ឥឡូវអ្នកគ្រប់គ្រងអាចចុះឈ្មោះទីតាំងអតិថិជន (មាន ឬគ្មានលេខ DB) នៅក្នុង ការកំណត់ → ទីតាំងអតិថិជន។',
@@ -356,11 +427,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-31.3',
+    ms: '2026-10-31.3',
     date: '2026-10-31',
     items: [
       { kind: 'improved', text: {
         en: 'Receipts now show as small previews on each line of a claim. Click one to see it large, and use the arrows (or swipe on a phone) to step through every receipt on the claim — each one says which line it belongs to.',
         id: 'Bukti kini tampil sebagai pratinjau kecil di setiap baris klaim. Klik untuk melihatnya dalam ukuran besar, lalu gunakan tanda panah (atau geser di ponsel) untuk melihat semua bukti di klaim tersebut — masing-masing menunjukkan baris asalnya.',
+        ms: 'Bukti kini tampil sebagai pratonton kecil di setiap baris tuntutan. Klik untuk melihatnya dalam ukuran besar, kemudian gunakan tanda panah (atau leret di telefon) untuk melihat semua bukti dalam tuntutan tersebut — masing-masing menunjukkan baris asalnya.',
         th: 'ใบเสร็จแสดงเป็นภาพตัวอย่างขนาดเล็กในแต่ละรายการของการเบิกแล้ว คลิกเพื่อดูภาพใหญ่ และใช้ลูกศร (หรือปัดบนโทรศัพท์) เพื่อดูใบเสร็จทั้งหมดในการเบิกนั้น — แต่ละใบบอกว่าเป็นของรายการใด',
         vi: 'Hóa đơn giờ hiển thị dưới dạng ảnh xem trước nhỏ trên từng dòng của yêu cầu. Nhấp vào để xem ảnh lớn, và dùng mũi tên (hoặc vuốt trên điện thoại) để xem lần lượt mọi hóa đơn của yêu cầu — mỗi hóa đơn cho biết thuộc dòng nào.',
         km: 'ឥឡូវវិក្កយបត្របង្ហាញជារូបមើលជាមុនតូចៗនៅលើជួរនីមួយៗនៃសំណើ។ ចុចលើវាដើម្បីមើលធំ ហើយប្រើព្រួញ (ឬអូសនៅលើទូរស័ព្ទ) ដើម្បីមើលវិក្កយបត្រទាំងអស់ក្នុងសំណើ — វិក្កយបត្រនីមួយៗប្រាប់ថាវាជារបស់ជួរណា។',
@@ -370,11 +443,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-31.2',
+    ms: '2026-10-31.2',
     date: '2026-10-31',
     items: [
       { kind: 'fixed', audience: ['claim'], text: {
         en: 'Opening New claim and closing it without filling anything in no longer leaves an empty draft in My claims.',
         id: 'Membuka Klaim baru lalu menutupnya tanpa mengisi apa pun tidak lagi meninggalkan draf kosong di Klaim saya.',
+        ms: 'Membuka Tuntutan baharu kemudian menutupnya tanpa mengisi apa-apa tidak lagi meninggalkan draf kosong dalam tuntutan saya.',
         th: 'การเปิดการเบิกใหม่แล้วปิดโดยไม่ได้กรอกอะไร จะไม่ทิ้งฉบับร่างว่างไว้ในการเบิกของฉันอีกต่อไป',
         vi: 'Mở Yêu cầu mới rồi đóng lại mà không điền gì sẽ không còn để lại bản nháp trống trong Yêu cầu của tôi.',
         km: 'ការបើកសំណើថ្មី ហើយបិទវាវិញដោយមិនបានបំពេញអ្វីសោះ លែងបន្សល់សេចក្ដីព្រាងទទេនៅក្នុង សំណើរបស់ខ្ញុំ ទៀតហើយ។',
@@ -384,11 +459,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-31.1',
+    ms: '2026-10-31.1',
     date: '2026-10-31',
     items: [
       { kind: 'fixed', audience: ['claim', 'meal', 'advance'], text: {
         en: 'Large receipts upload again. A PDF over 4 MB could fail to attach because the browser blocked the upload; it now goes through. Receipts whose file names contain emoji also download reliably.',
         id: 'Kuitansi berukuran besar bisa diunggah lagi. PDF di atas 4 MB sebelumnya bisa gagal dilampirkan karena unggahannya diblokir browser; kini berhasil. Kuitansi yang nama filenya berisi emoji juga kini bisa diunduh dengan baik.',
+        ms: 'Resit berukuran besar boleh dimuat naik lagi. PDF di atas 4 MB sebelumnya boleh gagal dilampirkan karena unggahannya disekat browser; kini berhasil. Resit yang nama fail itu mengandungi emoji juga kini boleh dimuat turun dengan baik.',
         th: 'อัปโหลดใบเสร็จขนาดใหญ่ได้อีกครั้ง ไฟล์ PDF ที่ใหญ่กว่า 4 MB อาจแนบไม่สำเร็จเพราะเบราว์เซอร์บล็อกการอัปโหลด ตอนนี้แนบได้แล้ว ใบเสร็จที่ชื่อไฟล์มีอีโมจิก็ดาวน์โหลดได้อย่างถูกต้องเช่นกัน',
         vi: 'Đã tải lên được hóa đơn dung lượng lớn trở lại. Tệp PDF trên 4 MB trước đây có thể không đính kèm được vì trình duyệt chặn việc tải lên; giờ đã thành công. Hóa đơn có tên tệp chứa biểu tượng cảm xúc cũng tải xuống ổn định.',
         km: 'អាចផ្ទុកឡើងបង្កាន់ដៃធំៗបានវិញហើយ។ ឯកសារ PDF ធំជាង 4 MB អាចភ្ជាប់មិនបាន ដោយសារកម្មវិធីរុករកបានរារាំងការផ្ទុកឡើង ឥឡូវវាដំណើរការហើយ។ បង្កាន់ដៃដែលឈ្មោះឯកសារមានរូបអារម្មណ៍ ក៏អាចទាញយកបានត្រឹមត្រូវដែរ។',
@@ -398,11 +475,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-30.4',
+    ms: '2026-10-30.4',
     date: '2026-10-30',
     items: [
       { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
         en: 'Saved drafts no longer disappear. A draft — with its receipts — is now kept on the server, not only in your browser, so it is still there days later and on any device you sign in on. Your drafts are listed in My claims as rows marked Draft — open one to continue where you left off. Cancel closes it and keeps the draft. To delete a draft, use the trash button on its row or Delete draft in the form. You can keep several drafts at once — New always starts a new one.',
         id: 'Draf yang disimpan tidak hilang lagi. Draf — beserta kuitansinya — kini disimpan di server, bukan hanya di browser, sehingga tetap ada berhari-hari kemudian dan di perangkat mana pun Anda masuk. Draf Anda tampil di Klaim saya sebagai baris berstatus Draf — buka untuk melanjutkan. Batal hanya menutupnya dan draf tetap tersimpan. Untuk menghapus draf, pakai tombol tempat sampah di barisnya atau Hapus draf di formulir. Anda bisa menyimpan beberapa draf sekaligus — tombol Baru selalu memulai draf baru.',
+        ms: 'Draf yang disimpan tidak hilang lagi. Draf — beserta kuitansinya — kini disimpan di pelayan, bukan hanya di browser, sehingga tetap ada berhari-hari kemudian dan di perangkat mana pun anda masuk. Draf anda tampil dalam tuntutan saya sebagai baris berstatus Draf — buka untuk melanjutkan. Batal hanya menutupnya dan draf tetap tersimpan. Untuk memadam draf, guna butang tempat sampah di baris itu atau Padam draf di borang. Anda boleh menyimpan beberapa draf sekaligus — butang Baharu selalu bermula draf baharu.',
         th: 'ฉบับร่างที่บันทึกไว้จะไม่หายอีกต่อไป ฉบับร่างพร้อมใบเสร็จจะถูกเก็บไว้บนเซิร์ฟเวอร์ ไม่ใช่แค่ในเบราว์เซอร์ จึงยังอยู่แม้ผ่านไปหลายวันและบนทุกอุปกรณ์ที่คุณเข้าสู่ระบบ ฉบับร่างแสดงในการเบิกของฉันเป็นแถวที่มีสถานะฉบับร่าง — เปิดเพื่อทำต่อ ยกเลิกจะปิดฟอร์มโดยยังเก็บฉบับร่างไว้ หากต้องการลบ ให้ใช้ปุ่มถังขยะในแถวนั้น หรือลบฉบับร่างในแบบฟอร์ม คุณเก็บฉบับร่างได้หลายรายการพร้อมกัน — ปุ่มสร้างใหม่จะเริ่มฉบับร่างใหม่เสมอ',
         vi: 'Bản nháp đã lưu không còn bị mất. Bản nháp — cùng hóa đơn — giờ được lưu trên máy chủ, không chỉ trong trình duyệt, nên vẫn còn sau nhiều ngày và trên mọi thiết bị bạn đăng nhập. Bản nháp hiện trong Yêu cầu của tôi thành các dòng có trạng thái Bản nháp — mở ra để tiếp tục. Hủy chỉ đóng biểu mẫu và giữ lại bản nháp. Để xóa bản nháp, dùng nút thùng rác trên dòng đó hoặc Xóa bản nháp trong biểu mẫu. Bạn có thể giữ nhiều bản nháp cùng lúc — nút Tạo mới luôn bắt đầu một bản mới.',
         km: 'សេចក្ដីព្រាងដែលបានរក្សាទុកលែងបាត់ទៀតហើយ។ សេចក្ដីព្រាង — រួមទាំងបង្កាន់ដៃ — ឥឡូវត្រូវបានរក្សាទុកនៅលើម៉ាស៊ីនមេ មិនមែនតែក្នុងកម្មវិធីរុករកទេ ដូច្នេះវានៅតែមានទោះបីកន្លងទៅច្រើនថ្ងៃ និងនៅលើឧបករណ៍ណាដែលអ្នកចូល។ សេចក្ដីព្រាងរបស់អ្នកបង្ហាញក្នុង សំណើរបស់ខ្ញុំ ជាជួរដែលមានស្ថានភាពសេចក្ដីព្រាង — បើកវាដើម្បីបន្ត។ បោះបង់ គ្រាន់តែបិទវា ហើយសេចក្ដីព្រាងនៅដដែល។ ដើម្បីលុបសេចក្ដីព្រាង សូមប្រើប៊ូតុងធុងសំរាមនៅលើជួររបស់វា ឬ លុបសេចក្ដីព្រាង ក្នុងទម្រង់។ អ្នកអាចរក្សាសេចក្ដីព្រាងច្រើនក្នុងពេលតែមួយ — ប៊ូតុងថ្មី តែងចាប់ផ្ដើមសេចក្ដីព្រាងថ្មីជានិច្ច។',
@@ -412,11 +491,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-30.3',
+    ms: '2026-10-30.3',
     date: '2026-10-30',
     items: [
       { kind: 'new', audience: ['meal', 'settings'], text: {
         en: 'Customer sites are now on the map. In the GPS meal allowance, type a day’s DB number and the form shows how far that customer is from your base — inside or outside the 30 km radius — before you go. The Bases map shows every pinned customer and lets you search them by DB number, name or alias — the name technicians call the customer by. Settings → Customer sites keeps the list.',
         id: 'Lokasi customer kini ada di peta. Di tunjangan makan GPS, ketik nomor DB suatu hari dan formulir menunjukkan seberapa jauh customer itu dari base Anda — di dalam atau di luar radius 30 km — sebelum Anda berangkat. Peta base menampilkan semua customer yang sudah dipin dan bisa dicari berdasarkan nomor DB, nama, atau alias — sebutan teknisi untuk customer tersebut. Daftarnya dikelola di Pengaturan → Lokasi customer.',
+        ms: 'Lokasi pelanggan kini ada di peta. Di elaun makan GPS, taip nombor DB suatu hari dan borang menunjukkan berapa jauh pelanggan itu dari pangkalan anda — di dalam atau di luar jejari 30 km — sebelum anda berangkat. Peta pangkalan memaparkan semua pelanggan yang sudah dipin dan boleh dicari berdasarkan nombor DB, nama, atau alias — sebutan teknisi untuk pelanggan tersebut. Daftarnya diurus di Tetapan → Lokasi pelanggan.',
         th: 'สถานที่ลูกค้าอยู่บนแผนที่แล้ว ในค่าอาหาร GPS พิมพ์หมายเลข DB ของวันนั้น แบบฟอร์มจะแสดงว่าลูกค้าอยู่ห่างจากฐานของคุณเท่าใด — ในหรือนอกรัศมี 30 กม. — ก่อนคุณออกเดินทาง แผนที่ฐานแสดงลูกค้าที่ปักหมุดทั้งหมดและค้นหาด้วยหมายเลข DB ชื่อ หรือชื่อเรียกที่ช่างใช้ได้ จัดการรายการได้ที่ การตั้งค่า → สถานที่ลูกค้า',
         vi: 'Địa điểm khách hàng giờ đã có trên bản đồ. Trong phụ cấp ăn GPS, nhập số DB của một ngày và biểu mẫu cho biết khách hàng đó cách cơ sở của bạn bao xa — trong hay ngoài bán kính 30 km — trước khi bạn đi. Bản đồ cơ sở hiện mọi khách hàng đã ghim và cho phép tìm theo số DB, tên hoặc tên gọi mà kỹ thuật viên dùng. Danh sách được quản lý trong Cài đặt → Địa điểm khách hàng.',
         km: 'ទីតាំងអតិថិជនឥឡូវមាននៅលើផែនទីហើយ។ ក្នុងប្រាក់អាហារ GPS វាយលេខ DB របស់ថ្ងៃមួយ ហើយទម្រង់នឹងបង្ហាញថាអតិថិជននោះនៅឆ្ងាយពីមូលដ្ឋានរបស់អ្នកប៉ុណ្ណា — ក្នុង ឬក្រៅកាំ 30 គ.ម. — មុនពេលអ្នកធ្វើដំណើរ។ ផែនទីមូលដ្ឋានបង្ហាញអតិថិជនដែលបានដៅទាំងអស់ ហើយអាចស្វែងរកតាមលេខ DB ឈ្មោះ ឬឈ្មោះហៅដែលអ្នកបច្ចេកទេសប្រើ។ បញ្ជីត្រូវបានគ្រប់គ្រងនៅ ការកំណត់ → ទីតាំងអតិថិជន។',
@@ -425,6 +506,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['settings'], text: {
         en: 'Settings → Customer sites: choose “Editors” — named people who may add, edit and delete customer pins in your region without access to the rest of Settings. They see Settings with only that tab.',
         id: 'Pengaturan → Lokasi customer: pilih “Editor” — orang tertentu yang boleh menambah, mengubah, dan menghapus pin customer di region Anda tanpa akses ke Pengaturan lainnya. Mereka hanya melihat tab tersebut di Pengaturan.',
+        ms: 'Tetapan → Lokasi pelanggan: pilih “Penyunting” — orang tertentu yang boleh menambah, mengubah, dan memadam pin pelanggan di wilayah anda tanpa akses ke Tetapan lainnya. Mereka hanya melihat tab tersebut di Tetapan.',
         th: 'การตั้งค่า → สถานที่ลูกค้า: เลือก “ผู้แก้ไข” — บุคคลที่ระบุซึ่งเพิ่ม แก้ไข และลบหมุดลูกค้าในภูมิภาคของคุณได้โดยไม่ต้องเข้าถึงการตั้งค่าส่วนอื่น พวกเขาจะเห็นเฉพาะแท็บนั้นในการตั้งค่า',
         vi: 'Cài đặt → Địa điểm khách hàng: chọn “Người chỉnh sửa” — những người được chỉ định có thể thêm, sửa và xóa ghim khách hàng trong khu vực của bạn mà không cần quyền vào phần còn lại của Cài đặt. Họ chỉ thấy tab đó trong Cài đặt.',
         km: 'ការកំណត់ → ទីតាំងអតិថិជន៖ ជ្រើស “អ្នកកែសម្រួល” — មនុស្សដែលបានកំណត់ដែលអាចបន្ថែម កែ និងលុបការដៅអតិថិជនក្នុងតំបន់របស់អ្នក ដោយមិនចាំបាច់ចូលការកំណត់ផ្សេងទៀត។ ពួកគេឃើញតែផ្ទាំងនោះក្នុងការកំណត់។',
@@ -434,11 +516,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-30.2',
+    ms: '2026-10-30.2',
     date: '2026-10-30',
     items: [
       { kind: 'improved', text: {
         en: 'Glass look: claims lists now have depth. The row you point at lifts towards you, and on wide screens a claim opens as a floating window beside the list, so you can click from claim to claim without closing anything.',
         id: 'Tampilan Kaca: daftar klaim kini punya kedalaman. Baris yang Anda tunjuk terangkat ke arah Anda, dan di layar lebar klaim terbuka sebagai jendela melayang di samping daftar, jadi Anda bisa berpindah dari klaim ke klaim tanpa menutup apa pun.',
+        ms: 'Paparan Kaca: senarai tuntutan kini ada kedalaman. Baris yang anda tunjuk terangkat ke arah anda, dan di skrin lebar tuntutan terbuka sebagai jendela melayang di samping senarai, jadi anda boleh berpindah dari tuntutan ke tuntutan tanpa menutup apa-apa.',
         th: 'รูปลักษณ์กระจก: รายการคำขอเบิกมีมิติความลึกแล้ว แถวที่คุณชี้จะยกตัวขึ้นมาหาคุณ และบนจอกว้าง คำขอเบิกจะเปิดเป็นหน้าต่างลอยข้างรายการ คุณจึงคลิกจากคำขอหนึ่งไปอีกคำขอได้โดยไม่ต้องปิดอะไร',
         vi: 'Giao diện Kính mờ: danh sách yêu cầu giờ có chiều sâu. Dòng bạn trỏ vào sẽ nổi lên phía bạn, và trên màn hình rộng, yêu cầu mở ra thành cửa sổ nổi bên cạnh danh sách để bạn bấm từ yêu cầu này sang yêu cầu khác mà không cần đóng gì.',
         km: 'រូបរាងកញ្ចក់៖ បញ្ជីការទាមទារឥឡូវមានជម្រៅ។ ជួរដែលអ្នកចង្អុលនឹងលើកឡើងមករកអ្នក ហើយនៅលើអេក្រង់ធំ ការទាមទារបើកជាផ្ទាំងអណ្តែតនៅក្បែរបញ្ជី ដូច្នេះអ្នកអាចចុចពីការទាមទារមួយទៅមួយទៀតដោយមិនចាំបាច់បិទអ្វីទាំងអស់។',
@@ -448,11 +532,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-30.1',
+    ms: '2026-10-30.1',
     date: '2026-10-30',
     items: [
       { kind: 'new', text: {
         en: 'New “Glass” look in My profile → Appearance: frosted, see-through panels over a soft colour background, in light and dark mode. Classic and Modern are still there.',
         id: 'Tampilan baru “Kaca” di Profil saya → Tampilan: panel buram tembus pandang di atas latar warna lembut, dalam mode terang dan gelap. Klasik dan Modern tetap tersedia.',
+        ms: 'Paparan baharu “Kaca” di Profil saya → Paparan: panel buram tembus pandang di atas latar warna lembut, dalam mod cerah dan gelap. Klasik dan Modern tetap tersedia.',
         th: 'รูปลักษณ์ใหม่ “กระจก” ใน โปรไฟล์ของฉัน → รูปลักษณ์: แผงฝ้าโปร่งแสงบนพื้นหลังสีนุ่มนวล ทั้งโหมดสว่างและโหมดมืด ยังคงมีแบบคลาสสิกและโมเดิร์นให้เลือก',
         vi: 'Giao diện mới “Kính mờ” trong Hồ sơ của tôi → Giao diện: các bảng mờ trong suốt trên nền màu dịu, ở cả chế độ sáng và tối. Cổ điển và Hiện đại vẫn còn đó.',
         km: 'រូបរាងថ្មី “កញ្ចក់” នៅក្នុង ប្រវត្តិរូបរបស់ខ្ញុំ → រូបរាង៖ ផ្ទាំងស្រអាប់ថ្លាលើផ្ទៃខាងក្រោយពណ៌ទន់ ទាំងក្នុងរបៀបភ្លឺ និងងងឹត។ បុរាណ និងទំនើប នៅតែមាន។',
@@ -462,11 +548,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-26.4',
+    ms: '2026-10-26.4',
     date: '2026-10-26',
     items: [
       { kind: 'new', text: {
         en: 'New “Bases map” tile on the home screen: see every base with its 30 km radius ring, with your own base marked. Tap a base in the list to zoom to it.',
         id: 'Ubin baru “Peta base” di beranda: lihat semua base beserta lingkaran radius 30 km-nya, dengan base Anda ditandai. Ketuk base di daftar untuk memperbesar ke sana.',
+        ms: 'Ubin baharu “Peta pangkalan” di beranda: lihat semua pangkalan beserta bulatan jejari 30 km tersebut, dengan pangkalan anda ditandakan. Ketik pangkalan di senarai untuk memperbesar ke sana.',
         th: 'ไทล์ใหม่ “แผนที่ฐาน” ในหน้าหลัก: ดูทุกฐานพร้อมวงรัศมี 30 กม. โดยมีการทำเครื่องหมายฐานของคุณ แตะฐานในรายการเพื่อซูมไปที่ฐานนั้น',
         vi: 'Ô mới “Bản đồ cơ sở” trên màn hình chính: xem mọi cơ sở cùng vòng bán kính 30 km, có đánh dấu cơ sở của bạn. Chạm vào một cơ sở trong danh sách để phóng to đến đó.',
         km: 'ប្រអប់ថ្មី “ផែនទីមូលដ្ឋាន” នៅទំព័រដើម៖ មើលមូលដ្ឋានទាំងអស់ជាមួយរង្វង់កាំ 30 គ.ម ដោយមានសម្គាល់មូលដ្ឋានរបស់អ្នក។ ចុចមូលដ្ឋានក្នុងបញ្ជីដើម្បីពង្រីកទៅទីនោះ។',
@@ -476,11 +564,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-26.3',
+    ms: '2026-10-26.3',
     date: '2026-10-26',
     items: [
       { kind: 'new', audience: ['meal'], text: {
         en: 'The GPS meal allowance form now has a map: your base, its 30 km radius ring and a numbered pin for each day’s recorded location. Approvers see the same map on the claim.',
         id: 'Formulir uang makan GPS kini punya peta: base Anda, lingkaran radius 30 km, dan pin bernomor untuk lokasi yang direkam tiap hari. Approver melihat peta yang sama di klaim.',
+        ms: 'Borang elaun makan GPS kini ada peta: pangkalan anda, bulatan jejari 30 km, dan pin bernombor untuk lokasi yang direkam tiap hari. Approver melihat peta yang sama dalam tuntutan.',
         th: 'แบบฟอร์มค่าอาหาร GPS มีแผนที่แล้ว: ฐานของคุณ วงรัศมี 30 กม. และหมุดตัวเลขสำหรับตำแหน่งที่บันทึกในแต่ละวัน ผู้อนุมัติจะเห็นแผนที่เดียวกันในคำขอเบิก',
         vi: 'Biểu mẫu phụ cấp ăn GPS giờ có bản đồ: cơ sở của bạn, vòng bán kính 30 km và ghim đánh số cho vị trí đã ghi mỗi ngày. Người duyệt thấy cùng bản đồ đó trên yêu cầu.',
         km: 'ទម្រង់ប្រាក់អាហារ GPS ឥឡូវមានផែនទី៖ មូលដ្ឋានរបស់អ្នក រង្វង់កាំ 30 គ.ម និងម្ជុលមានលេខសម្រាប់ទីតាំងដែលបានកត់ត្រាប្រចាំថ្ងៃ។ អ្នកអនុម័តឃើញផែនទីដូចគ្នានៅលើការទាមទារ។',
@@ -489,6 +579,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['settings'], text: {
         en: 'Settings → Bases now has a map: every base with its 30 km radius ring for the GPS meal allowance. Click a base’s name to zoom to it, or click the map to fill in a new base’s location.',
         id: 'Pengaturan → Base kini punya peta: setiap base dengan lingkaran radius 30 km untuk uang makan GPS. Klik nama base untuk memperbesar ke sana, atau klik peta untuk mengisi lokasi base baru.',
+        ms: 'Tetapan → Pangkalan kini ada peta: setiap pangkalan dengan bulatan jejari 30 km untuk elaun makan GPS. Klik nama pangkalan untuk memperbesar ke sana, atau klik peta untuk mengisi lokasi pangkalan baharu.',
         th: 'การตั้งค่า → ฐาน มีแผนที่แล้ว: ทุกฐานพร้อมวงรัศมี 30 กม. สำหรับค่าอาหาร GPS คลิกชื่อฐานเพื่อซูมไปที่ฐานนั้น หรือคลิกแผนที่เพื่อกรอกตำแหน่งของฐานใหม่',
         vi: 'Cài đặt → Cơ sở giờ có bản đồ: mỗi cơ sở cùng vòng bán kính 30 km cho phụ cấp ăn GPS. Nhấp vào tên cơ sở để phóng to đến đó, hoặc nhấp vào bản đồ để điền vị trí cho cơ sở mới.',
         km: 'ការកំណត់ → មូលដ្ឋាន ឥឡូវមានផែនទី៖ មូលដ្ឋាននីមួយៗជាមួយរង្វង់កាំ 30 គ.ម សម្រាប់ប្រាក់អាហារ GPS។ ចុចឈ្មោះមូលដ្ឋានដើម្បីពង្រីកទៅទីនោះ ឬចុចលើផែនទីដើម្បីបំពេញទីតាំងមូលដ្ឋានថ្មី។',
@@ -498,11 +589,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-26.1',
+    ms: '2026-10-26.1',
     date: '2026-10-26',
     items: [
       { kind: 'new', text: {
         en: 'Forgot your password? Tap “Forgot password?” on the sign-in screen and we’ll email you a link to choose a new one. Make sure your email address in Profile is correct.',
         id: 'Lupa kata sandi? Ketuk “Lupa kata sandi?” di halaman masuk dan kami akan mengirim tautan lewat email untuk membuat kata sandi baru. Pastikan alamat email di Profil Anda sudah benar.',
+        ms: 'Lupa kata laluan? Ketik “Lupa kata laluan?” pada halaman masuk dan kami akan menghantar pautan melepasi e-mel untuk membuat kata laluan baharu. Pastikan alamat e-mel di Profil anda sudah benar.',
         th: 'ลืมรหัสผ่าน? แตะ “ลืมรหัสผ่าน?” ที่หน้าเข้าสู่ระบบ แล้วเราจะส่งลิงก์ทางอีเมลให้คุณตั้งรหัสผ่านใหม่ โปรดตรวจสอบว่าอีเมลในโปรไฟล์ของคุณถูกต้อง',
         vi: 'Quên mật khẩu? Nhấn “Quên mật khẩu?” ở màn hình đăng nhập, chúng tôi sẽ gửi email kèm liên kết để bạn đặt mật khẩu mới. Hãy đảm bảo địa chỉ email trong Hồ sơ của bạn là chính xác.',
         km: 'ភ្លេចពាក្យសម្ងាត់? ចុច “ភ្លេចពាក្យសម្ងាត់?” នៅទំព័រចូល ហើយយើងនឹងផ្ញើតំណតាមអ៊ីមែល ដើម្បីឱ្យអ្នកកំណត់ពាក្យសម្ងាត់ថ្មី។ សូមប្រាកដថាអាសយដ្ឋានអ៊ីមែលក្នុងប្រវត្តិរូបរបស់អ្នកត្រឹមត្រូវ។',
@@ -512,11 +605,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-24.3',
+    ms: '2026-10-24.3',
     date: '2026-10-24',
     items: [
       { kind: 'new', audience: ['claim', 'meal', 'advance'], text: {
         en: 'On phones, a new “Take photo” button next to each receipt opens the camera straight away. The attach buttons are bigger too.',
         id: 'Di HP, ada tombol baru “Ambil foto” di samping setiap struk yang langsung membuka kamera. Tombol lampiran juga lebih besar.',
+        ms: 'Di HP, ada butang baharu “Ambil foto” di samping setiap resit yang langsung membuka kamera. Butang lampiran juga lebih besar.',
         th: 'บนมือถือ มีปุ่ม “ถ่ายรูป” ใหม่ข้างใบเสร็จแต่ละรายการ ซึ่งเปิดกล้องได้ทันที ปุ่มแนบไฟล์ก็ใหญ่ขึ้นด้วย',
         vi: 'Trên điện thoại, nút mới “Chụp ảnh” cạnh mỗi hóa đơn mở ngay máy ảnh. Các nút đính kèm cũng lớn hơn.',
         km: 'នៅលើទូរស័ព្ទ ប៊ូតុងថ្មី “ថតរូប” នៅក្បែរវិក្កយបត្រនីមួយៗ បើកកាមេរ៉ាភ្លាមៗ។ ប៊ូតុងភ្ជាប់ឯកសារក៏ធំជាងមុនដែរ។',
@@ -525,6 +620,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['claim', 'advance'], text: {
         en: 'When a claim can’t be submitted, the message now says which line is wrong, and the form jumps to that line and marks it.',
         id: 'Jika klaim belum bisa dikirim, pesannya kini menyebut baris mana yang salah, dan formulir langsung menuju baris itu serta menandainya.',
+        ms: 'Jika tuntutan belum boleh dihantar, pesannya kini menyebut baris mana yang salah, dan borang langsung menuju baris itu serta menandainya.',
         th: 'เมื่อส่งรายการเบิกไม่ได้ ข้อความจะบอกว่าบรรทัดไหนผิด และแบบฟอร์มจะเลื่อนไปที่บรรทัดนั้นพร้อมทำเครื่องหมายไว้',
         vi: 'Khi chưa gửi được yêu cầu, thông báo giờ cho biết dòng nào sai, và biểu mẫu sẽ chuyển đến dòng đó và đánh dấu nó.',
         km: 'ពេលសំណើមិនអាចដាក់ស្នើបាន សារឥឡូវប្រាប់ថាជួរណាខុស ហើយទម្រង់នឹងលោតទៅជួរនោះ និងសម្គាល់វា។',
@@ -533,6 +629,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Claim lists on phones are tidier: “My claims” cards lead with the expense and its date instead of your own name, and the tick boxes appear only after you press “Select”.',
         id: 'Daftar klaim di HP lebih rapi: kartu “Klaim saya” menampilkan jenis pengeluaran dan tanggalnya di atas, bukan nama Anda sendiri, dan kotak centang baru muncul setelah Anda menekan “Pilih”.',
+        ms: 'Senarai tuntutan di HP lebih rapi: kartu “Tuntutan saya” memaparkan jenis perbelanjaan dan tarikhnya di atas, bukan nama anda sendiri, dan kotak tandakan baharu muncul selepas anda menekan “Pilih”.',
         th: 'รายการเบิกบนมือถือดูเป็นระเบียบขึ้น: การ์ดใน “การเบิกของฉัน” แสดงประเภทค่าใช้จ่ายและวันที่ก่อนแทนชื่อของคุณ และช่องติ๊กจะแสดงเมื่อกด “เลือก” เท่านั้น',
         vi: 'Danh sách yêu cầu trên điện thoại gọn hơn: thẻ trong “Yêu cầu của tôi” hiển thị loại chi phí và ngày ở đầu thay vì tên của bạn, và ô đánh dấu chỉ hiện khi bạn bấm “Chọn”.',
         km: 'បញ្ជីសំណើលើទូរស័ព្ទមានសណ្តាប់ធ្នាប់ជាងមុន៖ កាតក្នុង “សំណើរបស់ខ្ញុំ” បង្ហាញប្រភេទចំណាយ និងកាលបរិច្ឆេទមុន ជំនួសឱ្យឈ្មោះរបស់អ្នក ហើយប្រអប់ធីកបង្ហាញតែពេលអ្នកចុច “ជ្រើសរើស” ប៉ុណ្ណោះ។',
@@ -542,11 +639,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-24.2',
+    ms: '2026-10-24.2',
     date: '2026-10-24',
     items: [
       { kind: 'improved', text: {
         en: 'Easier on phones: text and buttons are bigger, forms open full screen so more of the form fits, and the phone’s Back button now closes the open form or claim instead of leaving the app. A form you were filling in is kept as a draft.',
         id: 'Lebih nyaman di HP: teks dan tombol lebih besar, formulir terbuka layar penuh sehingga lebih banyak isian terlihat, dan tombol Kembali di HP kini menutup formulir atau klaim yang terbuka, bukan keluar dari aplikasi. Formulir yang sedang diisi tetap tersimpan sebagai draf.',
+        ms: 'Lebih nyaman di HP: teks dan butang lebih besar, borang terbuka skrin penuh sehingga lebih banyak isian terlihat, dan butang Kembali di HP kini menutup borang atau tuntutan yang terbuka, bukan keluar daripada aplikasi. Borang yang sedang diisi tetap tersimpan sebagai draf.',
         th: 'ใช้งานบนมือถือง่ายขึ้น: ตัวอักษรและปุ่มใหญ่ขึ้น แบบฟอร์มเปิดเต็มจอจึงเห็นช่องกรอกได้มากขึ้น และปุ่มย้อนกลับของมือถือจะปิดแบบฟอร์มหรือรายการเบิกที่เปิดอยู่แทนการออกจากแอป แบบฟอร์มที่กรอกค้างไว้จะถูกเก็บเป็นฉบับร่าง',
         vi: 'Dễ dùng hơn trên điện thoại: chữ và nút lớn hơn, biểu mẫu mở toàn màn hình nên thấy được nhiều ô hơn, và nút Quay lại của điện thoại giờ đóng biểu mẫu hoặc yêu cầu đang mở thay vì thoát ứng dụng. Biểu mẫu đang điền được giữ lại dưới dạng bản nháp.',
         km: 'ងាយស្រួលជាងមុនលើទូរស័ព្ទ៖ អក្សរ និងប៊ូតុងធំជាងមុន ទម្រង់បើកពេញអេក្រង់ ដូច្នេះឃើញវាលបំពេញច្រើនជាងមុន ហើយប៊ូតុងថយក្រោយរបស់ទូរស័ព្ទឥឡូវបិទទម្រង់ ឬសំណើដែលកំពុងបើក ជំនួសឱ្យការចាកចេញពីកម្មវិធី។ ទម្រង់ដែលអ្នកកំពុងបំពេញត្រូវបានរក្សាទុកជាសេចក្តីព្រាង។',
@@ -556,11 +655,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-24.1',
+    ms: '2026-10-24.1',
     date: '2026-10-24',
     items: [
       { kind: 'new', audience: ['accounts', 'superadmin'], text: {
         en: 'Accounts can now be assigned to a specific person with “Managed by”. That person — and whoever manages them — sees the account in Manage accounts and can reset its password or enable/disable it, even across departments.',
         id: 'Akun kini dapat ditugaskan ke orang tertentu lewat “Dikelola oleh”. Orang tersebut — dan atasannya — melihat akun itu di Kelola akun serta dapat mereset kata sandi atau mengaktifkan/menonaktifkannya, meski beda departemen.',
+        ms: 'Akaun kini dapat ditugaskan ke orang tertentu melepasi “Diurus oleh”. Orang tersebut — dan atasannya — melihat akaun itu di Urus akaun serta dapat menetapkan semula kata laluan atau mengaktifkan/menyahaktifkannya, meski beda jabatan.',
         th: 'ตอนนี้สามารถมอบหมายบัญชีให้บุคคลที่ระบุผ่าน “ดูแลโดย” ได้แล้ว บุคคลนั้นและผู้ที่ดูแลเขาจะเห็นบัญชีในหน้าจัดการบัญชี และรีเซ็ตรหัสผ่านหรือเปิด/ปิดบัญชีได้ แม้อยู่ต่างแผนก',
         vi: 'Giờ có thể giao tài khoản cho một người cụ thể bằng “Quản lý bởi”. Người đó — và người quản lý của họ — sẽ thấy tài khoản trong Quản lý tài khoản và có thể đặt lại mật khẩu hoặc bật/tắt, kể cả khác phòng ban.',
         km: 'ឥឡូវអាចចាត់គណនីឱ្យមនុស្សជាក់លាក់តាម “គ្រប់គ្រងដោយ”។ អ្នកនោះ — និងអ្នកដែលគ្រប់គ្រងពួកគេ — ឃើញគណនីក្នុងការគ្រប់គ្រងគណនី ហើយអាចកំណត់ពាក្យសម្ងាត់ឡើងវិញ ឬបើក/បិទវា ទោះនៅផ្នែកផ្សេងក៏ដោយ។',
@@ -570,11 +671,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-23.7',
+    ms: '2026-10-23.7',
     date: '2026-10-23',
     items: [
       { kind: 'fixed', text: {
         en: 'Error messages — a wrong password, a missing field, an action you can’t take — now appear in your language instead of English.',
         id: 'Pesan kesalahan — kata sandi salah, kolom yang belum diisi, tindakan yang tidak diizinkan — kini tampil dalam bahasa Anda, bukan bahasa Inggris.',
+        ms: 'Mesej ralat — kata laluan salah, lajur yang belum diisi, tindakan yang tidak dibenarkan — kini tampil dalam bahasa anda, bukan bahasa Inggris.',
         th: 'ข้อความแจ้งข้อผิดพลาด เช่น รหัสผ่านผิด ช่องที่ยังไม่ได้กรอก หรือการดำเนินการที่คุณไม่มีสิทธิ์ ตอนนี้แสดงเป็นภาษาของคุณแทนภาษาอังกฤษแล้ว',
         vi: 'Thông báo lỗi — sai mật khẩu, thiếu trường bắt buộc, thao tác bạn không được phép — giờ hiển thị bằng ngôn ngữ của bạn thay vì tiếng Anh.',
         km: 'សារកំហុស — ពាក្យសម្ងាត់ខុស វាលដែលមិនទាន់បំពេញ សកម្មភាពដែលអ្នកមិនអាចធ្វើបាន — ឥឡូវបង្ហាញជាភាសារបស់អ្នក ជំនួសឱ្យភាសាអង់គ្លេស។',
@@ -584,11 +687,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-23.6',
+    ms: '2026-10-23.6',
     date: '2026-10-23',
     items: [
       { kind: 'fixed', audience: ['claim', 'meal', 'advance', 'insights', 'accounts'], text: {
         en: 'The receipt photo editor (crop, scan filter, rotate, date & location stamp) now appears in your language, as do the Insights month filter and the Accounts scope notes.',
         id: 'Editor foto struk (potong, filter pindai, putar, cap tanggal & lokasi) kini tampil dalam bahasa Anda, begitu juga filter bulan di Insight dan catatan cakupan di Akun.',
+        ms: 'Penyunting foto resit (potong, penapis imbas, putar, cap tarikh & lokasi) kini tampil dalam bahasa anda, begitu juga penapis bulan di Analisis dan catatan cakupan dalam akaun.',
         th: 'ตัวแก้ไขรูปใบเสร็จ (ครอบตัด ฟิลเตอร์สแกน หมุน ประทับวันที่และตำแหน่ง) แสดงเป็นภาษาของคุณแล้ว รวมถึงตัวกรองเดือนในข้อมูลเชิงลึก และคำอธิบายขอบเขตในหน้าบัญชี',
         vi: 'Trình chỉnh sửa ảnh hóa đơn (cắt, bộ lọc quét, xoay, đóng dấu ngày & vị trí) giờ hiển thị bằng ngôn ngữ của bạn, cũng như bộ lọc tháng trong Thống kê và ghi chú phạm vi trong Tài khoản.',
         km: 'កម្មវិធីកែរូបបង្កាន់ដៃ (កាត់ តម្រងស្កេន បង្វិល បោះត្រាកាលបរិច្ឆេទ និងទីតាំង) ឥឡូវបង្ហាញជាភាសារបស់អ្នក ព្រមទាំងតម្រងខែក្នុងការវិភាគ និងកំណត់ចំណាំវិសាលភាពក្នុងគណនី។',
@@ -598,11 +703,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-23.5',
+    ms: '2026-10-23.5',
     date: '2026-10-23',
     items: [
       { kind: 'improved', audience: ['meal', 'pay', 'settings'], text: {
         en: 'GPS meal allowance: every distance now says RADIUS in bold red. The 30 km is a straight line from your base to where you are — not the distance you travel by road.',
         id: 'Tunjangan makan GPS: setiap jarak kini bertuliskan RADIUS tebal berwarna merah. 30 km adalah garis lurus dari base ke lokasi Anda — bukan jarak tempuh di jalan.',
+        ms: 'Elaun makan GPS: setiap jarak kini bertuliskan JEJARI tebal berwarna merah. 30 km adalah garis lurus dari pangkalan ke lokasi anda — bukan jarak tempuh di jalan.',
         th: 'ค่าอาหาร GPS: ทุกระยะทางมีคำว่า รัศมี ตัวหนาสีแดง 30 กม. คือเส้นตรงจากฐานถึงตำแหน่งของคุณ — ไม่ใช่ระยะทางที่เดินทางบนถนน',
         vi: 'Phụ cấp ăn GPS: mọi khoảng cách giờ ghi BÁN KÍNH bằng chữ đậm màu đỏ. 30 km là đường thẳng từ cơ sở đến nơi bạn đang ở — không phải quãng đường bạn đi trên đường bộ.',
         km: 'ប្រាក់ឧបត្ថម្ភអាហារ GPS៖ រាល់ចម្ងាយឥឡូវបង្ហាញពាក្យ កាំ ជាអក្សរដិតពណ៌ក្រហម។ 30 គ.ម គឺជាបន្ទាត់ត្រង់ពីមូលដ្ឋានទៅកន្លែងដែលអ្នកនៅ — មិនមែនចម្ងាយដែលអ្នកធ្វើដំណើរតាមផ្លូវទេ។',
@@ -612,11 +719,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-23.4',
+    ms: '2026-10-23.4',
     date: '2026-10-23',
     items: [
       { kind: 'new', audience: ['settings', 'accounts'], text: {
         en: 'Settings → Bases keeps each region’s list of bases (offices, branches). Add one once, then tick which accounts belong to it — no more typing coordinates per account. The account editor now picks a base from this list, and moving a base moves everyone on it.',
         id: 'Pengaturan → Base menyimpan daftar base setiap wilayah (kantor, cabang). Tambahkan sekali, lalu centang akun mana yang termasuk — tidak perlu lagi mengetik koordinat per akun. Editor akun kini memilih base dari daftar ini, dan memindahkan base ikut memindahkan semua akun di dalamnya.',
+        ms: 'Tetapan → Pangkalan menyimpan senarai pangkalan setiap wilayah (pejabat, cabang). Tambah sekali, kemudian tandakan akaun mana yang termasuk — tidak perlu lagi mengetik koordinat per akaun. Penyunting akaun kini memilih pangkalan dari senarai ini, dan memindahkan pangkalan ikut memindahkan semua akaun di dalamnya.',
         th: 'การตั้งค่า → ฐาน เก็บรายการฐานของแต่ละพื้นที่ (สำนักงาน สาขา) เพิ่มครั้งเดียว แล้วติ๊กว่าบัญชีใดอยู่ในฐานนั้น — ไม่ต้องพิมพ์พิกัดทีละบัญชีอีกต่อไป ตัวแก้ไขบัญชีจะเลือกฐานจากรายการนี้ และการย้ายฐานจะย้ายทุกคนในฐานนั้นไปด้วย',
         vi: 'Cài đặt → Cơ sở lưu danh sách cơ sở của từng khu vực (văn phòng, chi nhánh). Thêm một lần, rồi tích chọn tài khoản thuộc cơ sở đó — không cần nhập tọa độ cho từng tài khoản nữa. Trình sửa tài khoản giờ chọn cơ sở từ danh sách này, và dời một cơ sở sẽ dời mọi người thuộc cơ sở đó.',
         km: 'ការកំណត់ → មូលដ្ឋាន រក្សាបញ្ជីមូលដ្ឋានរបស់តំបន់នីមួយៗ (ការិយាល័យ សាខា)។ បន្ថែមម្តង រួចធីកគណនីដែលជាកម្មសិទ្ធិរបស់វា — មិនចាំបាច់វាយកូអរដោនេម្តងមួយគណនីទៀតទេ។ កម្មវិធីកែគណនីឥឡូវជ្រើសមូលដ្ឋានពីបញ្ជីនេះ ហើយការផ្លាស់ទីមូលដ្ឋាននឹងផ្លាស់ទីអ្នកទាំងអស់នៅលើវា។',
@@ -626,11 +735,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-23.3',
+    ms: '2026-10-23.3',
     date: '2026-10-23',
     items: [
       { kind: 'improved', audience: ['export'], text: {
         en: 'Export now downloads an Excel workbook (.xlsx) instead of a CSV file. Amounts are real numbers you can total straight away, dates and times are real Excel dates, and the header row stays frozen with filters already switched on.',
         id: 'Ekspor kini mengunduh buku kerja Excel (.xlsx), bukan file CSV. Nominal berupa angka sungguhan yang bisa langsung dijumlahkan, tanggal dan waktu berupa tanggal Excel sungguhan, dan baris judul tetap terkunci dengan filter yang sudah aktif.',
+        ms: 'Eksport kini memuat turun buku kerja Excel (.xlsx), bukan fail CSV. Amaun berupa angka sungguhan yang boleh langsung dijumlahkan, tarikh dan waktu berupa tarikh Excel sungguhan, dan baris judul tetap terkunci dengan penapis yang sudah aktif.',
         th: 'การส่งออกตอนนี้ดาวน์โหลดเป็นไฟล์ Excel (.xlsx) แทนไฟล์ CSV จำนวนเงินเป็นตัวเลขจริงที่รวมยอดได้ทันที วันที่และเวลาเป็นวันที่ของ Excel จริง และแถวหัวตารางถูกตรึงไว้พร้อมเปิดตัวกรองไว้แล้ว',
         vi: 'Xuất dữ liệu giờ tải về sổ làm việc Excel (.xlsx) thay cho tệp CSV. Số tiền là số thật có thể cộng ngay, ngày giờ là ngày Excel thật, và hàng tiêu đề được cố định với bộ lọc đã bật sẵn.',
         km: 'ការនាំចេញឥឡូវទាញយកជាសៀវភៅការងារ Excel (.xlsx) ជំនួសឱ្យឯកសារ CSV។ ចំនួនទឹកប្រាក់ជាលេខពិតដែលអាចបូកសរុបបានភ្លាមៗ កាលបរិច្ឆេទ និងម៉ោងជាកាលបរិច្ឆេទ Excel ពិត ហើយជួរក្បាលតារាងត្រូវបានចាក់សោជាមួយតម្រងដែលបានបើករួចហើយ។',
@@ -640,11 +751,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-23.2',
+    ms: '2026-10-23.2',
     date: '2026-10-23',
     items: [
       { kind: 'new', audience: ['meal'], text: {
         en: 'New meal allowance (GPS), for days from 1 November 2026 wherever it is switched on: one card per day, in town or out of town, with your location recorded and measured from your base, and the receipt attached. In town under 30 km can’t be claimed; 30 km or more is up to IDR 35,000 a day; out of town is up to 3 meals and IDR 120,000 a day. Allow location for this site so every day can be recorded.',
         id: 'Tunjangan makan baru (GPS), untuk hari mulai 1 November 2026 di wilayah yang mengaktifkannya: satu kartu per hari, dalam kota atau luar kota, dengan lokasi Anda direkam dan diukur dari base Anda, serta struk dilampirkan. Dalam kota di bawah 30 km tidak dapat diklaim; 30 km atau lebih maksimal IDR 35.000 per hari; luar kota maksimal 3 kali makan dan IDR 120.000 per hari. Izinkan akses lokasi untuk situs ini agar setiap hari bisa direkam.',
+        ms: 'Elaun makan baharu (GPS), untuk hari mulai 1 November 2026 di wilayah yang mengaktifkannya: satu kartu sehari, dalam kawasan bandar atau luar kawasan bandar, dengan lokasi anda direkam dan diukur dari pangkalan anda, serta resit dilampirkan. Dalam kawasan bandar di bawah 30 km tidak dapat dituntut; 30 km atau lebih maksimum IDR 35.000 sehari; luar kawasan bandar maksimum 3 kali makan dan IDR 120.000 sehari. Izinkan akses lokasi untuk situs ini supaya setiap hari boleh direkam.',
         th: 'ค่าอาหารแบบใหม่ (GPS) สำหรับวันตั้งแต่ 1 พฤศจิกายน 2026 ในพื้นที่ที่เปิดใช้: หนึ่งการ์ดต่อวัน ในเมืองหรือนอกเมือง บันทึกตำแหน่งของคุณและวัดระยะจากฐาน พร้อมแนบใบเสร็จ ในเมืองที่ต่ำกว่า 30 กม. เบิกไม่ได้ ตั้งแต่ 30 กม. ขึ้นไปเบิกได้สูงสุด IDR 35,000 ต่อวัน นอกเมืองไม่เกิน 3 มื้อและ IDR 120,000 ต่อวัน อนุญาตตำแหน่งสำหรับเว็บไซต์นี้เพื่อให้บันทึกได้ทุกวัน',
         vi: 'Phụ cấp ăn mới (GPS), cho các ngày từ 1/11/2026 ở nơi được bật: mỗi ngày một thẻ, trong hoặc ngoài thành phố, ghi lại vị trí của bạn và đo khoảng cách từ cơ sở, kèm hóa đơn. Trong thành phố dưới 30 km không được thanh toán; từ 30 km trở lên tối đa IDR 35.000 mỗi ngày; ngoài thành phố tối đa 3 bữa và IDR 120.000 mỗi ngày. Hãy cho phép vị trí cho trang này để ghi lại được mỗi ngày.',
         km: 'ប្រាក់ឧបត្ថម្ភអាហារថ្មី (GPS) សម្រាប់ថ្ងៃចាប់ពី ១ វិច្ឆិកា ២០២៦ នៅកន្លែងដែលបានបើក៖ មួយកាតក្នុងមួយថ្ងៃ ក្នុងក្រុង ឬក្រៅក្រុង ដោយកត់ត្រាទីតាំងរបស់អ្នក និងវាស់ពីមូលដ្ឋាន ព្រមទាំងភ្ជាប់វិក្កយបត្រ។ ក្នុងក្រុងក្រោម 30 គ.ម មិនអាចទាមទារ; ចាប់ពី 30 គ.ម អតិបរមា IDR 35,000 ក្នុងមួយថ្ងៃ; ក្រៅក្រុងអាហារមិនលើស 3 ពេល និង IDR 120,000 ក្នុងមួយថ្ងៃ។ សូមអនុញ្ញាតទីតាំងសម្រាប់គេហទំព័រនេះ ដើម្បីកត់ត្រាបានរាល់ថ្ងៃ។',
@@ -653,6 +766,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['meal', 'pay'], text: {
         en: 'Approving a GPS meal allowance: the Manager, or Finance AP before paying, can lower a day’s approved amount — say to the IDR 20,000 on the receipt when IDR 35,000 was claimed. The claim then pays the approved amount, and the claimant sees what changed and why.',
         id: 'Menyetujui tunjangan makan GPS: Manager, atau Finance AP sebelum membayar, dapat menurunkan nominal disetujui per hari — misalnya menjadi IDR 20.000 sesuai struk saat yang diklaim IDR 35.000. Klaim lalu membayar nominal yang disetujui, dan pengklaim melihat apa yang diubah dan alasannya.',
+        ms: 'Meluluskan elaun makan GPS: Manager, atau Finance AP sebelum membayar, dapat menurunkan amaun diluluskan sehari — contohnya menjadi IDR 20.000 sesuai resit saat yang dituntut IDR 35.000. Tuntutan kemudian membayar amaun yang diluluskan, dan penuntut melihat apa yang diubah dan alasannya.',
         th: 'การอนุมัติค่าอาหาร GPS: Manager หรือ Finance AP ก่อนจ่ายเงิน สามารถลดจำนวนเงินที่อนุมัติของแต่ละวันได้ เช่น เป็น IDR 20,000 ตามใบเสร็จเมื่อเบิกมา IDR 35,000 จากนั้นคำขอจะจ่ายตามจำนวนที่อนุมัติ และผู้เบิกจะเห็นว่าเปลี่ยนอะไรและเพราะอะไร',
         vi: 'Duyệt phụ cấp ăn GPS: Manager, hoặc Finance AP trước khi thanh toán, có thể giảm số tiền được duyệt của một ngày — ví dụ xuống IDR 20.000 theo hóa đơn khi đã yêu cầu IDR 35.000. Yêu cầu sau đó được trả theo số tiền được duyệt, và người yêu cầu thấy điều gì đã thay đổi và lý do.',
         km: 'ការអនុម័តប្រាក់ឧបត្ថម្ភអាហារ GPS៖ Manager ឬ Finance AP មុនពេលទូទាត់ អាចបន្ថយចំនួនទឹកប្រាក់ដែលបានអនុម័តរបស់ថ្ងៃមួយ — ឧ. មក IDR 20,000 តាមវិក្កយបត្រ ពេលដែលបានទាមទារ IDR 35,000។ បន្ទាប់មកការទាមទារនឹងទូទាត់តាមចំនួនដែលបានអនុម័ត ហើយអ្នកទាមទារឃើញអ្វីដែលបានផ្លាស់ប្តូរ និងមូលហេតុ។',
@@ -661,6 +775,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['settings', 'accounts'], text: {
         en: 'Settings → Meal allowance (GPS) switches the new form on or off for each region and shows how many accounts still need a base. Every account now has a base location (Accounts → Base location): paste coordinates or a Google Maps link.',
         id: 'Pengaturan → Tunjangan makan (GPS) mengaktifkan atau menonaktifkan formulir baru per wilayah dan menunjukkan berapa akun yang masih perlu base. Setiap akun kini memiliki lokasi base (Akun → Lokasi base): tempel koordinat atau tautan Google Maps.',
+        ms: 'Tetapan → Elaun makan (GPS) mengaktifkan atau menyahaktifkan borang baharu per wilayah dan menunjukkan berapa akaun yang masih perlu pangkalan. Setiap akaun kini mempunyai lokasi pangkalan (Akaun → Lokasi pangkalan): tampal koordinat atau pautan Google Maps.',
         th: 'การตั้งค่า → ค่าอาหาร (GPS) เปิดหรือปิดแบบฟอร์มใหม่สำหรับแต่ละพื้นที่ และแสดงจำนวนบัญชีที่ยังต้องตั้งฐาน ทุกบัญชีมีตำแหน่งฐานแล้ว (บัญชี → ตำแหน่งฐาน): วางพิกัดหรือลิงก์ Google Maps',
         vi: 'Cài đặt → Phụ cấp ăn (GPS) bật hoặc tắt biểu mẫu mới cho từng khu vực và cho biết còn bao nhiêu tài khoản cần cơ sở. Mỗi tài khoản giờ có vị trí cơ sở (Tài khoản → Vị trí cơ sở): dán tọa độ hoặc liên kết Google Maps.',
         km: 'ការកំណត់ → ប្រាក់ឧបត្ថម្ភអាហារ (GPS) បើក ឬបិទទម្រង់ថ្មីសម្រាប់តំបន់នីមួយៗ ហើយបង្ហាញចំនួនគណនីដែលនៅត្រូវការមូលដ្ឋាន។ គណនីនីមួយៗឥឡូវមានទីតាំងមូលដ្ឋាន (គណនី → ទីតាំងមូលដ្ឋាន)៖ បិទភ្ជាប់កូអរដោនេ ឬតំណ Google Maps។',
@@ -670,11 +785,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-18.1',
+    ms: '2026-10-18.1',
     date: '2026-10-18',
     items: [
       { kind: 'new', audience: ['insights'], text: {
         en: 'Insights shows much more: each headline figure now compares with the previous month or year, the monthly trend draws last year as a dashed line, new charts rank spend by department, employee and DB number (click a bar to see its expenses), and a Pipeline & speed row shows what is waiting for approval or payment right now and how many days approving and paying take.',
         id: 'Insights kini menampilkan jauh lebih banyak: setiap angka utama dibandingkan dengan bulan atau tahun sebelumnya, tren bulanan menampilkan tahun lalu sebagai garis putus-putus, grafik baru mengurutkan pengeluaran per departemen, karyawan, dan nomor DB (klik batang untuk melihat pengeluarannya), dan baris Alur & kecepatan menunjukkan apa yang sedang menunggu persetujuan atau pembayaran serta berapa hari proses persetujuan dan pembayaran.',
+        ms: 'Insights kini memaparkan jauh lebih banyak: setiap angka utama berbanding dengan bulan atau tahun sebelumnya, trend bulanan memaparkan tahun kemudian sebagai garis putus-putus, carta baharu mengisih perbelanjaan per jabatan, pekerja, dan nombor DB (klik batang untuk melihat perbelanjaannya), dan baris Alur & kelajuan menunjukkan apa yang sedang menunggu kelulusan atau pembayaran serta berapa hari proses kelulusan dan pembayaran.',
         th: 'Insights แสดงข้อมูลมากขึ้น: ตัวเลขหลักแต่ละตัวเทียบกับเดือนหรือปีก่อนหน้า กราฟแนวโน้มรายเดือนแสดงปีที่แล้วเป็นเส้นประ กราฟใหม่จัดอันดับค่าใช้จ่ายตามแผนก พนักงาน และเลข DB (คลิกแถบเพื่อดูค่าใช้จ่าย) และแถวสถานะงานและความเร็วแสดงรายการที่รออนุมัติหรือรอจ่ายเงินตอนนี้ และใช้เวลากี่วันในการอนุมัติและจ่ายเงิน',
         vi: 'Insights hiển thị nhiều hơn hẳn: mỗi chỉ số chính giờ được so với tháng hoặc năm trước, xu hướng theo tháng vẽ năm ngoái bằng đường nét đứt, biểu đồ mới xếp hạng chi tiêu theo phòng ban, nhân viên và số DB (bấm vào thanh để xem chi tiêu), và hàng Tiến độ & tốc độ cho biết những gì đang chờ duyệt hoặc chờ thanh toán ngay lúc này và việc duyệt, thanh toán mất bao nhiêu ngày.',
         km: 'Insights បង្ហាញច្រើនជាងមុន៖ តួលេខសំខាន់នីមួយៗប្រៀបធៀបជាមួយខែ ឬឆ្នាំមុន និន្នាការប្រចាំខែបង្ហាញឆ្នាំមុនជាបន្ទាត់ដាច់ៗ តារាងថ្មីតម្រៀបការចំណាយតាមនាយកដ្ឋាន បុគ្គលិក និងលេខ DB (ចុចលើរបារដើម្បីមើលការចំណាយ) ហើយជួរ ដំណើរការ និងល្បឿន បង្ហាញអ្វីដែលកំពុងរង់ចាំការអនុម័ត ឬការទូទាត់ឥឡូវនេះ និងរយៈពេលប៉ុន្មានថ្ងៃសម្រាប់ការអនុម័ត និងការទូទាត់។',
@@ -684,11 +801,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-11.1',
+    ms: '2026-10-11.1',
     date: '2026-10-11',
     items: [
       { kind: 'improved', text: {
         en: 'Anonymous feedback is now more anonymous: besides your name and department, the time you sent it isn’t saved either — only the date.',
         id: 'Kritik & saran anonim kini lebih anonim: selain nama dan departemen, jam pengiriman juga tidak disimpan — hanya tanggalnya.',
+        ms: 'Maklum balas tanpa nama kini lebih tanpa nama: selain nama dan jabatan, jam pengiriman juga tidak disimpan — hanya tarikhnya.',
         th: 'ข้อเสนอแนะแบบไม่ระบุตัวตนเป็นความลับมากขึ้น: นอกจากชื่อและแผนกแล้ว ระบบจะไม่บันทึกเวลาที่ส่งด้วย — บันทึกเพียงวันที่',
         vi: 'Góp ý ẩn danh giờ kín đáo hơn: ngoài tên và phòng ban, giờ gửi cũng không được lưu — chỉ lưu ngày.',
         km: 'មតិកែលម្អអនាមិកឥឡូវកាន់តែអនាមិក៖ ក្រៅពីឈ្មោះ និងនាយកដ្ឋាន ម៉ោងដែលអ្នកផ្ញើក៏មិនត្រូវបានរក្សាទុកដែរ — មានតែកាលបរិច្ឆេទប៉ុណ្ណោះ។',
@@ -697,6 +816,7 @@ window.CHANGELOG = [
       { kind: 'fixed', audience: ['superadmin'], text: {
         en: 'Helpdesk: a ticket still waiting for an answer can no longer drop off the list as closed tickets pile up, and accounts can send at most 10 tickets and 10 feedback messages an hour.',
         id: 'Helpdesk: tiket yang masih menunggu jawaban tidak lagi bisa hilang dari daftar saat tiket tertutup menumpuk, dan setiap akun bisa mengirim paling banyak 10 tiket dan 10 kritik & saran per jam.',
+        ms: 'Helpdesk: tiket yang masih menunggu jawapan tidak lagi boleh hilang dari senarai saat tiket tertutup menumpuk, dan setiap akaun boleh menghantar yang paling banyak 10 tiket dan 10 maklum balas per jam.',
         th: 'Helpdesk: ทิกเก็ตที่ยังรอคำตอบจะไม่หลุดออกจากรายการอีกต่อไปเมื่อทิกเก็ตที่ปิดแล้วมีมากขึ้น และแต่ละบัญชีส่งได้ไม่เกิน 10 ทิกเก็ตและ 10 ข้อเสนอแนะต่อชั่วโมง',
         vi: 'Helpdesk: phiếu còn chờ trả lời không còn bị rơi khỏi danh sách khi phiếu đã đóng tăng lên, và mỗi tài khoản gửi tối đa 10 phiếu và 10 góp ý mỗi giờ.',
         km: 'Helpdesk៖ សំបុត្រដែលនៅរង់ចាំចម្លើយ លែងបាត់ពីបញ្ជីទៀតហើយ នៅពេលសំបុត្របិទកើនឡើង ហើយគណនីនីមួយៗអាចផ្ញើបានយ៉ាងច្រើន 10 សំបុត្រ និង 10 មតិកែលម្អក្នុងមួយម៉ោង។',
@@ -706,11 +826,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.12',
+    ms: '2026-10-10.12',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['superadmin'], text: {
         en: 'Survey results → Who has answered now shows each person’s three scores (paper, digital and overall) next to their name.',
         id: 'Hasil survei → Siapa yang sudah menjawab kini menampilkan tiga nilai setiap orang (kertas, digital, dan keseluruhan) di samping namanya.',
+        ms: 'Hasil tinjauan → Siapa yang sudah menjawab kini memaparkan tiga nilai setiap orang (kertas, digital, dan keseluruhan) di samping namanya.',
         th: 'ผลแบบสำรวจ → ใครตอบแล้วบ้าง ตอนนี้แสดงคะแนนทั้งสามของแต่ละคน (กระดาษ ดิจิทัล และโดยรวม) ข้างชื่อ',
         vi: 'Kết quả khảo sát → Ai đã trả lời giờ hiển thị ba điểm của từng người (giấy, số hóa và tổng thể) bên cạnh tên.',
         km: 'លទ្ធផលស្ទង់មតិ → អ្នកដែលបានឆ្លើយ ឥឡូវបង្ហាញពិន្ទុទាំងបីរបស់មនុស្សម្នាក់ៗ (ក្រដាស ឌីជីថល និងជារួម) នៅជាប់ឈ្មោះ។',
@@ -720,11 +842,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.11',
+    ms: '2026-10-10.11',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['superadmin'], text: {
         en: 'Survey results now list who has answered: every account that is asked, marked “Answered” with the date or “Not yet”, with a filter and a name search.',
         id: 'Hasil survei kini menampilkan siapa yang sudah menjawab: setiap akun yang ditanya, ditandai “Dijawab” beserta tanggalnya atau “Belum”, dengan filter dan pencarian nama.',
+        ms: 'Hasil tinjauan kini memaparkan siapa yang sudah menjawab: setiap akaun yang ditanya, ditandakan “Dijawab” beserta tarikhnya atau “Belum”, dengan penapis dan pencarian nama.',
         th: 'ผลแบบสำรวจตอนนี้แสดงรายชื่อผู้ที่ตอบแล้ว: ทุกบัญชีที่ถูกถาม ระบุ “ตอบแล้ว” พร้อมวันที่ หรือ “ยังไม่ตอบ” พร้อมตัวกรองและการค้นหาชื่อ',
         vi: 'Kết quả khảo sát giờ liệt kê ai đã trả lời: mọi tài khoản được hỏi, đánh dấu “Đã trả lời” kèm ngày hoặc “Chưa trả lời”, có bộ lọc và tìm theo tên.',
         km: 'លទ្ធផលស្ទង់មតិឥឡូវបង្ហាញអ្នកដែលបានឆ្លើយ៖ គណនីនីមួយៗដែលត្រូវបានសួរ ត្រូវបានសម្គាល់ “បានឆ្លើយ” ជាមួយកាលបរិច្ឆេទ ឬ “មិនទាន់ឆ្លើយ” មានតម្រង និងការស្វែងរកតាមឈ្មោះ។',
@@ -734,11 +858,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.10',
+    ms: '2026-10-10.10',
     date: '2026-10-10',
     items: [
       { kind: 'new', text: {
         en: 'Helpdesk tickets can now carry screenshots: up to 4 images per message, picked with Attach screenshot, pasted straight into the message box (Ctrl+V), or dragged onto it. They show in the conversation — tap one to see it full size. A reply can be just a screenshot.',
         id: 'Tiket Helpdesk kini bisa disertai tangkapan layar: maksimal 4 gambar per pesan, dipilih lewat Lampirkan tangkapan layar, ditempel langsung ke kotak pesan (Ctrl+V), atau diseret ke sana. Gambar tampil di percakapan — ketuk untuk melihat ukuran penuh. Balasan juga boleh berupa tangkapan layar saja.',
+        ms: 'Tiket Helpdesk kini boleh disertai tangkapan skrin: maksimum 4 gambar per mesej, dipilih melepasi Lampirkan tangkapan skrin, ditempel langsung ke kotak mesej (Ctrl+V), atau diseret ke sana. Gambar tampil di percakapan — ketik untuk melihat ukuran penuh. Balasan juga boleh berupa tangkapan skrin sahaja.',
         th: 'ตั๋ว Helpdesk แนบภาพหน้าจอได้แล้ว: สูงสุด 4 ภาพต่อข้อความ โดยเลือกจาก แนบภาพหน้าจอ วางลงในช่องข้อความโดยตรง (Ctrl+V) หรือลากมาวาง ภาพจะแสดงในบทสนทนา — แตะเพื่อดูขนาดเต็ม และการตอบกลับจะมีเพียงภาพหน้าจอก็ได้',
         vi: 'Phiếu Helpdesk giờ có thể kèm ảnh chụp màn hình: tối đa 4 ảnh mỗi tin nhắn, chọn bằng Đính kèm ảnh chụp màn hình, dán thẳng vào ô nội dung (Ctrl+V) hoặc kéo thả vào. Ảnh hiển thị trong cuộc trao đổi — chạm vào để xem kích thước đầy đủ. Phản hồi cũng có thể chỉ là ảnh chụp màn hình.',
         km: 'សំបុត្រ Helpdesk ឥឡូវអាចភ្ជាប់រូបថតអេក្រង់បាន៖ រូបភាពអតិបរមា 4 ក្នុងមួយសារ ដោយជ្រើសតាម ភ្ជាប់រូបថតអេក្រង់ បិទភ្ជាប់ដោយផ្ទាល់ក្នុងប្រអប់សារ (Ctrl+V) ឬអូសទម្លាក់។ រូបភាពបង្ហាញក្នុងការសន្ទនា — ចុចលើវាដើម្បីមើលទំហំពេញ។ ការឆ្លើយតបអាចមានតែរូបថតអេក្រង់ក៏បាន។',
@@ -748,11 +874,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.9',
+    ms: '2026-10-10.9',
     date: '2026-10-10',
     items: [
       { kind: 'new', text: {
         en: 'Help on the home menu: open a Helpdesk ticket when you have a question about a claim, your account, or something that isn’t working, and talk it through with the helpdesk right in the portal — you get an email when they answer. Next to it, Feedback & suggestions lets you send criticism or an idea to improve things, with your name or anonymously.',
         id: 'Bantuan di menu utama: buat tiket Helpdesk jika Anda punya pertanyaan tentang klaim, akun Anda, atau sesuatu yang tidak berfungsi, lalu bahas langsung dengan helpdesk di portal — Anda mendapat email saat mereka menjawab. Di sebelahnya, Kritik & saran memungkinkan Anda mengirim kritik atau ide perbaikan, dengan nama atau secara anonim.',
+        ms: 'Bantuan di menu utama: buat tiket Helpdesk jika anda ada soalan tentang tuntutan, akaun anda, atau sesuatu yang tidak berfungsi, kemudian bahas langsung dengan helpdesk di portal — anda mendapat e-mel saat mereka menjawab. Di sebelahnya, Maklum balas memungkinkan anda menghantar maklum balas atau ide perbaikan, dengan nama atau secara tanpa nama.',
         th: 'เมนูความช่วยเหลือในหน้าหลัก: เปิดตั๋ว Helpdesk เมื่อมีคำถามเกี่ยวกับรายการเบิก บัญชีของคุณ หรือสิ่งที่ใช้งานไม่ได้ แล้วคุยกับ Helpdesk ได้ในพอร์ทัลโดยตรง — คุณจะได้รับอีเมลเมื่อมีคำตอบ ถัดไปคือ คำติชมและข้อเสนอแนะ ที่ให้คุณส่งคำติชมหรือไอเดียเพื่อการปรับปรุง โดยระบุชื่อหรือไม่ระบุชื่อก็ได้',
         vi: 'Mục Hỗ trợ trên menu chính: tạo phiếu Helpdesk khi bạn có câu hỏi về yêu cầu, tài khoản, hoặc điều gì đó không hoạt động, và trao đổi với Helpdesk ngay trong cổng thông tin — bạn sẽ nhận email khi có trả lời. Bên cạnh là Góp ý & đề xuất, nơi bạn gửi góp ý hoặc ý tưởng cải thiện, kèm tên hoặc ẩn danh.',
         km: 'ជំនួយនៅលើម៉ឺនុយដើម៖ បើកសំបុត្រ Helpdesk នៅពេលអ្នកមានសំណួរអំពីសំណើ គណនីរបស់អ្នក ឬអ្វីមួយដែលមិនដំណើរការ ហើយពិភាក្សាជាមួយ Helpdesk ផ្ទាល់នៅក្នុងវិបផតថល — អ្នកនឹងទទួលអ៊ីមែលនៅពេលពួកគេឆ្លើយ។ នៅក្បែរនោះ មតិរិះគន់ និងសំណូមពរ អនុញ្ញាតឱ្យអ្នកផ្ញើការរិះគន់ ឬគំនិតកែលម្អ ដោយមានឈ្មោះ ឬដោយអនាមិក។',
@@ -761,6 +889,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['superadmin'], text: {
         en: 'Super Admins are the helpdesk: the Helpdesk tile shows how many tickets are waiting for an answer, and each answer emails the person who asked. Feedback & suggestions lists everything staff sent — mark it read, or answer named feedback. New tickets and replies are emailed to every Super Admin.',
         id: 'Super Admin adalah helpdesk: tile Helpdesk menampilkan berapa tiket yang menunggu jawaban, dan setiap jawaban dikirim lewat email ke penanya. Kritik & saran menampilkan semua yang dikirim staf — tandai dibaca, atau jawab kritik & saran yang bernama. Tiket dan balasan baru dikirim lewat email ke semua Super Admin.',
+        ms: 'Super Admin adalah helpdesk: tile Helpdesk memaparkan berapa tiket yang menunggu jawapan, dan setiap jawapan dihantar melepasi e-mel ke penanya. Maklum balas memaparkan semua yang dihantar staf — tandakan dibaca, atau jawab maklum balas yang bernama. Tiket dan balasan baharu dihantar melepasi e-mel ke semua Super Admin.',
         th: 'Super Admin ทำหน้าที่เป็น Helpdesk: ไทล์ Helpdesk แสดงจำนวนตั๋วที่รอคำตอบ และทุกคำตอบจะส่งอีเมลถึงผู้ถาม คำติชมและข้อเสนอแนะ แสดงทุกรายการที่พนักงานส่งมา — ทำเครื่องหมายว่าอ่านแล้ว หรือตอบคำติชมที่ระบุชื่อ ตั๋วและข้อความตอบกลับใหม่จะส่งอีเมลถึง Super Admin ทุกคน',
         vi: 'Super Admin là Helpdesk: ô Helpdesk cho biết số phiếu đang chờ trả lời, và mỗi câu trả lời sẽ được gửi email cho người hỏi. Góp ý & đề xuất liệt kê mọi góp ý nhân viên gửi — đánh dấu đã đọc, hoặc trả lời góp ý có ghi tên. Phiếu và phản hồi mới được gửi email đến tất cả Super Admin.',
         km: 'Super Admin គឺជា Helpdesk៖ ប្រអប់ Helpdesk បង្ហាញចំនួនសំបុត្រដែលកំពុងរង់ចាំចម្លើយ ហើយចម្លើយនីមួយៗផ្ញើអ៊ីមែលទៅអ្នកសួរ។ មតិរិះគន់ និងសំណូមពរ បង្ហាញអ្វីៗទាំងអស់ដែលបុគ្គលិកបានផ្ញើ — សម្គាល់ថាបានអាន ឬឆ្លើយមតិដែលមានឈ្មោះ។ សំបុត្រ និងការឆ្លើយតបថ្មីត្រូវបានផ្ញើអ៊ីមែលទៅ Super Admin គ្រប់រូប។',
@@ -770,11 +899,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.8',
+    ms: '2026-10-10.8',
     date: '2026-10-10',
     items: [
       { kind: 'new', audience: ['superadmin'], text: {
         en: 'Experience survey: accounts created before August are asked once, after signing in, to score reimbursing on paper, reimbursing digitally now, and this portal overall, from 1 (very bad) to 10 (very good). The window stays open until it’s filled in, and each account answers only once. Super Admins see the results under Settings → Regions → Experience survey: how many have answered, the average and spread of each score, and a breakdown by region.',
         id: 'Survei pengalaman: akun yang dibuat sebelum Agustus diminta satu kali, setelah masuk, untuk menilai reimbursement dengan kertas, reimbursement digital sekarang, dan portal ini secara keseluruhan, dari 1 (sangat buruk) sampai 10 (sangat baik). Jendelanya tetap terbuka sampai diisi, dan setiap akun hanya menjawab satu kali. Super Admin melihat hasilnya di Pengaturan → Region → Survei pengalaman: berapa yang sudah menjawab, rata-rata dan sebaran setiap nilai, serta rincian per region.',
+        ms: 'Tinjauan pengalaman: akaun yang dibuat sebelum Ogos diminta satu kali, selepas log masuk, untuk menilai bayaran balik dengan kertas, bayaran balik digital sekarang, dan portal ini secara keseluruhan, dari 1 (sangat buruk) sehingga 10 (sangat baik). Jendelanya tetap terbuka sehingga diisi, dan setiap akaun hanya menjawab satu kali. Super Admin melihat hasilnya di Tetapan → Wilayah → Tinjauan pengalaman: berapa yang sudah menjawab, purata dan sebaran setiap nilai, serta rincian per wilayah.',
         th: 'แบบสำรวจประสบการณ์: บัญชีที่สร้างก่อนเดือนสิงหาคมจะถูกขอให้ให้คะแนนหนึ่งครั้งหลังเข้าสู่ระบบ สำหรับการเบิกด้วยกระดาษ การเบิกแบบดิจิทัลในตอนนี้ และพอร์ทัลนี้โดยรวม ตั้งแต่ 1 (แย่มาก) ถึง 10 (ดีมาก) หน้าต่างจะเปิดอยู่จนกว่าจะกรอกเสร็จ และแต่ละบัญชีตอบได้เพียงครั้งเดียว Super Admin ดูผลได้ที่ การตั้งค่า → ภูมิภาค → แบบสำรวจประสบการณ์: จำนวนผู้ตอบ ค่าเฉลี่ยและการกระจายของแต่ละคะแนน และแยกตามภูมิภาค',
         vi: 'Khảo sát trải nghiệm: tài khoản tạo trước tháng Tám được mời một lần, sau khi đăng nhập, chấm điểm việc hoàn ứng bằng giấy, hoàn ứng bằng hình thức số hiện nay và cổng thông tin này nói chung, từ 1 (rất tệ) đến 10 (rất tốt). Cửa sổ sẽ mở cho đến khi được điền xong, và mỗi tài khoản chỉ trả lời một lần. Super Admin xem kết quả tại Cài đặt → Khu vực → Khảo sát trải nghiệm: số người đã trả lời, điểm trung bình và phân bố của từng câu, và chi tiết theo khu vực.',
         km: 'ការស្ទង់មតិបទពិសោធន៍៖ គណនីដែលបង្កើតមុនខែសីហា ត្រូវបានស្នើម្តង បន្ទាប់ពីចូលប្រើ ឱ្យដាក់ពិន្ទុលើការស្នើសុំសំណងដោយក្រដាស ការស្នើសុំសំណងជាឌីជីថលឥឡូវនេះ និងវិបផតថលនេះជារួម ពី 1 (អាក្រក់ណាស់) ដល់ 10 (ល្អណាស់)។ ផ្ទាំងនេះនៅបើករហូតដល់បំពេញរួច ហើយគណនីនីមួយៗឆ្លើយបានតែម្តងប៉ុណ្ណោះ។ Super Admin មើលលទ្ធផលនៅ ការកំណត់ → តំបន់ → ការស្ទង់មតិបទពិសោធន៍៖ ចំនួនអ្នកឆ្លើយ មធ្យមភាគ និងការបែងចែកនៃពិន្ទុនីមួយៗ និងតាមតំបន់។',
@@ -784,11 +915,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.7',
+    ms: '2026-10-10.7',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Currency, time zone & bank is split into three clear sections. Changing the currency says that only new claims use it and how many open documents keep their own; the time zone shows the current time there and warns if “today” would become a different date; and a preview shows the payout line employees see on their profile. Save only lights up when something changed, with a Discard button.',
         id: 'Pengaturan → Mata uang, zona waktu & bank kini dibagi menjadi tiga bagian yang jelas. Saat mengganti mata uang, ditampilkan bahwa hanya klaim baru yang memakainya dan berapa dokumen terbuka yang tetap memakai mata uangnya; zona waktu menampilkan jam saat ini di sana dan memperingatkan jika “hari ini” berubah tanggal; dan pratinjau menampilkan baris pembayaran yang dilihat karyawan di profilnya. Tombol Simpan hanya aktif jika ada perubahan, dengan tombol Buang.',
+        ms: 'Tetapan → Mata wang, zon waktu & bank kini dibagi menjadi tiga bagian yang jelas. Saat menukar mata wang, dipaparkan bahwa hanya tuntutan baharu yang memakainya dan berapa dokumen terbuka yang tetap menggunakan mata uangnya; zon waktu memaparkan jam pada masa ini di sana dan memperingatkan jika “hari ini” berubah tarikh; dan pratonton memaparkan baris pembayaran yang dilihat pekerja di profilnya. Butang Simpan hanya aktif jika ada perubahan, dengan butang Buang.',
         th: 'การตั้งค่า → สกุลเงิน เขตเวลา และธนาคาร แบ่งเป็นสามส่วนที่ชัดเจน การเปลี่ยนสกุลเงินจะบอกว่ามีผลเฉพาะเคลมใหม่และมีเอกสารที่เปิดอยู่กี่รายการที่คงสกุลเงินเดิม เขตเวลาแสดงเวลาปัจจุบันที่นั่นและเตือนหาก “วันนี้” จะเปลี่ยนเป็นวันอื่น และมีตัวอย่างข้อความการจ่ายเงินที่พนักงานเห็นในโปรไฟล์ ปุ่มบันทึกจะใช้ได้เมื่อมีการเปลี่ยนแปลงเท่านั้น พร้อมปุ่มยกเลิก',
         vi: 'Cài đặt → Tiền tệ, múi giờ & ngân hàng được chia thành ba phần rõ ràng. Khi đổi tiền tệ, hệ thống cho biết chỉ yêu cầu mới dùng loại tiền đó và bao nhiêu chứng từ đang mở giữ nguyên loại tiền; múi giờ hiển thị giờ hiện tại ở đó và cảnh báo nếu “hôm nay” sẽ thành một ngày khác; và có bản xem trước dòng chi trả nhân viên thấy trên hồ sơ. Nút Lưu chỉ bật khi có thay đổi, kèm nút Hủy thay đổi.',
         km: 'ការកំណត់ → រូបិយប័ណ្ណ តំបន់ម៉ោង និងធនាគារ ត្រូវបានបែងចែកជាបីផ្នែកច្បាស់លាស់។ ការប្តូររូបិយប័ណ្ណប្រាប់ថាមានតែការទាមទារថ្មីប៉ុណ្ណោះដែលប្រើវា និងឯកសារដែលកំពុងបើកប៉ុន្មានរក្សារូបិយប័ណ្ណដើម តំបន់ម៉ោងបង្ហាញម៉ោងបច្ចុប្បន្ននៅទីនោះ ហើយព្រមានបើ “ថ្ងៃនេះ” នឹងក្លាយជាថ្ងៃផ្សេង ហើយការមើលជាមុនបង្ហាញបន្ទាត់ទូទាត់ដែលបុគ្គលិកឃើញនៅលើប្រវត្តិរូប។ ប៊ូតុងរក្សាទុកប្រើបានតែពេលមានការផ្លាស់ប្តូរ ជាមួយប៊ូតុងបោះបង់។',
@@ -798,11 +931,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.6',
+    ms: '2026-10-10.6',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Claim window shows the date range claimable today and which rule sets it. Each rule — a rolling limit in days and a fixed cutoff date — can be switched on or off, with quick choices like 30 / 60 / 90 days or the start of this month. Before you save, it says exactly which expense dates the change will block or reopen, and a cutoff in the future is caught.',
         id: 'Pengaturan → Batas klaim kini menampilkan rentang tanggal yang bisa diklaim hari ini dan aturan mana yang menentukannya. Setiap aturan — batas bergulir dalam hari dan tanggal batas tetap — bisa diaktifkan atau dimatikan, dengan pilihan cepat seperti 30 / 60 / 90 hari atau awal bulan ini. Sebelum disimpan, ditampilkan tanggal pengeluaran mana yang akan diblokir atau dibuka kembali, dan tanggal batas di masa depan akan dicegah.',
+        ms: 'Tetapan → Had tuntutan kini memaparkan julat tarikh yang boleh dituntut hari ini dan aturan mana yang menentukannya. Setiap aturan — had bergulir dalam hari dan tarikh had tetap — boleh diaktifkan atau dimatikan, dengan pilihan cepat seperti 30 / 60 / 90 hari atau awal bulan ini. Sebelum disimpan, dipaparkan tarikh perbelanjaan mana yang akan disekat atau dibuka kembali, dan tarikh had di masa depan akan dicegah.',
         th: 'การตั้งค่า → ช่วงเวลาเบิก แสดงช่วงวันที่ที่เบิกได้วันนี้และกฎที่กำหนด แต่ละกฎ — การจำกัดแบบนับย้อนเป็นวัน และวันที่ตัดรอบคงที่ — เปิดหรือปิดได้ พร้อมตัวเลือกด่วน เช่น 30 / 60 / 90 วัน หรือต้นเดือนนี้ ก่อนบันทึกจะบอกชัดเจนว่าการเปลี่ยนแปลงจะบล็อกหรือเปิดให้เบิกวันที่ใด และป้องกันการตั้งวันตัดรอบในอนาคต',
         vi: 'Cài đặt → Khoảng thời gian yêu cầu giờ hiển thị khoảng ngày có thể yêu cầu hôm nay và quy tắc nào quyết định. Mỗi quy tắc — giới hạn cuốn chiếu theo ngày và ngày chốt cố định — có thể bật hoặc tắt, với các lựa chọn nhanh như 30 / 60 / 90 ngày hoặc đầu tháng này. Trước khi lưu, hệ thống cho biết chính xác những ngày chi phí nào sẽ bị chặn hoặc mở lại, và chặn ngày chốt ở tương lai.',
         km: 'ការកំណត់ → រយៈពេលទាមទារ ឥឡូវបង្ហាញចន្លោះកាលបរិច្ឆេទដែលអាចទាមទារថ្ងៃនេះ និងច្បាប់ណាដែលកំណត់វា។ ច្បាប់នីមួយៗ — ដែនកំណត់រំកិលជាថ្ងៃ និងកាលបរិច្ឆេទកាត់ផ្តាច់ថេរ — អាចបើក ឬបិទបាន ជាមួយជម្រើសរហ័សដូចជា 30 / 60 / 90 ថ្ងៃ ឬដើមខែនេះ។ មុនពេលរក្សាទុក វាប្រាប់ច្បាស់ថាកាលបរិច្ឆេទចំណាយណាខ្លះនឹងត្រូវរារាំង ឬបើកវិញ ហើយការកាត់ផ្តាច់នៅអនាគតត្រូវបានរារាំង។',
@@ -812,11 +947,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.5',
+    ms: '2026-10-10.5',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Meal allowance shows the currency in each amount, how often each amount has been claimed and when it was last used, and a preview of exactly what claimants pick from. Duplicate amounts are flagged before you save, the list is kept lowest first, Enter adds the next amount, and unsaved changes can be discarded.',
         id: 'Pengaturan → Tunjangan makan kini menampilkan mata uang di setiap jumlah, seberapa sering setiap jumlah diklaim dan kapan terakhir dipakai, serta pratinjau pilihan yang dilihat pengklaim. Jumlah ganda ditandai sebelum disimpan, daftar diurutkan dari yang terendah, Enter menambah jumlah berikutnya, dan perubahan yang belum disimpan bisa dibuang.',
+        ms: 'Tetapan → Elaun makan kini memaparkan mata wang di setiap jumlah, berapa sering setiap jumlah dituntut dan kapan terakhir digunakan, serta pratonton pilihan yang dilihat penuntut. Jumlah ganda ditandakan sebelum disimpan, senarai diurutkan dari yang terendah, Enter menambah jumlah seterusnya, dan perubahan yang belum disimpan boleh dibuang.',
         th: 'การตั้งค่า → ค่าอาหาร แสดงสกุลเงินในแต่ละจำนวน จำนวนครั้งที่แต่ละจำนวนถูกเบิกและใช้ล่าสุดเมื่อใด พร้อมตัวอย่างสิ่งที่ผู้เบิกจะเลือกได้ จำนวนที่ซ้ำจะถูกแจ้งก่อนบันทึก รายการเรียงจากน้อยไปมาก กด Enter เพื่อเพิ่มจำนวนถัดไป และยกเลิกการเปลี่ยนแปลงที่ยังไม่บันทึกได้',
         vi: 'Cài đặt → Phụ cấp ăn giờ hiển thị đơn vị tiền trong từng mức, số lần mỗi mức được yêu cầu và lần dùng gần nhất, cùng bản xem trước đúng những gì người yêu cầu sẽ chọn. Các mức trùng được đánh dấu trước khi lưu, danh sách luôn xếp từ thấp đến cao, Enter thêm mức tiếp theo, và có thể hủy các thay đổi chưa lưu.',
         km: 'ការកំណត់ → ប្រាក់អាហារ ឥឡូវបង្ហាញរូបិយប័ណ្ណក្នុងចំនួននីមួយៗ ចំនួនដងដែលចំនួននីមួយៗត្រូវបានទាមទារ និងពេលប្រើចុងក្រោយ ព្រមទាំងការមើលជាមុននូវអ្វីដែលអ្នកទាមទារនឹងជ្រើស។ ចំនួនស្ទួនត្រូវបានសម្គាល់មុនពេលរក្សាទុក បញ្ជីតម្រៀបពីតិចទៅច្រើន ចុច Enter ដើម្បីបន្ថែមចំនួនបន្ទាប់ ហើយអាចបោះបង់ការផ្លាស់ប្តូរដែលមិនទាន់រក្សាទុក។',
@@ -826,11 +963,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.4',
+    ms: '2026-10-10.4',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Expense types shows how often each type has been used on claims and cash advances, and when it was last used. Sort by name, most used or recently used; paste a list (one per line) to add several at once; and deleting or renaming a type that is in use tells you what happens to claims already filed.',
         id: 'Pengaturan → Jenis biaya kini menunjukkan seberapa sering setiap jenis dipakai pada klaim dan uang muka, serta kapan terakhir dipakai. Urutkan menurut nama, paling sering, atau terakhir dipakai; tempel daftar (satu per baris) untuk menambahkan beberapa sekaligus; dan saat menghapus atau mengganti nama jenis yang sedang dipakai, Anda diberi tahu dampaknya pada klaim yang sudah diajukan.',
+        ms: 'Tetapan → Jenis kos kini menunjukkan berapa sering setiap jenis digunakan pada tuntutan dan pendahuluan tunai, serta kapan terakhir digunakan. Isih menurut nama, yang paling sering, atau terakhir digunakan; tampal senarai (satu per baris) untuk menambahkan beberapa sekaligus; dan saat memadam atau menukar nama jenis yang sedang digunakan, anda diberi tahu dampaknya pada tuntutan yang sudah dihantar.',
         th: 'การตั้งค่า → ประเภทค่าใช้จ่าย แสดงว่าแต่ละประเภทถูกใช้ในเคลมและเงินทดรองบ่อยแค่ไหน และใช้ล่าสุดเมื่อใด เรียงตามชื่อ ใช้บ่อยที่สุด หรือใช้ล่าสุดได้ วางรายการ (บรรทัดละหนึ่งชื่อ) เพื่อเพิ่มหลายรายการพร้อมกัน และเมื่อลบหรือเปลี่ยนชื่อประเภทที่มีการใช้งาน ระบบจะบอกว่าเกิดอะไรกับเคลมที่ยื่นแล้ว',
         vi: 'Cài đặt → Loại chi phí giờ cho biết mỗi loại đã được dùng bao nhiêu lần trong yêu cầu và tạm ứng, và lần dùng gần nhất. Sắp xếp theo tên, dùng nhiều nhất hoặc dùng gần đây; dán một danh sách (mỗi dòng một mục) để thêm nhiều mục cùng lúc; và khi xóa hoặc đổi tên một loại đang được dùng, bạn sẽ được cho biết điều gì xảy ra với các yêu cầu đã nộp.',
         km: 'ការកំណត់ → ប្រភេទចំណាយ ឥឡូវបង្ហាញថាប្រភេទនីមួយៗត្រូវបានប្រើលើការទាមទារ និងប្រាក់បុរេប្រទានប៉ុន្មានដង និងប្រើចុងក្រោយពេលណា។ តម្រៀបតាមឈ្មោះ ប្រើច្រើនបំផុត ឬប្រើថ្មីៗ បិទភ្ជាប់បញ្ជី (មួយបន្ទាត់មួយ) ដើម្បីបន្ថែមច្រើនក្នុងពេលតែមួយ ហើយពេលលុប ឬប្តូរឈ្មោះប្រភេទដែលកំពុងប្រើ អ្នកនឹងដឹងថាមានអ្វីកើតឡើងចំពោះការទាមទារដែលបានដាក់រួច។',
@@ -839,6 +978,7 @@ window.CHANGELOG = [
       { kind: 'fixed', audience: ['settings'], text: {
         en: 'Renaming a department or job position now moves the accounts in it to the new name. Before, those accounts kept the old name and could lose the ability to raise claims.',
         id: 'Mengganti nama departemen atau jabatan kini ikut memindahkan akun di dalamnya ke nama baru. Sebelumnya, akun tersebut tetap memakai nama lama dan bisa kehilangan kemampuan mengajukan klaim.',
+        ms: 'Menukar nama jabatan atau jawatan kini ikut memindahkan akaun di dalamnya ke nama baharu. Sebelumnya, akaun tersebut tetap menggunakan nama lama dan boleh kehilangan kemampuan menghantar tuntutan.',
         th: 'การเปลี่ยนชื่อแผนกหรือตำแหน่งงานจะย้ายบัญชีที่อยู่ในนั้นไปใช้ชื่อใหม่ด้วย ก่อนหน้านี้บัญชีเหล่านั้นยังใช้ชื่อเดิมและอาจยื่นเคลมไม่ได้',
         vi: 'Đổi tên phòng ban hoặc chức vụ giờ sẽ chuyển các tài khoản trong đó sang tên mới. Trước đây, các tài khoản đó giữ tên cũ và có thể mất quyền tạo yêu cầu.',
         km: 'ការប្តូរឈ្មោះនាយកដ្ឋាន ឬមុខតំណែង ឥឡូវផ្លាស់គណនីក្នុងនោះទៅឈ្មោះថ្មីផងដែរ។ ពីមុន គណនីទាំងនោះនៅរក្សាឈ្មោះចាស់ ហើយអាចបាត់បង់សិទ្ធិដាក់ការទាមទារ។',
@@ -848,11 +988,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.3',
+    ms: '2026-10-10.3',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Job positions shows where the ladder unlocks more access — lines mark which positions manage accounts in every department, see company-wide Insights, or can open Insights — and they move as you reorder. Reordering is now instant with numbered ranks and larger arrows, saves automatically, and the ⋯ menu adds Move to top and Move to bottom.',
         id: 'Pengaturan → Jabatan kini menunjukkan di mana urutan jabatan membuka akses lebih — garis menandai jabatan mana yang mengelola akun di semua departemen, melihat Insight seluruh perusahaan, atau dapat membuka Insight — dan garis ikut bergeser saat Anda mengubah urutan. Mengubah urutan kini langsung, dengan nomor peringkat dan tombol panah lebih besar, tersimpan otomatis, dan menu ⋯ menambahkan Pindah ke atas dan Pindah ke bawah.',
+        ms: 'Tetapan → Jawatan kini menunjukkan di mana susunan jawatan membuka akses lebih — garis menandakan jawatan mana yang mengurus akaun di semua jabatan, melihat Analisis seluruh perusahaan, atau dapat membuka Analisis — dan garis ikut bergeser saat anda mengubah susunan. Mengubah susunan kini langsung, dengan nombor peringkat dan butang panah lebih besar, tersimpan otomatis, dan menu ⋯ menambahkan Pindah ke atas dan Pindah ke bawah.',
         th: 'การตั้งค่า → ตำแหน่งงาน แสดงจุดที่ลำดับตำแหน่งปลดล็อกสิทธิ์เพิ่มขึ้น — มีเส้นบอกว่าตำแหน่งใดจัดการบัญชีได้ทุกแผนก ดู Insight ทั้งบริษัท หรือเปิด Insight ได้ — และเส้นจะเลื่อนตามเมื่อคุณจัดลำดับใหม่ การจัดลำดับเกิดขึ้นทันทีพร้อมหมายเลขลำดับและปุ่มลูกศรที่ใหญ่ขึ้น บันทึกอัตโนมัติ และเมนู ⋯ มีย้ายไปบนสุดและย้ายไปล่างสุด',
         vi: 'Cài đặt → Chức vụ giờ cho thấy chỗ thứ bậc mở thêm quyền — các đường kẻ đánh dấu chức vụ nào quản lý tài khoản ở mọi phòng ban, xem Insight toàn công ty, hoặc có thể mở Insight — và chúng di chuyển khi bạn sắp xếp lại. Sắp xếp giờ diễn ra ngay, có số thứ hạng và mũi tên lớn hơn, tự động lưu, và menu ⋯ có thêm Chuyển lên đầu và Chuyển xuống cuối.',
         km: 'ការកំណត់ → មុខតំណែង ឥឡូវបង្ហាញកន្លែងដែលលំដាប់មុខតំណែងបើកសិទ្ធិបន្ថែម — បន្ទាត់សម្គាល់មុខតំណែងណាដែលគ្រប់គ្រងគណនីគ្រប់នាយកដ្ឋាន មើល Insight ទូទាំងក្រុមហ៊ុន ឬអាចបើក Insight — ហើយវាផ្លាស់ទីពេលអ្នកតម្រៀបឡើងវិញ។ ការតម្រៀបឥឡូវភ្លាមៗ មានលេខលំដាប់ និងព្រួញធំជាងមុន រក្សាទុកដោយស្វ័យប្រវត្តិ ហើយម៉ឺនុយ ⋯ បន្ថែម ផ្លាស់ទៅខាងលើបំផុត និង ផ្លាស់ទៅខាងក្រោមបំផុត។',
@@ -862,11 +1004,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.2',
+    ms: '2026-10-10.2',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Departments and Job positions show how many active accounts use each entry, warn when its members can’t raise any claims, and say how many accounts are affected before you delete one. Departments, job positions and expense types can be filtered by All / Active / Disabled, and on phones each entry is a tidy row with labelled toggles.',
         id: 'Pengaturan → Departemen dan Jabatan kini menampilkan berapa akun aktif yang memakai setiap entri, memberi peringatan jika anggotanya tidak bisa mengajukan klaim apa pun, dan menyebutkan berapa akun yang terdampak sebelum Anda menghapusnya. Departemen, jabatan, dan jenis biaya bisa disaring Semua / Aktif / Nonaktif, dan di ponsel setiap entri tampil rapi dengan tombol berlabel.',
+        ms: 'Tetapan → Jabatan dan Jawatan kini memaparkan berapa akaun aktif yang menggunakan setiap entri, memberi peringatan jika anggotanya tidak boleh menghantar tuntutan apa-apa, dan menyebutkan berapa akaun yang terdampak sebelum anda menghapusnya. Jabatan, jawatan, dan jenis kos boleh disaring Semua / Aktif / Tidak aktif, dan di telefon setiap entri tampil rapi dengan butang berlabel.',
         th: 'การตั้งค่า → แผนกและตำแหน่งงาน แสดงจำนวนบัญชีที่ใช้งานอยู่ของแต่ละรายการ เตือนเมื่อสมาชิกยื่นเคลมอะไรไม่ได้เลย และบอกจำนวนบัญชีที่ได้รับผลกระทบก่อนลบ แผนก ตำแหน่งงาน และประเภทค่าใช้จ่ายกรองได้ด้วย ทั้งหมด / ใช้งาน / ปิดใช้งาน และบนโทรศัพท์แต่ละรายการแสดงเป็นแถวที่เป็นระเบียบพร้อมสวิตช์ที่มีป้ายกำกับ',
         vi: 'Cài đặt → Phòng ban và Chức vụ giờ cho biết số tài khoản đang hoạt động dùng từng mục, cảnh báo khi thành viên không thể tạo yêu cầu nào, và cho biết số tài khoản bị ảnh hưởng trước khi bạn xóa. Phòng ban, chức vụ và loại chi phí có thể lọc theo Tất cả / Đang hoạt động / Đã vô hiệu hóa, và trên điện thoại mỗi mục là một hàng gọn gàng với các nút bật có nhãn.',
         km: 'ការកំណត់ → នាយកដ្ឋាន និងមុខតំណែង ឥឡូវបង្ហាញចំនួនគណនីសកម្មដែលប្រើធាតុនីមួយៗ ព្រមានពេលសមាជិកមិនអាចដាក់ការទាមទារណាមួយបាន ហើយប្រាប់ចំនួនគណនីដែលរងផលប៉ះពាល់មុនពេលអ្នកលុប។ នាយកដ្ឋាន មុខតំណែង និងប្រភេទចំណាយ អាចត្រងតាម ទាំងអស់ / សកម្ម / បានបិទ ហើយនៅលើទូរស័ព្ទ ធាតុនីមួយៗជាជួរដែលមានសណ្តាប់ធ្នាប់ជាមួយប៊ូតុងបិទបើកមានស្លាក។',
@@ -875,6 +1019,7 @@ window.CHANGELOG = [
       { kind: 'fixed', audience: ['settings'], text: {
         en: 'Country Managers and others who manage settings can now see disabled departments, job positions and expense types, so they can enable them again.',
         id: 'Country Manager dan pengelola pengaturan lainnya kini dapat melihat departemen, jabatan, dan jenis biaya yang dinonaktifkan, sehingga bisa mengaktifkannya kembali.',
+        ms: 'Country Manager dan pengurus tetapan lainnya kini dapat melihat jabatan, jawatan, dan jenis kos yang dinyahaktifkan, sehingga boleh mengaktifkannya kembali.',
         th: 'ผู้จัดการประเทศและผู้ที่จัดการการตั้งค่าอื่น ๆ มองเห็นแผนก ตำแหน่งงาน และประเภทค่าใช้จ่ายที่ปิดใช้งานแล้ว จึงเปิดใช้งานอีกครั้งได้',
         vi: 'Quản lý quốc gia và những người quản lý cài đặt khác giờ có thể thấy phòng ban, chức vụ và loại chi phí đã vô hiệu hóa để bật lại.',
         km: 'អ្នកគ្រប់គ្រងប្រទេស និងអ្នកគ្រប់គ្រងការកំណត់ផ្សេងទៀត ឥឡូវអាចឃើញនាយកដ្ឋាន មុខតំណែង និងប្រភេទចំណាយដែលបានបិទ ដើម្បីបើកវាឡើងវិញបាន។',
@@ -884,11 +1029,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-10.1',
+    ms: '2026-10-10.1',
     date: '2026-10-10',
     items: [
       { kind: 'improved', audience: ['settings'], text: {
         en: 'Settings → Roles no longer scrolls sideways. On a wide screen the whole grid fits; on phones, tablets and small laptops each permission becomes a card with every role listed as a labelled checkbox, and roles you cannot change are marked "Locked".',
         id: 'Pengaturan → Peran tidak lagi bergulir ke samping. Di layar lebar seluruh tabel muat; di ponsel, tablet, dan laptop kecil setiap izin menjadi kartu dengan setiap peran sebagai kotak centang berlabel, dan peran yang tidak dapat Anda ubah ditandai "Terkunci".',
+        ms: 'Tetapan → Peranan tidak lagi bergulir ke samping. Di skrin lebar seluruh jadual muat; di telefon, tablet, dan laptop kecil setiap kebenaran menjadi kartu dengan setiap peranan sebagai kotak tandakan berlabel, dan peranan yang tidak dapat anda ubah ditandakan "Terkunci".',
         th: 'การตั้งค่า → บทบาท ไม่ต้องเลื่อนไปด้านข้างอีกต่อไป บนจอกว้างตารางทั้งหมดแสดงได้พอดี บนโทรศัพท์ แท็บเล็ต และแล็ปท็อปขนาดเล็ก แต่ละสิทธิ์จะเป็นการ์ดที่แสดงทุกบทบาทเป็นช่องทำเครื่องหมายพร้อมชื่อ และบทบาทที่คุณเปลี่ยนไม่ได้จะมีป้าย "ถูกล็อก"',
         vi: 'Cài đặt → Vai trò không còn phải cuộn ngang. Trên màn hình rộng, toàn bộ bảng vừa khít; trên điện thoại, máy tính bảng và laptop nhỏ, mỗi quyền thành một thẻ liệt kê từng vai trò dưới dạng ô đánh dấu có tên, và các vai trò bạn không thể thay đổi được đánh dấu "Đã khóa".',
         km: 'ការកំណត់ → តួនាទី លែងរំកិលទៅចំហៀងទៀតហើយ។ នៅលើអេក្រង់ធំ តារាងទាំងមូលសមល្មម។ នៅលើទូរស័ព្ទ ថេប្លេត និងកុំព្យូទ័រយួរដៃតូច សិទ្ធិនីមួយៗក្លាយជាកាតដែលបង្ហាញតួនាទីនីមួយៗជាប្រអប់ធីកមានឈ្មោះ ហើយតួនាទីដែលអ្នកមិនអាចប្តូរបាន ត្រូវបានសម្គាល់ថា "បានចាក់សោ"។',
@@ -898,11 +1045,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.11',
+    ms: '2026-10-09.11',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'Sign-in and passwords: the sign-in page is centred and easier to read, shows "Signing in…" while it works, and warns you when Caps Lock is on. Changing your password (in My profile) now asks you to type the new password twice and shows how strong it is, and the show-password eye is a proper icon everywhere.',
         id: 'Masuk dan kata sandi: halaman masuk kini berada di tengah dan lebih mudah dibaca, menampilkan "Sedang masuk…" saat diproses, dan memperingatkan jika Caps Lock aktif. Mengganti kata sandi (di Profil saya) kini meminta Anda mengetik kata sandi baru dua kali dan menunjukkan seberapa kuat kata sandi tersebut, dan ikon mata untuk menampilkan kata sandi kini berupa ikon yang rapi di semua tempat.',
+        ms: 'Masuk dan kata laluan: halaman masuk kini berada di tengah dan lebih mudah dibaca, memaparkan "Sedang masuk…" saat diproses, dan memperingatkan jika Caps Lock aktif. Menukar kata laluan (di Profil saya) kini meminta anda mengetik kata laluan baharu dua kali dan menunjukkan berapa kuat kata laluan tersebut, dan ikon mata untuk memaparkan kata laluan kini berupa ikon yang rapi di semua tempat.',
         th: 'การเข้าสู่ระบบและรหัสผ่าน: หน้าเข้าสู่ระบบอยู่กึ่งกลางและอ่านง่ายขึ้น แสดง "กำลังเข้าสู่ระบบ…" ระหว่างดำเนินการ และเตือนเมื่อ Caps Lock เปิดอยู่ การเปลี่ยนรหัสผ่าน (ในโปรไฟล์ของฉัน) จะให้พิมพ์รหัสผ่านใหม่สองครั้งและแสดงความแข็งแรงของรหัสผ่าน และปุ่มรูปตาสำหรับแสดงรหัสผ่านเป็นไอคอนที่เรียบร้อยในทุกที่',
         vi: 'Đăng nhập và mật khẩu: trang đăng nhập được căn giữa và dễ đọc hơn, hiển thị "Đang đăng nhập…" khi đang xử lý, và cảnh báo khi Caps Lock đang bật. Đổi mật khẩu (trong Hồ sơ của tôi) giờ yêu cầu nhập mật khẩu mới hai lần và cho biết độ mạnh của mật khẩu, và nút con mắt để hiện mật khẩu giờ là biểu tượng gọn gàng ở mọi nơi.',
         km: 'ការចូល និងពាក្យសម្ងាត់៖ ទំព័រចូលឥឡូវនៅកណ្តាល និងងាយអានជាងមុន បង្ហាញ "កំពុងចូល…" ពេលកំពុងដំណើរការ ហើយព្រមានពេល Caps Lock កំពុងបើក។ ការប្តូរពាក្យសម្ងាត់ (ក្នុងប្រវត្តិរូបរបស់ខ្ញុំ) ឥឡូវស្នើឱ្យវាយពាក្យសម្ងាត់ថ្មីពីរដង និងបង្ហាញថាវារឹងមាំប៉ុណ្ណា ហើយប៊ូតុងភ្នែកសម្រាប់បង្ហាញពាក្យសម្ងាត់ជារូបតំណាងដែលមានសណ្តាប់ធ្នាប់គ្រប់កន្លែង។',
@@ -911,6 +1060,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'My profile is organised into cards — Appearance, Contact & bank details, and Change password — each with its own Save button.',
         id: 'Profil saya kini tersusun dalam kartu — Tampilan, Kontak & detail bank, dan Ganti kata sandi — masing-masing dengan tombol Simpan sendiri.',
+        ms: 'Profil saya kini tersusun dalam kartu — Paparan, Kontak & butiran bank, dan Ganti kata laluan — masing-masing dengan butang Simpan sendiri.',
         th: 'โปรไฟล์ของฉันจัดเป็นการ์ดแล้ว — รูปลักษณ์ ข้อมูลติดต่อและบัญชีธนาคาร และเปลี่ยนรหัสผ่าน — แต่ละการ์ดมีปุ่มบันทึกของตัวเอง',
         vi: 'Hồ sơ của tôi được sắp thành các thẻ — Giao diện, Liên hệ & thông tin ngân hàng, và Đổi mật khẩu — mỗi thẻ có nút Lưu riêng.',
         km: 'ប្រវត្តិរូបរបស់ខ្ញុំត្រូវបានរៀបជាកាត — រូបរាង ទំនាក់ទំនង និងព័ត៌មានធនាគារ និងប្តូរពាក្យសម្ងាត់ — ដោយកាតនីមួយៗមានប៊ូតុងរក្សាទុកផ្ទាល់ខ្លួន។',
@@ -919,6 +1069,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Export claims to CSV is split into Date range, What to include and Users, the date shortcuts stay highlighted while they apply, the user list shows how many are selected, and a summary of what you are about to download sits next to the Download button.',
         id: 'Ekspor klaim ke CSV kini dibagi menjadi Rentang tanggal, Yang disertakan, dan Pengguna; pintasan tanggal tetap tersorot selama berlaku, daftar pengguna menampilkan berapa yang dipilih, dan ringkasan isi unduhan berada di samping tombol Unduh.',
+        ms: 'Eksport tuntutan ke CSV kini dibagi menjadi Julat tarikh, Yang disertakan, dan Pengguna; pintasan tarikh tetap tersorot selama berlaku, senarai pengguna memaparkan berapa yang dipilih, dan ringkasan isi unduhan berada di samping butang Muat turun.',
         th: 'การส่งออกรายการเบิกเป็น CSV แบ่งเป็นช่วงวันที่ สิ่งที่จะรวม และผู้ใช้ ปุ่มลัดวันที่จะยังคงไฮไลต์ขณะใช้งาน รายชื่อผู้ใช้แสดงจำนวนที่เลือก และสรุปสิ่งที่กำลังจะดาวน์โหลดอยู่ข้างปุ่มดาวน์โหลด',
         vi: 'Xuất yêu cầu ra CSV được chia thành Khoảng ngày, Nội dung xuất và Người dùng; các phím tắt ngày luôn được làm nổi bật khi đang áp dụng, danh sách người dùng hiển thị số đã chọn, và phần tóm tắt nội dung sắp tải nằm cạnh nút Tải xuống.',
         km: 'ការនាំចេញសំណើទៅ CSV ត្រូវបានបែងចែកជា ចន្លោះកាលបរិច្ឆេទ អ្វីដែលត្រូវរួមបញ្ចូល និងអ្នកប្រើ ផ្លូវកាត់កាលបរិច្ឆេទនៅតែរំលេចពេលកំពុងអនុវត្ត បញ្ជីអ្នកប្រើបង្ហាញចំនួនដែលបានជ្រើស ហើយសេចក្តីសង្ខេបនៃអ្វីដែលអ្នកនឹងទាញយកនៅក្បែរប៊ូតុងទាញយក។',
@@ -927,6 +1078,7 @@ window.CHANGELOG = [
       { kind: 'fixed', text: {
         en: 'The page you reach from a password-reset email now appears in your language instead of always in English.',
         id: 'Halaman yang Anda buka dari email reset kata sandi kini tampil dalam bahasa Anda, bukan selalu dalam bahasa Inggris.',
+        ms: 'Halaman yang anda buka dari e-mel tetapkan semula kata laluan kini tampil dalam bahasa anda, bukan selalu dalam bahasa Inggris.',
         th: 'หน้าที่เปิดจากอีเมลรีเซ็ตรหัสผ่านแสดงเป็นภาษาของคุณแล้ว แทนที่จะเป็นภาษาอังกฤษเสมอ',
         vi: 'Trang bạn mở từ email đặt lại mật khẩu giờ hiển thị bằng ngôn ngữ của bạn thay vì luôn là tiếng Anh.',
         km: 'ទំព័រដែលអ្នកបើកពីអ៊ីមែលកំណត់ពាក្យសម្ងាត់ឡើងវិញឥឡូវបង្ហាញជាភាសារបស់អ្នក ជំនួសឱ្យភាសាអង់គ្លេសជានិច្ច។',
@@ -936,11 +1088,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.10',
+    ms: '2026-10-09.10',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'The home menu is organised into groups — Your claims, Approvals, Finance, Cash advances and Overview — with an icon and a clear count on every tile. A line under the greeting tells you how many claims are waiting for your approval, and that tile is highlighted while anything is waiting. On phones the tiles become a compact list.',
         id: 'Menu beranda kini dikelompokkan — Klaim Anda, Persetujuan, Keuangan, Uang muka, dan Ikhtisar — dengan ikon dan jumlah yang jelas di setiap kotak. Satu baris di bawah sapaan memberi tahu berapa klaim yang menunggu persetujuan Anda, dan kotak itu disorot selama ada yang menunggu. Di ponsel, kotak-kotak menjadi daftar yang ringkas.',
+        ms: 'Menu beranda kini dikelompokkan — Tuntutan anda, Kelulusan, Kewangan, Pendahuluan tunai, dan Ikhtisar — dengan ikon dan jumlah yang jelas di setiap kotak. Satu baris di bawah sapaan memberi tahu berapa tuntutan yang menunggu kelulusan anda, dan kotak itu disorot selama ada yang menunggu. Di telefon, kotak-kotak menjadi senarai yang ringkas.',
         th: 'เมนูหน้าแรกจัดเป็นกลุ่มแล้ว — รายการเบิกของคุณ การอนุมัติ การเงิน เงินทดรองจ่าย และภาพรวม — พร้อมไอคอนและตัวเลขที่ชัดเจนในทุกช่อง บรรทัดใต้คำทักทายบอกว่ามีรายการเบิกรอการอนุมัติจากคุณกี่รายการ และช่องนั้นจะถูกเน้นตราบที่ยังมีรายการรออยู่ บนมือถือช่องต่างๆ จะเป็นรายการแบบกะทัดรัด',
         vi: 'Menu trang chủ được chia nhóm — Yêu cầu của bạn, Phê duyệt, Tài chính, Tạm ứng và Tổng quan — với biểu tượng và con số rõ ràng trên mỗi ô. Một dòng dưới lời chào cho biết có bao nhiêu yêu cầu đang chờ bạn phê duyệt, và ô đó được làm nổi bật khi còn yêu cầu đang chờ. Trên điện thoại, các ô trở thành danh sách gọn.',
         km: 'ម៉ឺនុយទំព័រដើមត្រូវបានរៀបជាក្រុម — សំណើរបស់អ្នក ការអនុម័ត ហិរញ្ញវត្ថុ ប្រាក់បុរេប្រទាន និងទិដ្ឋភាពទូទៅ — ដោយមានរូបតំណាង និងចំនួនច្បាស់លាស់លើប្រអប់នីមួយៗ។ បន្ទាត់មួយនៅក្រោមការស្វាគមន៍ប្រាប់ថាមានសំណើប៉ុន្មានកំពុងរង់ចាំការអនុម័តរបស់អ្នក ហើយប្រអប់នោះត្រូវបានរំលេចដរាបណានៅមានសំណើរង់ចាំ។ នៅលើទូរសព្ទ ប្រអប់ទាំងនោះក្លាយជាបញ្ជីបង្រួម។',
@@ -949,6 +1103,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Insights: the header now says exactly what the figures cover (scope, period and statuses), a Reset filters button clears every filter at once, each expense type shows its share of the total, and the trend chart names its peak with readable month labels. On phones the filters fold behind a Filters button, so the figures and charts come first.',
         id: 'Wawasan: bagian atas kini menyebutkan dengan tepat cakupan angka (lingkup, periode, dan status), tombol Atur ulang filter menghapus semua filter sekaligus, setiap jenis pengeluaran menampilkan porsinya dari total, dan grafik tren menyebutkan puncaknya dengan label bulan yang mudah dibaca. Di ponsel, filter dilipat di balik tombol Filter sehingga angka dan grafik tampil lebih dulu.',
+        ms: 'Analisis: bagian atas kini menyebutkan dengan tepat cakupan angka (lingkup, tempoh, dan status), butang Tetapkan semula penapis memadam semua penapis sekaligus, setiap jenis perbelanjaan memaparkan porsinya dari jumlah, dan carta trend menyebutkan puncaknya dengan label bulan yang mudah dibaca. Di telefon, penapis dilipat di balik butang Penapis sehingga angka dan carta tampil lebih dahulu.',
         th: 'ข้อมูลเชิงลึก: ส่วนหัวบอกชัดเจนว่าตัวเลขครอบคลุมอะไร (ขอบเขต ช่วงเวลา และสถานะ) ปุ่มล้างตัวกรองล้างตัวกรองทั้งหมดในครั้งเดียว ประเภทค่าใช้จ่ายแต่ละประเภทแสดงสัดส่วนจากยอดรวม และกราฟแนวโน้มบอกจุดสูงสุดพร้อมชื่อเดือนที่อ่านง่าย บนมือถือ ตัวกรองจะพับอยู่หลังปุ่มตัวกรอง ตัวเลขและกราฟจึงแสดงก่อน',
         vi: 'Thông tin chi tiết: phần đầu giờ nêu rõ các số liệu bao gồm những gì (phạm vi, kỳ và trạng thái), nút Đặt lại bộ lọc xóa mọi bộ lọc cùng lúc, mỗi loại chi phí hiển thị tỷ trọng trong tổng, và biểu đồ xu hướng nêu điểm cao nhất với nhãn tháng dễ đọc. Trên điện thoại, bộ lọc được gấp sau nút Bộ lọc để số liệu và biểu đồ hiện ra trước.',
         km: 'ការយល់ដឹង៖ ផ្នែកខាងលើឥឡូវប្រាប់ច្បាស់ថាតួលេខគ្របដណ្តប់អ្វី (វិសាលភាព រយៈពេល និងស្ថានភាព) ប៊ូតុងកំណត់តម្រងឡើងវិញ សម្អាតតម្រងទាំងអស់ក្នុងពេលតែមួយ ប្រភេទការចំណាយនីមួយៗបង្ហាញភាគរយនៃសរុប ហើយក្រាហ្វនិន្នាការប្រាប់ចំណុចខ្ពស់បំផុត ដោយមានស្លាកខែដែលងាយអាន។ នៅលើទូរសព្ទ តម្រងត្រូវបានបត់នៅពីក្រោយប៊ូតុងតម្រង ដូច្នេះតួលេខ និងក្រាហ្វបង្ហាញមុន។',
@@ -958,11 +1113,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.9',
+    ms: '2026-10-09.9',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'The claim, meal allowance and cash advance forms are tidier: your name, department and currency show under the title, "+ Add another line" now sits right under the lines, Approver 1 has its own section, and the total with a count of lines stays at the bottom next to Submit. On phones each line is a numbered card and Submit is a full-width button at the bottom.',
         id: 'Formulir klaim, tunjangan makan, dan uang muka kini lebih rapi: nama, departemen, dan mata uang Anda tampil di bawah judul, "+ Tambah baris lagi" kini berada tepat di bawah baris-baris, Approver 1 memiliki bagiannya sendiri, dan total beserta jumlah baris tetap di bawah di samping tombol Kirim. Di ponsel, setiap baris menjadi kartu bernomor dan tombol Kirim selebar layar di bagian bawah.',
+        ms: 'Borang tuntutan, elaun makan, dan pendahuluan tunai kini lebih rapi: nama, jabatan, dan mata wang anda tampil di bawah judul, "+ Tambah baris lagi" kini berada tepat di bawah baris-baris, Approver 1 mempunyai bagiannya sendiri, dan jumlah beserta jumlah baris tetap di bawah di samping butang Hantar. Di telefon, setiap baris menjadi kartu bernombor dan butang Hantar selebar skrin di bagian bawah.',
         th: 'ฟอร์มเบิกค่าใช้จ่าย เบี้ยเลี้ยงค่าอาหาร และเงินทดรองจ่ายเป็นระเบียบขึ้น: ชื่อ แผนก และสกุลเงินของคุณแสดงใต้หัวเรื่อง ปุ่ม "+ เพิ่มอีกรายการ" อยู่ใต้รายการทันที Approver 1 มีส่วนของตัวเอง และยอดรวมพร้อมจำนวนรายการอยู่ด้านล่างข้างปุ่มส่ง บนมือถือแต่ละรายการเป็นการ์ดที่มีหมายเลข และปุ่มส่งเต็มความกว้างอยู่ด้านล่าง',
         vi: 'Các biểu mẫu yêu cầu hoàn ứng, phụ cấp ăn và tạm ứng gọn gàng hơn: tên, phòng ban và tiền tệ của bạn hiện dưới tiêu đề, "+ Thêm dòng" nằm ngay dưới các dòng, Approver 1 có phần riêng, và tổng tiền cùng số dòng luôn ở cuối cạnh nút Gửi. Trên điện thoại, mỗi dòng là một thẻ có đánh số và nút Gửi rộng hết màn hình ở cuối.',
         km: 'ទម្រង់ស្នើសុំសំណង ប្រាក់ឧបត្ថម្ភអាហារ និងប្រាក់បុរេប្រទានមានសណ្តាប់ធ្នាប់ជាងមុន៖ ឈ្មោះ នាយកដ្ឋាន និងរូបិយប័ណ្ណរបស់អ្នកបង្ហាញនៅក្រោមចំណងជើង "+ បន្ថែមបន្ទាត់ទៀត" ឥឡូវនៅក្រោមបន្ទាត់ផ្ទាល់ Approver 1 មានផ្នែកផ្ទាល់ខ្លួន ហើយសរុបជាមួយចំនួនបន្ទាត់នៅខាងក្រោមក្បែរប៊ូតុងដាក់ស្នើ។ នៅលើទូរសព្ទ បន្ទាត់នីមួយៗជាកាតមានលេខ ហើយប៊ូតុងដាក់ស្នើពេញទទឹងនៅខាងក្រោម។',
@@ -971,6 +1128,7 @@ window.CHANGELOG = [
       { kind: 'fixed', text: {
         en: 'The required-field star (*) on Approver 1, the advance purpose and the advance amount no longer drops onto a line of its own, and the meal form no longer repeats its example text ("Surabaya") in every empty row.',
         id: 'Tanda wajib (*) pada Approver 1, tujuan uang muka, dan jumlah uang muka tidak lagi turun ke baris sendiri, dan formulir tunjangan makan tidak lagi mengulang contoh teksnya ("Surabaya") di setiap baris kosong.',
+        ms: 'Tanda wajib (*) pada Approver 1, tujuan pendahuluan tunai, dan jumlah pendahuluan tunai tidak lagi turun ke baris sendiri, dan borang elaun makan tidak lagi mengulang contoh teksnya ("Surabaya") di setiap baris kosong.',
         th: 'เครื่องหมายช่องบังคับ (*) ของ Approver 1 วัตถุประสงค์ และจำนวนเงินทดรองจ่าย ไม่ตกไปอยู่บรรทัดของตัวเองอีกต่อไป และฟอร์มเบี้ยเลี้ยงค่าอาหารไม่แสดงข้อความตัวอย่าง ("Surabaya") ซ้ำในทุกแถวว่างแล้ว',
         vi: 'Dấu bắt buộc (*) ở Approver 1, mục đích và số tiền tạm ứng không còn rơi xuống một dòng riêng, và biểu mẫu phụ cấp ăn không còn lặp lại chữ mẫu ("Surabaya") ở mọi dòng trống.',
         km: 'សញ្ញាចាំបាច់ (*) នៅលើ Approver 1 គោលបំណង និងចំនួនប្រាក់បុរេប្រទាន លែងធ្លាក់ទៅបន្ទាត់ដាច់ដោយឡែកហើយ ហើយទម្រង់ប្រាក់ឧបត្ថម្ភអាហារលែងបង្ហាញអត្ថបទគំរូ ("Surabaya") ម្តងទៀតក្នុងគ្រប់ជួរទទេ។',
@@ -980,11 +1138,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.8',
+    ms: '2026-10-09.8',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'On phones the top bar is now a single slim row — logo, New, What\'s new and your initials. Tap your initials for everything else: region, language, dark mode, Export, Profile, Settings and Sign out.',
         id: 'Di ponsel, bilah atas kini hanya satu baris ramping — logo, Baru, Yang baru, dan inisial Anda. Ketuk inisial Anda untuk semua hal lainnya: wilayah, bahasa, mode gelap, Ekspor, Profil, Pengaturan, dan Keluar.',
+        ms: 'Di telefon, bilah atas kini hanya satu baris ramping — logo, Baharu, Yang baharu, dan inisial anda. Ketik inisial anda untuk semua hal lainnya: wilayah, bahasa, mod gelap, Eksport, Profil, Tetapan, dan Keluar.',
         th: 'บนมือถือ แถบด้านบนเหลือเพียงแถวเดียวที่บางลง — โลโก้ ใหม่ มีอะไรใหม่ และอักษรย่อชื่อของคุณ แตะอักษรย่อเพื่อเข้าถึงทุกอย่างที่เหลือ: ภูมิภาค ภาษา โหมดมืด ส่งออก โปรไฟล์ การตั้งค่า และออกจากระบบ',
         vi: 'Trên điện thoại, thanh trên cùng giờ chỉ còn một hàng gọn — logo, Mới, Có gì mới và chữ viết tắt tên bạn. Chạm vào chữ viết tắt để mở mọi thứ còn lại: khu vực, ngôn ngữ, chế độ tối, Xuất, Hồ sơ, Cài đặt và Đăng xuất.',
         km: 'នៅលើទូរសព្ទ របារខាងលើឥឡូវជាជួរតែមួយស្តើង — ឡូហ្គោ ថ្មី អ្វីថ្មី និងអក្សរកាត់ឈ្មោះរបស់អ្នក។ ចុចអក្សរកាត់ដើម្បីបើកអ្វីៗផ្សេងទៀត៖ តំបន់ ភាសា មុខងារងងឹត នាំចេញ ប្រវត្តិរូប ការកំណត់ និងចាកចេញ។',
@@ -993,6 +1153,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'A claim\'s detail panel now opens with what matters at a glance — the type, the amount, its status and whose it is — shows the payment details in one card with a Copy button for the account number, and keeps Approve, Reject and the other actions pinned at the bottom so you never have to scroll to them.',
         id: 'Panel detail klaim kini langsung menampilkan hal terpenting — jenis, jumlah, status, dan pemiliknya — menampilkan detail pembayaran dalam satu kartu dengan tombol Salin untuk nomor rekening, dan menyematkan Setujui, Tolak, serta tindakan lainnya di bagian bawah sehingga Anda tidak perlu menggulir untuk mencapainya.',
+        ms: 'Panel butiran tuntutan kini langsung memaparkan hal terpenting — jenis, jumlah, status, dan pemiliknya — memaparkan butiran pembayaran dalam satu kartu dengan butang Salin untuk nombor akaun, dan menyematkan Luluskan, Tolak, serta tindakan lainnya di bagian bawah sehingga anda tidak perlu menggulir untuk mencapainya.',
         th: 'หน้ารายละเอียดรายการเบิกเปิดมาพร้อมข้อมูลสำคัญในทันที — ประเภท จำนวนเงิน สถานะ และเจ้าของรายการ — แสดงรายละเอียดการจ่ายเงินในการ์ดเดียวพร้อมปุ่มคัดลอกเลขบัญชี และตรึงปุ่มอนุมัติ ปฏิเสธ และการดำเนินการอื่นๆ ไว้ด้านล่าง จึงไม่ต้องเลื่อนหา',
         vi: 'Bảng chi tiết yêu cầu giờ hiển thị ngay những điều quan trọng — loại, số tiền, trạng thái và người gửi — gom thông tin thanh toán vào một thẻ kèm nút Sao chép số tài khoản, và ghim Phê duyệt, Từ chối cùng các thao tác khác ở cuối nên bạn không cần cuộn để tìm.',
         km: 'ផ្ទាំងព័ត៌មានលម្អិតសំណើឥឡូវបើកដោយបង្ហាញអ្វីសំខាន់ភ្លាមៗ — ប្រភេទ ចំនួនទឹកប្រាក់ ស្ថានភាព និងម្ចាស់ — បង្ហាញព័ត៌មានការទូទាត់ក្នុងកាតតែមួយ ដោយមានប៊ូតុងចម្លងលេខគណនី ហើយភ្ជាប់ប៊ូតុងអនុម័ត បដិសេធ និងសកម្មភាពផ្សេងទៀតនៅខាងក្រោម ដូច្នេះអ្នកមិនចាំបាច់រំកិលរកទេ។',
@@ -1001,6 +1162,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Status tags across the app (claims, accounts, settings, approval steps) now use the same easy-to-read style instead of all-capital letters, and they fit on one line in every language.',
         id: 'Label status di seluruh aplikasi (klaim, akun, pengaturan, langkah persetujuan) kini memakai gaya yang sama dan mudah dibaca, bukan huruf kapital semua, serta muat dalam satu baris di setiap bahasa.',
+        ms: 'Label status di seluruh aplikasi (tuntutan, akaun, tetapan, langkah kelulusan) kini menggunakan gaya yang sama dan mudah dibaca, bukan huruf kapital semua, serta muat dalam satu baris di setiap bahasa.',
         th: 'ป้ายสถานะทั่วทั้งแอป (รายการเบิก บัญชี การตั้งค่า ขั้นตอนการอนุมัติ) ใช้รูปแบบเดียวกันที่อ่านง่ายแทนตัวพิมพ์ใหญ่ทั้งหมด และอยู่ในบรรทัดเดียวในทุกภาษา',
         vi: 'Nhãn trạng thái trong toàn ứng dụng (yêu cầu, tài khoản, cài đặt, các bước phê duyệt) giờ dùng chung một kiểu dễ đọc thay vì viết hoa toàn bộ, và nằm gọn trên một dòng ở mọi ngôn ngữ.',
         km: 'ស្លាកស្ថានភាពនៅទូទាំងកម្មវិធី (សំណើ គណនី ការកំណត់ ជំហានអនុម័ត) ឥឡូវប្រើរចនាប័ទ្មដូចគ្នាដែលងាយអាន ជំនួសឱ្យអក្សរធំទាំងអស់ ហើយសមល្មមក្នុងមួយបន្ទាត់ក្នុងគ្រប់ភាសា។',
@@ -1009,6 +1171,7 @@ window.CHANGELOG = [
       { kind: 'fixed', text: {
         en: 'Changing the language now also updates the claims list filters ("All statuses", "All departments", "All claimants") straight away.',
         id: 'Mengganti bahasa kini juga langsung memperbarui filter daftar klaim ("Semua status", "Semua departemen", "Semua pengaju").',
+        ms: 'Menukar bahasa kini juga langsung mengemas kini penapis senarai tuntutan ("Semua status", "Semua jabatan", "Semua penuntut").',
         th: 'การเปลี่ยนภาษาจะอัปเดตตัวกรองของรายการเบิก ("ทุกสถานะ" "ทุกแผนก" "ผู้เบิกทั้งหมด") ทันทีด้วย',
         vi: 'Đổi ngôn ngữ giờ cũng cập nhật ngay các bộ lọc của danh sách yêu cầu ("Tất cả trạng thái", "Tất cả phòng ban", "Tất cả người yêu cầu").',
         km: 'ការប្តូរភាសាឥឡូវក៏ធ្វើបច្ចុប្បន្នភាពតម្រងបញ្ជីសំណើ ("ស្ថានភាពទាំងអស់" "នាយកដ្ឋានទាំងអស់" "អ្នកស្នើសុំទាំងអស់") ភ្លាមៗផងដែរ។',
@@ -1018,11 +1181,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.7',
+    ms: '2026-10-09.7',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'The claims list is cleaner: the header shows how many claims are listed and when they were last updated, status tags and summary cards read on one line, and a Clear filters button resets everything at once. On phones the summary cards become one swipeable row, the filters fold behind a Filters button (with a count of active filters), and selected claims get an action bar at the bottom of the screen — so the claims themselves start much higher up.',
         id: 'Daftar klaim kini lebih rapi: bagian atas menampilkan jumlah klaim yang tercantum dan kapan terakhir diperbarui, label status dan kartu ringkasan terbaca dalam satu baris, dan tombol Hapus filter mengatur ulang semuanya sekaligus. Di ponsel, kartu ringkasan menjadi satu baris yang dapat digeser, filter dilipat di balik tombol Filter (dengan jumlah filter aktif), dan klaim yang dipilih mendapat bilah tindakan di bagian bawah layar — sehingga klaimnya sendiri tampil jauh lebih ke atas.',
+        ms: 'Senarai tuntutan kini lebih rapi: bagian atas memaparkan jumlah tuntutan yang tersenarai dan kapan terakhir dikemas kini, label status dan kartu ringkasan boleh dibaca dalam satu baris, dan butang Padam penapis menetapkan semula semuanya sekaligus. Di telefon, kartu ringkasan menjadi satu baris yang dapat digeser, penapis dilipat di balik butang Penapis (dengan jumlah penapis aktif), dan tuntutan yang dipilih mendapat bilah tindakan di bagian bawah skrin — sehingga tuntutannya sendiri tampil jauh lebih ke atas.',
         th: 'รายการเบิกเป็นระเบียบขึ้น: ส่วนหัวแสดงจำนวนรายการและเวลาที่อัปเดตล่าสุด ป้ายสถานะและการ์ดสรุปอ่านได้ในบรรทัดเดียว และปุ่มล้างตัวกรองรีเซ็ตทุกอย่างในครั้งเดียว บนมือถือ การ์ดสรุปกลายเป็นแถวเดียวที่ปัดได้ ตัวกรองพับอยู่หลังปุ่มตัวกรอง (พร้อมจำนวนตัวกรองที่ใช้อยู่) และเมื่อเลือกรายการจะมีแถบคำสั่งที่ด้านล่างของหน้าจอ — รายการเบิกจึงเริ่มแสดงสูงขึ้นมาก',
         vi: 'Danh sách yêu cầu gọn gàng hơn: phần đầu hiển thị số yêu cầu đang liệt kê và thời điểm cập nhật gần nhất, nhãn trạng thái và thẻ tổng hợp nằm gọn trên một dòng, và nút Xóa bộ lọc đặt lại mọi thứ cùng lúc. Trên điện thoại, các thẻ tổng hợp thành một hàng có thể vuốt, bộ lọc được gấp sau nút Bộ lọc (kèm số bộ lọc đang bật), và khi chọn yêu cầu sẽ có thanh thao tác ở cuối màn hình — nên danh sách yêu cầu hiện cao hơn nhiều.',
         km: 'បញ្ជីសំណើមានសណ្តាប់ធ្នាប់ជាងមុន៖ ផ្នែកខាងលើបង្ហាញចំនួនសំណើ និងពេលធ្វើបច្ចុប្បន្នភាពចុងក្រោយ ស្លាកស្ថានភាព និងកាតសង្ខេបអានបានក្នុងមួយបន្ទាត់ ហើយប៊ូតុង សម្អាតតម្រង កំណត់អ្វីៗទាំងអស់ឡើងវិញក្នុងពេលតែមួយ។ នៅលើទូរសព្ទ កាតសង្ខេបក្លាយជាជួរតែមួយដែលអាចអូសបាន តម្រងត្រូវបានបត់នៅពីក្រោយប៊ូតុង តម្រង (ជាមួយចំនួនតម្រងសកម្ម) ហើយសំណើដែលបានជ្រើសមានរបារសកម្មភាពនៅខាងក្រោមអេក្រង់ — ដូច្នេះសំណើចាប់ផ្តើមបង្ហាញខ្ពស់ជាងមុនច្រើន។',
@@ -1031,6 +1196,7 @@ window.CHANGELOG = [
       { kind: 'fixed', text: {
         en: 'The "Pending - Manager" / "Pending - FinanceAP" labels on the claims list, its summary cards and its status filter now appear in your language instead of always in English.',
         id: 'Label "Menunggu - Manager" / "Menunggu - FinanceAP" pada daftar klaim, kartu ringkasan, dan filter statusnya kini tampil dalam bahasa Anda, bukan selalu dalam bahasa Inggris.',
+        ms: 'Label "Menunggu - Manager" / "Menunggu - FinanceAP" pada senarai tuntutan, kartu ringkasan, dan penapis statusnya kini tampil dalam bahasa anda, bukan selalu dalam bahasa Inggris.',
         th: 'ป้าย "รอ - Manager" / "รอ - FinanceAP" ในรายการเบิก การ์ดสรุป และตัวกรองสถานะ แสดงเป็นภาษาของคุณแล้ว แทนที่จะเป็นภาษาอังกฤษเสมอ',
         vi: 'Các nhãn "Chờ - Manager" / "Chờ - FinanceAP" trên danh sách yêu cầu, thẻ tổng hợp và bộ lọc trạng thái giờ hiển thị bằng ngôn ngữ của bạn thay vì luôn là tiếng Anh.',
         km: 'ស្លាក "រង់ចាំ - Manager" / "រង់ចាំ - FinanceAP" នៅលើបញ្ជីសំណើ កាតសង្ខេប និងតម្រងស្ថានភាព ឥឡូវបង្ហាញជាភាសារបស់អ្នក ជំនួសឱ្យភាសាអង់គ្លេសជានិច្ច។',
@@ -1040,11 +1206,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.6',
+    ms: '2026-10-09.6',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'Manage accounts is tidier: each person\'s email sits under their name, accounts can be filtered by All, Active or Disabled, and every row has one Reset password button with Disable / Enable in a ⋯ menu. Rows you can\'t change are marked View only, and the Reset password window shows whose password you are changing.',
         id: 'Kelola akun kini lebih rapi: email setiap orang ada di bawah namanya, akun dapat difilter menurut Semua, Aktif, atau Nonaktif, dan setiap baris memiliki satu tombol Reset kata sandi dengan Nonaktifkan / Aktifkan di menu ⋯. Baris yang tidak dapat Anda ubah ditandai Hanya lihat, dan jendela Reset kata sandi menampilkan kata sandi siapa yang sedang Anda ubah.',
+        ms: 'Urus akaun kini lebih rapi: e-mel setiap orang ada di bawah namanya, akaun dapat difilter menurut Semua, Aktif, atau Tidak aktif, dan setiap baris mempunyai satu butang Tetapkan semula kata laluan dengan Nyahaktifkan / Aktifkan di menu ⋯. Baris yang tidak dapat anda ubah ditandakan Hanya lihat, dan jendela Tetapkan semula kata laluan memaparkan kata laluan siapa yang sedang anda ubah.',
         th: 'หน้าจัดการบัญชีเป็นระเบียบขึ้น: อีเมลของแต่ละคนอยู่ใต้ชื่อ กรองบัญชีได้ตามทั้งหมด ใช้งาน หรือปิดใช้งาน และแต่ละแถวมีปุ่มรีเซ็ตรหัสผ่านปุ่มเดียว โดยย้ายปิดใช้งาน / เปิดใช้งานไปไว้ในเมนู ⋯ แถวที่คุณแก้ไขไม่ได้จะมีป้ายดูได้อย่างเดียว และหน้าต่างรีเซ็ตรหัสผ่านจะแสดงว่ากำลังเปลี่ยนรหัสผ่านของใคร',
         vi: 'Quản lý tài khoản gọn gàng hơn: email của mỗi người nằm dưới tên họ, có thể lọc tài khoản theo Tất cả, Đang hoạt động hoặc Bị vô hiệu hóa, và mỗi dòng có một nút Đặt lại mật khẩu, còn Vô hiệu hóa / Kích hoạt nằm trong menu ⋯. Các dòng bạn không thể thay đổi được ghi Chỉ xem, và cửa sổ Đặt lại mật khẩu hiển thị bạn đang đổi mật khẩu của ai.',
         km: 'ការគ្រប់គ្រងគណនីមានសណ្តាប់ធ្នាប់ជាងមុន៖ អ៊ីមែលរបស់មនុស្សម្នាក់ៗនៅក្រោមឈ្មោះ គណនីអាចត្រងតាម ទាំងអស់ សកម្ម ឬបានបិទ ហើយជួរនីមួយៗមានប៊ូតុងកំណត់ពាក្យសម្ងាត់ឡើងវិញតែមួយ ដោយមាន បិទ / បើក ក្នុងម៉ឺនុយ ⋯។ ជួរដែលអ្នកមិនអាចកែបានត្រូវបានសម្គាល់ មើលតែប៉ុណ្ណោះ ហើយបង្អួចកំណត់ពាក្យសម្ងាត់ឡើងវិញបង្ហាញថាអ្នកកំពុងប្តូរពាក្យសម្ងាត់របស់នរណា។',
@@ -1053,6 +1221,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Settings and the account screens work better on phones: page notes fold to two lines (tap to read more), account cards are more compact, buttons are easier to tap, and the Roles table keeps the permission names in view while you scroll sideways.',
         id: 'Pengaturan dan layar akun kini lebih nyaman di ponsel: catatan halaman dilipat menjadi dua baris (ketuk untuk membaca selengkapnya), kartu akun lebih ringkas, tombol lebih mudah diketuk, dan tabel Peran tetap menampilkan nama izin saat Anda menggulir ke samping.',
+        ms: 'Tetapan dan skrin akaun kini lebih nyaman di telefon: catatan halaman dilipat menjadi dua baris (ketik untuk membaca selengkapnya), kartu akaun lebih ringkas, butang lebih mudah diketuk, dan jadual Peranan tetap memaparkan nama kebenaran saat anda menggulir ke samping.',
         th: 'การตั้งค่าและหน้าบัญชีใช้งานบนมือถือได้ดีขึ้น: คำอธิบายหน้าพับเหลือสองบรรทัด (แตะเพื่ออ่านต่อ) การ์ดบัญชีกระชับขึ้น ปุ่มกดง่ายขึ้น และตารางบทบาทยังคงแสดงชื่อสิทธิ์ขณะเลื่อนไปด้านข้าง',
         vi: 'Cài đặt và các màn hình tài khoản dùng tốt hơn trên điện thoại: ghi chú trang được thu gọn còn hai dòng (chạm để xem thêm), thẻ tài khoản gọn hơn, nút dễ bấm hơn, và bảng Vai trò luôn hiển thị tên quyền khi bạn cuộn ngang.',
         km: 'ការកំណត់ និងអេក្រង់គណនីដំណើរការល្អជាងនៅលើទូរសព្ទ៖ កំណត់ចំណាំទំព័របត់ត្រឹមពីរបន្ទាត់ (ចុចដើម្បីអានបន្ថែម) កាតគណនីបង្រួមជាងមុន ប៊ូតុងងាយចុចជាងមុន ហើយតារាងតួនាទីរក្សាឈ្មោះសិទ្ធិឱ្យនៅមើលឃើញពេលអ្នករំកិលទៅចំហៀង។',
@@ -1062,11 +1231,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.5',
+    ms: '2026-10-09.5',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'The add / edit account form is reorganised into clear sections — Profile, Sign-in, Role & access, Approvals and Bank details — with a side menu to jump between them. The header shows who you are editing (name, username, role and region), Save stays at the bottom of the window at all times, and the approval-limit amount only appears when Unlimited is unticked.',
         id: 'Formulir tambah / ubah akun kini tersusun dalam bagian yang jelas — Profil, Masuk, Peran & akses, Persetujuan, dan Detail bank — dengan menu samping untuk berpindah antarbagian. Bagian atas menampilkan siapa yang sedang Anda ubah (nama, nama pengguna, peran, dan wilayah), tombol Simpan selalu terlihat di bawah jendela, dan kolom jumlah batas persetujuan hanya muncul jika Tanpa batas tidak dicentang.',
+        ms: 'Borang tambah / ubah akaun kini tersusun dalam bagian yang jelas — Profil, Masuk, Peranan & akses, Kelulusan, dan Butiran bank — dengan menu samping untuk berpindah antarbagian. Bagian atas memaparkan siapa yang sedang anda ubah (nama, nama pengguna, peranan, dan wilayah), butang Simpan selalu terlihat di bawah jendela, dan lajur jumlah had kelulusan hanya muncul jika Tanpa had tidak dicentang.',
         th: 'ฟอร์มเพิ่ม / แก้ไขบัญชีจัดเป็นส่วนที่ชัดเจนแล้ว ได้แก่ โปรไฟล์ การเข้าสู่ระบบ บทบาทและสิทธิ์ การอนุมัติ และข้อมูลธนาคาร พร้อมเมนูด้านข้างสำหรับข้ามไปยังแต่ละส่วน ส่วนหัวแสดงว่ากำลังแก้ไขใคร (ชื่อ ชื่อผู้ใช้ บทบาท และภูมิภาค) ปุ่มบันทึกอยู่ด้านล่างของหน้าต่างตลอดเวลา และช่องจำนวนวงเงินอนุมัติจะแสดงเฉพาะเมื่อไม่ได้ติ๊กไม่จำกัด',
         vi: 'Biểu mẫu thêm / sửa tài khoản được sắp xếp lại thành các phần rõ ràng — Hồ sơ, Đăng nhập, Vai trò & quyền hạn, Phê duyệt và Thông tin ngân hàng — kèm menu bên để chuyển nhanh giữa các phần. Phần đầu hiển thị bạn đang sửa ai (tên, tên đăng nhập, vai trò và khu vực), nút Lưu luôn nằm ở cuối cửa sổ, và ô số tiền hạn mức phê duyệt chỉ hiện khi bỏ chọn Không giới hạn.',
         km: 'ទម្រង់បន្ថែម / កែគណនីត្រូវបានរៀបចំឡើងវិញជាផ្នែកច្បាស់លាស់ — ប្រវត្តិរូប ការចូលប្រើ តួនាទី និងសិទ្ធិ ការអនុម័ត និងព័ត៌មានធនាគារ — ដោយមានម៉ឺនុយចំហៀងសម្រាប់លោតទៅផ្នែកនីមួយៗ។ ផ្នែកខាងលើបង្ហាញអ្នកដែលអ្នកកំពុងកែ (ឈ្មោះ ឈ្មោះអ្នកប្រើ តួនាទី និងតំបន់) ប៊ូតុងរក្សាទុកនៅខាងក្រោមបង្អួចជានិច្ច ហើយប្រអប់ចំនួនដែនកំណត់អនុម័តបង្ហាញតែពេលមិនបានធីក គ្មានដែនកំណត់។',
@@ -1076,11 +1247,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.4',
+    ms: '2026-10-09.4',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'Settings has a cleaner layout: pages are grouped in a side menu (People, Organisation, Claims, Region), and each page opens with a short note on what it controls and its main button at the top. Departments, job positions and expense types show a Disabled tag and keep Rename, Disable and Delete in a ⋯ menu; Accounts can be filtered by All, Active or Disabled; and the currency, claim window and meal allowance forms sit in tidy cards with Save at the bottom.',
         id: 'Pengaturan kini lebih rapi: halaman dikelompokkan dalam menu samping (Orang, Organisasi, Klaim, Wilayah), dan setiap halaman dibuka dengan catatan singkat tentang apa yang diaturnya serta tombol utamanya di bagian atas. Departemen, posisi jabatan, dan jenis pengeluaran menampilkan label Nonaktif dan menyimpan Ganti nama, Nonaktifkan, dan Hapus dalam menu ⋯; Akun dapat difilter menurut Semua, Aktif, atau Nonaktif; dan formulir mata uang, batas waktu klaim, serta tunjangan makan tersusun dalam kartu yang rapi dengan tombol Simpan di bawah.',
+        ms: 'Tetapan kini lebih rapi: halaman dikelompokkan dalam menu samping (Orang, Organisasi, Tuntutan, Wilayah), dan setiap halaman dibuka dengan catatan ringkas tentang apa yang diaturnya serta butang utamanya di bagian atas. Jabatan, jawatan, dan jenis perbelanjaan memaparkan label Tidak aktif dan menyimpan Ganti nama, Nyahaktifkan, dan Padam dalam menu ⋯; Akaun dapat difilter menurut Semua, Aktif, atau Tidak aktif; dan borang mata wang, had waktu tuntutan, serta elaun makan tersusun dalam kartu yang rapi dengan butang Simpan di bawah.',
         th: 'การตั้งค่ามีหน้าตาเป็นระเบียบขึ้น: หน้าต่างๆ ถูกจัดกลุ่มในเมนูด้านข้าง (บุคคล องค์กร การเบิก ภูมิภาค) และแต่ละหน้าจะมีคำอธิบายสั้นๆ ว่าควบคุมอะไร พร้อมปุ่มหลักอยู่ด้านบน แผนก ตำแหน่งงาน และประเภทค่าใช้จ่ายจะแสดงป้ายปิดใช้งาน และย้ายเปลี่ยนชื่อ ปิดใช้งาน และลบ ไปไว้ในเมนู ⋯ บัญชีกรองได้ตามทั้งหมด ใช้งาน หรือปิดใช้งาน และฟอร์มสกุลเงิน ช่วงเวลาการเบิก และเบี้ยเลี้ยงค่าอาหาร อยู่ในการ์ดที่เป็นระเบียบพร้อมปุ่มบันทึกด้านล่าง',
         vi: 'Cài đặt có bố cục gọn gàng hơn: các trang được nhóm trong menu bên (Con người, Tổ chức, Yêu cầu, Khu vực), và mỗi trang mở đầu bằng ghi chú ngắn về nội dung nó kiểm soát cùng nút chính ở phía trên. Phòng ban, vị trí công việc và loại chi phí hiển thị nhãn Vô hiệu hóa và gom Đổi tên, Vô hiệu hóa, Xóa vào menu ⋯; Tài khoản có thể lọc theo Tất cả, Đang hoạt động hoặc Bị vô hiệu hóa; và các biểu mẫu tiền tệ, kỳ yêu cầu và phụ cấp ăn được đặt trong thẻ gọn gàng với nút Lưu ở cuối.',
         km: 'ការកំណត់មានប្លង់ស្អាតជាងមុន៖ ទំព័រត្រូវបានដាក់ជាក្រុមក្នុងម៉ឺនុយចំហៀង (មនុស្ស អង្គភាព សំណើ តំបន់) ហើយទំព័រនីមួយៗបើកដោយកំណត់ចំណាំខ្លីអំពីអ្វីដែលវាគ្រប់គ្រង និងប៊ូតុងសំខាន់នៅខាងលើ។ នាយកដ្ឋាន តំណែងការងារ និងប្រភេទការចំណាយបង្ហាញស្លាកបានបិទ ហើយដាក់ ប្តូរឈ្មោះ បិទ និងលុប ក្នុងម៉ឺនុយ ⋯; គណនីអាចត្រងតាម ទាំងអស់ សកម្ម ឬបានបិទ; ហើយទម្រង់រូបិយប័ណ្ណ រយៈពេលស្នើសុំ និងប្រាក់ឧបត្ថម្ភអាហារ ស្ថិតក្នុងកាតដែលមានសណ្តាប់ធ្នាប់ ដោយមានប៊ូតុងរក្សាទុកនៅខាងក្រោម។',
@@ -1090,11 +1263,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.3',
+    ms: '2026-10-09.3',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'The Regions screen in Settings is now a single tidy list: each region shows how many accounts and open documents it has, with Open settings to go in and a ⋯ menu to rename, disable or delete it. Disabled regions are grouped separately, and you are warned before disabling or deleting a region that still has accounts or open documents.',
         id: 'Layar Wilayah di Pengaturan kini menjadi satu daftar yang rapi: setiap wilayah menampilkan jumlah akun dan dokumen terbukanya, dengan tombol Buka pengaturan untuk masuk dan menu ⋯ untuk mengganti nama, menonaktifkan, atau menghapusnya. Wilayah nonaktif dikelompokkan tersendiri, dan Anda diperingatkan sebelum menonaktifkan atau menghapus wilayah yang masih memiliki akun atau dokumen terbuka.',
+        ms: 'Skrin Wilayah di Tetapan kini menjadi satu senarai yang rapi: setiap wilayah memaparkan jumlah akaun dan dokumen terbukanya, dengan butang Buka tetapan untuk log masuk dan menu ⋯ untuk menukar nama, menyahaktifkan, atau menghapusnya. Wilayah tidak aktif dikelompokkan tersendiri, dan anda diperingatkan sebelum menyahaktifkan atau memadam wilayah yang masih mempunyai akaun atau dokumen terbuka.',
         th: 'หน้าภูมิภาคในการตั้งค่าเป็นรายการเดียวที่เป็นระเบียบแล้ว แต่ละภูมิภาคแสดงจำนวนบัญชีและเอกสารที่ยังค้าง พร้อมปุ่มเปิดการตั้งค่าเพื่อเข้าไป และเมนู ⋯ สำหรับเปลี่ยนชื่อ ปิดใช้งาน หรือลบ ภูมิภาคที่ปิดใช้งานจะแยกกลุ่มไว้ และระบบจะเตือนก่อนปิดใช้งานหรือลบภูมิภาคที่ยังมีบัญชีหรือเอกสารค้างอยู่',
         vi: 'Màn hình Khu vực trong Cài đặt giờ là một danh sách gọn gàng: mỗi khu vực hiển thị số tài khoản và hồ sơ đang mở, kèm nút Mở cài đặt để vào và menu ⋯ để đổi tên, vô hiệu hóa hoặc xóa. Các khu vực bị vô hiệu hóa được nhóm riêng, và bạn sẽ được cảnh báo trước khi vô hiệu hóa hoặc xóa khu vực vẫn còn tài khoản hoặc hồ sơ đang mở.',
         km: 'អេក្រង់តំបន់ក្នុងការកំណត់ឥឡូវជាបញ្ជីតែមួយយ៉ាងមានសណ្តាប់ធ្នាប់៖ តំបន់នីមួយៗបង្ហាញចំនួនគណនី និងឯកសារកំពុងបើក ដោយមានប៊ូតុង បើកការកំណត់ ដើម្បីចូល និងម៉ឺនុយ ⋯ ដើម្បីប្តូរឈ្មោះ បិទ ឬលុបវា។ តំបន់ដែលបានបិទត្រូវបានដាក់ជាក្រុមដាច់ដោយឡែក ហើយអ្នកនឹងទទួលការព្រមានមុនពេលបិទ ឬលុបតំបន់ដែលនៅមានគណនី ឬឯកសារកំពុងបើក។',
@@ -1104,11 +1279,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.2',
+    ms: '2026-10-09.2',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'In Export claims to CSV, statuses and claim types are now tidy one-per-line lists, each with a Select all / Clear button to tick or untick the whole group in one click.',
         id: 'Di Ekspor klaim ke CSV, status dan jenis klaim kini tersusun rapi satu per baris, masing-masing dengan tombol Pilih semua / Bersihkan untuk mencentang atau menghapus centang seluruh grup sekali klik.',
+        ms: 'Di Eksport tuntutan ke CSV, status dan jenis tuntutan kini tersusun rapi satu per baris, masing-masing dengan butang Pilih semua / Bersihkan untuk mencentang atau memadam tandakan seluruh grup sekali klik.',
         th: 'ในหน้าส่งออกรายการเบิกเป็น CSV สถานะและประเภทการเบิกแสดงเป็นรายการบรรทัดละหนึ่งตัวเลือกอย่างเป็นระเบียบ พร้อมปุ่มเลือกทั้งหมด / ล้าง เพื่อติ๊กหรือยกเลิกทั้งกลุ่มในคลิกเดียว',
         vi: 'Trong Xuất yêu cầu ra CSV, trạng thái và loại yêu cầu giờ được sắp gọn mỗi dòng một mục, kèm nút Chọn tất cả / Xóa để chọn hoặc bỏ chọn cả nhóm chỉ với một lần bấm.',
         km: 'នៅក្នុងការនាំចេញសំណើទៅ CSV ស្ថានភាព និងប្រភេទសំណើឥឡូវត្រូវបានរៀបជាបញ្ជីមួយបន្ទាត់មួយយ៉ាងមានសណ្តាប់ធ្នាប់ ដោយម្នាក់ៗមានប៊ូតុង ជ្រើសទាំងអស់ / សម្អាត ដើម្បីធីក ឬដកធីកក្រុមទាំងមូលដោយចុចតែម្តង។',
@@ -1118,11 +1295,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-09.1',
+    ms: '2026-10-09.1',
     date: '2026-10-09',
     items: [
       { kind: 'improved', text: {
         en: 'When a claim has just one photo receipt, the downloaded PDF now shows it at the same size as when there are two, centred on its page, instead of stretching it to fill the whole page.',
         id: 'Jika klaim hanya memiliki satu foto struk, PDF yang diunduh kini menampilkannya dengan ukuran yang sama seperti saat ada dua struk, di tengah halaman, alih-alih membentangkannya memenuhi seluruh halaman.',
+        ms: 'Jika tuntutan hanya mempunyai satu foto resit, PDF yang dimuat turun kini menampilkannya dengan ukuran yang sama seperti saat ada dua resit, di tengah halaman, alih-alih membentangkannya memenuhi seluruh halaman.',
         th: 'เมื่อรายการเบิกมีรูปใบเสร็จเพียงรูปเดียว PDF ที่ดาวน์โหลดจะแสดงรูปนั้นในขนาดเดียวกับเมื่อมีสองรูป โดยอยู่กึ่งกลางหน้า แทนที่จะขยายเต็มทั้งหน้า',
         vi: 'Khi một yêu cầu chỉ có một ảnh biên lai, tệp PDF tải xuống giờ hiển thị ảnh với kích thước giống như khi có hai ảnh, căn giữa trang, thay vì phóng to chiếm trọn cả trang.',
         km: 'នៅពេលសំណើមានរូបថតបង្កាន់ដៃតែមួយ PDF ដែលបានទាញយកឥឡូវបង្ហាញវាក្នុងទំហំដូចពេលមានពីរ នៅកណ្ដាលទំព័រ ជំនួសឱ្យការពង្រីកវាពេញទំព័រទាំងមូល។',
@@ -1132,11 +1311,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-07.1',
+    ms: '2026-10-07.1',
     date: '2026-10-07',
     items: [
       { kind: 'fixed', text: {
         en: 'Large receipts (such as long scanned PDFs) now open and download reliably, and a downloaded receipt keeps its real file name instead of one full of %20s.',
         id: 'Struk berukuran besar (seperti PDF hasil pindai yang panjang) kini terbuka dan terunduh dengan andal, dan struk yang diunduh mempertahankan nama file aslinya, bukan nama yang penuh %20.',
+        ms: 'Resit berukuran besar (seperti PDF hasil imbas yang panjang) kini terbuka dan terunduh dengan andal, dan resit yang dimuat turun mempertahankan nama fail aslinya, bukan nama yang penuh %20.',
         th: 'ใบเสร็จขนาดใหญ่ (เช่น PDF สแกนหลายหน้า) เปิดและดาวน์โหลดได้อย่างเสถียรแล้ว และใบเสร็จที่ดาวน์โหลดจะใช้ชื่อไฟล์จริง ไม่ใช่ชื่อที่เต็มไปด้วย %20',
         vi: 'Biên lai dung lượng lớn (như tệp PDF quét nhiều trang) giờ mở và tải xuống ổn định, và biên lai tải xuống giữ đúng tên tệp gốc thay vì tên đầy ký tự %20.',
         km: 'បង្កាន់ដៃទំហំធំ (ដូចជា PDF ស្កេនវែងៗ) ឥឡូវបើក និងទាញយកបានយ៉ាងជឿជាក់ ហើយបង្កាន់ដៃដែលបានទាញយករក្សាឈ្មោះឯកសារពិតរបស់វា ជំនួសឱ្យឈ្មោះដែលពេញដោយ %20។',
@@ -1145,6 +1326,7 @@ window.CHANGELOG = [
       { kind: 'fixed', text: {
         en: 'When two people act on the same claim at once — or a button is clicked twice — the second action is now stopped with a message to reload, instead of overwriting the first (for example, approving a claim someone had just rejected, or recording a payment twice).',
         id: 'Ketika dua orang bertindak pada klaim yang sama secara bersamaan — atau tombol diklik dua kali — tindakan kedua kini dihentikan dengan pesan untuk memuat ulang, alih-alih menimpa tindakan pertama (misalnya menyetujui klaim yang baru saja ditolak orang lain, atau mencatat pembayaran dua kali).',
+        ms: 'Ketika dua orang bertindak pada tuntutan yang sama secara bersamaan — atau butang diklik dua kali — tindakan kedua kini dihentikan dengan mesej untuk memuat semula, alih-alih menimpa tindakan pertama (contohnya meluluskan tuntutan yang baharu sahaja ditolak orang lain, atau mencatat pembayaran dua kali).',
         th: 'เมื่อมีสองคนดำเนินการกับคำขอเบิกเดียวกันพร้อมกัน หรือมีการกดปุ่มซ้ำสองครั้ง การดำเนินการครั้งที่สองจะถูกหยุดพร้อมข้อความให้โหลดใหม่ แทนที่จะเขียนทับครั้งแรก (เช่น อนุมัติคำขอที่อีกคนเพิ่งปฏิเสธ หรือบันทึกการจ่ายเงินซ้ำสองครั้ง)',
         vi: 'Khi hai người cùng thao tác trên một yêu cầu cùng lúc — hoặc một nút bị bấm hai lần — thao tác thứ hai giờ sẽ bị dừng kèm thông báo tải lại, thay vì ghi đè thao tác đầu tiên (ví dụ: phê duyệt yêu cầu mà người khác vừa từ chối, hoặc ghi nhận thanh toán hai lần).',
         km: 'នៅពេលមនុស្សពីរនាក់ធ្វើសកម្មភាពលើការទាមទារតែមួយក្នុងពេលតែមួយ — ឬប៊ូតុងត្រូវបានចុចពីរដង — សកម្មភាពទីពីរឥឡូវត្រូវបានបញ្ឈប់ ដោយមានសារឱ្យផ្ទុកឡើងវិញ ជំនួសឱ្យការសរសេរជាន់លើសកម្មភាពទីមួយ (ឧទាហរណ៍ ការអនុម័តការទាមទារដែលអ្នកផ្សេងទើបតែបដិសេធ ឬការកត់ត្រាការទូទាត់ពីរដង)។',
@@ -1154,11 +1336,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-05.2',
+    ms: '2026-10-05.2',
     date: '2026-10-05',
     items: [
       { kind: 'new', text: {
         en: 'A new Modern look: softer rounded cards, filled fields, a frosted top bar and navy accents. Choose it under Profile → Appearance; it works in both light and dark mode, and Classic stays the default. Your choice is remembered on each device.',
         id: 'Tampilan Modern baru: kartu membulat yang lebih lembut, kolom isian berlatar, bilah atas buram, dan aksen biru navy. Pilih di Profil → Tampilan; berfungsi di mode terang maupun gelap, dan Klasik tetap menjadi bawaan. Pilihan Anda diingat di setiap perangkat.',
+        ms: 'Paparan Modern baharu: kartu membulat yang lebih lembut, lajur isian berlatar, bilah atas buram, dan aksen biru navy. Pilih di Profil → Paparan; berfungsi di mod cerah maupun gelap, dan Klasik tetap menjadi lalai. Pilihan anda diingat di setiap perangkat.',
         th: 'รูปลักษณ์ Modern ใหม่: การ์ดขอบมนที่นุ่มนวลขึ้น ช่องกรอกแบบมีพื้น แถบด้านบนแบบฝ้า และสีเน้นสีน้ำเงินกรมท่า เลือกได้ที่ โปรไฟล์ → รูปลักษณ์ ใช้ได้ทั้งโหมดสว่างและโหมดมืด โดยคลาสสิกยังเป็นค่าเริ่มต้น ระบบจะจำตัวเลือกของคุณไว้ในแต่ละอุปกรณ์',
         vi: 'Giao diện Hiện đại mới: thẻ bo tròn mềm mại hơn, ô nhập có nền, thanh trên cùng hiệu ứng kính mờ và điểm nhấn màu xanh navy. Chọn tại Hồ sơ → Giao diện; dùng được ở cả chế độ sáng và tối, và Cổ điển vẫn là mặc định. Lựa chọn của bạn được ghi nhớ trên từng thiết bị.',
         km: 'រូបរាងទំនើបថ្មី៖ កាតជ្រុងមូលទន់ជាងមុន ប្រអប់បញ្ចូលមានផ្ទៃ របារខាងលើបែបកញ្ចក់ព្រិល និងពណ៌សង្កត់ពណ៌ខៀវចាស់។ ជ្រើសរើសវានៅ ប្រវត្តិរូប → រូបរាង; វាដំណើរការទាំងរបៀបភ្លឺ និងងងឹត ហើយបុរាណនៅតែជាលំនាំដើម។ ជម្រើសរបស់អ្នកត្រូវបានចងចាំនៅលើឧបករណ៍នីមួយៗ។',
@@ -1168,11 +1352,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-05.1',
+    ms: '2026-10-05.1',
     date: '2026-10-05',
     items: [
       { kind: 'improved', text: {
         en: 'The portal now moves more smoothly: screens and lists ease in, claim details and windows slide or fade away when closed, and switching between light and dark mode spreads out from the button. If your device is set to reduce motion, all of this stays off.',
         id: 'Portal kini bergerak lebih halus: layar dan daftar muncul perlahan, detail klaim dan jendela bergeser atau memudar saat ditutup, dan pergantian mode terang/gelap menyebar dari tombolnya. Jika perangkat Anda diatur untuk mengurangi gerakan, semua ini tetap nonaktif.',
+        ms: 'Portal kini bergerak lebih halus: skrin dan senarai muncul perlahan, butiran tuntutan dan jendela bergeser atau memudar saat ditutup, dan pergantian mod cerah/gelap menyebar dari tombolnya. Jika perangkat anda ditetapkan untuk mengurangi gerakan, semua ini tetap tidak aktif.',
         th: 'พอร์ทัลเคลื่อนไหวได้ลื่นไหลขึ้น: หน้าจอและรายการค่อย ๆ ปรากฏ รายละเอียดคำขอเบิกและหน้าต่างจะเลื่อนหรือจางหายเมื่อปิด และการสลับโหมดสว่าง/มืดจะแผ่ออกจากปุ่ม หากอุปกรณ์ของคุณตั้งค่าให้ลดการเคลื่อนไหว เอฟเฟกต์ทั้งหมดนี้จะปิดอยู่',
         vi: 'Cổng thông tin giờ chuyển động mượt mà hơn: màn hình và danh sách hiện ra nhẹ nhàng, chi tiết yêu cầu và cửa sổ trượt hoặc mờ dần khi đóng, và việc chuyển chế độ sáng/tối lan ra từ nút bấm. Nếu thiết bị của bạn được đặt giảm chuyển động, tất cả hiệu ứng này sẽ tắt.',
         km: 'វិបផតថលឥឡូវមានចលនារលូនជាងមុន៖ អេក្រង់ និងបញ្ជីលេចឡើងបន្តិចម្ដងៗ ព័ត៌មានលម្អិតនៃការទាមទារ និងផ្ទាំងរអិល ឬរសាត់បាត់ពេលបិទ ហើយការប្ដូររវាងរបៀបភ្លឺ និងងងឹតរីករាលចេញពីប៊ូតុង។ ប្រសិនបើឧបករណ៍របស់អ្នកកំណត់ឱ្យកាត់បន្ថយចលនា ចលនាទាំងនេះនឹងនៅបិទ។',
@@ -1182,11 +1368,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-04.1',
+    ms: '2026-10-04.1',
     date: '2026-10-04',
     items: [
       { kind: 'improved', text: {
         en: 'Changing your password now signs you out on your other devices, so an old sign-in (on a shared computer, say) can no longer be used. You stay signed in where you made the change. A password reset by an administrator or a reset link signs the account out everywhere.',
         id: 'Mengganti kata sandi kini mengeluarkan Anda dari perangkat lain, sehingga sesi lama (misalnya di komputer bersama) tidak bisa dipakai lagi. Anda tetap masuk di perangkat tempat Anda menggantinya. Reset kata sandi oleh administrator atau lewat tautan reset mengeluarkan akun dari semua perangkat.',
+        ms: 'Menukar kata laluan kini mengeluarkan anda dari perangkat lain, sehingga sesi lama (contohnya di komputer bersama) tidak boleh digunakan lagi. Anda tetap masuk di perangkat tempat anda menggantinya. Tetapkan semula kata laluan oleh pentadbir atau melepasi pautan penetapan semula mengeluarkan akaun dari semua perangkat.',
         th: 'การเปลี่ยนรหัสผ่านจะออกจากระบบบนอุปกรณ์อื่นของคุณ ทำให้การเข้าสู่ระบบเดิม (เช่น บนคอมพิวเตอร์ที่ใช้ร่วมกัน) ใช้ไม่ได้อีกต่อไป คุณยังคงอยู่ในระบบบนอุปกรณ์ที่ใช้เปลี่ยนรหัสผ่าน การรีเซ็ตรหัสผ่านโดยผู้ดูแลระบบหรือผ่านลิงก์รีเซ็ตจะออกจากระบบบัญชีนั้นบนทุกอุปกรณ์',
         vi: 'Đổi mật khẩu giờ sẽ đăng xuất bạn trên các thiết bị khác, nên phiên đăng nhập cũ (ví dụ trên máy tính dùng chung) không thể dùng được nữa. Bạn vẫn đăng nhập trên thiết bị đã đổi mật khẩu. Khi quản trị viên đặt lại mật khẩu hoặc dùng liên kết đặt lại, tài khoản sẽ bị đăng xuất ở mọi nơi.',
         km: 'ការប្ដូរពាក្យសម្ងាត់ ឥឡូវនឹងចាកចេញពីឧបករណ៍ផ្សេងទៀតរបស់អ្នក ដូច្នេះការចូលចាស់ (ឧ. នៅលើកុំព្យូទ័រប្រើរួម) មិនអាចប្រើបានទៀតទេ។ អ្នកនៅតែចូលនៅលើឧបករណ៍ដែលអ្នកប្ដូរ។ ការកំណត់ពាក្យសម្ងាត់ឡើងវិញដោយអ្នកគ្រប់គ្រង ឬតាមតំណកំណត់ឡើងវិញ នឹងចាកចេញគណនីនោះពីគ្រប់ទីកន្លែង។',
@@ -1196,11 +1384,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-03.1',
+    ms: '2026-10-03.1',
     date: '2026-10-03',
     items: [
       { kind: 'new', text: {
         en: 'The portal can now be installed as an app on your phone or computer. In Chrome, open the menu and choose "Install app" (or "Add to Home screen"); on iPhone, use Share → "Add to Home Screen". It opens full-screen with its own icon.',
         id: 'Portal kini dapat dipasang sebagai aplikasi di ponsel atau komputer Anda. Di Chrome, buka menu dan pilih "Instal aplikasi" (atau "Tambahkan ke layar utama"); di iPhone, gunakan Bagikan → "Tambah ke Layar Utama". Aplikasi terbuka layar penuh dengan ikonnya sendiri.',
+        ms: 'Portal kini dapat dipasang sebagai aplikasi di telefon atau komputer anda. Di Chrome, buka menu dan pilih "Instal aplikasi" (atau "Tambah ke skrin utama"); di iPhone, gunakan Kongsi → "Tambah ke Skrin Utama". Aplikasi terbuka skrin penuh dengan ikonnya sendiri.',
         th: 'ตอนนี้ติดตั้งพอร์ทัลเป็นแอปบนโทรศัพท์หรือคอมพิวเตอร์ได้แล้ว ใน Chrome ให้เปิดเมนูแล้วเลือก "ติดตั้งแอป" (หรือ "เพิ่มลงในหน้าจอหลัก") บน iPhone ให้ใช้ แชร์ → "เพิ่มไปยังหน้าจอโฮม" แอปจะเปิดแบบเต็มหน้าจอพร้อมไอคอนของตัวเอง',
         vi: 'Giờ đây bạn có thể cài đặt cổng thông tin như một ứng dụng trên điện thoại hoặc máy tính. Trong Chrome, mở menu và chọn "Cài đặt ứng dụng" (hoặc "Thêm vào màn hình chính"); trên iPhone, dùng Chia sẻ → "Thêm vào MH chính". Ứng dụng mở toàn màn hình với biểu tượng riêng.',
         km: 'ឥឡូវនេះ វិបផតថលអាចដំឡើងជាកម្មវិធីនៅលើទូរស័ព្ទ ឬកុំព្យូទ័ររបស់អ្នក។ នៅក្នុង Chrome សូមបើកម៉ឺនុយ ហើយជ្រើស "ដំឡើងកម្មវិធី" (ឬ "បញ្ចូលទៅអេក្រង់ដើម"); នៅលើ iPhone សូមប្រើ ចែករំលែក → "Add to Home Screen"។ វាបើកពេញអេក្រង់ជាមួយរូបតំណាងផ្ទាល់ខ្លួន។',
@@ -1209,6 +1399,7 @@ window.CHANGELOG = [
       { kind: 'new', text: {
         en: 'On iPhone and iPad, a small card at the bottom of the screen now shows how to install the app. Close it with × and it won\'t appear again on that device.',
         id: 'Di iPhone dan iPad, kartu kecil di bagian bawah layar kini menunjukkan cara memasang aplikasi. Tutup dengan × dan kartu tidak akan muncul lagi di perangkat itu.',
+        ms: 'Di iPhone dan iPad, kartu kecil di bagian bawah skrin kini menunjukkan cara memasang aplikasi. Tutup dengan × dan kartu tidak akan muncul lagi di perangkat itu.',
         th: 'บน iPhone และ iPad จะมีการ์ดเล็ก ๆ ที่ด้านล่างของหน้าจอแสดงวิธีติดตั้งแอป ปิดด้วย × แล้วจะไม่แสดงอีกบนอุปกรณ์นั้น',
         vi: 'Trên iPhone và iPad, một thẻ nhỏ ở cuối màn hình giờ hướng dẫn cách cài ứng dụng. Đóng bằng × và thẻ sẽ không hiện lại trên thiết bị đó.',
         km: 'នៅលើ iPhone និង iPad កាតតូចមួយនៅខាងក្រោមអេក្រង់ឥឡូវបង្ហាញពីរបៀបដំឡើងកម្មវិធី។ បិទវាដោយ × ហើយវានឹងមិនបង្ហាញម្តងទៀតនៅលើឧបករណ៍នោះទេ។',
@@ -1218,11 +1409,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-02.4',
+    ms: '2026-10-02.4',
     date: '2026-10-02',
     items: [
       { kind: 'fixed', audience: ['accounts', 'settings'], text: {
         en: 'An approval limit that isn\'t a valid amount (for example a typo with letters) is now refused with a message, instead of being saved as 0, which stopped that account from approving anything.',
         id: 'Batas persetujuan yang bukan jumlah yang valid (misalnya salah ketik berisi huruf) kini ditolak dengan pesan, bukan disimpan sebagai 0 yang membuat akun tersebut tidak bisa menyetujui apa pun.',
+        ms: 'Had kelulusan yang bukan jumlah yang sah (contohnya salah taip mengandungi huruf) kini ditolak dengan mesej, bukan disimpan sebagai 0 yang membuat akaun tersebut tidak boleh meluluskan apa-apa.',
         th: 'วงเงินอนุมัติที่ไม่ใช่จำนวนเงินที่ถูกต้อง (เช่น พิมพ์ผิดเป็นตัวอักษร) จะถูกปฏิเสธพร้อมข้อความแจ้ง แทนที่จะถูกบันทึกเป็น 0 ซึ่งทำให้บัญชีนั้นอนุมัติอะไรไม่ได้เลย',
         vi: 'Hạn mức phê duyệt không phải là số tiền hợp lệ (ví dụ gõ nhầm có chữ cái) giờ sẽ bị từ chối kèm thông báo, thay vì được lưu thành 0 khiến tài khoản đó không thể phê duyệt gì.',
         km: 'ដែនកំណត់អនុម័តដែលមិនមែនជាចំនួនទឹកប្រាក់ត្រឹមត្រូវ (ឧទាហរណ៍ វាយខុសជាអក្សរ) ឥឡូវត្រូវបានបដិសេធជាមួយសារ ជំនួសឱ្យការរក្សាទុកជា 0 ដែលធ្វើឱ្យគណនីនោះមិនអាចអនុម័តអ្វីបាន។',
@@ -1232,11 +1425,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-02.3',
+    ms: '2026-10-02.3',
     date: '2026-10-02',
     items: [
       { kind: 'improved', text: {
         en: 'Claim lists now show everything still open plus anything active in the last 90 days, so they stay quick as history grows. Use "Show all history" under the filters to see older claims. Searching, or picking an older payment date, always looks through all history.',
         id: 'Daftar klaim kini menampilkan semua yang masih terbuka ditambah semua aktivitas dalam 90 hari terakhir, sehingga tetap cepat meski riwayat terus bertambah. Gunakan "Tampilkan semua riwayat" di bawah filter untuk melihat klaim lama. Pencarian, atau memilih tanggal pembayaran yang lebih lama, selalu mencari di seluruh riwayat.',
+        ms: 'Senarai tuntutan kini memaparkan semua yang masih terbuka ditambah semua aktiviti dalam 90 hari terakhir, sehingga tetap cepat meski sejarah terus bertambah. Gunakan "Paparkan semua sejarah" di bawah penapis untuk melihat tuntutan lama. Pencarian, atau memilih tarikh pembayaran yang lebih lama, selalu mencari di seluruh sejarah.',
         th: 'รายการคำขอเบิกจะแสดงทุกรายการที่ยังดำเนินการอยู่ และรายการที่มีความเคลื่อนไหวใน 90 วันที่ผ่านมา เพื่อให้โหลดได้รวดเร็วแม้ประวัติจะเพิ่มขึ้น ใช้ "แสดงประวัติทั้งหมด" ใต้ตัวกรองเพื่อดูรายการเก่า การค้นหาหรือการเลือกวันที่ชำระเงินที่เก่ากว่าจะค้นจากประวัติทั้งหมดเสมอ',
         vi: 'Danh sách yêu cầu giờ hiển thị mọi mục còn mở cùng các mục có hoạt động trong 90 ngày qua, nên vẫn tải nhanh khi lịch sử ngày càng nhiều. Dùng "Hiển thị toàn bộ lịch sử" bên dưới bộ lọc để xem các yêu cầu cũ hơn. Khi tìm kiếm hoặc chọn ngày thanh toán cũ hơn, hệ thống luôn tìm trong toàn bộ lịch sử.',
         km: 'បញ្ជីសំណើឥឡូវបង្ហាញអ្វីៗដែលនៅបើក និងអ្វីៗដែលមានសកម្មភាពក្នុងរយៈពេល ៩០ ថ្ងៃចុងក្រោយ ដូច្នេះវានៅតែលឿន ទោះប្រវត្តិកើនឡើង។ ប្រើ "បង្ហាញប្រវត្តិទាំងអស់" នៅក្រោមតម្រង ដើម្បីមើលសំណើចាស់ៗ។ ការស្វែងរក ឬការជ្រើសកាលបរិច្ឆេទទូទាត់ចាស់ជាងនេះ តែងតែស្វែងរកក្នុងប្រវត្តិទាំងអស់។',
@@ -1246,11 +1441,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-02.2',
+    ms: '2026-10-02.2',
     date: '2026-10-02',
     items: [
       { kind: 'improved', text: {
         en: 'The portal now opens, and loads claim lists and details, noticeably faster.',
         id: 'Portal kini terbuka, serta memuat daftar dan detail klaim, jauh lebih cepat.',
+        ms: 'Portal kini terbuka, serta memuat senarai dan butiran tuntutan, jauh lebih cepat.',
         th: 'พอร์ทัลเปิดได้เร็วขึ้น และโหลดรายการและรายละเอียดคำขอเบิกได้เร็วขึ้นอย่างเห็นได้ชัด',
         vi: 'Cổng thông tin giờ mở nhanh hơn, và tải danh sách cũng như chi tiết yêu cầu nhanh hơn rõ rệt.',
         km: 'ផតថលឥឡូវបើកបានលឿនជាងមុន ហើយផ្ទុកបញ្ជី និងព័ត៌មានលម្អិតនៃសំណើបានលឿនជាងមុនគួរឱ្យកត់សម្គាល់។',
@@ -1260,11 +1457,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-02.1',
+    ms: '2026-10-02.1',
     date: '2026-10-02',
     items: [
       { kind: 'improved', audience: ['advance', 'pay'], text: {
         en: 'A cash advance that was not fully spent now stays open until Finance confirms the unused balance was returned. Until then it shows as "Awaiting refund" under Unrealized cash advances, and new claims stay on hold. Finance closes it with the new "Confirm refund received" button.',
         id: 'Uang muka yang tidak terpakai seluruhnya kini tetap terbuka sampai Finance mengonfirmasi sisa dana sudah dikembalikan. Sampai saat itu statusnya "Menunggu pengembalian dana" di Uang muka belum direalisasi, dan klaim baru tetap ditahan. Finance menutupnya dengan tombol baru "Konfirmasi pengembalian diterima".',
+        ms: 'Pendahuluan tunai yang tidak digunakan seluruhnya kini tetap terbuka sehingga Finance mengesahkan sisa dana sudah dipulangkan. Sehingga saat itu statusnya "Menunggu pemulangan baki" di Pendahuluan tunai belum dilaporkan, dan tuntutan baharu tetap ditangguhkan. Finance menutupnya dengan butang baharu "Pengesahan pemulangan diterima".',
         th: 'เงินทดรองที่ใช้ไม่หมดจะยังเปิดอยู่จนกว่าฝ่ายการเงินจะยืนยันว่าได้รับเงินส่วนที่เหลือคืนแล้ว ระหว่างนั้นจะแสดงเป็น "รอคืนเงิน" ในเงินทดรองที่ยังไม่เคลียร์ และคำขอเบิกใหม่จะยังถูกระงับ ฝ่ายการเงินปิดรายการได้ด้วยปุ่มใหม่ "ยืนยันว่าได้รับเงินคืนแล้ว"',
         vi: 'Khoản tạm ứng chưa dùng hết giờ vẫn mở cho đến khi Tài chính xác nhận số dư chưa dùng đã được hoàn trả. Trong thời gian đó, khoản này hiển thị là "Chờ hoàn trả" trong mục tạm ứng chưa quyết toán, và yêu cầu mới vẫn bị tạm giữ. Tài chính đóng khoản này bằng nút mới "Xác nhận đã nhận hoàn trả".',
         km: 'ប្រាក់បុរេប្រទានដែលមិនបានចំណាយអស់ ឥឡូវនៅតែបើករហូតដល់ផ្នែកហិរញ្ញវត្ថុបញ្ជាក់ថាសមតុល្យដែលមិនបានប្រើត្រូវបានសងវិញ។ រហូតដល់ពេលនោះ វាបង្ហាញជា "កំពុងរង់ចាំការសងប្រាក់វិញ" ក្នុងប្រាក់បុរេប្រទានមិនទាន់ទូទាត់ ហើយសំណើថ្មីនៅតែត្រូវបានផ្អាក។ ផ្នែកហិរញ្ញវត្ថុបិទវាដោយប៊ូតុងថ្មី "បញ្ជាក់ថាបានទទួលប្រាក់សងវិញ"។',
@@ -1274,11 +1473,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-01.6',
+    ms: '2026-10-01.6',
     date: '2026-10-01',
     items: [
       { kind: 'improved', text: {
         en: 'The lines of a claim now fit the claim window without scrolling sideways, so the "Reject line" button is always in view. On phones, each line is a shorter card that shows two details side by side.',
         id: 'Baris-baris klaim kini muat di jendela klaim tanpa perlu menggeser ke samping, jadi tombol "Tolak baris" selalu terlihat. Di ponsel, setiap baris menjadi kartu yang lebih pendek dengan dua keterangan berdampingan.',
+        ms: 'Baris-baris tuntutan kini muat di jendela tuntutan tanpa perlu menggeser ke samping, jadi butang "Tolak baris" selalu terlihat. Di telefon, setiap baris menjadi kartu yang lebih pendek dengan dua keterangan berdampingan.',
         th: 'รายการในคำขอเบิกตอนนี้พอดีกับหน้าต่างคำขอโดยไม่ต้องเลื่อนไปด้านข้าง ปุ่ม "ปฏิเสธรายการ" จึงมองเห็นได้เสมอ บนโทรศัพท์ แต่ละรายการเป็นการ์ดที่สั้นลงและแสดงข้อมูลสองอย่างเคียงกัน',
         vi: 'Các dòng của yêu cầu giờ vừa với cửa sổ yêu cầu mà không cần cuộn ngang, nên nút "Từ chối dòng" luôn hiển thị. Trên điện thoại, mỗi dòng là một thẻ ngắn hơn, hiển thị hai thông tin cạnh nhau.',
         km: 'ជួរនៃការទាមទារឥឡូវសមនឹងផ្ទាំងការទាមទារដោយមិនចាំបាច់រំកិលទៅចំហៀង ដូច្នេះប៊ូតុង "បដិសេធជួរ" តែងតែមើលឃើញ។ នៅលើទូរសព្ទ ជួរនីមួយៗជាកាតខ្លីជាងមុន ដែលបង្ហាញព័ត៌មានពីរនៅក្បែរគ្នា។',
@@ -1288,11 +1489,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-01.5',
+    ms: '2026-10-01.5',
     date: '2026-10-01',
     items: [
       { kind: 'new', text: {
         en: 'Approvers can now reject single lines of a claim. Press "Reject line" on any line and give a reason. The rest of the claim is approved and paid without that line. This works for reimbursement claims, meal allowances and cash advance realizations.',
         id: 'Penyetuju kini bisa menolak baris tertentu dari sebuah klaim. Tekan "Tolak baris" pada baris mana pun dan beri alasan. Sisa klaim disetujui dan dibayar tanpa baris itu. Ini berlaku untuk klaim penggantian, uang makan, dan realisasi uang muka.',
+        ms: 'Pelulus kini boleh menolak baris tertentu dari sebuah tuntutan. Tekan "Tolak baris" pada baris mana pun dan beri alasan. Sisa tuntutan diluluskan dan dibayar tanpa baris itu. Ini berlaku untuk tuntutan penggantian, elaun makan, dan pelaporan perbelanjaan pendahuluan tunai.',
         th: 'ผู้อนุมัติสามารถปฏิเสธบางรายการในคำขอเบิกได้แล้ว กด "ปฏิเสธรายการ" ที่รายการใดก็ได้และระบุเหตุผล ส่วนที่เหลือของคำขอจะได้รับอนุมัติและจ่ายโดยไม่มีรายการนั้น ใช้ได้กับการเบิกค่าใช้จ่าย ค่าอาหาร และการเคลียร์เงินทดรอง',
         vi: 'Người duyệt giờ có thể từ chối từng dòng của một yêu cầu. Nhấn "Từ chối dòng" trên bất kỳ dòng nào và nêu lý do. Phần còn lại của yêu cầu được duyệt và thanh toán mà không có dòng đó. Áp dụng cho yêu cầu hoàn tiền, phụ cấp ăn và quyết toán tạm ứng.',
         km: 'អ្នកអនុម័តឥឡូវអាចបដិសេធជួរនីមួយៗនៃការទាមទារបាន។ ចុច "បដិសេធជួរ" លើជួរណាមួយ ហើយផ្ដល់មូលហេតុ។ ផ្នែកដែលនៅសល់នៃការទាមទារត្រូវបានអនុម័ត និងបង់ដោយគ្មានជួរនោះ។ វាដំណើរការសម្រាប់ការទាមទារសំណង ប្រាក់អាហារ និងការទូទាត់ប្រាក់បុរេប្រទាន។',
@@ -1301,6 +1504,7 @@ window.CHANGELOG = [
       { kind: 'new', audience: ['claim', 'meal', 'advance'], text: {
         en: 'If a line of your claim is rejected, it stays on the claim with the reason, so you can always see what happened. To get paid for it, open the claim and press "Re-claim rejected lines". If several lines were rejected, tick the ones you want. They open in a new claim, receipts included, ready to fix and submit. The new claim follows the date window of the original claim.',
         id: 'Jika sebuah baris klaim Anda ditolak, baris itu tetap ada di klaim beserta alasannya, jadi Anda selalu bisa melihat apa yang terjadi. Agar dibayar, buka klaim dan tekan "Klaim ulang baris yang ditolak". Jika ada beberapa baris yang ditolak, centang yang Anda inginkan. Baris-baris itu terbuka di klaim baru, lengkap dengan struknya, siap diperbaiki dan diajukan. Klaim baru mengikuti batas tanggal klaim aslinya.',
+        ms: 'Jika sebuah baris tuntutan anda ditolak, baris itu tetap ada dalam tuntutan beserta alasannya, jadi anda selalu boleh melihat apa yang terjadi. Supaya dibayar, buka tuntutan dan tekan "Tuntutan semula baris yang ditolak". Jika ada beberapa baris yang ditolak, tandakan yang anda inginkan. Baris-baris itu terbuka dalam tuntutan baharu, lengkap dengan resitnya, siap diperbaiki dan dihantar. Tuntutan baharu mengikuti had tarikh tuntutan aslinya.',
         th: 'หากรายการใดในคำขอของคุณถูกปฏิเสธ รายการนั้นจะยังอยู่ในคำขอพร้อมเหตุผล คุณจึงเห็นได้เสมอว่าเกิดอะไรขึ้น หากต้องการรับเงิน ให้เปิดคำขอแล้วกด "เบิกรายการที่ถูกปฏิเสธใหม่" หากถูกปฏิเสธหลายรายการ ให้เลือกรายการที่ต้องการ รายการเหล่านั้นจะเปิดในคำขอใหม่พร้อมใบเสร็จ พร้อมให้แก้ไขและส่ง คำขอใหม่ใช้ช่วงวันที่เดียวกับคำขอเดิม',
         vi: 'Nếu một dòng trong yêu cầu của bạn bị từ chối, dòng đó vẫn nằm trong yêu cầu kèm lý do, nên bạn luôn biết chuyện gì đã xảy ra. Để được thanh toán, hãy mở yêu cầu và nhấn "Yêu cầu lại các dòng bị từ chối". Nếu có nhiều dòng bị từ chối, hãy chọn những dòng bạn muốn. Chúng mở ra trong một yêu cầu mới, kèm cả hóa đơn, sẵn sàng để sửa và gửi. Yêu cầu mới theo khoảng thời gian của yêu cầu gốc.',
         km: 'ប្រសិនបើជួរណាមួយនៃការទាមទាររបស់អ្នកត្រូវបានបដិសេធ វានៅតែស្ថិតលើការទាមទារជាមួយមូលហេតុ ដូច្នេះអ្នកតែងតែអាចមើលឃើញអ្វីដែលបានកើតឡើង។ ដើម្បីទទួលបានការបង់ប្រាក់ សូមបើកការទាមទារ ហើយចុច "ទាមទារឡើងវិញនូវជួរដែលបានបដិសេធ"។ ប្រសិនបើមានជួរជាច្រើនត្រូវបានបដិសេធ សូមជ្រើសរើសជួរដែលអ្នកចង់បាន។ ពួកវាបើកក្នុងការទាមទារថ្មី រួមទាំងបង្កាន់ដៃ ត្រៀមរួចសម្រាប់កែ និងដាក់ស្នើ។ ការទាមទារថ្មីអនុវត្តតាមចន្លោះកាលបរិច្ឆេទនៃការទាមទារដើម។',
@@ -1310,11 +1514,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-01.4',
+    ms: '2026-10-01.4',
     date: '2026-10-01',
     items: [
       { kind: 'improved', text: {
         en: 'On phones, the top bar is now arranged in neat rows: your name and quick settings at the top, the region and language pickers below, then "+ New" and the other buttons.',
         id: 'Di ponsel, bilah atas kini tersusun dalam baris yang rapi: nama Anda dan pengaturan cepat di atas, pilihan wilayah dan bahasa di bawahnya, lalu "+ Baru" dan tombol lainnya.',
+        ms: 'Di telefon, bilah atas kini tersusun dalam baris yang rapi: nama anda dan tetapan cepat di atas, pilihan wilayah dan bahasa di bawahnya, kemudian "+ Baharu" dan butang lainnya.',
         th: 'บนโทรศัพท์ แถบด้านบนจัดเป็นแถวอย่างเป็นระเบียบแล้ว: ชื่อของคุณและการตั้งค่าด่วนอยู่ด้านบน ตัวเลือกภูมิภาคและภาษาอยู่ถัดลงมา แล้วจึงเป็นปุ่ม "+ ใหม่" และปุ่มอื่น ๆ',
         vi: 'Trên điện thoại, thanh trên cùng giờ được sắp thành các hàng gọn gàng: tên bạn và cài đặt nhanh ở trên cùng, bộ chọn khu vực và ngôn ngữ ở dưới, rồi đến "+ Mới" và các nút khác.',
         km: 'នៅលើទូរស័ព្ទ របារខាងលើឥឡូវត្រូវបានរៀបជាជួរយ៉ាងស្អាត៖ ឈ្មោះរបស់អ្នក និងការកំណត់រហ័សនៅខាងលើ ជម្រើសតំបន់ និងភាសានៅខាងក្រោម បន្ទាប់មក "+ ថ្មី" និងប៊ូតុងផ្សេងទៀត។',
@@ -1323,6 +1529,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Sign out now opens a small window in the middle of the screen asking you to confirm, so a mistaken tap no longer logs you out.',
         id: 'Keluar kini membuka jendela kecil di tengah layar untuk meminta konfirmasi, jadi ketukan yang tidak sengaja tidak lagi membuat Anda keluar.',
+        ms: 'Keluar kini membuka jendela kecil di tengah skrin untuk meminta pengesahan, jadi ketukan yang tidak sengaja tidak lagi membuat anda keluar.',
         th: 'การออกจากระบบจะเปิดหน้าต่างเล็ก ๆ กลางหน้าจอเพื่อถามยืนยันก่อน การแตะพลาดจึงไม่ทำให้คุณออกจากระบบอีกต่อไป',
         vi: 'Đăng xuất giờ sẽ mở một cửa sổ nhỏ ở giữa màn hình để hỏi xác nhận trước, nên lỡ chạm nhầm sẽ không làm bạn bị đăng xuất nữa.',
         km: 'ការចាកចេញឥឡូវបើកផ្ទាំងតូចមួយនៅកណ្តាលអេក្រង់ ដើម្បីសួរឱ្យអ្នកបញ្ជាក់ជាមុនសិន ដូច្នេះការចុចខុសនឹងមិនធ្វើឱ្យអ្នកចាកចេញទៀតទេ។',
@@ -1332,11 +1539,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-01.3',
+    ms: '2026-10-01.3',
     date: '2026-10-01',
     items: [
       { kind: 'improved', text: {
         en: 'A tidier top bar. New claim, New meal allowance and New cash advance are now under one "+ New" button, and Export CSV, Profile, Manage accounts, Settings and Sign out are icons. Hover over an icon to see its name.',
         id: 'Bilah atas yang lebih rapi. Klaim baru, Uang makan baru, dan Uang muka baru kini ada di bawah satu tombol "+ Baru", sedangkan Ekspor CSV, Profil, Kelola akun, Pengaturan, dan Keluar menjadi ikon. Arahkan kursor ke ikon untuk melihat namanya.',
+        ms: 'Bilah atas yang lebih rapi. Tuntutan baharu, Elaun makan baharu, dan Pendahuluan tunai baharu kini ada di bawah satu butang "+ Baharu", sedangkan Eksport CSV, Profil, Urus akaun, Tetapan, dan Keluar menjadi ikon. Arahkan kursor ke ikon untuk melihat namanya.',
         th: 'แถบด้านบนที่เป็นระเบียบขึ้น การสร้างการเบิกใหม่ ค่าอาหารใหม่ และเงินทดรองใหม่ รวมอยู่ในปุ่ม "+ ใหม่" ปุ่มเดียว ส่วนส่งออก CSV โปรไฟล์ จัดการบัญชี การตั้งค่า และออกจากระบบ เปลี่ยนเป็นไอคอน วางเมาส์บนไอคอนเพื่อดูชื่อ',
         vi: 'Thanh trên cùng gọn gàng hơn. Yêu cầu mới, Phụ cấp ăn mới và Tạm ứng mới giờ nằm chung trong một nút "+ Mới", còn Xuất CSV, Hồ sơ, Quản lý tài khoản, Cài đặt và Đăng xuất trở thành biểu tượng. Di chuột lên biểu tượng để xem tên.',
         km: 'របារខាងលើកាន់តែស្អាត។ សំណើថ្មី ប្រាក់អាហារថ្មី និងប្រាក់បុរេប្រទានថ្មី ឥឡូវនៅក្រោមប៊ូតុង "+ ថ្មី" តែមួយ ហើយនាំចេញ CSV ប្រវត្តិរូប គ្រប់គ្រងគណនី ការកំណត់ និងចាកចេញ ក្លាយជារូបតំណាង។ ដាក់ទស្សន៍ទ្រនិចលើរូបតំណាង ដើម្បីមើលឈ្មោះ។',
@@ -1346,11 +1555,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-01.2',
+    ms: '2026-10-01.2',
     date: '2026-10-01',
     items: [
       { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
         en: 'Got a claim sent back to you? Now you can fix its dates yourself — no need to ask anyone. The rule is simple: if a date was allowed on the day you first sent the claim, it is still allowed now. If it was already too old back then, it can\'t be used.',
         id: 'Klaim Anda dikembalikan? Sekarang Anda bisa memperbaiki tanggalnya sendiri — tidak perlu minta izin siapa pun. Aturannya mudah: jika sebuah tanggal boleh dipakai pada hari Anda pertama kali mengirim klaim, tanggal itu tetap boleh dipakai sekarang. Jika saat itu tanggalnya sudah terlalu lama, tanggal itu tidak bisa dipakai.',
+        ms: 'Tuntutan anda dipulangkan? Sekarang anda boleh memperbaiki tarikhnya sendiri — tidak perlu minta kebenaran siapa pun. Aturannya mudah: jika sebuah tarikh boleh digunakan pada hari anda pertama kali menghantar tuntutan, tarikh itu tetap boleh digunakan sekarang. Jika saat itu tarikhnya sudah terlalu lama, tarikh itu tidak boleh digunakan.',
         th: 'รายการเบิกของคุณถูกส่งกลับมาใช่ไหม ตอนนี้คุณแก้วันที่เองได้เลย ไม่ต้องขอใคร กฎง่ายมาก: ถ้าวันที่นั้นใช้ได้ในวันที่คุณส่งรายการเบิกครั้งแรก ตอนนี้ก็ยังใช้ได้ แต่ถ้าตอนนั้นวันที่นั้นเก่าเกินไปแล้ว ก็จะใช้ไม่ได้',
         vi: 'Yêu cầu của bạn bị trả lại? Giờ bạn có thể tự sửa ngày — không cần xin ai cả. Quy tắc rất đơn giản: nếu một ngày được phép vào hôm bạn gửi yêu cầu lần đầu, thì bây giờ ngày đó vẫn được phép. Nếu khi đó ngày ấy đã quá cũ, thì không dùng được.',
         km: 'សំណើរបស់អ្នកត្រូវបានបញ្ជូនត្រឡប់មកវិញមែនទេ? ឥឡូវនេះ អ្នកអាចកែកាលបរិច្ឆេទដោយខ្លួនឯងបាន — មិនចាំបាច់សុំនរណាម្នាក់ទេ។ ច្បាប់គឺសាមញ្ញ៖ ប្រសិនបើកាលបរិច្ឆេទមួយត្រូវបានអនុញ្ញាតនៅថ្ងៃដែលអ្នកផ្ញើសំណើលើកដំបូង វានៅតែត្រូវបានអនុញ្ញាតឥឡូវនេះ។ ប្រសិនបើនៅពេលនោះវាចាស់ពេកហើយ វាមិនអាចប្រើបានទេ។',
@@ -1360,11 +1571,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-10-01',
+    ms: '2026-10-01',
     date: '2026-10-01',
     items: [
       { kind: 'new', text: {
         en: 'A "What\'s new" button in the top bar. Open it any time to see what changed in the portal. A dot appears on it when there is something you haven\'t read yet.',
         id: 'Tombol "Yang baru" di bilah atas. Buka kapan saja untuk melihat apa yang berubah di portal. Sebuah titik muncul di tombol ini bila ada pembaruan yang belum Anda baca.',
+        ms: 'Butang "Yang baharu" di bilah atas. Buka kapan sahaja untuk melihat apa yang berubah di portal. Sebuah titik muncul di butang ini bila ada kemas kini yang belum anda baca.',
         th: 'ปุ่ม "มีอะไรใหม่" ที่แถบด้านบน เปิดได้ทุกเมื่อเพื่อดูว่ามีอะไรเปลี่ยนแปลงในพอร์ทัล จะมีจุดแสดงบนปุ่มเมื่อมีรายการที่คุณยังไม่ได้อ่าน',
         vi: 'Nút "Có gì mới" trên thanh trên cùng. Mở bất cứ lúc nào để xem cổng thông tin đã thay đổi những gì. Một dấu chấm sẽ hiện trên nút khi có nội dung bạn chưa đọc.',
         km: 'ប៊ូតុង "មានអ្វីថ្មី" នៅលើរបារខាងលើ។ បើកវាបានគ្រប់ពេល ដើម្បីមើលអ្វីដែលបានផ្លាស់ប្ដូរនៅក្នុងវិបផតថល។ ចំណុចមួយនឹងបង្ហាញលើប៊ូតុង នៅពេលមានព័ត៌មានដែលអ្នកមិនទាន់បានអាន។',
@@ -1374,11 +1587,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-09-28',
+    ms: '2026-09-28',
     date: '2026-09-28',
     items: [
       { kind: 'new', text: {
         en: 'Night mode. Tap the moon icon in the top bar or on the sign-in screen. Until you choose, the portal follows your device\'s light or dark setting.',
         id: 'Mode malam. Ketuk ikon bulan di bilah atas atau di layar masuk. Sebelum Anda memilih, portal mengikuti pengaturan terang atau gelap perangkat Anda.',
+        ms: 'Mod malam. Ketik ikon bulan di bilah atas atau di skrin masuk. Sebelum anda memilih, portal mengikuti tetapan cerah atau gelap perangkat anda.',
         th: 'โหมดกลางคืน แตะไอคอนพระจันทร์ที่แถบด้านบนหรือที่หน้าจอเข้าสู่ระบบ หากคุณยังไม่ได้เลือก พอร์ทัลจะใช้การตั้งค่าสว่างหรือมืดตามอุปกรณ์ของคุณ',
         vi: 'Chế độ ban đêm. Chạm vào biểu tượng mặt trăng trên thanh trên cùng hoặc ở màn hình đăng nhập. Cho đến khi bạn chọn, cổng thông tin sẽ theo cài đặt sáng hoặc tối của thiết bị.',
         km: 'របៀបពេលយប់។ ចុចរូបព្រះច័ន្ទនៅលើរបារខាងលើ ឬនៅលើអេក្រង់ចូល។ មុនពេលអ្នកជ្រើសរើស វិបផតថលនឹងធ្វើតាមការកំណត់ភ្លឺ ឬងងឹតរបស់ឧបករណ៍អ្នក។',
@@ -1387,6 +1602,7 @@ window.CHANGELOG = [
       { kind: 'improved', text: {
         en: 'Clearer colours and easier-to-read text and buttons in both the light and dark themes, using the Cibes palette.',
         id: 'Warna lebih jelas serta teks dan tombol yang lebih mudah dibaca di tema terang maupun gelap, dengan palet Cibes.',
+        ms: 'Warna lebih jelas serta teks dan butang yang lebih mudah dibaca di tema cerah maupun gelap, dengan palet Cibes.',
         th: 'สีที่ชัดเจนขึ้น ข้อความและปุ่มอ่านง่ายขึ้นทั้งในธีมสว่างและธีมมืด โดยใช้ชุดสีของ Cibes',
         vi: 'Màu sắc rõ ràng hơn, chữ và nút dễ đọc hơn ở cả giao diện sáng và tối, theo bảng màu Cibes.',
         km: 'ពណ៌កាន់តែច្បាស់ អក្សរ និងប៊ូតុងងាយអានជាងមុន ទាំងក្នុងរចនាប័ទ្មភ្លឺ និងងងឹត ដោយប្រើពណ៌របស់ Cibes។',
@@ -1396,11 +1612,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-09-23',
+    ms: '2026-09-23',
     date: '2026-09-23',
     items: [
       { kind: 'new', audience: ['pay'], text: {
         en: 'The Paid claims list shows when each claim was paid, and you can filter it by payment date.',
         id: 'Daftar klaim Dibayar menampilkan kapan setiap klaim dibayar, dan Anda dapat memfilternya berdasarkan tanggal bayar.',
+        ms: 'Senarai tuntutan Dibayar memaparkan kapan setiap tuntutan dibayar, dan anda dapat memfilternya berdasarkan tarikh bayar.',
         th: 'รายการเบิกที่จ่ายแล้วจะแสดงวันที่จ่ายของแต่ละรายการ และคุณสามารถกรองตามวันที่จ่ายได้',
         vi: 'Danh sách yêu cầu Đã thanh toán hiển thị ngày thanh toán của từng yêu cầu, và bạn có thể lọc theo ngày thanh toán.',
         km: 'បញ្ជីសំណើដែលបានបង់ បង្ហាញថ្ងៃដែលសំណើនីមួយៗត្រូវបានបង់ ហើយអ្នកអាចតម្រងតាមថ្ងៃបង់បាន។',
@@ -1409,6 +1627,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['export'], text: {
         en: 'Export CSV now includes the payment date.',
         id: 'Ekspor CSV kini menyertakan tanggal bayar.',
+        ms: 'Eksport CSV kini menyertakan tarikh bayar.',
         th: 'การส่งออก CSV มีวันที่จ่ายแล้ว',
         vi: 'Xuất CSV giờ có thêm ngày thanh toán.',
         km: 'ការនាំចេញ CSV ឥឡូវនេះមានថ្ងៃបង់ផងដែរ។',
@@ -1417,6 +1636,7 @@ window.CHANGELOG = [
       { kind: 'fixed', text: {
         en: 'Large totals no longer spill out of their summary card.',
         id: 'Total yang besar tidak lagi keluar dari kartu ringkasannya.',
+        ms: 'Jumlah yang besar tidak lagi keluar daripada kartu ringkasannya.',
         th: 'ยอดรวมจำนวนมากจะไม่ล้นออกนอกการ์ดสรุปอีกต่อไป',
         vi: 'Tổng tiền lớn không còn tràn ra ngoài thẻ tóm tắt.',
         km: 'ចំនួនសរុបធំៗ លែងហៀរចេញក្រៅកាតសង្ខេបទៀតហើយ។',
@@ -1426,11 +1646,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-09-22',
+    ms: '2026-09-22',
     date: '2026-09-22',
     items: [
       { kind: 'new', audience: ['advance'], text: {
         en: 'A cash advance request can carry supporting documents. They are always saved as PDF.',
         id: 'Permintaan uang muka dapat menyertakan dokumen pendukung. Dokumen selalu disimpan sebagai PDF.',
+        ms: 'Permintaan pendahuluan tunai dapat menyertakan dokumen pendukung. Dokumen selalu disimpan sebagai PDF.',
         th: 'คำขอเงินทดรองจ่ายสามารถแนบเอกสารประกอบได้ และจะบันทึกเป็น PDF เสมอ',
         vi: 'Yêu cầu tạm ứng có thể đính kèm tài liệu hỗ trợ. Tài liệu luôn được lưu dưới dạng PDF.',
         km: 'សំណើប្រាក់បុរេប្រទានអាចភ្ជាប់ឯកសារគាំទ្របាន។ ឯកសារទាំងនោះតែងតែរក្សាទុកជា PDF។',
@@ -1439,6 +1661,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['advance'], text: {
         en: 'While you have a cash advance that is not yet realized, New claim and New meal allowance are on hold. The home page tells you why.',
         id: 'Selama Anda memiliki uang muka yang belum direalisasikan, Klaim baru dan Tunjangan makan baru ditahan. Halaman utama menjelaskan alasannya.',
+        ms: 'Selama anda mempunyai pendahuluan tunai yang belum dilaporkan perbelanjaannya, Tuntutan baharu dan Elaun makan baharu ditangguhkan. Halaman utama menjelaskan alasannya.',
         th: 'ระหว่างที่คุณมีเงินทดรองจ่ายที่ยังไม่ได้เคลียร์ การเบิกใหม่และการเบิกค่าอาหารใหม่จะถูกระงับไว้ หน้าแรกจะแจ้งเหตุผลให้ทราบ',
         vi: 'Khi bạn còn khoản tạm ứng chưa quyết toán, Yêu cầu mới và Phụ cấp ăn mới sẽ tạm dừng. Trang chủ sẽ cho bạn biết lý do.',
         km: 'នៅពេលអ្នកមានប្រាក់បុរេប្រទានដែលមិនទាន់ទូទាត់ សំណើថ្មី និងប្រាក់ឧបត្ថម្ភអាហារថ្មី នឹងត្រូវផ្អាក។ ទំព័រដើមនឹងប្រាប់អ្នកពីមូលហេតុ។',
@@ -1447,6 +1670,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['claim'], text: {
         en: 'Receipt photos: the portal finds the receipt\'s edges, straightens the angle, and cleans up the image for you.',
         id: 'Foto bukti: portal menemukan tepi bukti, meluruskan sudutnya, dan merapikan gambarnya untuk Anda.',
+        ms: 'Foto bukti: portal menemukan tepi bukti, meluruskan sudutnya, dan merapikan gambarnya untuk anda.',
         th: 'รูปใบเสร็จ: พอร์ทัลจะหาขอบของใบเสร็จ ปรับมุมให้ตรง และทำให้ภาพสะอาดขึ้นให้คุณ',
         vi: 'Ảnh hóa đơn: cổng thông tin tự tìm mép hóa đơn, chỉnh thẳng góc và làm rõ ảnh cho bạn.',
         km: 'រូបថតវិក្កយបត្រ៖ វិបផតថលរកគែមវិក្កយបត្រ តម្រង់មុំ និងសម្អាតរូបភាពឱ្យអ្នក។',
@@ -1456,11 +1680,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-09-16',
+    ms: '2026-09-16',
     date: '2026-09-16',
     items: [
       { kind: 'improved', audience: ['pay'], text: {
         en: 'Mark as paid and Revert payment work on several selected claims in one go.',
         id: 'Tandai dibayar dan Batalkan pembayaran dapat dilakukan untuk beberapa klaim terpilih sekaligus.',
+        ms: 'Tandakan sebagai dibayar dan Batalkan pembayaran dapat dilakukan untuk beberapa tuntutan terpilih sekaligus.',
         th: 'ทำเครื่องหมายว่าจ่ายแล้วและย้อนการจ่ายเงินได้กับหลายรายการที่เลือกในครั้งเดียว',
         vi: 'Đánh dấu đã thanh toán và Hoàn tác thanh toán áp dụng cho nhiều yêu cầu đã chọn cùng lúc.',
         km: 'សម្គាល់ថាបានបង់ និងត្រឡប់ការបង់ប្រាក់ អាចធ្វើលើសំណើជាច្រើនដែលបានជ្រើសរើសក្នុងពេលតែមួយ។',
@@ -1469,6 +1695,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['view_all'], text: {
         en: 'View all claims can open receipts and download PDFs for a whole selection.',
         id: 'Lihat semua klaim dapat membuka bukti dan mengunduh PDF untuk seluruh pilihan.',
+        ms: 'Lihat semua tuntutan dapat membuka bukti dan memuat turun PDF untuk seluruh pilihan.',
         th: 'ดูรายการเบิกทั้งหมดสามารถเปิดใบเสร็จและดาวน์โหลด PDF ของรายการที่เลือกทั้งหมดได้',
         vi: 'Xem tất cả yêu cầu có thể mở hóa đơn và tải PDF cho cả nhóm đã chọn.',
         km: 'មើលសំណើទាំងអស់ អាចបើកវិក្កយបត្រ និងទាញយក PDF សម្រាប់ការជ្រើសរើសទាំងមូល។',
@@ -1478,11 +1705,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-09-10',
+    ms: '2026-09-10',
     date: '2026-09-10',
     items: [
       { kind: 'new', audience: ['superadmin'], text: {
         en: 'Request change of date: if a returned claim\'s dates are locked, ask from the home menu for them to be unlocked.',
         id: 'Minta perubahan tanggal: bila tanggal klaim yang dikembalikan terkunci, ajukan permintaan dari menu utama agar dibuka.',
+        ms: 'Minta perubahan tarikh: bila tarikh tuntutan yang dipulangkan terkunci, hantar permintaan dari menu utama supaya dibuka.',
         th: 'ขอเปลี่ยนวันที่: หากวันที่ของรายการเบิกที่ถูกส่งกลับถูกล็อก สามารถขอปลดล็อกได้จากเมนูหน้าแรก',
         vi: 'Xin đổi ngày: nếu ngày của yêu cầu bị trả lại đã bị khóa, hãy gửi yêu cầu mở khóa từ menu trang chủ.',
         km: 'ស្នើសុំប្ដូរកាលបរិច្ឆេទ៖ ប្រសិនបើកាលបរិច្ឆេទនៃសំណើដែលត្រូវបានបញ្ជូនត្រឡប់ត្រូវបានចាក់សោ សូមស្នើសុំដោះសោពីម៉ឺនុយទំព័រដើម។',
@@ -1491,6 +1720,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['claim', 'meal', 'advance'], text: {
         en: 'A rejected claim keeps its original dates when you resubmit it, even if the claim window has since closed.',
         id: 'Klaim yang ditolak tetap memakai tanggal aslinya saat dikirim ulang, meskipun periode klaim sudah ditutup.',
+        ms: 'Tuntutan yang ditolak tetap menggunakan tarikh aslinya saat dihantar semula, meskipun tempoh tuntutan sudah ditutup.',
         th: 'รายการเบิกที่ถูกปฏิเสธจะคงวันที่เดิมไว้เมื่อส่งใหม่ แม้ช่วงเวลาการเบิกจะปิดไปแล้วก็ตาม',
         vi: 'Yêu cầu bị từ chối giữ nguyên ngày ban đầu khi bạn gửi lại, kể cả khi thời hạn yêu cầu đã đóng.',
         km: 'សំណើដែលត្រូវបានបដិសេធ រក្សាកាលបរិច្ឆេទដើមរបស់វា នៅពេលអ្នកដាក់ស្នើម្ដងទៀត ទោះបីរយៈពេលដាក់សំណើបានបិទហើយក៏ដោយ។',
@@ -1499,6 +1729,7 @@ window.CHANGELOG = [
       { kind: 'fixed', audience: ['claim', 'meal', 'advance'], text: {
         en: 'Expense dates in the future are no longer accepted.',
         id: 'Tanggal pengeluaran di masa depan tidak lagi diterima.',
+        ms: 'Tarikh perbelanjaan di masa depan tidak lagi diterima.',
         th: 'ไม่รับวันที่ค่าใช้จ่ายที่เป็นวันในอนาคตอีกต่อไป',
         vi: 'Không còn chấp nhận ngày chi tiêu trong tương lai.',
         km: 'កាលបរិច្ឆេទចំណាយនៅថ្ងៃអនាគត លែងត្រូវបានទទួលយកទៀតហើយ។',
@@ -1508,11 +1739,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-08-24',
+    ms: '2026-08-24',
     date: '2026-08-24',
     items: [
       { kind: 'improved', text: {
         en: 'Pending review is split into Manager and FinanceAP, so you can see where each claim is waiting. This shows in the lists, the summary cards, the status filter and the CSV export.',
         id: 'Menunggu tinjauan dibagi menjadi Manager dan FinanceAP, sehingga Anda dapat melihat di mana setiap klaim menunggu. Ini tampil di daftar, kartu ringkasan, filter status, dan ekspor CSV.',
+        ms: 'Menunggu semakan dibagi menjadi Manager dan FinanceAP, sehingga anda dapat melihat di mana setiap tuntutan menunggu. Ini tampil di senarai, kartu ringkasan, penapis status, dan eksport CSV.',
         th: 'สถานะรอตรวจสอบแยกเป็น Manager และ FinanceAP เพื่อให้เห็นว่าแต่ละรายการรออยู่ที่ใด แสดงในรายการ การ์ดสรุป ตัวกรองสถานะ และการส่งออก CSV',
         vi: 'Trạng thái chờ duyệt được tách thành Manager và FinanceAP, để bạn thấy mỗi yêu cầu đang chờ ở đâu. Áp dụng cho danh sách, thẻ tóm tắt, bộ lọc trạng thái và xuất CSV.',
         km: 'ស្ថានភាពរង់ចាំពិនិត្យ ត្រូវបានបំបែកជា Manager និង FinanceAP ដើម្បីឱ្យអ្នកឃើញថាសំណើនីមួយៗកំពុងរង់ចាំនៅឯណា។ បង្ហាញក្នុងបញ្ជី កាតសង្ខេប តម្រងស្ថានភាព និងការនាំចេញ CSV។',
@@ -1522,11 +1755,13 @@ window.CHANGELOG = [
   },
   {
     id: '2026-08-17',
+    ms: '2026-08-17',
     date: '2026-08-17',
     items: [
       { kind: 'new', audience: ['claim'], text: {
         en: 'A photo editor for receipts: crop, rotate with a dial, and add a capture stamp before you attach the photo.',
         id: 'Editor foto untuk bukti: potong, putar dengan tombol putar, dan tambahkan cap waktu pengambilan sebelum melampirkan foto.',
+        ms: 'Penyunting foto untuk bukti: potong, putar dengan butang putar, dan tambah cap waktu pengambilan sebelum melampirkan foto.',
         th: 'ตัวแก้ไขรูปใบเสร็จ: ครอบตัด หมุนด้วยแป้นหมุน และเพิ่มตราเวลาที่ถ่ายก่อนแนบรูป',
         vi: 'Trình chỉnh ảnh hóa đơn: cắt, xoay bằng vòng xoay và thêm dấu thời gian chụp trước khi đính kèm ảnh.',
         km: 'កម្មវិធីកែរូបថតវិក្កយបត្រ៖ កាត់ បង្វិលដោយប្រើឌីស និងបន្ថែមត្រាពេលថត មុនពេលភ្ជាប់រូបថត។',
@@ -1535,6 +1770,7 @@ window.CHANGELOG = [
       { kind: 'improved', audience: ['claim'], text: {
         en: 'A saved claim draft keeps its receipts too, so they are still there when you come back.',
         id: 'Draf klaim yang tersimpan juga menyimpan buktinya, jadi masih ada saat Anda kembali.',
+        ms: 'Draf tuntutan yang tersimpan juga menyimpan buktinya, jadi masih ada saat anda kembali.',
         th: 'ฉบับร่างรายการเบิกที่บันทึกไว้จะเก็บใบเสร็จไว้ด้วย จึงยังอยู่ครบเมื่อคุณกลับมา',
         vi: 'Bản nháp yêu cầu đã lưu cũng giữ lại hóa đơn, nên chúng vẫn còn khi bạn quay lại.',
         km: 'សេចក្ដីព្រាងសំណើដែលបានរក្សាទុក ក៏រក្សាវិក្កយបត្ររបស់វាដែរ ដូច្នេះវានៅតែមាននៅពេលអ្នកត្រឡប់មកវិញ។',
@@ -1543,6 +1779,7 @@ window.CHANGELOG = [
       { kind: 'fixed', audience: ['claim'], text: {
         en: 'The crop box can be dragged from every side on phones and tablets.',
         id: 'Kotak potong dapat diseret dari setiap sisi di ponsel dan tablet.',
+        ms: 'Kotak potong dapat diseret dari setiap sisi di telefon dan tablet.',
         th: 'ลากกรอบครอบตัดได้จากทุกด้านบนโทรศัพท์และแท็บเล็ต',
         vi: 'Khung cắt có thể kéo từ mọi cạnh trên điện thoại và máy tính bảng.',
         km: 'ប្រអប់កាត់អាចអូសពីគ្រប់ជ្រុងបាន នៅលើទូរស័ព្ទ និងថេប្លេត។',

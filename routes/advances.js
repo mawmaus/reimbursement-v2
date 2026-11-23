@@ -52,10 +52,9 @@ router.post('/api/cash-advances', requireAuth, ah(async (req, res) => {
   const checked = await verifyAttachments((req.body || {}).attachments);
   if (checked.error) return res.status(400).json({ error: checked.error });
   const region = String(req.user.region || '');
-  const currency = parsed.currency || (await regionPrefsFor(region)).currency;
   let id;
   try {
-    id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, currency, built.ids, region, checked.items);
+    id = await createCashAdvance(req, parsed.purpose, parsed.amountCents, built.ids, region, checked.items);
   } catch (e) {
     for (const u of checked.items) await deleteReceipt(u.url);
     throw e;
@@ -95,7 +94,7 @@ router.put('/api/cash-advances/:id', requireAuth, ah(async (req, res) => {
     for (const u of checked.items) await deleteReceipt(u.url);
     return res.status(400).json({ error: `Maximum ${MAX_FILES} files` });
   }
-  const currency = parsed.currency || row.currency || (await regionPrefsFor(row.region)).currency;
+  const currency = row.currency || (await regionPrefsFor(row.region)).currency;
   try {
     const queries = [stillAsRead('cash_advances', row), qq(
       `UPDATE cash_advances SET claimant_name=$1, department=$2, bank_name=$3, recipient_name=$4,
@@ -145,7 +144,8 @@ router.post('/api/cash-advances/:id/approve', requireAuth, ah(async (req, res) =
   const plan = realizing ? await planLineRejections('advance', row, rejectedLines) : { picks: [] };
   if (plan.error) return res.status(400).json({ error: plan.error });
   const amountForLimit = realizing ? plan.remainingCents : row.amount_cents;
-  const le = approvalLimitError(req.user, amountForLimit, row.currency);
+  const prefs = await regionPrefsFor(req.user.region);
+  const le = approvalLimitError(req.user, amountForLimit, row.currency, prefs.currency);
   if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);

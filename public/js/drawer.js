@@ -644,7 +644,7 @@ function startReclaim(c) {
   if (!lines.length) return toast(t('Tick at least one rejected line to re-claim'), true);
   const reclaim = {
     type: c.type === 'advance' ? 'advance' : c.type === 'meal' ? 'meal' : 'claim',
-    id: c.id, no: c.claim_no, floor: c.reclaim_floor || '', lines
+    id: c.id, no: c.claim_no, floor: c.reclaim_floor || '', currency: c.currency, lines
   };
   if (c.type === 'meal') return c.scheme === 'gps' ? openMealGpsModal(null, reclaim) : openMealAllowanceModal(null, reclaim);
   return openClaimModal(null, reclaim);

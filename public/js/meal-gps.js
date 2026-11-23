@@ -13,6 +13,7 @@
 const MG_KIND = 'mealgps';
 const MG_MEALS = ['Breakfast', 'Lunch', 'Dinner'];
 let mgRows = [];
+let mgSubmitting = false;
 let mgEditId = null;   // the claim being resubmitted or re-claimed from (kept receipts link to it)
 let mgSites = [];      // pinned customer sites (Settings → Customer sites): what each day is measured to
 let mgSitesReady = false;
@@ -49,7 +50,7 @@ function mgCheck(r) {
   const R = mgRules();
   const base = mgCfg().base;
   const meals = r.trip === 'out_of_town' ? r.meals.map(mealAmount).filter(n => n > 0) : [];
-  const sum = r.trip === 'out_of_town' ? meals.reduce((s, n) => s + n, 0) : mealAmount(r.amount);
+  const sum = r.trip === 'out_of_town' ? meals.reduce((cents, n) => cents + Math.round(n * 100), 0) / 100 : mealAmount(r.amount);
   const site = mgSiteFor(r);
   const km = site && base ? kmBetween(base, site) : null;
   const errs = [];
@@ -62,8 +63,8 @@ function mgCheck(r) {
   }
   const tooClose = r.trip === 'in_town' && km != null && km < R.minKm;
   if (tooClose) errs.push(t('The customer site is {km} {radius} from {base} — in-town meals within {min} km can’t be claimed.', { km: mgKm(km), base: base.name || t('your base'), min: R.minKm }));
-  if (r.trip === 'in_town' && !tooClose && sum > R.inCap) errs.push(t('In town is capped at {cap} a day.', { cap: money(R.inCap, regionCurrency()) }));
-  if (r.trip === 'out_of_town' && sum > R.outCap) errs.push(t('Out of town is capped at {cap} a day for up to {n} meals.', { cap: money(R.outCap, regionCurrency()), n: R.maxMeals }));
+  if (r.trip === 'in_town' && !tooClose && sum > R.inCap) errs.push(t('In town is capped at {cap} a day.', { cap: money(R.inCap, formCurrency()) }));
+  if (r.trip === 'out_of_town' && sum > R.outCap) errs.push(t('Out of town is capped at {cap} a day for up to {n} meals.', { cap: money(R.outCap, formCurrency()), n: R.maxMeals }));
   if (r.trip && !tooClose && !sum) errs.push(r.trip === 'out_of_town' ? t('Enter at least one meal amount.') : t('Enter the meal amount.'));
   if (!(r.files.length + r.kept.length)) errs.push(t('Attach the meal receipt.'));
   return { sum: tooClose ? 0 : sum, site, km, errs, tooClose };
@@ -78,8 +79,8 @@ const mgTouched = mgFilled;
 // --- Cards ------------------------------------------------------------------------
 function mgAmountField(name, value, label, i) {
   return `<label class="mg-amt">${esc(label)}
-    <div class="amt-field"><span class="amt-cur">${esc(regionCurrency())}</span>
-      <input name="${name}" inputmode="numeric" autocomplete="off" value="${esc(value ? groupAmount(String(value)) : '')}" placeholder="0" data-amt="${i}" /></div></label>`;
+    <div class="amt-field"><span class="amt-cur">${esc(formCurrency())}</span>
+      <input name="${name}" inputmode="decimal" autocomplete="off" value="${esc(value ? groupAmount(String(value)) : '')}" placeholder="0" data-amt="${i}" /></div></label>`;
 }
 function mgChips(r, i) {
   const kept = r.kept.map((a, k) =>
@@ -94,15 +95,15 @@ function mgDayHtml(r, i) {
   const chk = mgCheck(r);
   const amounts = r.trip === 'out_of_town'
     ? `<div class="mg-meals">${MG_MEALS.slice(0, R.maxMeals).map((m, k) => mgAmountField(`meal${k}`, r.meals[k], t(m), i)).join('')}</div>
-       <p class="mg-cap">${esc(t('Up to {n} meals, {cap} a day in total.', { n: R.maxMeals, cap: money(R.outCap, regionCurrency()) }))}</p>`
+       <p class="mg-cap">${esc(t('Up to {n} meals, {cap} a day in total.', { n: R.maxMeals, cap: money(R.outCap, formCurrency()) }))}</p>`
     : r.trip === 'in_town'
       ? `<div class="mg-meals mg-meals-one">${mgAmountField('amount', r.amount, t('Meal amount'), i)}</div>
-         <p class="mg-cap">${withRadius(t('{min} km {radius} or more from your base: up to {cap} a day.', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</p>`
+         <p class="mg-cap">${withRadius(t('{min} km {radius} or more from your base: up to {cap} a day.', { min: R.minKm, cap: money(R.inCap, formCurrency()) }))}</p>`
       : '';
   return `<article class="mg-day${chk.errs.length && mgTouched(r) ? ' has-err' : ''}" data-i="${i}">
     <header class="mg-day-head">
       <span class="mg-day-n">${esc(t('Day {n}', { n: i + 1 }))}</span>
-      <span class="mg-day-sum" data-sum="${i}">${chk.sum ? esc(money(chk.sum, regionCurrency())) : ''}</span>
+      <span class="mg-day-sum" data-sum="${i}">${chk.sum ? esc(liveAmt(chk.sum)) : ''}</span>
       <button type="button" class="x-btn" data-rm="${i}" aria-label="${esc(t('Remove'))}">×</button>
     </header>
     <div class="mg-steps" data-steps="${i}">${mgStepsHtml(r, chk)}</div>
@@ -132,7 +133,7 @@ function mgDayHtml(r, i) {
     </div>
     <div class="mg-extra">
       <label>${esc(t('Job Category'))}<input name="category" value="${esc(r.category)}" placeholder="${esc(t('Install / Repair / Service…'))}" /></label>
-      <label>${esc(t('Additional Description'))}<input name="desc" value="${esc(r.desc)}" placeholder="${esc(t('Surabaya'))}" /></label>
+      <label>${esc(t('Work details'))}<input name="desc" value="${esc(r.desc)}" placeholder="${esc(t('e.g. Training Owner and BAST'))}" /></label>
     </div>
     <div class="mg-msgs" data-msgs="${i}">${mgMsgsHtml(r, chk)}</div>
   </article>`;
@@ -234,16 +235,33 @@ function mgReadRows() {
   });
 }
 function mgTotal() { return mgRows.reduce((s, r) => s + mgCheck(r).sum, 0); }
+function mgCanSubmit() {
+  const form = $('#mgForm');
+  if (!form || mgSubmitting || !mgCfg().base || !mgSitesReady || !mgRows.length) return false;
+  const dates = new Set();
+  for (const r of mgRows) {
+    if (!r.date || dates.has(r.date) || !mgSiteFor(r) || mgCheck(r).errs.length) return false;
+    dates.add(r.date);
+  }
+  if (claimDatesError(mgRows.map(r => r.date))) return false;
+  if ((state.user.approver1_choices || []).length >= 2 && !form.querySelector('[name="approver1"]')?.value) return false;
+  return form.checkValidity();
+}
+function mgSyncSubmit() {
+  const btn = $('#mgForm button[type="submit"]');
+  if (btn) btn.disabled = !mgCanSubmit();
+}
 function mgPaintTotals() {
   $('#mgTotal').textContent = liveAmt(mgTotal());
   syncLineCount(mgRows.filter(mgFilled).length);
+  mgSyncSubmit();
 }
 // Refresh one card's sum and messages without re-rendering it (keeps focus).
 function mgPaintDay(i) {
   const r = mgRows[i]; if (!r) return;
   const chk = mgCheck(r);
   const card = $(`#mgDays .mg-day[data-i="${i}"]`); if (!card) return;
-  card.querySelector(`[data-sum="${i}"]`).textContent = chk.sum ? money(chk.sum, regionCurrency()) : '';
+  card.querySelector(`[data-sum="${i}"]`).textContent = chk.sum ? liveAmt(chk.sum) : '';
   card.querySelector(`[data-msgs="${i}"]`).innerHTML = mgMsgsHtml(r, chk);
   card.querySelector(`[data-steps="${i}"]`).innerHTML = mgStepsHtml(r, chk);
   card.classList.toggle('has-err', !!(chk.errs.length && mgTouched(r)));
@@ -298,7 +316,7 @@ function mgRender() {
 }
 
 // --- The form -----------------------------------------------------------------------
-function mgBaseHtml() {
+function mgBaseHtml(currency) {
   const base = mgCfg().base;
   const R = mgRules();
   if (!base) {
@@ -311,8 +329,8 @@ function mgBaseHtml() {
     ${radiusNoteHtml(R.minKm)}
     <ul class="mg-rules">
       <li>${withRadius(t('In town, within {min} km {radius}: not claimable', { min: R.minKm }))}</li>
-      <li>${withRadius(t('In town, {min} km {radius} or more: up to {cap} a day', { min: R.minKm, cap: money(R.inCap, regionCurrency()) }))}</li>
-      <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: R.maxMeals, cap: money(R.outCap, regionCurrency()) }))}</li>
+      <li>${withRadius(t('In town, {min} km {radius} or more: up to {cap} a day', { min: R.minKm, cap: money(R.inCap, currency) }))}</li>
+      <li>${esc(t('Out of town: up to {n} meals, {cap} a day', { n: R.maxMeals, cap: money(R.outCap, currency) }))}</li>
       <li>${esc(t('Every day needs the customer site and its receipt'))}</li>
     </ul>
   </div>
@@ -360,7 +378,7 @@ function mgPaintMap() {
 // time an account opens the form on a device, and again from the Guide button.
 const MG_GUIDE = 'mealgps.v1';
 function mgGuideSteps() {
-  const R = mgRules(), cur = regionCurrency();
+  const R = mgRules(), cur = formCurrency();
   const day = (sel) => () => { const c = $('#mgDays .mg-day'); return c && c.querySelector(sel); };
   const p = (s) => `<p>${esc(s)}</p>`;
   return [
@@ -414,24 +432,25 @@ const collectMealGpsFiles = () => mgRows.map(r => r.files.slice());
 
 // `reclaim` opens a NEW GPS claim prefilled with another GPS claim's rejected days.
 async function openMealGpsModal(existing = null, reclaim = null) {
-  // Fetch the region's current daily limits so the hints and checks follow them.
   try {
     const data = await api('/meal-gps-settings' + (existing?.region ? '?region=' + encodeURIComponent(existing.region) : ''));
     state.user.meal_gps = { ...state.user.meal_gps, rules: data.rules };
   } catch (ex) { toast(ex.message, true); return; }
+  mgSubmitting = false;
   const isEdit = !!existing;
   mgEditId = isEdit ? existing.id : reclaim ? reclaim.id : null;
   setClaimDateContext(isEdit ? existing : reclaim ? { date_floor: reclaim.floor, lines: reclaim.lines } : null);
   const fresh = !isEdit && !reclaim;
   const draft = fresh ? draftForForm(MG_KIND) : null;
+  const currency = existing?.currency || reclaim?.currency || regionCurrency();
   if (isEdit || reclaim) {
     // The claim's live days, or the rejected days being re-claimed — each with
     // its receipts kept (they stay linked to the same files).
     mgRows = (isEdit ? activeLines(existing) : reclaim.lines).map(l => {
-      const meals = (l.meals || []).map(n => String(Math.round(n)));
+      const meals = (l.meals || []).map(String);
       while (meals.length < 3) meals.push('');
       return {
-        date: l.line_date, trip: l.trip_type || '', amount: l.trip_type === 'in_town' ? String(Math.round(l.amount)) : '',
+        date: l.line_date, trip: l.trip_type || '', amount: l.trip_type === 'in_town' ? String(l.amount) : '',
         meals, site: l.site || '', siteId: (l.site_ref && l.site_ref.id) || null, q: '', category: l.job_category || '', desc: l.description || '',
         files: [], kept: (l.attachments || []).slice(), carried: !claimDateUnlocked()
       };
@@ -453,14 +472,14 @@ async function openMealGpsModal(existing = null, reclaim = null) {
   });
   const base = mgCfg().base;
   openModal(`
-    ${formHeadHtml(isEdit ? t('Edit & resubmit GPS meal allowance') : reclaim ? t('Re-claim rejected lines') : t('Meal allowance (GPS)'))}
+    ${formHeadHtml(isEdit ? t('Edit & resubmit GPS meal allowance') : reclaim ? t('Re-claim rejected lines') : t('Meal allowance (GPS)'), currency)}
     <div class="modal-body">
       <form id="mgForm" class="form lf-form" novalidate>
         ${draft ? draftBannerHtml() : ''}
         ${reclaim ? reclaimNoteHtml(reclaim) : ''}
         <p class="form-error" id="mgError" hidden></p>
         <div class="meal-scroll">
-          ${mgBaseHtml()}
+          ${mgBaseHtml(currency)}
           <section class="lf-sec">
             ${linesSectionHead(t('Days'), t('One card per day. Name the customer site you went to — the distance is measured from your base to its pin — and attach the receipt.'))}
             <div id="mgDays" class="mg-days"></div>
@@ -473,7 +492,7 @@ async function openMealGpsModal(existing = null, reclaim = null) {
           ${footTotalHtml('mgTotal')}
           <button type="button" class="btn btn-ghost" id="mgCancel">${esc(t('Cancel'))}</button>
           ${fresh ? `<button type="button" class="btn btn-ghost" id="mgSaveDraft">${esc(t('Save draft'))}</button>` : ''}
-          <button type="submit" class="btn btn-primary" ${base ? '' : 'disabled'}>${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
+          <button type="submit" class="btn btn-primary" disabled>${isEdit ? esc(t('Resubmit claim')) : esc(t('Submit claim'))}</button>
         </div>
       </form>
     </div>`);
@@ -508,6 +527,7 @@ async function openMealGpsModal(existing = null, reclaim = null) {
     mgRender();
     if (unpick) { const q = $(`#mgDays .mg-day[data-i="${i}"] .mg-cust-q`); if (q) q.focus(); }
   });
+  for (const event of ['input', 'change']) $('#mgForm').addEventListener(event, () => { mgReadRows(); mgSyncSubmit(); });
   $('#mgForm').addEventListener('submit', e => submitMealGps(e, existing, reclaim));
   renderClaimDateBox();
   mgRender();
@@ -520,11 +540,13 @@ async function openMealGpsModal(existing = null, reclaim = null) {
     armDraftAutosave(MG_KIND, collectMealGpsDraft, collectMealGpsFiles);
     if (draft) wireDraftBanner(MG_KIND);
   }
+  mgSyncSubmit();
 }
 
 async function submitMealGps(e, existing, reclaim = null) {
   e.preventDefault();
   mgReadRows();
+  if (!mgCanSubmit()) { mgSyncSubmit(); return; }
   const err = $('#mgError'); err.hidden = true;
   const fail = (msg) => { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); };
   const rows = mgRows.filter(mgFilled);
@@ -544,6 +566,7 @@ async function submitMealGps(e, existing, reclaim = null) {
   if (needsApprover1 && !approver1) return fail(t('Please choose Approver 1.'));
   const btn = e.target.querySelector('button[type="submit"]');
   const label = btn.textContent;
+  mgSubmitting = true;
   btn.disabled = true;
   try {
     if (rows.some(r => r.files.length)) btn.textContent = t('Uploading receipts…');
@@ -557,7 +580,7 @@ async function submitMealGps(e, existing, reclaim = null) {
         attachments: uploaded, keep_attachment_ids: r.kept.map(a => a.id)
       });
     }
-    const payload = { scheme: 'gps', lines };
+    const payload = { scheme: 'gps', lines, ...(!existing && { display_currency: formCurrency() }) };
     if (needsApprover1) payload.approver1 = Number(approver1);
     if (reclaim) payload.source = { type: reclaim.type, id: reclaim.id, line_ids: reclaim.lines.map(l => l.id) };
     btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
@@ -572,7 +595,7 @@ async function submitMealGps(e, existing, reclaim = null) {
     }
     modalCloseHook = null; // submitted — don't auto-save a draft on close
     closeModal(); closeDrawer(); loadAll();
-  } catch (ex) { fail(ex.message); btn.disabled = false; btn.textContent = label; }
+  } catch (ex) { fail(ex.message); mgSubmitting = false; btn.textContent = label; mgSyncSubmit(); }
 }
 
 $('#newMealGpsBtn').addEventListener('click', () => {

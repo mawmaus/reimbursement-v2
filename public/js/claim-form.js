@@ -791,20 +791,47 @@ function draftBannerHtml(note) {
     <button type="button" class="draft-discard" id="draftDiscard">${TRASH_ICON}<span>${esc(t('Delete draft'))}</span></button>
   </div>`;
 }
+// Use the same centred confirmation as sign-out. The second layer keeps an
+// open draft form (and its autosave hook) intact when deletion is cancelled.
+function confirmDraftDeletion(onConfirm) {
+  const trigger = document.activeElement;
+  openModal2(`
+    <div class="modal-head"><h2>${esc(t('Delete draft'))}</h2>
+      <button type="button" class="x-btn" aria-label="${esc(t('Close'))}">×</button></div>
+    <div class="modal-body">
+      <p style="margin:0">${esc(t('Delete this draft? This cannot be undone.'))}</p>
+      <div class="modal-actions" style="margin-top:22px">
+        <button type="button" class="btn btn-ghost" id="draftDeleteCancel">${esc(t('Cancel'))}</button>
+        <button type="button" class="btn btn-danger" id="draftDeleteConfirm">${esc(t('Delete draft'))}</button>
+      </div>
+    </div>`);
+  $('#modal2').classList.add('modal-confirm');
+  const cancel = () => { closeModal2(); if (trigger && trigger.isConnected) trigger.focus(); };
+  $('#modal2 .x-btn').addEventListener('click', cancel);
+  $('#draftDeleteCancel').addEventListener('click', cancel);
+  $('#draftDeleteConfirm').addEventListener('click', () => {
+    $('#draftDeleteConfirm').disabled = true;
+    closeModal2();
+    onConfirm();
+  });
+  $('#draftDeleteCancel').focus();
+}
 // Wire the banner's "Delete draft": after a confirm, drop this draft and close the form.
 function wireDraftBanner(kind) {
   const b = $('#draftDiscard'); if (!b) return;
   b.addEventListener('click', () => {
-    if (!confirm(t('Delete this draft? This cannot be undone.'))) return;
-    clearDraft(kind); modalCloseHook = null; closeModal();
-    toast(t('Draft deleted'));
+    confirmDraftDeletion(() => {
+      clearDraft(kind); modalCloseHook = null; closeModal();
+      toast(t('Draft deleted'));
+    });
   });
 }
 // Delete a draft straight from its row in My claims.
 function deleteDraftRow(kind, id) {
-  if (!confirm(t('Delete this draft? This cannot be undone.'))) return;
-  dropDraft(kind, id || '');
-  toast(t('Draft deleted'));
+  confirmDraftDeletion(() => {
+    dropDraft(kind, id || '');
+    toast(t('Draft deleted'));
+  });
 }
 // Auto-save on an accidental close (×, scrim, Escape). `collect` returns the
 // draft data, or null when the form is effectively empty (nothing worth saving).
@@ -867,7 +894,7 @@ function openClaimModal(existing = null, reclaim = null) {
     claimRows = [blankClaimRow(todayWIB())];
   }
   openModal(`
-    ${formHeadHtml(isEdit ? t('Edit & resubmit claim') : reclaim ? t('Re-claim rejected lines') : t('New reimbursement claim'))}
+    ${formHeadHtml(isEdit ? t('Edit & resubmit claim') : reclaim ? t('Re-claim rejected lines') : t('New reimbursement claim'), existing?.currency || reclaim?.currency)}
     <div class="modal-body">
       <form id="claimForm" class="form lf-form">
         ${draft ? draftBannerHtml() : ''}
@@ -935,13 +962,16 @@ function openClaimModal(existing = null, reclaim = null) {
 // --- Shared shell of the claim / meal / advance / realization forms -----------
 // Header with who is claiming (name · department · currency), titled sections,
 // a line count, and a footer with the running total beside the actions.
-function formHeadHtml(title) {
+function formHeadHtml(title, currency = regionCurrency()) {
   const u = state.user || {};
-  const sub = [u.full_name, u.department, regionCurrency()].filter(Boolean);
-  return `<div class="modal-head lf-modal-head">
+  const sub = [u.full_name, u.department, currency].filter(Boolean);
+  return `<div class="modal-head lf-modal-head" data-form-currency="${esc(currency)}">
       <div class="lf-head-text"><h2>${esc(title)}</h2><div class="lf-sub">${sub.map(s => `<span>${esc(s)}</span>`).join('')}</div></div>
       <button class="x-btn" aria-label="${esc(t('Close'))}">×</button>
     </div>`;
+}
+function formCurrency() {
+  return $('#modal [data-form-currency]')?.dataset.formCurrency || regionCurrency();
 }
 function linesSectionHead(title, hint) {
   return `<div class="lf-sec-head"><h3>${esc(title)}</h3><span class="lf-count" data-lf-count></span></div>

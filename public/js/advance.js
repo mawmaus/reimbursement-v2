@@ -42,6 +42,7 @@ function renderAdvDocs() {
 // when chooseable). Reused for editing a rejected request.
 function openAdvanceRequestModal(existing = null) {
   const isEdit = !!existing;
+  const currency = existing?.currency || regionCurrency();
   const draft = isEdit ? null : draftForForm('advance');
   advDocs = [];
   advKeptDocs = isEdit ? (existing.attachments || []).map(a => ({ id: a.id, original_name: a.original_name })) : [];
@@ -49,10 +50,10 @@ function openAdvanceRequestModal(existing = null) {
   // For a new request, seed the fields from the saved draft if there is one.
   const prePurpose = isEdit ? (existing.purpose || '') : (draft ? draft.data.purpose || '' : '');
   const preAmount = isEdit
-    ? (existing.amount != null ? groupAmount(String(Math.round(existing.amount))) : '')
+    ? (existing.amount != null ? groupAmount(String(existing.amount)) : '')
     : (draft ? groupAmount(String(draft.data.amount || '')) : '');
   openModal(`
-    ${formHeadHtml(isEdit ? t('Edit & resubmit cash advance') : t('New cash advance'))}
+    ${formHeadHtml(isEdit ? t('Edit & resubmit cash advance') : t('New cash advance'), currency)}
     <div class="modal-body">
       <form id="advForm" class="form lf-form">
         ${draft ? draftBannerHtml() : ''}
@@ -64,7 +65,7 @@ function openAdvanceRequestModal(existing = null) {
             <label class="full">${reqLabel(t('Purpose of the cash advance'))}
               <textarea name="purpose" rows="3" required placeholder="${esc(t('What is this advance for?'))}">${esc(prePurpose)}</textarea></label>
             <label class="full">${reqLabel(t('Amount needed'))}
-              <div class="amt-field"><span class="amt-cur" aria-hidden="true">${esc(regionCurrency())}</span>
+              <div class="amt-field"><span class="amt-cur" aria-hidden="true">${esc(currency)}</span>
                 <input name="amount" inputmode="decimal" required placeholder="0" value="${esc(preAmount)}" /></div></label>
           </section>
           <section class="lf-sec">
@@ -156,7 +157,7 @@ async function submitAdvanceRequest(e, existing) {
   const btn = e.target.querySelector('button[type="submit"]');
   const label = btn.textContent;
   btn.disabled = true;
-  const payload = { purpose, amount, currency: regionCurrency() };
+  const payload = { purpose, amount, ...(!existing && { display_currency: formCurrency() }) };
   if (needsApprover1) payload.approver1 = Number(approver1);
   try {
     // Documents go to Blob first (same routing as receipts); the request itself
@@ -182,16 +183,16 @@ $('#newAdvanceBtn').addEventListener('click', () => openAdvanceRequestModal());
 
 // Stage 2 realization form: the actual transactions as an itemised line table
 // (the reimbursement-claim editor), with a live "advance vs spent" banner.
-function realizeDiffBanner(advanceAmount) {
+function realizeDiffBanner(advanceAmount, currency) {
   const spent = claimTotal();
   const diff = spent - advanceAmount;
   const cls = diff > 0 ? 'adv-diff-topup' : diff < 0 ? 'adv-diff-return' : 'adv-diff-even';
-  const msg = diff > 0 ? t('Over the advance by {amt} — a top-up will be owed to you.', { amt: liveAmt(diff) })
-    : diff < 0 ? t('Under the advance by {amt} — you will return this balance.', { amt: liveAmt(-diff) })
+  const msg = diff > 0 ? t('Over the advance by {amt} — a top-up will be owed to you.', { amt: money(diff, currency) })
+    : diff < 0 ? t('Under the advance by {amt} — you will return this balance.', { amt: money(-diff, currency) })
     : t('Exactly matches the advance.');
   return `<div class="adv-diff ${cls}">
-      <div class="adv-diff-row"><span>${esc(t('Advance received'))}</span><strong>${esc(liveAmt(advanceAmount))}</strong></div>
-      <div class="adv-diff-row"><span>${esc(t('Total spent'))}</span><strong id="advSpent">${esc(liveAmt(spent))}</strong></div>
+      <div class="adv-diff-row"><span>${esc(t('Advance received'))}</span><strong>${esc(money(advanceAmount, currency))}</strong></div>
+      <div class="adv-diff-row"><span>${esc(t('Total spent'))}</span><strong id="advSpent">${esc(money(spent, currency))}</strong></div>
       <div class="adv-diff-msg" id="advDiffMsg">${esc(msg)}</div>
     </div>`;
 }
@@ -214,10 +215,10 @@ function openRealizeModal(advance) {
     claimRows = [blankClaimRow(todayWIB())];
   }
   openModal(`
-    ${formHeadHtml(t('Realize cash advance {no}', { no: advance.advance_no }))}
+    ${formHeadHtml(t('Realize cash advance {no}', { no: advance.advance_no }), advance.currency)}
     <div class="modal-body">
       <form id="realizeForm" class="form lf-form">
-        <div id="advDiffWrap">${realizeDiffBanner(advance.amount)}</div>
+        <div id="advDiffWrap">${realizeDiffBanner(advance.amount, advance.currency)}</div>
         <p class="form-error" id="claimError" hidden></p>
         <div class="meal-scroll">
           <section class="lf-sec">
@@ -256,7 +257,7 @@ function openRealizeModal(advance) {
   rcTotalHook = () => {
     const spent = claimTotal();
     const sp = $('#advSpent'); if (sp) sp.textContent = liveAmt(spent);
-    const wrap = $('#advDiffWrap'); if (wrap) wrap.innerHTML = realizeDiffBanner(advance.amount);
+    const wrap = $('#advDiffWrap'); if (wrap) wrap.innerHTML = realizeDiffBanner(advance.amount, advance.currency);
   };
   $('#realizeForm').addEventListener('submit', e => submitRealization(e, advance));
   renderClaimRows();

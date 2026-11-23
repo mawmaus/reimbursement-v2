@@ -12,7 +12,7 @@ const {
   ah, normEmail, EMAIL_RE, escHtml, baseUrl, intArrayLiteral, asIntArray, iso,
   isActive
 } = require('../lib/util');
-const { ALL_REGIONS, seesAllRegions, normRegion, actsAsSuper } = require('../lib/settings');
+const { ALL_REGIONS, seesAllRegions, normRegion, actsAsSuper, loadAppSettings, regionPrefs } = require('../lib/settings');
 const {
   loadPositions, hasDelegation, accountsSeeAllDepts, ROLES, creatableRolesFor,
   canManageAccount, loadReportIds
@@ -214,8 +214,10 @@ router.get('/api/users', requireAuth, ah(async (req, res) => {
   }
   // can_manage: whether this viewer may reset / enable-disable the row — the
   // server's own rule, so the client doesn't have to mirror it.
+  const settings = await loadAppSettings();
   res.json({ users: users.map(u => ({
     ...u, approver_ids: asIntArray(u.approver_ids), approver1_options: asIntArray(u.approver1_options), created_at: iso(u.created_at),
+    approval_limit_currency: regionPrefs(settings, u.region).currency,
     managed_by: u.managed_by == null ? null : Number(u.managed_by),
     can_manage: canManageAccount(req.user, u, pos, reports)
   })) });

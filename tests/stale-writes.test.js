@@ -97,7 +97,7 @@ const today = new Date().toISOString().slice(0, 10);
 const claimLines = { lines: [{ line_date: today, expense_type: 'Taxi', amount: '150000' }] };
 const RESUBMITS = [
   ['claims', 210, 'PUT', '/api/claims/210', claimLines],
-  ['meal_claims', 310, 'PUT', '/api/meal-claims/310', { lines: [{ line_date: today, amount: '50000' }] }],
+  ['meal_claims', 310, 'PUT', '/api/meal-claims/310', { lines: [{ line_date: today < '2026-10-31' ? today : '2026-10-31', amount: '50000' }] }],
   ['cash_advances', 410, 'PUT', '/api/cash-advances/410', { purpose: 'Site visit', amount: '1000000' }],
   ['cash_advances', 411, 'POST', '/api/cash-advances/411/realize', claimLines],
   ['cash_advances', 412, 'PUT', '/api/cash-advances/412/realize', claimLines]

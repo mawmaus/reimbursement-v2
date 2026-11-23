@@ -33,12 +33,13 @@ test('parseApprovalLimit refuses a typo instead of saving a limit of 0', () => {
   assert.ok(R.parseApprovalLimit({ approval_limit: -100 }).error);
 });
 
-test('approvalLimitError blocks only amounts above the limit', () => {
+test('approval limits compare amounts only in the approver’s configured currency', () => {
   const approver = R.user({ approval_limit_cents: '500000000' }); // bigint columns arrive as strings
-  assert.equal(R.approvalLimitError(approver, 500000000, 'IDR'), null, 'exactly at the limit is allowed');
-  assert.match(R.approvalLimitError(approver, 500000100, 'IDR'), /above your approval limit of IDR 5,000,000/);
-  assert.equal(R.approvalLimitError(R.user({ approval_limit_cents: null }), 9e12, 'IDR'), null, 'null = unlimited');
-  assert.equal(R.approvalLimitError(R.user({ role: 'superadmin', approval_limit_cents: 0 }), 9e12, 'IDR'), null);
+  assert.equal(R.approvalLimitError(approver, 500000000, 'IDR', 'IDR'), null, 'exactly at the limit is allowed');
+  assert.match(R.approvalLimitError(approver, 500000100, 'IDR', 'IDR'), /above your approval limit of IDR 5,000,000/);
+  assert.match(R.approvalLimitError(approver, 1000, 'MYR', 'IDR'), /different currency/);
+  assert.equal(R.approvalLimitError(R.user({ approval_limit_cents: null }), 9e12, 'MYR', 'IDR'), null, 'null = unlimited');
+  assert.equal(R.approvalLimitError(R.user({ role: 'superadmin', approval_limit_cents: 0 }), 9e12, 'MYR', 'IDR'), null);
 });
 
 test('normaliseClaimLines totals filled rows and skips blank ones', () => {
@@ -84,7 +85,7 @@ test('normaliseMealLines needs a date and a positive amount per filled row', () 
 
 test('normaliseAdvanceRequest requires a purpose and a positive amount', () => {
   assert.deepEqual(R.normaliseAdvanceRequest({ purpose: ' Site visit ', amount: '2,000,000', currency: 'IDR' }),
-    { purpose: 'Site visit', amountCents: 200000000, currency: 'IDR' });
+    { purpose: 'Site visit', amountCents: 200000000 });
   assert.match(R.normaliseAdvanceRequest({ amount: 5 }).error, /purpose/);
   assert.match(R.normaliseAdvanceRequest({ purpose: 'x', amount: 'abc' }).error, /amount/);
   assert.match(R.normaliseAdvanceRequest({ purpose: 'x', amount: 0 }).error, /amount/);
@@ -95,4 +96,16 @@ test('settlementFor: top-up, refund or even, always as a positive amount', () =>
   assert.deepEqual(R.settlementFor({ amount_cents: '1000000', realized_total_cents: '1250000' }), { direction: 'topup', cents: 250000 });
   assert.deepEqual(R.settlementFor({ amount_cents: '1000000', realized_total_cents: '600000' }), { direction: 'return', cents: 400000 });
   assert.deepEqual(R.settlementFor({ amount_cents: 1000000, realized_total_cents: 1000000 }), { direction: 'even', cents: 0 });
+});
+
+
+test('standard meal allowance ends on 31 October 2026, inclusive', () => {
+  assert.equal(R.normaliseMealLines([{ date: '2026-10-31', amount: 35000 }]).lines[0].line_date, '2026-10-31');
+  for (const date of ['2026-11-01', '2027-01-01']) {
+    assert.match(R.normaliseMealLines([{ date, amount: 35000 }]).error, /31 October 2026/);
+    assert.match(R.normaliseMealLines([{ line_date: date, amount: 35000 }]).error, /31 October 2026/);
+  }
+  assert.match(R.normaliseMealLines([
+    { date: '2026-10-31', amount: 35000 }, { date: '2026-11-01', amount: 35000 }
+  ]).error, /31 October 2026/);
 });

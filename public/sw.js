@@ -13,7 +13,7 @@
 //
 // Bump VERSION when the offline page or its assets change.
 // ---------------------------------------------------------------------------
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = 'reimb-offline-' + VERSION;
 const OFFLINE_ASSETS = ['/offline.html', '/offline.js', '/logo.svg', '/icons/icon-192.png'];
 

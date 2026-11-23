@@ -24,7 +24,7 @@ const SCHEMA = [
   // Email address for the account. Used for password-reset links and workflow
   // notifications (submissions to approve, rejections). Stored lower-cased.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''`,
-  // Preferred UI language (BCP-47-ish short code: 'en','id','th','vi','km','fil').
+  // Preferred UI language code (see normLang in lib/util.js).
   // Set when a user picks a language from the switcher; it becomes their default
   // and follows the account across devices. Defaults to English.
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'`,

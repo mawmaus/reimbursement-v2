@@ -4,6 +4,9 @@
 // demand by i18n.js (only the active language is fetched) and registered via
 // I18N.addDict. Add a key here whenever a new t('…') string is added.
 I18N.addDict('fil', {
+  // Regional currency validation
+  "This claim uses a different currency from your approval limit.": "Iba ang currency ng claim na ito sa currency ng iyong limitasyon sa pag-apruba.",
+  "Your claim currency has changed. Refresh the page before submitting.": "Nagbago ang currency ng iyong claim. I-refresh ang pahina bago magsumite.",
   // Per-line approval
   '1 line rejected': '1 linya ang tinanggihan',
   '{n} lines rejected': '{n} linya ang tinanggihan',
@@ -167,6 +170,8 @@ I18N.addDict('fil', {
   'With DB': 'May DB',
   'DB number': 'DB number',
   'Job Category': 'Kategorya ng Trabaho',
+  'Work details': 'Mga detalye ng trabaho',
+  'e.g. Training Owner and BAST': 'Hal. Training Owner at BAST',
   'Additional Description': 'Karagdagang Paglalarawan',
   'No lines.': 'Walang linya.',
   'TOTAL CLAIM MEAL ALLOWANCE': 'KABUUANG CLAIM NG MEAL ALLOWANCE',
@@ -1439,6 +1444,7 @@ I18N.addDict('fil', {
   "Check the total, then press Submit claim. If anything is missing, the day turns red and says what to fix. Not finished? Save draft and come back later.": "Suriin ang kabuuan, saka pindutin ang Isumite ang claim. Kapag may kulang, magiging pula ang araw at sasabihin kung ano ang aayusin. Hindi pa tapos? Pindutin ang I-save ang draft at bumalik mamaya.",
   "Guide": "Gabay",
   "Show me how to fill this in": "Ipakita kung paano ito punan",
+  "The standard meal allowance only covers dates through 31 October 2026.": "Ang karaniwang meal allowance ay para lamang sa mga petsa hanggang 31 Oktubre 2026.",
   "All time": "Lahat ng panahon",
   "This quarter": "Ngayong quarter",
   "This half-year": "Ngayong kalahating taon",

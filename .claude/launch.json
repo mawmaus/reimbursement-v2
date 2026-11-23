@@ -4,8 +4,13 @@
     {
       "name": "reimbursement",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["-r", "./.claude/loadenv.js", "server.js"],
-      "port": 3000
+      "runtimeArgs": [
+        "-r",
+        "./.claude/loadenv.js",
+        "server.js"
+      ],
+      "port": 3000,
+      "autoPort": true
     },
     {
       "name": "reimbursement-preview",

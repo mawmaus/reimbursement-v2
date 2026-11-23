@@ -13,6 +13,7 @@
   var STR = {
     en: ["You're offline", 'The portal needs an internet connection. Check your connection, then try again.', 'Try again'],
     id: ['Anda sedang offline', 'Portal memerlukan koneksi internet. Periksa koneksi Anda, lalu coba lagi.', 'Coba lagi'],
+    ms: ['Anda di luar talian', 'Portal ini memerlukan sambungan internet. Semak sambungan anda, kemudian cuba lagi.', 'Cuba lagi'],
     th: ['คุณออฟไลน์อยู่', 'พอร์ทัลต้องใช้การเชื่อมต่ออินเทอร์เน็ต โปรดตรวจสอบการเชื่อมต่อ แล้วลองอีกครั้ง', 'ลองอีกครั้ง'],
     vi: ['Bạn đang ngoại tuyến', 'Cổng thông tin cần kết nối internet. Hãy kiểm tra kết nối rồi thử lại.', 'Thử lại'],
     km: ['អ្នកកំពុងគ្មានអ៊ីនធឺណិត', 'វិបផតថលត្រូវការការតភ្ជាប់អ៊ីនធឺណិត។ សូមពិនិត្យការតភ្ជាប់របស់អ្នក រួចព្យាយាមម្តងទៀត។', 'ព្យាយាមម្តងទៀត'],

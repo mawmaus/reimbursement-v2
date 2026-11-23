@@ -4,6 +4,9 @@
 // demand by i18n.js (only the active language is fetched) and registered via
 // I18N.addDict. Add a key here whenever a new t('…') string is added.
 I18N.addDict('vi', {
+  // Regional currency validation
+  "This claim uses a different currency from your approval limit.": "Yêu cầu này dùng đơn vị tiền tệ khác với hạn mức phê duyệt của bạn.",
+  "Your claim currency has changed. Refresh the page before submitting.": "Đơn vị tiền tệ của yêu cầu đã thay đổi. Hãy tải lại trang trước khi gửi.",
   // Per-line approval
   '1 line rejected': '1 dòng bị từ chối',
   '{n} lines rejected': '{n} dòng bị từ chối',
@@ -167,6 +170,8 @@ I18N.addDict('vi', {
   'With DB': 'Có DB',
   'DB number': 'Số DB',
   'Job Category': 'Loại công việc',
+  'Work details': 'Chi tiết công việc',
+  'e.g. Training Owner and BAST': 'Ví dụ: Training Owner và BAST',
   'Additional Description': 'Mô tả bổ sung',
   'No lines.': 'Không có dòng nào.',
   'TOTAL CLAIM MEAL ALLOWANCE': 'TỔNG YÊU CẦU PHỤ CẤP ĂN',
@@ -1439,6 +1444,7 @@ I18N.addDict('vi', {
   "Check the total, then press Submit claim. If anything is missing, the day turns red and says what to fix. Not finished? Save draft and come back later.": "Kiểm tra tổng tiền, rồi bấm Gửi yêu cầu. Nếu thiếu gì, ngày đó sẽ chuyển đỏ và cho biết cần sửa gì. Chưa xong? Bấm Lưu bản nháp và quay lại sau.",
   "Guide": "Hướng dẫn",
   "Show me how to fill this in": "Chỉ tôi cách điền",
+  "The standard meal allowance only covers dates through 31 October 2026.": "Phụ cấp ăn tiêu chuẩn chỉ áp dụng cho các ngày đến hết ngày 31 tháng 10 năm 2026.",
   "All time": "Toàn bộ thời gian",
   "This quarter": "Quý này",
   "This half-year": "Nửa năm này",

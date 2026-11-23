@@ -4,6 +4,9 @@
 // demand by i18n.js (only the active language is fetched) and registered via
 // I18N.addDict. Add a key here whenever a new t('…') string is added.
 I18N.addDict('th', {
+  // Regional currency validation
+  "This claim uses a different currency from your approval limit.": "สกุลเงินของเคลมนี้ต่างจากสกุลเงินของวงเงินอนุมัติของคุณ",
+  "Your claim currency has changed. Refresh the page before submitting.": "สกุลเงินของเคลมเปลี่ยนแล้ว โปรดโหลดหน้าใหม่ก่อนส่ง",
   // Per-line approval
   '1 line rejected': 'ปฏิเสธ 1 รายการ',
   '{n} lines rejected': 'ปฏิเสธ {n} รายการ',
@@ -167,6 +170,8 @@ I18N.addDict('th', {
   'With DB': 'มี DB',
   'DB number': 'เลข DB',
   'Job Category': 'ประเภทงาน',
+  'Work details': 'รายละเอียดงาน',
+  'e.g. Training Owner and BAST': 'เช่น Training Owner และ BAST',
   'Additional Description': 'รายละเอียดเพิ่มเติม',
   'No lines.': 'ไม่มีรายการ',
   'TOTAL CLAIM MEAL ALLOWANCE': 'รวมการเบิกค่าอาหารทั้งหมด',
@@ -1439,6 +1444,7 @@ I18N.addDict('th', {
   "Check the total, then press Submit claim. If anything is missing, the day turns red and says what to fix. Not finished? Save draft and come back later.": "ตรวจสอบยอดรวม แล้วกด ยื่นการเบิก หากมีอะไรขาดไป วันนั้นจะเป็นสีแดงและบอกว่าต้องแก้อะไร ยังไม่เสร็จ? กด บันทึกฉบับร่าง แล้วกลับมาทำต่อภายหลัง",
   "Guide": "คำแนะนำ",
   "Show me how to fill this in": "แสดงวิธีกรอกแบบฟอร์มนี้",
+  "The standard meal allowance only covers dates through 31 October 2026.": "ค่าอาหารแบบมาตรฐานครอบคลุมเฉพาะวันที่จนถึง 31 ตุลาคม 2026 เท่านั้น",
   "All time": "ตลอดเวลา",
   "This quarter": "ไตรมาสนี้",
   "This half-year": "ครึ่งปีนี้",

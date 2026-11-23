@@ -4,6 +4,9 @@
 // demand by i18n.js (only the active language is fetched) and registered via
 // I18N.addDict. Add a key here whenever a new t('…') string is added.
 I18N.addDict('id', {
+  // Regional currency validation
+  "This claim uses a different currency from your approval limit.": "Mata uang klaim ini berbeda dengan mata uang batas persetujuan Anda.",
+  "Your claim currency has changed. Refresh the page before submitting.": "Mata uang klaim Anda telah berubah. Muat ulang halaman sebelum mengirim.",
   // Per-line approval
   '1 line rejected': '1 baris ditolak',
   '{n} lines rejected': '{n} baris ditolak',
@@ -175,6 +178,8 @@ I18N.addDict('id', {
   'With DB': 'Dengan DB',
   'DB number': 'Nomor DB',
   'Job Category': 'Kategori Pekerjaan',
+  'Work details': 'Detail pekerjaan',
+  'e.g. Training Owner and BAST': 'Contoh: Training Owner dan BAST',
   'Additional Description': 'Deskripsi Tambahan',
   'No lines.': 'Tidak ada baris.',
   'TOTAL CLAIM MEAL ALLOWANCE': 'TOTAL KLAIM TUNJANGAN MAKAN',
@@ -1462,6 +1467,7 @@ I18N.addDict('id', {
   "Check the total, then press Submit claim. If anything is missing, the day turns red and says what to fix. Not finished? Save draft and come back later.": "Periksa totalnya, lalu tekan Ajukan klaim. Jika ada yang kurang, hari itu berubah merah dan menunjukkan apa yang perlu diperbaiki. Belum selesai? Simpan draf dan lanjutkan nanti.",
   "Guide": "Panduan",
   "Show me how to fill this in": "Tunjukkan cara mengisinya",
+  "The standard meal allowance only covers dates through 31 October 2026.": "Tunjangan makan standar hanya berlaku untuk tanggal sampai dengan 31 Oktober 2026.",
   "All time": "Sepanjang waktu",
   "This quarter": "Kuartal ini",
   "This half-year": "Semester ini",

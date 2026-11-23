@@ -1505,7 +1505,7 @@ async function submitClaim(e, existing, reclaim = null) {
         attachments: uploaded, keep_attachment_ids: (r.kept || []).map(a => a.id)
       });
     }
-    const payload = { lines, currency: regionCurrency() };
+    const payload = { lines, ...(!existing && { display_currency: formCurrency() }) };
     if (approver1) payload.approver1 = Number(approver1);
     btn.textContent = existing ? t('Resubmitting…') : t('Submitting…');
     if (existing) {

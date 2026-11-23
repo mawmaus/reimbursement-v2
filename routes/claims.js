@@ -10,7 +10,7 @@ const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } 
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
-const { viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
+const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
@@ -139,7 +139,7 @@ router.post('/api/claims', requireAuth, ah(async (req, res) => {
     const claimRegion = String(req.user.region || '');
     let claimId;
     try {
-      claimId = await createClaim(req, b, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion, src, keptByLine);
+      claimId = await createClaim(req, parsed.lines, verifiedByLine, parsed.totalCents, built.ids, claimRegion, src, keptByLine);
     } catch (e) {
       for (const u of allUploaded) await deleteReceipt(u.url);
       throw e;
@@ -217,7 +217,7 @@ router.put('/api/claims/:id', requireAuth, ah(async (req, res) => {
         [String(emp.full_name || '').trim(), h.expense_date, String(emp.department || '').trim(),
          h.db_no, String(emp.bank_name || '').trim(), String(emp.recipient_name || '').trim(),
          String(emp.bank_account_no || '').trim(),
-         h.expense_type, parsed.totalCents, String(b.currency || row.currency).trim().slice(0, 8),
+         h.expense_type, parsed.totalCents, row.currency,
          h.description, intArrayLiteral(built.ids), built.ids.length ? 1 : 0, claimId]),
       qq(`DELETE FROM attachments WHERE claim_id = $1 AND (line_id IS NULL OR line_id NOT IN
             (SELECT id FROM claim_lines WHERE claim_id = $1 AND rejected_at IS NOT NULL))`, [claimId]),
@@ -270,7 +270,8 @@ router.post('/api/claims/:id/approve', requireAuth, ah(async (req, res) => {
   // Lines this approver rejects drop out first; the limit applies to what's left.
   const plan = await planLineRejections('claim', row, req.body && req.body.rejected_lines);
   if (plan.error) return res.status(400).json({ error: plan.error });
-  const le = approvalLimitError(req.user, plan.remainingCents, row.currency);
+  const prefs = await regionPrefsFor(req.user.region);
+  const le = approvalLimitError(req.user, plan.remainingCents, row.currency, prefs.currency);
   if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);

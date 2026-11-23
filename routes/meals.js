@@ -9,7 +9,7 @@ const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } 
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
 const { userCan } = require('../lib/permissions');
-const { viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
+const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
@@ -214,7 +214,8 @@ router.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => 
   // just be lowered through its approved amount).
   const plan = await planLineRejections('meal', row, req.body && req.body.rejected_lines);
   if (plan.error) return res.status(400).json({ error: plan.error });
-  const le = approvalLimitError(req.user, plan.remainingCents, row.currency);
+  const prefs = await regionPrefsFor(req.user.region);
+  const le = approvalLimitError(req.user, plan.remainingCents, row.currency, prefs.currency);
   if (le) return res.status(403).json({ error: le });
   const comment = String((req.body && req.body.comment) || '').trim();
   const ids = asIntArray(row.approver_ids);
