@@ -28,6 +28,21 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-24.1',
+    date: '2026-11-24',
+    items: [
+      { kind: 'improved', text: {
+        en: 'The Guide on every screen now covers much more: each tile on the menu, what each list is for, every button on a claim (Approve, Reject line, Revert, Settle…), each Settings page, and screens that had no guide yet — rejecting, marking as paid, the receipt viewer, the photo editor, the amount calculator, helpdesk tickets and more. The improved guides show once more by themselves.',
+        id: 'Panduan di setiap layar kini jauh lebih lengkap: tiap ubin di menu, kegunaan tiap daftar, setiap tombol di klaim (Setujui, Tolak baris, Batalkan, Selesaikan…), tiap halaman Pengaturan, serta layar yang sebelumnya belum punya panduan — menolak, menandai dibayar, penampil struk, editor foto, kalkulator nominal, tiket helpdesk, dan lainnya. Panduan yang diperbarui akan tampil sekali lagi secara otomatis.',
+        ms: 'Panduan pada setiap skrin kini jauh lebih lengkap: setiap jubin pada menu, kegunaan setiap senarai, setiap butang pada tuntutan (Lulus, Tolak baris, Batalkan, Selesaikan…), setiap halaman Tetapan, dan skrin yang sebelum ini tiada panduan — menolak, menanda dibayar, pemapar resit, editor foto, kalkulator jumlah, tiket helpdesk dan lain-lain. Panduan yang dipertingkat akan dipaparkan sekali lagi secara automatik.',
+        th: 'คู่มือในทุกหน้าจอครอบคลุมมากขึ้น: ทุกไทล์ในเมนู จุดประสงค์ของแต่ละรายการ ทุกปุ่มในคำขอเบิก (อนุมัติ ปฏิเสธรายการ ย้อน ชำระ…) ทุกหน้าการตั้งค่า และหน้าจอที่ยังไม่มีคู่มือ — การปฏิเสธ การทำเครื่องหมายว่าจ่ายแล้ว ตัวดูใบเสร็จ ตัวแก้ไขภาพ เครื่องคิดยอด ทิกเก็ตฝ่ายช่วยเหลือ และอื่น ๆ คู่มือที่ปรับปรุงจะแสดงเองอีกครั้งหนึ่ง',
+        vi: 'Hướng dẫn trên mọi màn hình giờ đầy đủ hơn nhiều: từng ô trên menu, mục đích của từng danh sách, mọi nút trên yêu cầu (Phê duyệt, Từ chối dòng, Hoàn tác, Quyết toán…), từng trang Cài đặt, và các màn hình trước đây chưa có hướng dẫn — từ chối, đánh dấu đã thanh toán, trình xem hóa đơn, trình sửa ảnh, máy tính cộng tiền, phiếu hỗ trợ và hơn nữa. Các hướng dẫn được cải thiện sẽ tự hiện thêm một lần.',
+        km: 'ការណែនាំលើគ្រប់អេក្រង់ឥឡូវគ្របដណ្ដប់ច្រើនជាងមុន៖ ក្រឡានីមួយៗលើម៉ឺនុយ គោលបំណងនៃបញ្ជីនីមួយៗ គ្រប់ប៊ូតុងលើសំណើ (អនុម័ត បដិសេធជួរ ត្រឡប់ ទូទាត់…) ទំព័រការកំណត់នីមួយៗ និងអេក្រង់ដែលមិនទាន់មានការណែនាំ — ការបដិសេធ ការសម្គាល់ថាបានបង់ កម្មវិធីមើលបង្កាន់ដៃ កម្មវិធីកែរូបថត ម៉ាស៊ីនគិតលេខ សំបុត្រជំនួយ និងច្រើនទៀត។ ការណែនាំដែលបានកែលម្អនឹងបង្ហាញដោយខ្លួនឯងម្ដងទៀត។',
+        fil: 'Mas kumpleto na ang Gabay sa bawat screen: bawat tile sa menu, kung para saan ang bawat listahan, bawat button sa claim (Aprubahan, Tanggihan ang linya, I-revert, Ayusin…), bawat page ng Settings, at mga screen na wala pang gabay — pagtanggi, pagmarka bilang bayad, receipt viewer, photo editor, calculator ng halaga, helpdesk ticket at iba pa. Lalabas muli nang kusa nang isang beses ang mga pinahusay na gabay.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-23.2',
     date: '2026-11-23',
     items: [
