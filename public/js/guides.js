@@ -389,7 +389,11 @@ const SCREEN_GUIDES = [
       { el: gEl('#hpThread'), title: t('Conversation'), html: gq(t('Every message so far, newest at the bottom. Tap a screenshot to enlarge it.')) },
       { el: gEl('#hpReplyForm textarea'), title: t('Your reply'), html: gq(t('Write your reply. You can paste a screenshot straight into the box.')) },
       { el: gEl('#hpReplyAttach'), title: t('Attach screenshot'), html: gq(t('Add a picture of the problem.')) },
-      { el: gEl('#hpStatusBtn'), title: t('Close ticket'), html: gq(t('Close the ticket once it is solved. Writing again reopens it.')) }] },
+      // A closed ticket's button reads "Reopen ticket"; follow its live label.
+      { el: gEl('#hpStatusBtn'), title: $('#hpStatusBtn')?.textContent.trim() || t('Close ticket'),
+        html: gq($('#hpStatusBtn')?.textContent.trim() === t('Reopen ticket')
+          ? t('This ticket is closed. Writing again reopens it.')
+          : t('Close the ticket once it is solved. Writing again reopens it.')) }] },
   { key: 'fbanswer', where: 'modal', match: modalHas('#hpAnsForm'),
     steps: () => [
       { el: gEl('#hpAnsForm .hp-quote'), title: t('Feedback & suggestions'), html: gq(t('What the sender wrote.')) },
