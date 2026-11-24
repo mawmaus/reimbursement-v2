@@ -333,7 +333,7 @@ const SCREEN_GUIDES = [
         html: gq(t('Every setting, grouped by topic. Pick one on the left to open it.')) },
       { el: gEl('#modal .ws-page-head'), title: t('What this page does'),
         html: gq(t('The page’s name and what it controls. Its buttons sit on the right.')) },
-      { el: gEl('#wsRegion'), title: t('Region'), html: gq(t('Look at another region’s settings. You can only change your own region.')) },
+      { el: gEl('.ws-region-pick'), title: t('Region'), html: gq(t('Look at another region’s settings. You can only change your own region.')) },
       { el: gEl('#modal .ws-ro-note'), title: t('View only'), html: gq(t('This is another region, so nothing can be changed here.')) },
       { el: () => { const a = $('#wsActs'); return a && !a.hidden && a.children.length && guideVisible(a) ? a : null; }, title: t('Main button'),
         html: gq(t('The page’s main button — add something new, or save what you changed.')) },
@@ -451,7 +451,8 @@ const SCREEN_GUIDES = [
     steps: () => [
       { el: gEl('#modal2 .ax-steps'), title: t('Import accounts'),
         html: gq(t('Export the accounts (or a blank template) from the Excel menu.')) + gq(t('Add a row per new person, or edit existing rows. The "How to use" sheet explains each column.')) },
-      { el: gEl('#axRegion'), title: t('Region'), html: gq(t('Used for any row whose Region column is blank.')) },
+      // The <select> itself is hidden behind enhanceSelect's control; ring the whole field.
+      { el: gEl('#modal2 .ax-field'), title: t('Region'), html: gq(t('Used for any row whose Region column is blank.')) },
       { el: gEl('#axDrop'), title: t('Choose an Excel file'),
         html: gq(t('Nothing is saved yet — you see a preview of every change first, and apply it only when it looks right.')) }] },
   { key: 'siteeditors', where: 'modal2', match: () => !!$('#modal2 #ceList'),
