@@ -238,3 +238,149 @@ async function openBasesMap() {
     }));
   });
 }
+
+// --- Site picker: put a customer site's pin on the map ---------------------------------
+// A second-layer modal (works over the GPS form, the claim drawer and Settings).
+// The claimant may be anywhere — a hotel, the office — so nothing here reads the
+// phone's location: they find the place (search, a pasted Google Maps link or
+// coordinates, or by moving the map) and tap the exact spot, then drag the pin to
+// fine-tune it. Every distance shown is the rule's straight-line radius from the base.
+//   opts.title / opts.intro    heading and the line under it
+//   opts.site                  starting values { db_no, name, address, lat, lng }
+//   opts.fields                show DB number / name / address (false: the pin only)
+//   opts.base, opts.minKm      draw the base and its ring, and measure from it
+//   opts.sites                 other pinned sites, drawn small so duplicates show
+//   opts.saveLabel             the primary button's text
+//   opts.onSave(values)        async; throw to show the error and stay open
+let _pickerSearchAt = 0;
+async function openSitePicker(opts = {}) {
+  const s0 = opts.site || {};
+  const fields = opts.fields !== false;
+  const base = opts.base || null, minKm = opts.minKm || 30;
+  openModal2(`
+    <div class="modal-head"><div><h2>${esc(opts.title || t('Pin the customer site'))}</h2>
+      ${opts.intro ? `<div class="lf-sub">${esc(opts.intro)}</div>` : ''}</div>
+      <button type="button" class="x-btn" id="spClose" aria-label="${esc(t('Close'))}">×</button></div>
+    <div class="modal-body sp-body">
+      <form class="sp-find" id="spFind" role="search">
+        <input class="input" id="spQ" type="search" autocomplete="off" enterkeyhint="search"
+          placeholder="${esc(t('Search a place or address, or paste a Google Maps link'))}" aria-label="${esc(t('Search a place'))}" />
+        <button type="submit" class="btn btn-ghost" id="spGo">${esc(t('Search'))}</button>
+      </form>
+      <div class="sp-results" id="spResults" hidden></div>
+      <div class="sp-map-wrap">
+        <div class="sp-map map-box" id="spMap"><p class="map-msg">${esc(t('Loading map…'))}</p></div>
+        <p class="sp-tip" id="spTip">${esc(t('Tap the exact spot of the site on the map, then drag the pin to fine-tune it.'))}</p>
+      </div>
+      <div class="sp-read" id="spRead"></div>
+      ${fields ? `<div class="sp-fields">
+        <label class="bs-field">${esc(t('DB number (blank if none)'))}<input class="input" id="spDb" autocomplete="off" inputmode="text" maxlength="22" value="${esc(s0.db_no ? 'DB' + s0.db_no : '')}" placeholder="DB500222" /></label>
+        <label class="bs-field">${reqLabel(t('Customer name'))}<input class="input" id="spName" maxlength="200" value="${esc(s0.name || '')}" placeholder="${esc(t('e.g. PT Sumber Selaras / Pak Dhiraj'))}" /></label>
+        <label class="bs-field sp-addr">${esc(t('Address (optional)'))}<input class="input" id="spAddr" maxlength="500" value="${esc(s0.address || '')}" /></label>
+      </div>` : ''}
+      <p class="form-error" id="spErr" hidden></p>
+    </div>
+    <div class="modal-actions sp-foot">
+      <button type="button" class="btn btn-ghost" id="spCancel">${esc(t('Cancel'))}</button>
+      <button type="button" class="btn btn-primary" id="spSave" disabled>${esc(opts.saveLabel || t('Save'))}</button>
+    </div>`);
+  $('#modal2').classList.add('modal-wide', 'modal-flex');
+  $('#spClose').addEventListener('click', closeModal2);
+  $('#spCancel').addEventListener('click', closeModal2);
+  let pin = Number.isFinite(s0.lat) && Number.isFinite(s0.lng) ? { lat: s0.lat, lng: s0.lng } : null;
+  let marker = null, line = null, map = null;
+  const round = (v) => Math.round(v * 1e6) / 1e6;
+  const canSave = () => !!pin && (!fields || !!($('#spName').value.trim() || $('#spDb').value.replace(/\D/g, '')));
+  const paintRead = () => {
+    const out = $('#spRead');
+    if (!out) return;
+    if (!pin) { out.className = 'sp-read'; out.innerHTML = `<span class="sp-read-ic" aria-hidden="true">📍</span><span>${esc(t('No pin yet — tap the map where the site is.'))}</span>`; }
+    else {
+      const d = base ? kmBetween(base, pin) : null;
+      out.className = `sp-read on${d == null ? '' : d < minKm ? ' in' : ' out'}`;
+      out.innerHTML = `<span class="sp-read-ic" aria-hidden="true">📍</span><span><b class="map-ll">${esc(`${round(pin.lat)}, ${round(pin.lng)}`)}</b>${d == null ? ''
+        : ` · ${withRadius(t('{km} {radius} from {base}', { km: kmLabel(d), base: base.name || t('base') }))}`}</span>`;
+    }
+    $('#spSave').disabled = !canSave();
+  };
+  const place = (ll, { fly = false } = {}) => {
+    pin = { lat: round(ll.lat), lng: round(ll.lng) };
+    paintRead();
+    if (!map) return;
+    if (!marker) {
+      marker = L.marker([pin.lat, pin.lng], { draggable: true, autoPan: true, title: t('Customer site'),
+        icon: L.divIcon({ className: 'sp-pin', html: '<span></span>', iconSize: [30, 40], iconAnchor: [15, 38] }) }).addTo(map);
+      marker.on('drag', () => { const p = marker.getLatLng(); pin = { lat: round(p.lat), lng: round(p.lng) }; drawLine(); paintRead(); });
+    } else marker.setLatLng([pin.lat, pin.lng]);
+    drawLine();
+    if (fly) map.flyTo([pin.lat, pin.lng], Math.max(map.getZoom(), 16), { duration: 0.6 });
+    $('#spTip').textContent = t('Drag the pin, or tap elsewhere to move it. Zoom in to place it exactly.');
+  };
+  const drawLine = () => {
+    if (!map || !base || !pin) return;
+    const ll = [[base.lat, base.lng], [pin.lat, pin.lng]];
+    if (line) line.setLatLngs(ll);
+    else line = L.polyline(ll, { color: mapColor('--indigo', '#3e6a8a'), weight: 1.5, opacity: 0.7, dashArray: '4 6', interactive: false }).addTo(map);
+  };
+  paintRead();
+  if (fields) for (const id of ['#spDb', '#spName']) $(id).addEventListener('input', paintRead);
+
+  // Search: a pasted link / coordinates goes straight to the pin; anything else
+  // asks the server's place search (on submit only — never as you type).
+  const results = $('#spResults');
+  $('#spFind').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = $('#spQ').value.trim();
+    if (!text) return;
+    const ll = parseCoordsText(text);
+    if (ll) { results.hidden = true; place(ll, { fly: true }); return; }
+    if (text.length < 3) return;
+    if (Date.now() - _pickerSearchAt < 1200) return;
+    _pickerSearchAt = Date.now();
+    const go = $('#spGo');
+    go.disabled = true; results.hidden = false;
+    results.innerHTML = `<p class="sp-res-msg">${esc(t('Searching…'))}</p>`;
+    try {
+      const near = pin || base;
+      const lang = (window.I18N && I18N.getLang && I18N.getLang()) || 'en';
+      const d = await api(`/place-search?q=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${near ? `&near=${encodeURIComponent(`${near.lat},${near.lng}`)}` : ''}`);
+      const places = d.places || [];
+      results.innerHTML = places.length ? places.map((p, i) => `
+        <button type="button" class="sp-res" data-p="${i}"><b>${esc(p.name || p.label.split(',')[0])}</b><small>${esc(p.label)}</small>${base
+          ? `<span class="sp-res-km">${esc(kmLabel(kmBetween(base, p)))}</span>` : ''}</button>`).join('')
+        : `<p class="sp-res-msg">${esc(t('No place found for “{q}”. Try a street, area or landmark — or move the map by hand.', { q: text }))}</p>`;
+      results.querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => {
+        const p = places[+b.dataset.p];
+        results.hidden = true;
+        if (map) map.flyTo([p.lat, p.lng], 17, { duration: 0.6 });
+        place(p);
+        if (fields && !$('#spAddr').value.trim()) $('#spAddr').value = p.label.slice(0, 500);
+      }));
+    } catch (ex) { results.innerHTML = `<p class="sp-res-msg bad">${esc(ex.message)}</p>`; }
+    finally { go.disabled = false; }
+  });
+
+  $('#spSave').addEventListener('click', async () => {
+    if (!canSave()) return;
+    const btn = $('#spSave'), err = $('#spErr');
+    btn.disabled = true; err.hidden = true;
+    const values = { lat: pin.lat, lng: pin.lng, coords: `${pin.lat}, ${pin.lng}` };
+    if (fields) Object.assign(values, { db_no: $('#spDb').value, name: $('#spName').value.trim(), address: $('#spAddr').value.trim() });
+    try { await opts.onSave(values); closeModal2(); }
+    catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
+  });
+
+  const el = $('#spMap');
+  map = await makeMap(el);
+  if (!map || !el.isConnected) return;
+  map.scrollWheelZoom.enable(); // the map is the point of this dialog
+  if (base) mapBase(map, base, minKm);
+  if (opts.sites && opts.sites.length) {
+    mapSites(L.layerGroup().addTo(map), opts.sites.filter(x => x.id !== s0.id).map(x => ({ lat: x.lat, lng: x.lng, popup: sitePopupHtml(x, base, minKm) })));
+  }
+  if (pin) { map.setView([pin.lat, pin.lng], 16); place(pin); }
+  else if (base) map.setView([base.lat, base.lng], 11);
+  else map.setView([-2.5, 118], 5);
+  map.on('click', (e) => { results.hidden = true; place(e.latlng); });
+  setTimeout(() => { if (el.isConnected) map.invalidateSize(); }, 350);
+}

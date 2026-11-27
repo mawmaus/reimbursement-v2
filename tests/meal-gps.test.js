@@ -53,8 +53,8 @@ test('a day is measured to its DB number’s pin, or the customer picked when th
   assert.equal(picked.error, undefined);
   assert.equal(picked.lines[0].site_id, 3);
   assert.equal(picked.lines[0].site_name, 'Pak Dhiraj');
-  assert.match(run([line({ site: 'DB 599999' })]).error, /DB599999 isn't registered .* ask your manager/);
-  assert.match(run([line({ site: '' })]).error, /choose the customer .* ask your manager/);
+  assert.match(run([line({ site: 'DB 599999' })]).error, /DB599999 isn't registered .* register it on the map/);
+  assert.match(run([line({ site: '' })]).error, /choose the customer .* register them on the map/);
   assert.match(run([line({ site: '', site_id: 99 })]).error, /choose the customer/);
   // A DB number wins over a stale pick.
   assert.match(run([line({ site: 'DB 500333', site_id: 1 })]).error, /within 30 km/);

@@ -50,7 +50,8 @@ const SERVER_IGNORE = new Set([
   'Reimbursement Portal — test email', 'Test email',                                   // test email
   'This is a test email from the Reimbursement Portal. If you received it, email delivery is working correctly.',
   'Reverted by the claimant to make changes',                                          // history note
-  'CibesReimbursement/1.0 (reimbursement receipt stamping)',                           // HTTP User-Agent
+  'CibesReimbursement/1.0 (reimbursement receipt stamping)',
+  'CibesReimbursement/1.0 (customer site picker)',                                      // HTTP User-Agent (place search)                           // HTTP User-Agent
   'A file',                                                                            // fragment of a templated message
   'Private receipt storage is not configured (PRIVATE_READ_WRITE_TOKEN / PRIVATE_STORE_ID is missing)' // 500, logged only
 ]);

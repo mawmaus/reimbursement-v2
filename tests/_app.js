@@ -104,6 +104,13 @@ async function q(text, params = []) {
     state.throttle.set(params[0], n);
     return [{ fails: n, first_at: new Date().toISOString() }];
   }
+  // Customer sites a claimant registers, and the GPS claims measured to them.
+  const sites = customerSiteQuery(sql, params);
+  if (sites) return sites;
+  // Purposes (lib/workflow computePurposes): the department + job-position rows.
+  if ((m = sql.match(/^SELECT allow_claim, allow_meal FROM (departments|job_positions) WHERE lower\(name\) = lower\(\$1\) AND region = \$2/))) {
+    return state.tables[m[1]].filter(r => String(r.name).toLowerCase() === String(params[0]).toLowerCase() && r.region === params[1]);
+  }
   // Saved drafts (routes/drafts.js).
   const drafts = draftQuery(sql, params);
   if (drafts) return drafts;
@@ -128,6 +135,64 @@ async function q(text, params = []) {
     return [];
   }
   return [];
+}
+// routes/customer-sites.js (register / verify / move a pin) and the pending-site
+// checks on GPS meal claims, over state.tables.customer_sites, meal_claims and
+// meal_claim_lines. Returns null for anything else.
+function customerSiteQuery(sql, params) {
+  const T = state.tables;
+  const write = () => state.writes.push(sql.slice(0, 70));
+  const site = (id) => T.customer_sites.find(s => s.id === Number(id));
+  if (/^SELECT \* FROM customer_sites WHERE region = \$1 AND db_no = \$2$/.test(sql)) {
+    return T.customer_sites.filter(s => s.region === params[0] && s.db_no === params[1]).map(s => ({ ...s }));
+  }
+  if (/^SELECT COUNT\(\*\)::int AS n FROM customer_sites WHERE proposed_by = \$1 AND status = 'pending'$/.test(sql)) {
+    return [{ n: T.customer_sites.filter(s => s.proposed_by === Number(params[0]) && s.status === 'pending').length }];
+  }
+  if (/^INSERT INTO customer_sites \(region, db_no, name, alias, address, lat, lng, status, proposed_by/.test(sql)) {
+    write();
+    const [region, db_no, name, alias, address, lat, lng, status, proposed_by, proposed_by_name, verified_by_name] = params;
+    const row = { id: 100 + T.customer_sites.length, region, db_no, name, alias, address, lat, lng, status, proposed_by, proposed_by_name, verified_by_name };
+    T.customer_sites.push(row);
+    return [{ ...row }];
+  }
+  if (/^UPDATE customer_sites SET status = 'verified', verified_by_name = \$1, verified_at = now\(\) WHERE id = \$2 RETURNING \*$/.test(sql)) {
+    write();
+    const s = site(params[1]);
+    if (!s) return [];
+    Object.assign(s, { status: 'verified', verified_by_name: params[0] });
+    return [{ ...s }];
+  }
+  if (/^UPDATE customer_sites SET db_no = \$1, name = \$2, alias = \$3, address = \$4, lat = \$5, lng = \$6, verified_by_name/.test(sql)) {
+    write();
+    const s = site(params[6]);
+    if (!s) return [];
+    const verify = params[7] === true;
+    Object.assign(s, { db_no: params[0], name: params[1], alias: params[2], address: params[3], lat: params[4], lng: params[5] },
+      verify ? { status: 'verified', verified_by_name: s.status === 'pending' ? params[8] : s.verified_by_name } : {});
+    return [{ ...s }];
+  }
+  const liveLinesOf = (siteId) => T.meal_claim_lines.filter(l => l.site_id === Number(siteId) && !l.rejected_at);
+  if (/^SELECT DISTINCT c\.\* FROM meal_claims c JOIN meal_claim_lines l/.test(sql)) {
+    const ids = new Set(liveLinesOf(params[0]).map(l => l.meal_claim_id));
+    return T.meal_claims.filter(c => ids.has(c.id) && c.status === 'submitted' && c.scheme === 'gps').map(c => ({ ...c }));
+  }
+  if (/^SELECT l\.id, l\.meal_claim_id, l\.line_date, l\.base_lat, l\.base_lng, l\.distance_m, c\.status FROM meal_claim_lines l JOIN meal_claims c/.test(sql)) {
+    return liveLinesOf(params[0]).map(l => ({ ...l, status: (T.meal_claims.find(c => c.id === l.meal_claim_id) || {}).status }))
+      .filter(l => ['submitted', 'rejected'].includes(l.status));
+  }
+  if (/^UPDATE meal_claim_lines SET site_name = \$1, site_lat = \$2, site_lng = \$3, distance_m = \$4 WHERE id = \$5$/.test(sql)) {
+    write();
+    const l = T.meal_claim_lines.find(x => x.id === Number(params[4]));
+    if (l) Object.assign(l, { site_name: params[0], site_lat: params[1], site_lng: params[2], distance_m: params[3] });
+    return [];
+  }
+  if (/^SELECT l\.id AS line_id, s\.id, s\.db_no, s\.name, s\.alias FROM meal_claim_lines l JOIN customer_sites s/.test(sql)) {
+    return T.meal_claim_lines.filter(l => l.meal_claim_id === Number(params[0]) && !l.rejected_at && l.site_id != null)
+      .map(l => ({ l, s: site(l.site_id) })).filter(x => x.s && x.s.status === 'pending')
+      .map(({ l, s }) => ({ line_id: l.id, id: s.id, db_no: s.db_no, name: s.name, alias: s.alias }));
+  }
+  return null;
 }
 // The helpdesk / feedback queries, over state.tables.helpdesk_tickets,
 // helpdesk_messages and feedback. Returns null for anything else.

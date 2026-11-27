@@ -3942,6 +3942,69 @@ a[data-open-doc]:hover { text-decoration: underline; }
 .mg-site-none .mg-site-txt b { color: var(--ink); }
 .mg-site a { color: var(--pine-deep); font-weight: 600; }
 .mg-site .btn { white-space: nowrap; }
+.mg-site-acts { display: flex; gap: 6px; align-items: center; }
+.mg-site-acts:empty { display: none; }
+/* A site a technician registered, until the manager checks its pin. */
+.mg-site-pending { margin-top: 3px; font-size: .78rem; font-weight: 600; color: var(--amber); }
+.mg-cust-reg { border-style: dashed; justify-content: center; }
+.mg-cust-reg b { color: var(--pine-deep); }
+.cs-pending { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--amber-tint);
+  color: var(--amber); font-size: .72rem; font-weight: 700; font-style: normal; vertical-align: 1px; white-space: nowrap; }
+.cs-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.cs-title .cs-nodb, .cs-title .cs-pending { margin-left: 0; font-style: normal; }
+.cs-by { font-size: .78rem; color: var(--amber); }
+.cs-pending-note { margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--amber-tint); color: var(--amber);
+  font-size: .84rem; font-weight: 600; }
+.cs-coords { display: flex; gap: 6px; align-items: center; }
+.cs-coords .input { flex: 1 1 auto; min-width: 0; }
+.cs-coords .btn { flex: none; white-space: nowrap; }
+/* Claim drawer: a GPS day measured to a pin nobody has checked yet. */
+.gl-pending { margin-top: 6px; padding: 7px 9px; border-radius: 8px; background: var(--amber-tint); }
+.gl-pending-t { font-size: .78rem; font-weight: 650; color: var(--amber); line-height: 1.35; }
+.gl-pending-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.gl-pending-acts .btn { white-space: nowrap; }
+.gl-pending .gl-sub { color: var(--amber); }
+/* The site picker (js/map.js openSitePicker, modal2). */
+.sp-body { gap: 10px; overflow: auto !important; }
+.sp-body > * { flex: none; }
+.modal > .sp-foot { flex: none; margin: 0; padding: 12px 22px; border-top: 1px solid var(--line-soft); background: var(--surface); }
+@media (max-width: 720px) { .modal > .sp-foot { padding: 10px 16px; } .modal > .sp-foot .btn { flex: 1 1 0; } }
+.sp-find { display: flex; gap: 8px; margin: 0; }
+.sp-find .input { flex: 1 1 auto; min-width: 0; margin: 0; }
+.sp-find .btn { flex: none; }
+.sp-results { display: flex; flex-direction: column; max-height: 200px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.sp-res { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: center; text-align: left;
+  padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line-soft); background: none; font: inherit; color: var(--ink); cursor: pointer; }
+.sp-res:last-child { border-bottom: 0; }
+.sp-res:hover, .sp-res:focus-visible { background: var(--indigo-tint); outline: none; }
+.sp-res b { font-size: .86rem; font-weight: 650; overflow-wrap: anywhere; }
+.sp-res small { grid-column: 1; font-size: .76rem; color: var(--muted); overflow-wrap: anywhere; }
+.sp-res-km { grid-column: 2; grid-row: 1 / span 2; font-size: .78rem; font-weight: 650; color: var(--ink-soft); white-space: nowrap; }
+.sp-res-msg { margin: 0; padding: 10px 12px; font-size: .84rem; color: var(--muted); }
+.sp-res-msg.bad { color: var(--red); }
+.sp-map-wrap { position: relative; flex: none; }
+.sp-map { height: min(46vh, 420px); cursor: crosshair; }
+.sp-map.leaflet-container { cursor: crosshair; }
+.sp-tip { margin: 6px 2px 0; font-size: .8rem; color: var(--ink-soft); }
+.sp-read { display: flex; gap: 8px; align-items: baseline; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line);
+  background: var(--paper); font-size: .84rem; color: var(--muted); }
+.sp-read.on { border-style: solid; background: var(--indigo-tint); color: var(--ink-soft); }
+.sp-read.in { background: var(--red-tint); border-color: var(--red-line); }
+.sp-read.out { background: var(--green-tint); border-color: var(--green-tint); }
+.sp-read b { color: var(--ink); }
+.sp-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; }
+.sp-fields .sp-addr { grid-column: 1 / -1; }
+.sp-body .form-error { margin: 0; }
+/* The draggable pin: a teardrop pointing at the spot. */
+.map-box .sp-pin span { position: absolute; left: 3px; top: 0; width: 24px; height: 24px; border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg); background: var(--indigo); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+.map-box .sp-pin span::after { content: ''; position: absolute; left: 6px; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: #fff; }
+@media (max-width: 720px) {
+  .sp-fields { grid-template-columns: minmax(0, 1fr); }
+  .sp-map { height: 44vh; }
+  .cs-coords { flex-wrap: wrap; }
+  .cs-coords .btn { flex: 1 1 100%; }
+}
 .cs-nodb { margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line);
   font-size: .72rem; font-weight: 600; color: var(--muted); vertical-align: 1px; }
 .mg-msgs { display: flex; flex-direction: column; gap: 6px; }
@@ -3954,7 +4017,9 @@ a[data-open-doc]:hover { text-decoration: underline; }
   .mg-meals { grid-template-columns: minmax(0, 1fr); }
   .mg-meals-one { grid-template-columns: minmax(0, 1fr); }
   .mg-where-row { grid-template-columns: minmax(0, 1fr); }
-  .mg-site .btn { grid-column: 1 / -1; justify-self: stretch; }
+  .mg-site .btn { justify-self: stretch; }
+  .mg-site-acts { grid-column: 1 / -1; }
+  .mg-site-acts .btn { flex: 1 1 0; }
   .mg-day { padding: 12px 12px 14px; }
 }
 

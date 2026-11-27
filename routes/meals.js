@@ -8,8 +8,9 @@ const { q, qq, transaction } = require('../db');
 const { notifyPendingApprover, notifyClaimantRejected, notifyClaimantDecision } = require('../lib/notify');
 const { requireAuth, requireCap, refuseOutOfRegion } = require('../lib/auth');
 const { ah, asIntArray, intArrayLiteral, DATE_RE, likeContains } = require('../lib/util');
-const { userCan } = require('../lib/permissions');
-const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper } = require('../lib/settings');
+const { userCan, mayEditCustomerSites, loadPositions } = require('../lib/permissions');
+const { regionPrefsFor, viewRegionFilter, seesAllRegions, readsAllRegions, actsAsSuper, loadAppSettings } = require('../lib/settings');
+const { pendingSiteLines } = require('../lib/meal-gps');
 const {
   applyListStatusFilter, applyLedgerWindow, OPEN_CLAIM_SQL,
   claimantApprover1Choices, heldByUnrealizedAdvance, resolveSubmitApprovers,
@@ -98,6 +99,11 @@ router.get('/api/meal-claims/:id', requireAuth, ah(async (req, res) => {
   // drawer can offer a re-pick when a revert sends this back to step 1.
   claim.approver1_choices = await claimantApprover1Choices(row.employee_id);
   claim.can_adjust_approved = canAdjustApproved(req.user, row);
+  // May check (verify / move) the pins of customer sites the claimant
+  // registered: the current approver, or a customer-site editor of the region.
+  claim.can_verify_sites = row.scheme === 'gps' && ((row.status === 'submitted' && userCanApprove(req.user, row))
+    || ((seesAllRegions(req.user) || String(row.region || '') === String(req.user.region || ''))
+      && mayEditCustomerSites(req.user, await loadAppSettings(), await loadPositions(req.user.region))));
   res.json({ claim });
 }));
 
@@ -214,6 +220,18 @@ router.post('/api/meal-claims/:id/approve', requireAuth, ah(async (req, res) => 
   // just be lowered through its approved amount).
   const plan = await planLineRejections('meal', row, req.body && req.body.rejected_lines);
   if (plan.error) return res.status(400).json({ error: plan.error });
+  // A day measured to a site its claimant registered is approved only once
+  // someone has checked that pin (routes/customer-sites.js) — or the day is
+  // being rejected now.
+  if (row.scheme === 'gps') {
+    const pending = await pendingSiteLines(row.id);
+    const rejecting = new Set(plan.picks.map(p => Number(p.line.id)));
+    const open = pending.filter(p => !rejecting.has(Number(p.line_id)));
+    if (open.length) {
+      const s = open[0];
+      return res.status(409).json({ error: `Verify the customer site ${s.db_no ? 'DB' + s.db_no : s.alias || s.name} first — its pin was placed by the claimant and hasn’t been checked yet`, code: 'site_pending' });
+    }
+  }
   const prefs = await regionPrefsFor(req.user.region);
   const le = approvalLimitError(req.user, plan.remainingCents, row.currency, prefs.currency);
   if (le) return res.status(403).json({ error: le });

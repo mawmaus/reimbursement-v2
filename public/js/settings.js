@@ -869,10 +869,26 @@ const siteFieldsHtml = (id, s) => `
   <label class="bs-field">${esc(t('DB number (blank if none)'))}<input class="input" id="${id}Db" autocomplete="off" maxlength="22" value="${esc(s.db_no ? 'DB' + s.db_no : '')}" placeholder="DB500222" /></label>
   <label class="bs-field">${esc(t('Customer name'))}<input class="input" id="${id}Name" maxlength="200" value="${esc(s.name || '')}" /></label>
   <label class="bs-field cs-alias">${esc(t('Alias (what technicians call them)'))}<input class="input" id="${id}Alias" maxlength="200" value="${esc(s.alias || '')}" placeholder="${esc(t('e.g. Pak Dhiraj – Sumber Selaras (Menteng)'))}" /></label>
-  <label class="bs-field">${esc(t('Coordinates or Google Maps link'))}<input class="input" id="${id}Coords" autocomplete="off" value="${esc(s.lat != null ? `${s.lat}, ${s.lng}` : '')}" placeholder="-6.2088, 106.8456" /></label>
+  <label class="bs-field">${esc(t('Coordinates or Google Maps link'))}<span class="cs-coords"><input class="input" id="${id}Coords" autocomplete="off" value="${esc(s.lat != null ? `${s.lat}, ${s.lng}` : '')}" placeholder="-6.2088, 106.8456" />
+    <button type="button" class="btn btn-ghost btn-sm" data-pick-map="${id}">📍 ${esc(t('Pick on map'))}</button></span></label>
   <label class="bs-field cs-addr">${esc(t('Address'))}<input class="input" id="${id}Addr" maxlength="500" value="${esc(s.address || '')}" /></label>
   <p class="bs-read" id="${id}Read"></p>`;
 const siteBody = (id) => ({ db_no: $(`#${id}Db`).value, name: $(`#${id}Name`).value, alias: $(`#${id}Alias`).value, coords: $(`#${id}Coords`).value, address: $(`#${id}Addr`).value });
+
+// "Pick on map" beside a coordinates box: place the pin on a map instead of
+// pasting coordinates; the box gets the result (and its read-out refreshes).
+function wirePickOnMap(root, sites) {
+  root.querySelectorAll('[data-pick-map]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.pickMap, inp = $(`#${id}Coords`);
+    const ll = parseCoordsText(inp.value);
+    const label = [$(`#${id}Db`).value.trim(), $(`#${id}Name`).value.trim()].filter(Boolean).join(' · ');
+    openSitePicker({
+      title: t('Pick the site on the map'), intro: label || '', fields: false,
+      site: ll ? { ...ll, id: csState.editing } : {}, sites, saveLabel: t('Use this spot'),
+      onSave: async (v) => { inp.value = v.coords; inp.dispatchEvent(new Event('input')); }
+    });
+  }));
+}
 
 async function renderCustomerSitesTab() {
   const panel = $('#settingsPanel');
@@ -881,7 +897,9 @@ async function renderCustomerSitesTab() {
   const manager = uCan('manage_settings');
   try { data = await api('/customer-sites' + (manager ? '?manage=1' : '') + (region ? `${manager ? '&' : '?'}region=${encodeURIComponent(region)}` : '')); }
   catch (ex) { panel.innerHTML = `<p class="form-error">${esc(ex.message)}</p>`; return; }
-  const sites = data.sites || [];
+  // Sites a claimant registered come first, until someone checks their pin.
+  const sites = (data.sites || []).slice().sort((a, b) => (b.status === 'pending') - (a.status === 'pending'));
+  const pendingN = sites.filter(x => x.status === 'pending').length;
   const where = region || t('this region');
   panel.innerHTML = `
     <div class="settings-controls ws-card bs-card">
@@ -893,6 +911,7 @@ async function renderCustomerSitesTab() {
         <p class="form-error" id="csErr" hidden></p>
       </section>
       <p class="bs-summary">${esc(sites.length === 1 ? t('1 customer site is pinned in {region}.', { region: where }) : t('{n} customer sites are pinned in {region}.', { n: sites.length, region: where }))}</p>
+      ${pendingN ? `<p class="cs-pending-note">⏳ ${esc(pendingN === 1 ? t('1 site registered by a technician is waiting for its pin to be checked.') : t('{n} sites registered by technicians are waiting for their pins to be checked.', { n: pendingN }))}</p>` : ''}
       <input class="input cs-q" id="csQ" type="search" autocomplete="off" value="${esc(csState.q)}" placeholder="${esc(t('Search by DB number, name, alias or address'))}" aria-label="${esc(t('Search customer sites'))}" />
       <div class="bs-list" id="csList"></div>
       <p class="cs-more" id="csMore" hidden></p>
@@ -909,11 +928,14 @@ async function renderCustomerSitesTab() {
       </div>` : `
       <div class="bs-row cs-row" data-id="${x.id}">
         <span class="bs-ic" aria-hidden="true">📌</span>
-        <div class="bs-main"><b>${esc(x.db_no ? 'DB' + x.db_no + (x.name ? ' · ' + x.name : '') : x.name || x.alias)}</b>${x.db_no ? '' : ` <span class="cs-nodb">${esc(t('No DB'))}</span>`}
+        <div class="bs-main"><div class="cs-title"><b>${esc(x.db_no ? 'DB' + x.db_no + (x.name ? ' · ' + x.name : '') : x.name || x.alias)}</b>${x.db_no ? '' : `<i class="cs-nodb">${esc(t('No DB'))}</i>`}${x.status === 'pending'
+            ? `<i class="cs-pending">${esc(t('Not verified'))}</i>` : ''}</div>${x.status === 'pending'
+            ? `<small class="cs-by">${esc(t('Pin placed by {name}', { name: x.proposed_by_name || t('a technician') }))}</small>` : ''}
           ${x.alias ? `<small class="cs-alias-l">${esc(x.alias)}</small>` : ''}
           ${x.address ? `<small class="cs-addr-l">${esc(x.address)}</small>` : ''}
           <span>${esc(`${x.lat}, ${x.lng}`)} · <a href="https://www.google.com/maps?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
         <div class="bs-acts">
+          ${x.status === 'pending' ? `<button type="button" class="btn btn-primary btn-sm" data-verify="${x.id}">${esc(t('Verify pin'))}</button>` : ''}
           <button type="button" class="btn btn-ghost btn-sm" data-edit="${x.id}">${esc(t('Edit'))}</button>
           <button type="button" class="x-btn" data-del="${x.id}" aria-label="${esc(t('Delete'))}" title="${esc(t('Delete'))}">×</button>
         </div>
@@ -939,10 +961,17 @@ async function renderCustomerSitesTab() {
       try { await api('/customer-sites/' + x.id, { method: 'DELETE' }); done(t('Customer site deleted')); }
       catch (ex) { fail(ex); }
     }));
+    list.querySelectorAll('[data-verify]').forEach(b => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await api('/customer-sites/' + b.dataset.verify + '/verify', { method: 'POST', body: '{}' }); done(t('Pin verified')); }
+      catch (ex) { fail(ex); b.disabled = false; }
+    }));
+    wirePickOnMap(list, sites);
     if ($('#csEditCoords')) { wireCoordsRead('csEdit'); $('#csEditDb').focus(); }
   };
   paint();
   wireCoordsRead('csNew');
+  wirePickOnMap($('#settingsPanel .cs-pin'), sites);
   $('#csQ').addEventListener('input', (e) => { csState.q = e.target.value; csState.editing = null; paint(); });
   const ed = $('#csEditors');
   if (ed) ed.addEventListener('click', () => openSiteEditorsModal(region, data.accounts));

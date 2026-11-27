@@ -460,6 +460,17 @@ const SCREEN_GUIDES = [
       { el: gEl('#ceSearch'), title: t('Search'), html: gq(t('Find someone by name, department or position.')) },
       { el: gEl('#ceList'), title: t('Customer site editors'), html: gq(t('Tick the people who may add and move customer site pins.')) },
       { el: gEl('#ceSave'), title: t('Save'), html: gq(t('Nothing changes until you save.')) }] },
+  { key: 'sitepicker', where: 'modal2', match: () => !!$('#modal2 #spMap'),
+    steps: () => [
+      { el: gEl('#spFind'), title: t('Search a place'),
+        html: gq(t('Type a street, area or landmark and press Search — or paste a Google Maps link or coordinates to jump straight there.')) },
+      { el: gEl('#spMap'), title: t('Pin the customer site'), html: gq(t('Tap the exact spot of the site on the map, then drag the pin to fine-tune it.')) },
+      { el: gEl('#spRead'), title: t('Check the distance'),
+        html: gq(t('The pin’s coordinates and how far it is from the base, in a straight line.')) },
+      { el: gEl('#modal2 .sp-fields'), title: t('Customer'),
+        html: gq(t('The DB number, if the customer has one, and the name you know them by.')) },
+      { el: gEl('#spSave'), title: t('Save'),
+        html: gq(t('A site a technician registers stays “Not verified” until a manager checks its pin — until then the claim can’t be approved.')) }] },
   { key: 'baseaccounts', where: 'modal2', match: () => !!$('#modal2 #baList'),
     steps: () => [
       { el: gEl('#modal2 .ba-tools'), title: t('Search'),

@@ -28,6 +28,21 @@
 window.CHANGELOG_AUDIENCES = ['claim', 'meal', 'advance', 'pay', 'export', 'view_all', 'accounts', 'settings', 'insights', 'superadmin'];
 window.CHANGELOG = [
   {
+    id: '2026-11-27.1',
+    date: '2026-11-27',
+    items: [
+      { kind: 'new', text: {
+        en: 'GPS meal allowance: a customer site that isn’t listed can now be registered straight from the form. Press “Register on map”, search the place (or paste a Google Maps link) and tap its exact spot — you don’t need to be there, so it works from your hotel too. The day uses that pin right away; your manager sees it marked “Not verified”, checks it on the map (and moves it if needed) and verifies it before approving. Settings → Customer sites lists these sites first, and its pins can now be picked on a map too.',
+        id: 'Uang makan GPS: lokasi pelanggan yang belum terdaftar kini bisa didaftarkan langsung dari formulir. Tekan “Daftarkan di peta”, cari tempatnya (atau tempel tautan Google Maps) lalu ketuk titik persisnya — Anda tidak perlu berada di sana, jadi bisa juga dari hotel. Hari tersebut langsung memakai pin itu; manajer Anda melihatnya bertanda “Belum diverifikasi”, memeriksanya di peta (dan menggesernya bila perlu), lalu memverifikasinya sebelum menyetujui. Pengaturan → Lokasi customer menampilkan lokasi-lokasi ini paling atas, dan pinnya kini juga bisa dipilih di peta.',
+        ms: 'Elaun makan GPS: lokasi pelanggan yang belum disenaraikan kini boleh didaftarkan terus dari borang. Tekan “Daftar di peta”, cari tempat itu (atau tampal pautan Google Maps) dan ketik titik tepatnya — anda tidak perlu berada di sana, jadi ia juga berfungsi dari hotel. Hari itu terus menggunakan pin tersebut; pengurus anda melihatnya bertanda “Belum disahkan”, menyemaknya di peta (dan mengalihkannya jika perlu) dan mengesahkannya sebelum meluluskan. Tetapan → Lokasi pelanggan menyenaraikan lokasi ini di atas, dan pinnya kini juga boleh dipilih di peta.',
+        th: 'ค่าอาหาร GPS: สถานที่ลูกค้าที่ยังไม่อยู่ในรายการ ลงทะเบียนได้จากแบบฟอร์มโดยตรงแล้ว กด “ลงทะเบียนบนแผนที่” ค้นหาสถานที่ (หรือวางลิงก์ Google Maps) แล้วแตะจุดที่แน่นอน — ไม่จำเป็นต้องอยู่ที่นั่น จึงทำจากโรงแรมได้ วันนั้นใช้หมุดนั้นได้ทันที ผู้จัดการจะเห็นเครื่องหมาย “ยังไม่ยืนยัน” ตรวจบนแผนที่ (และย้ายหากจำเป็น) แล้วยืนยันก่อนอนุมัติ การตั้งค่า → สถานที่ลูกค้า แสดงสถานที่เหล่านี้ไว้บนสุด และตอนนี้เลือกหมุดบนแผนที่ได้ด้วย',
+        vi: 'Phụ cấp ăn GPS: địa điểm khách hàng chưa có trong danh sách giờ có thể đăng ký ngay từ biểu mẫu. Nhấn “Đăng ký trên bản đồ”, tìm địa điểm (hoặc dán liên kết Google Maps) và chạm đúng vị trí — bạn không cần có mặt ở đó, nên làm từ khách sạn cũng được. Ngày đó dùng ghim ấy ngay; quản lý thấy nó được đánh dấu “Chưa xác minh”, kiểm tra trên bản đồ (và di chuyển nếu cần) rồi xác minh trước khi phê duyệt. Cài đặt → Địa điểm khách hàng hiển thị các địa điểm này lên đầu, và giờ cũng có thể chọn ghim trên bản đồ.',
+        km: 'ប្រាក់អាហារ GPS៖ ទីតាំងអតិថិជនដែលមិនទាន់មានក្នុងបញ្ជី ឥឡូវអាចចុះឈ្មោះដោយផ្ទាល់ពីទម្រង់។ ចុច “ចុះឈ្មោះលើផែនទី” ស្វែងរកកន្លែង (ឬបិទភ្ជាប់តំណ Google Maps) ហើយចុចកន្លែងពិតប្រាកដ — អ្នកមិនចាំបាច់នៅទីនោះទេ ដូច្នេះអាចធ្វើពីសណ្ឋាគារបាន។ ថ្ងៃនោះប្រើម្ជុលនោះភ្លាម អ្នកគ្រប់គ្រងឃើញវាសម្គាល់ “មិនទាន់ផ្ទៀងផ្ទាត់” ពិនិត្យលើផែនទី (ហើយផ្លាស់ទីបើចាំបាច់) រួចផ្ទៀងផ្ទាត់មុនពេលអនុម័ត។ ការកំណត់ → ទីតាំងអតិថិជន បង្ហាញទីតាំងទាំងនេះនៅខាងលើ ហើយឥឡូវក៏អាចជ្រើសម្ជុលលើផែនទីបានដែរ។',
+        fil: 'GPS meal allowance: ang site ng customer na wala pa sa listahan ay maaari nang irehistro mula mismo sa form. Pindutin ang “Irehistro sa mapa”, hanapin ang lugar (o i-paste ang link ng Google Maps) at i-tap ang eksaktong puwesto — hindi mo kailangang nandoon, kaya puwede rin mula sa hotel. Agad na ginagamit ng araw na iyon ang pin; makikita ito ng manager mo na may markang “Hindi pa na-verify”, susuriin sa mapa (at ililipat kung kailangan) at ive-verify bago aprubahan. Inuuna ng Settings → Customer sites ang mga site na ito, at puwede na ring pumili ng pin sa mapa.'
+      } }
+    ]
+  },
+  {
     id: '2026-11-24.1',
     date: '2026-11-24',
     items: [

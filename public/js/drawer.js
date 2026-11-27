@@ -286,7 +286,8 @@ function gpsLineColumns(c, dash) {
         : t('{km} km {radius} from {base}', { km: fmtKm(l.distance_km), base: (l.base && l.base.name) || t('base') });
       const name = [l.site ? dbFmt(l.site) : '', l.site_ref.name].filter(Boolean).join(' · ');
       return `<b>${withRadius(km)}</b>
-        <div class="gl-sub">${name ? esc(name) + ' · ' : ''}<a href="https://www.google.com/maps?q=${encodeURIComponent(l.site_ref.lat + ',' + l.site_ref.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></div>`;
+        <div class="gl-sub">${name ? esc(name) + ' · ' : ''}<a href="https://www.google.com/maps?q=${encodeURIComponent(l.site_ref.lat + ',' + l.site_ref.lng)}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></div>
+        ${l.site_ref.pending && !lineRejected(l) ? sitePendingHtml(c, l) : ''}`;
     }
     // Days submitted before the site rule carried the phone's GPS reading.
     if (!l.gps) return dash;
@@ -318,6 +319,46 @@ function gpsLineColumns(c, dash) {
     { h: 'Details', v: details },
     { h: 'Receipts', cls: 'line-receipts', v: receipts }
   ];
+}
+// A day measured to a customer site its claimant registered on the map: nobody
+// has checked that pin yet. The approver (or a site editor) verifies it as it
+// is, or opens it on the map and moves it — open claims are re-measured.
+function sitePendingHtml(c, l) {
+  const who = l.site_ref.proposed_by || t('the claimant');
+  return `<div class="gl-pending">
+      <div class="gl-pending-t">⏳ ${esc(t('Pin placed by {name} — not verified yet', { name: who }))}</div>
+      ${c.can_verify_sites ? `<div class="gl-pending-acts">
+        <button type="button" class="btn btn-ghost btn-xs" data-site-check="${l.site_ref.id}">${esc(t('Check on map'))}</button>
+        <button type="button" class="btn btn-primary btn-xs" data-site-ok="${l.site_ref.id}">${esc(t('Verify pin'))}</button></div>`
+        : `<div class="gl-sub">${esc(t('The approver checks it before approving.'))}</div>`}
+    </div>`;
+}
+function wireSiteChecks(c, box) {
+  const done = async (msg) => { toast(msg); forgetCustomerSites(); await openDrawer(c.id, 'meal'); loadAll(); };
+  box.querySelectorAll('[data-site-ok]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await api(`/customer-sites/${b.dataset.siteOk}/verify`, { method: 'POST', body: '{}' }); await done(t('Pin verified')); }
+    catch (ex) { toast(ex.message, true); b.disabled = false; }
+  }));
+  box.querySelectorAll('[data-site-check]').forEach(b => b.addEventListener('click', async () => {
+    const id = Number(b.dataset.siteCheck);
+    const line = (c.lines || []).find(l => l.site_ref && l.site_ref.id === id);
+    let site = null, sites = [];
+    try { sites = await loadCustomerSites(); site = sites.find(s => s.id === id) || null; } catch { /* fall back to the line's snapshot */ }
+    const r = line.site_ref;
+    openSitePicker({
+      title: t('Check the site pin'),
+      intro: t('Registered by {name}. Move the pin if it isn’t on the site, then save — that verifies it.', { name: r.proposed_by || t('the claimant') }),
+      site: site || { id, db_no: String(line.site || '').replace(/\D/g, ''), name: r.name, lat: r.lat, lng: r.lng },
+      base: line.base, minKm: mgRules().minKm, sites,
+      saveLabel: t('Save & verify'),
+      onSave: async (v) => {
+        const cur = site || {};
+        await api('/customer-sites/' + id, { method: 'PUT', body: JSON.stringify({ alias: cur.alias || '', db_no: v.db_no, name: v.name, address: v.address, coords: v.coords }) });
+        await done(t('Pin saved and verified'));
+      }
+    });
+  }));
 }
 // The inline editor under a line: what this line pays, and why.
 function adjustFormHtml(c, l) {
@@ -455,6 +496,7 @@ function renderDrawerLines(c) {
   wireDocLinks(box);
   wireReceiptThumbs(box);
   wireAdjust(c, box);
+  wireSiteChecks(c, box);
   syncLineActions(c);
 }
 // --- Receipt thumbnails + viewer ----------------------------------------------
@@ -608,8 +650,12 @@ function syncLineActions(c) {
     const live = activeLines(c).length;
     const keep = live - lineMarks.size;
     ap.textContent = lineMarks.size ? t('Approve {n} of {m} lines', { n: keep, m: live }) : t('Approve');
-    ap.disabled = lineMarks.size > 0 && keep < 1;
-    ap.title = ap.disabled ? t('Every line is marked — use "Reject & return" to send the whole claim back.') : '';
+    // A day measured to an unchecked customer-site pin holds the approval
+    // until the pin is verified, or the day is marked for rejection.
+    const unchecked = activeLines(c).filter(l => l.site_ref && l.site_ref.pending && !lineMarks.has(l.id)).length;
+    ap.disabled = (lineMarks.size > 0 && keep < 1) || unchecked > 0;
+    ap.title = lineMarks.size > 0 && keep < 1 ? t('Every line is marked — use "Reject & return" to send the whole claim back.')
+      : unchecked ? t('Verify the customer site pin first (marked ⏳ above).') : '';
   }
   const rc = $('#drawer [data-act="reclaim"]');
   if (rc) {

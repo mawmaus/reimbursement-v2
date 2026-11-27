@@ -58,7 +58,7 @@ function mgCheck(r) {
   if (!r.trip) errs.push(t('Choose in town or out of town.'));
   if (!site && mgSitesReady) {
     errs.push(mgDbDigits(r)
-      ? t('DB{db} isn’t registered as a customer site yet — ask your manager to register it in Settings → Customer sites.', { db: mgDbDigits(r) })
+      ? t('DB{db} isn’t registered as a customer site yet — register it on the map.', { db: mgDbDigits(r) })
       : t('Choose the customer site for this day.'));
   }
   const tooClose = r.trip === 'in_town' && km != null && km < R.minKm;
@@ -178,7 +178,8 @@ function mgSiteHtml(r, chk = mgCheck(r)) {
   const base = mgCfg().base, R = mgRules(), site = chk.site;
   const hint = (b, sub) => `<div class="mg-site mg-site-none"><span class="mg-site-ic" aria-hidden="true">📌</span>
     <div class="mg-site-txt"><b>${esc(b)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>`;
-  const ask = t('Not listed? Ask your manager to register the customer in Settings → Customer sites.');
+  const ask = t('Not listed? Register it on the map — your manager then checks the pin.');
+  const regBtn = `<button type="button" class="btn btn-ghost btn-sm mg-reg" data-register>📍 ${esc(t('Register on map'))}</button>`;
   if (site) {
     const dist = chk.km == null ? esc(siteTitle(site))
       : withRadius(t('Customer site {km} {radius} from {base}', { km: mgKm(chk.km), base: (base && base.name) || t('base') }));
@@ -188,22 +189,64 @@ function mgSiteHtml(r, chk = mgCheck(r)) {
     const cls = chk.km == null ? '' : chk.km < R.minKm && r.trip !== 'out_of_town' ? ' mg-site-in' : ' mg-site-out';
     return `<div class="mg-site${cls}"><span class="mg-site-ic" aria-hidden="true">📌</span>
       <div class="mg-site-txt"><b>${dist}</b>
-        <span>${chk.km == null ? '' : esc(siteTitle(site))}${note} · <a href="${esc(mgMapUrl(site))}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span></div>
-      ${mgDbDigits(r) ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-unpick>${esc(t('Change'))}</button>`}
+        <span>${chk.km == null ? '' : esc(siteTitle(site))}${note} · <a href="${esc(mgMapUrl(site))}" target="_blank" rel="noopener">${esc(t('Open in Maps'))}</a></span>
+        ${site.status === 'pending' ? `<span class="mg-site-pending">⏳ ${esc(t('Registered by {name} — waiting for the manager to verify the pin', { name: site.proposed_by_name || t('a technician') }))}</span>` : ''}</div>
+      <div class="mg-site-acts">${site.status === 'pending' && site.proposed_by === state.user.id
+        ? `<button type="button" class="btn btn-ghost btn-sm" data-move="${site.id}">${esc(t('Move pin'))}</button>` : ''}${mgDbDigits(r) ? ''
+        : `<button type="button" class="btn btn-ghost btn-sm" data-unpick>${esc(t('Change'))}</button>`}</div>
     </div>`;
   }
   if (!mgSitesReady) return hint(t('Loading customer sites…'));
+  const hintReg = (b, sub) => `<div class="mg-site mg-site-none"><span class="mg-site-ic" aria-hidden="true">📌</span>
+    <div class="mg-site-txt"><b>${esc(b)}</b><span>${esc(sub)}</span></div><div class="mg-site-acts">${regBtn}</div></div>`;
   const db = mgDbDigits(r);
   if (db) {
-    return db.length >= 6 ? hint(t('DB{db} isn’t registered as a customer site yet', { db }), t('Ask your manager to register it in Settings → Customer sites.')) : '';
+    return db.length >= 6 ? hintReg(t('DB{db} isn’t registered as a customer site yet', { db }), t('Register it on the map — pick the exact spot, even from your hotel. Your manager then checks the pin.')) : '';
   }
   const q = String(r.q || '').trim();
-  if (!q) return hint(t('Search the customer you visited'), ask);
+  if (!q) return hintReg(t('Search the customer you visited'), ask);
   const hits = mgSites.filter(x => siteMatches(x, q)).slice(0, 6);
-  if (!hits.length) return hint(t('No customer matches “{q}”', { q }), ask);
+  if (!hits.length) return hintReg(t('No customer matches “{q}”', { q }), ask);
   return `<div class="mg-cust-list" role="listbox" aria-label="${esc(t('Customers'))}">${hits.map(x => `
     <button type="button" class="mg-cust" role="option" data-pick="${x.id}">
-      <b>${esc(siteTitle(x))}</b>${x.address ? `<small>${esc(x.address)}</small>` : ''}</button>`).join('')}</div>`;
+      <b>${esc(siteTitle(x))}${x.status === 'pending' ? ` <span class="cs-pending">${esc(t('Not verified'))}</span>` : ''}</b>${x.address ? `<small>${esc(x.address)}</small>` : ''}</button>`).join('')}
+    <button type="button" class="mg-cust mg-cust-reg" data-register><b>📍 ${esc(t('Not in the list? Register it on the map'))}</b></button></div>`;
+}
+// Register a customer site that isn't listed (pending until the manager checks
+// it), or move the pin of one this claimant registered. Either way the day then
+// points at it and the distance is measured to the new pin.
+function mgOpenPicker(i, siteId = null) {
+  mgReadRows();
+  const r = mgRows[i]; if (!r) return;
+  const editing = siteId ? mgSites.find(s => s.id === siteId) : null;
+  const db = mgDbDigits(r);
+  const take = (site) => {
+    const at = mgSites.findIndex(s => s.id === site.id);
+    if (at >= 0) mgSites[at] = site; else mgSites.push(site);
+    forgetCustomerSites();
+    r.siteId = site.id; r.q = '';
+    if (site.db_no) r.site = dbCombine(true, site.db_no);
+    mgRender();
+  };
+  openSitePicker({
+    title: editing ? t('Move the site pin') : t('Register a customer site'),
+    intro: editing ? t('Put the pin on the exact spot. Your manager still checks it before approving.')
+      : t('Find the site and tap its exact spot — you don’t need to be there. Your manager checks the pin before approving.'),
+    site: editing || { db_no: db, name: db ? '' : String(r.q || '').trim() },
+    base: mgCfg().base, minKm: mgRules().minKm, sites: mgSites,
+    saveLabel: editing ? t('Save pin') : t('Register site'),
+    onSave: async (v) => {
+      if (editing) {
+        const d = await api('/customer-sites/' + editing.id, { method: 'PUT', body: JSON.stringify({ ...editing, db_no: v.db_no, name: v.name, address: v.address, coords: v.coords }) });
+        take(d.site); toast(t('Pin saved'));
+        return;
+      }
+      const d = await api('/customer-sites/register', { method: 'POST', body: JSON.stringify({ db_no: v.db_no, name: v.name, address: v.address, coords: v.coords }) });
+      take(d.site);
+      toast(d.existing ? t('{site} is already registered — this day uses its pin', { site: siteTitle(d.site) })
+        : d.site.status === 'pending' ? t('Site registered — your manager will verify the pin') : t('Customer site added'));
+    }
+  });
 }
 function mgPaintSite(i) {
   const box = $(`#mgDays [data-site="${i}"]`), r = mgRows[i];
@@ -399,7 +442,7 @@ function mgGuideSteps() {
     { el: day('.mg-where-row'), title: t('Find the customer'),
       html: p(t('Type the DB number — or the customer’s name or the name you call them (for example “Pak Dhiraj”) — and pick them from the list.')) },
     { el: day('.mg-site-wrap'), title: t('Check the distance'),
-      html: `<p>${withRadius(t('The distance from your base appears here. Red means the customer is inside {min} km {radius}, so an in-town meal there can’t be claimed.', { min: R.minKm }))}</p>${p(t('Customer not on the list? Ask your manager to register them in Settings → Customer sites.'))}` },
+      html: `<p>${withRadius(t('The distance from your base appears here. Red means the customer is inside {min} km {radius}, so an in-town meal there can’t be claimed.', { min: R.minKm }))}</p>${p(t('Customer not on the list? Press “Register on map”, find the site and tap its exact spot — even from your hotel. Your manager checks the pin before approving.'))}` },
     { el: () => { const c = $('#mgDays .mg-day'); return c && (c.querySelector('.mg-meals') || c.querySelector('.mg-trip')); }, title: t('4. Amount'),
       html: p(t('The amount boxes appear once you pick the trip: one amount in town, or breakfast, lunch and dinner out of town. Enter what the receipt says.')) },
     { el: day('.mg-receipts'), title: t('5. Receipt'),
@@ -514,6 +557,8 @@ async function openMealGpsModal(existing = null, reclaim = null) {
   $('#mgDays').addEventListener('click', (e) => {
     const step = e.target.closest('[data-step]');
     if (step) { mgFocusStep(step.closest('.mg-day'), step.dataset.step); return; }
+    const reg = e.target.closest('[data-register], [data-move]');
+    if (reg) { mgOpenPicker(+reg.closest('.mg-day').dataset.i, reg.dataset.move ? +reg.dataset.move : null); return; }
     const pick = e.target.closest('[data-pick]'), unpick = e.target.closest('[data-unpick]');
     if (!pick && !unpick) return;
     const i = +e.target.closest('.mg-day').dataset.i, r = mgRows[i];

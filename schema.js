@@ -587,7 +587,8 @@ const SCHEMA = [
     overall_score SMALLINT NOT NULL CHECK (overall_score BETWEEN 1 AND 10),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (survey_key, user_id)
-  )`,
+  )`
+,
   // --- Helpdesk and feedback (2026-10-10) ---------------------------------------
   // Helpdesk: an account opens a ticket (lib/help.js) and talks it through with
   // the Super Admins in a thread of messages. user_unread lights the owner's
@@ -736,6 +737,16 @@ const SCHEMA = [
   `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_name TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_lat  DOUBLE PRECISION`,
   `ALTER TABLE meal_claim_lines ADD COLUMN IF NOT EXISTS site_lng  DOUBLE PRECISION`,
+  // --- Technician-registered sites (2026-11-27) ---------------------------------------
+  // A GPS meal claimant may pin a customer site that isn't registered yet (on a
+  // map, from wherever they are). It is usable at once but 'pending' until a site
+  // editor or the claim's approver verifies it (or moves the pin); a claim that
+  // names a pending site can't be approved. Existing rows count as verified.
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'verified'`,
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS proposed_by INTEGER`,
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS proposed_by_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS verified_by_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE customer_sites ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`,
   // --- Saved drafts (2026-10-30) ------------------------------------------------------
   // An unsent New claim / meal / GPS meal / cash advance form, one per account and
   // form type, so a draft survives the browser clearing its storage (Safari drops
